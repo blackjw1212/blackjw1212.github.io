@@ -21,7 +21,7 @@ words_per_minute         : 200
 # Site Author
 author:
   name             : "Blackjw1212"
-  avatar           : "/assets/images/android-chrome-512x512.png" # 已對齊上傳資產
+  avatar           : "/assets/images/avatar.png" # 已對齊上傳資產
   bio              : "土生土長台灣小孩，追求穩定性與勝率的開發者。"
   location         : "Taiwan"
   links:
