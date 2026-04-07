@@ -1,0 +1,363 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);color:var(--color-text-primary);font-size:14px}
+.wrap{padding:1rem 0}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
+.title{font-size:16px;font-weight:500}
+.meta{font-size:12px;color:var(--color-text-tertiary)}
+button#refresh{font-size:12px;padding:5px 12px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:transparent;color:var(--color-text-primary);cursor:pointer}
+button#refresh:hover{background:var(--color-background-secondary)}
+button#refresh:disabled{opacity:.4;cursor:default}
+.spinner{display:inline-block;width:12px;height:12px;border:1.5px solid var(--color-border-secondary);border-top-color:var(--color-text-secondary);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.section-lbl{font-size:11px;font-weight:500;letter-spacing:.06em;color:var(--color-text-tertiary);margin:1rem 0 6px}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:.875rem 1.125rem;margin-bottom:10px}
+.verdict{display:flex;align-items:flex-start;gap:10px;padding:.875rem 1.125rem;border-radius:var(--border-radius-lg);border:0.5px solid;margin-bottom:10px}
+.verdict.ok{background:#EAF3DE;border-color:#97C459;color:#173404}
+.verdict.caution{background:#FAEEDA;border-color:#EF9F27;color:#633806}
+.verdict.danger{background:#FCEBEB;border-color:#F09595;color:#501313}
+.verdict.unknown{background:var(--color-background-secondary);border-color:var(--color-border-tertiary);color:var(--color-text-secondary)}
+.verdict-icon{font-size:20px;line-height:1.2;flex-shrink:0}
+.verdict-main{font-size:14px;font-weight:500}
+.verdict-sub{font-size:12px;margin-top:3px;opacity:.85}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:.625rem .875rem}
+.metric-lbl{font-size:11px;color:var(--color-text-secondary);margin-bottom:3px}
+.metric-val{font-size:18px;font-weight:500}
+.metric-sub{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.row{display:flex;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary);gap:6px}
+.row:last-child{border-bottom:none}
+.row-time{color:var(--color-text-secondary);width:42px;flex-shrink:0;font-size:12px}
+.row-name{font-weight:500;width:52px;flex-shrink:0;font-size:13px}
+.row-detail{font-size:12px;color:var(--color-text-secondary);flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.badge{font-size:11px;padding:2px 7px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.b-ok{background:#EAF3DE;color:#3B6D11}
+.b-caution{background:#FAEEDA;color:#854F0B}
+.b-danger{background:#FCEBEB;color:#A32D2D}
+.b-gray{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.tide-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.tide-cell{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:6px 10px}
+.tide-type{font-size:10px;color:var(--color-text-tertiary);margin-bottom:2px}
+.tide-ht{font-size:16px;font-weight:500}
+.tide-ht.hi{color:#185FA5}
+.tide-ht.lo{color:#B85C00}
+.tide-tm{font-size:11px;color:var(--color-text-secondary)}
+.day-hdr{font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;margin-top:10px;margin-bottom:6px}
+.day-pill{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.window-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:12px}
+.window-row:last-child{border-bottom:none}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-g{background:#639922}.dot-r{background:#E24B4A}.dot-y{background:#EF9F27}
+.stars{color:#EF9F27;font-size:11px;letter-spacing:1px}
+.info-note{font-size:11px;color:var(--color-text-tertiary);margin-top:8px;line-height:1.5}
+.ext-link{font-size:12px;color:#185FA5;text-decoration:none}
+.err-box{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1.5rem;text-align:center;color:var(--color-text-secondary);font-size:13px}
+</style>
+
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <div class="title">東石海況即時報告</div>
+      <div class="meta" id="meta">資料載入中...</div>
+    </div>
+    <button id="refresh" onclick="loadAll()">重新整理</button>
+  </div>
+  <div id="content"><div class="err-box"><span class="spinner"></span> 連線中央氣象署 API...</div></div>
+</div>
+
+<script>
+const API_KEY = "CWA-FA47367B-3420-4F98-A4D5-ADD81BE0B26E";
+const BASE = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
+const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
+const WEEKDAYS = ["日","一","二","三","四","五","六"];
+const LUNAR_MONTH = ["","正","二","三","四","五","六","七","八","九","十","冬","臘"];
+const LUNAR_DAY = ["","初一","初二","初三","初四","初五","初六","初七","初八","初九","初十","十一","十二","十三","十四","十五","十六","十七","十八","十九","二十","廿一","廿二","廿三","廿四","廿五","廿六","廿七","廿八","廿九","三十"];
+
+async function apiFetch(ep, params){
+  const p = new URLSearchParams({...params, Authorization:API_KEY, format:"JSON"});
+  const r = await fetch(`${BASE}/${ep}?${p}`);
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function now(){ return new Date(); }
+
+function bft(ms){
+  const v=parseFloat(ms);
+  if(isNaN(v)||v<0) return null;
+  if(v<0.3)return 0;if(v<1.6)return 1;if(v<3.4)return 2;
+  if(v<5.5)return 3;if(v<8.0)return 4;if(v<10.8)return 5;
+  if(v<13.9)return 6;if(v<17.2)return 7;return 8;
+}
+function bftLabel(b){ return["無風","軟風","輕風","微風","和風","清風","強風","疾風","大風"][b]||"—"; }
+function bftBadge(b){
+  if(b==null)return `<span class="badge b-gray">—</span>`;
+  const cls=b<=3?"b-ok":b<=4?"b-caution":"b-danger";
+  return `<span class="badge ${cls}">${b}級 ${bftLabel(b)}</span>`;
+}
+function wxIcon(w){
+  if(!w) return "🌤";
+  if(w.includes("雷"))return "⛈";
+  if(w.includes("雨"))return "🌧";
+  if(w.includes("陰"))return "☁";
+  if(w.includes("多雲"))return "⛅";
+  if(w.includes("晴"))return "☀";
+  return "🌤";
+}
+function valid(v){ return(v===undefined||v===null||String(v).trim()==="-99"||String(v).trim()==="")?null:v; }
+function fmtTime(dt){ return dt.toTimeString().slice(0,5); }
+function fmtDate(s){ return s.slice(5); }
+function fmtLunar(s){
+  if(!s||!s[0].isDigit) return s;
+  try{ const p=s.split("-"); return `${LUNAR_MONTH[+p[1]]}月${LUNAR_DAY[+p[2]]}`; }catch(e){ return s; }
+}
+function parseForecast(data, target){
+  const res={};
+  if(!data) return res;
+  try{
+    for(const loc of data.records.Locations){
+      for(const l of loc.Location){
+        if(l.LocationName.includes(target)){
+          for(const e of l.WeatherElement){
+            const name=e.ElementName; res[name]={};
+            for(const t of (e.Time||[])){
+              const dtk=t.DataTime||t.StartTime||"";
+              if(!dtk) continue;
+              const key=dtk.slice(0,10)+"_"+parseInt(dtk.slice(11,13));
+              res[name][key]=t.ElementValue[0];
+            }
+          }
+        }
+      }
+    }
+  }catch(e){}
+  return res;
+}
+function nearest(data,field,dt){
+  const d=data[field]||{};
+  const date=dt.toISOString().slice(0,10);
+  const hour=dt.getHours();
+  const cands=Object.entries(d).filter(([k])=>k.startsWith(date));
+  if(!cands.length) return null;
+  const before=cands.filter(([k])=>parseInt(k.split("_")[1])<=hour);
+  const use=before.length?before:cands;
+  use.sort((a,b)=>parseInt(b[0].split("_")[1])-parseInt(a[0].split("_")[1]));
+  return use[0][1];
+}
+
+async function loadAll(){
+  const btn=document.getElementById("refresh");
+  btn.disabled=true;
+  btn.innerHTML=`<span class="spinner"></span>載入中`;
+  const content=document.getElementById("content");
+  const meta=document.getElementById("meta");
+
+  try{
+    const n=now();
+    const today=n.toISOString().slice(0,10);
+
+    const [obsData, cityData, windData, tideData] = await Promise.allSettled([
+      apiFetch("O-A0001-001",{}),
+      apiFetch("F-D0047-057",{LocationName:"東區"}),
+      apiFetch("F-D0047-029",{LocationName:"東石鄉"}),
+      apiFetch("F-A0021-001",{LocationName:"嘉義縣東石鄉"})
+    ]);
+
+    const obs  = obsData.status==="fulfilled"  ? obsData.value  : null;
+    const city = cityData.status==="fulfilled"  ? parseForecast(cityData.value,"東區") : {};
+    const sea  = windData.status==="fulfilled"  ? parseForecast(windData.value,"東石") : {};
+    const tide = tideData.status==="fulfilled"  ? tideData.value : null;
+
+    let html="";
+    let maxObsBft=0, maxFcstBft=0;
+
+    // ── 觀測 ──────────────────────────────────────────────────────
+    let obsRows="";
+    if(obs){
+      const stations=obs.records.Station.filter(s=>OBS_STATIONS[s.StationId]);
+      for(const s of stations){
+        const we=s.WeatherElement;
+        const name=OBS_STATIONS[s.StationId];
+        const wspd=valid(we.WindSpeed);
+        const wdir=valid(we.WindDirection);
+        const temp=valid(we.AirTemperature);
+        const humi=valid(we.RelativeHumidity);
+        const rain=we.Now?.Precipitation||"0";
+        const wx=we.Weather||"—";
+        const b=bft(wspd);
+        if(b!=null && b>maxObsBft) maxObsBft=b;
+        const dirs=["北","東北","東","東南","南","西南","西","西北"];
+        const dirStr=wdir?dirs[Math.round(parseFloat(wdir)/45)%8]:"—";
+        obsRows+=`<div class="row">
+          <span class="row-name">${name}</span>
+          <span class="row-detail">${wxIcon(wx)} ${wx} · ${dirStr}風 ${wspd??'—'}m/s · ${temp??'—'}°C · ${humi??'—'}% · ${rain}mm</span>
+          ${bftBadge(b)}
+        </div>`;
+      }
+    }
+
+    // ── 後6小時天氣預報 ───────────────────────────────────────────
+    let fcstRows="";
+    let temps=[],pops=[];
+    for(let i=0;i<=6;i++){
+      const t=new Date(n.getTime()+i*3600000);
+      const tmp=nearest(city,"溫度",t);
+      const hum=nearest(city,"相對濕度",t);
+      const pop=nearest(city,"3小時降雨機率",t);
+      const wx=nearest(city,"天氣現象",t);
+      if(tmp?.Temperature) temps.push(+tmp.Temperature);
+      if(pop?.ProbabilityOfPrecipitation) pops.push(+pop.ProbabilityOfPrecipitation);
+      const wxStr=wx?.Weather||"—";
+      fcstRows+=`<div class="row">
+        <span class="row-time">${fmtTime(t)}</span>
+        <span class="row-detail">${wxIcon(wxStr)} ${wxStr} · ${tmp?.Temperature??'—'}°C · 濕度 ${hum?.RelativeHumidity??'—'}%</span>
+        <span class="badge b-gray" style="font-size:11px">雨 ${pop?.ProbabilityOfPrecipitation??'—'}%</span>
+      </div>`;
+    }
+    const tRng=temps.length?`${Math.round(Math.min(...temps))}–${Math.round(Math.max(...temps))}°C`:"—";
+    const pMax=pops.length?`${Math.round(Math.max(...pops))}%`:"—";
+
+    // ── 海風預報 ──────────────────────────────────────────────────
+    let windRows="";
+    for(let i=0;i<=6;i++){
+      const t=new Date(n.getTime()+i*3600000);
+      const spd=nearest(sea,"風速",t);
+      const wdir=nearest(sea,"風向",t);
+      const wx=nearest(sea,"天氣現象",t);
+      const bftN=spd?.BeaufortScale!=null?parseInt(spd.BeaufortScale):null;
+      if(bftN!=null && bftN>maxFcstBft) maxFcstBft=bftN;
+      const wxStr=wx?.Weather||"—";
+      windRows+=`<div class="row">
+        <span class="row-time">${fmtTime(t)}</span>
+        <span class="row-detail">${wdir?.WindDirection??'—'} ${spd?.WindSpeed??'—'}m/s · ${wxIcon(wxStr)} ${wxStr}</span>
+        ${bftBadge(bftN)}
+      </div>`;
+    }
+
+    // ── 潮汐 ─────────────────────────────────────────────────────
+    let tideHtml=""; let dryTides=[];
+    if(tide){
+      try{
+        const daily=tide.records.TideForecasts[0].Location.TimePeriods.Daily;
+        const upcoming=daily.filter(d=>d.Date>=today).sort((a,b)=>a.Date>b.Date?1:-1).slice(0,3);
+        for(const day of upcoming){
+          const date=day.Date;
+          const lunar=day.LunarDate||"";
+          const lunarStr=lunar?`農曆${LUNAR_MONTH[+lunar.split("-")[1]]||""}月${LUNAR_DAY[+lunar.split("-")[2]]||""}`:"";
+          const trange=day.TideRange||"";
+          const wday=WEEKDAYS[new Date(date+"T00:00:00").getDay()];
+          const events=day.Time||[];
+          tideHtml+=`<div class="day-hdr">
+            ${fmtDate(date)} 週${wday}
+            <span class="day-pill">${lunarStr}</span>
+            <span class="day-pill">${trange}潮</span>
+          </div><div class="tide-grid">`;
+          for(const ev of events){
+            const evDt=new Date(ev.DateTime);
+            const isHi=ev.Tide==="滿潮";
+            const h=parseInt(ev.TideHeights?.AboveTWVD||0);
+            if(!isHi && date===today) dryTides.push({dt:evDt,h});
+            tideHtml+=`<div class="tide-cell">
+              <div class="tide-type">${isHi?"▲ 滿潮":"▽ 乾潮"} ${evDt.getHours()<12?"上午":"下午"}</div>
+              <div class="tide-ht ${isHi?"hi":"lo"}">${h>0?"+":""}${h} cm</div>
+              <div class="tide-tm">${fmtTime(evDt)}</div>
+            </div>`;
+          }
+          tideHtml+="</div>";
+        }
+      }catch(e){ tideHtml=`<div class="info-note">潮汐解析錯誤</div>`; }
+    }
+
+    // ── 趕潮窗口 ──────────────────────────────────────────────────
+    let windowHtml="";
+    for(const {dt,h} of dryTides){
+      const s=new Date(dt.getTime()-2*3600000);
+      const e=new Date(dt.getTime()+2*3600000);
+      const cls=h<-40?"dot-r":h<0?"dot-g":"dot-y";
+      const stars=h<-40?"★★★":h<0?"★★":"★";
+      windowHtml+=`<div class="window-row">
+        <div class="dot ${cls}"></div>
+        <span style="font-weight:500;min-width:108px">${fmtTime(s)} – ${fmtTime(e)}</span>
+        <span style="flex:1;color:var(--color-text-secondary)">乾潮 ${fmtTime(dt)}（${h>0?"+":""}${h}cm）</span>
+        <span class="stars">${stars}</span>
+      </div>`;
+    }
+
+    // ── 出海建議 ─────────────────────────────────────────────────
+    const maxBft=Math.max(maxObsBft,maxFcstBft);
+    let vCls,vIcon,vMain,vSub;
+    if(maxBft===0 && maxObsBft===0){
+      vCls="unknown";vIcon="?";vMain="無風速資料";vSub="請確認觀測站回傳";
+    } else if(maxBft<=3){
+      vCls="ok";vIcon="✓";vMain="適合出海 — 風平浪靜";vSub=`即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+    } else if(maxBft===4){
+      vCls="caution";vIcon="!";vMain="可出海，留意風況";vSub=`即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+    } else if(maxBft===5){
+      vCls="caution";vIcon="!";vMain="謹慎評估，確認現場後再出發";vSub=`即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+    } else {
+      vCls="danger";vIcon="✕";vMain=`不建議出海（最高 ${maxBft} 級）`;vSub=`即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+    }
+
+    const bestDry=dryTides.length?dryTides.slice().sort((a,b)=>a.h-b.h)[0]:null;
+    let bestWindow="";
+    if(bestDry){
+      const s=new Date(bestDry.dt.getTime()-2*3600000);
+      const e=new Date(bestDry.dt.getTime()+2*3600000);
+      bestWindow=`<div class="info-note">趕潮最佳：${fmtTime(s)} – ${fmtTime(e)}（乾潮 ${fmtTime(bestDry.dt)} ${bestDry.h>0?"+":""}${bestDry.h}cm）</div>`;
+    }
+
+    html=`
+      <div class="verdict ${vCls}">
+        <div class="verdict-icon">${vIcon}</div>
+        <div><div class="verdict-main">${vMain}</div><div class="verdict-sub">${vSub}</div></div>
+      </div>
+
+      ${bestWindow?`<div class="card" style="margin-bottom:10px">${bestWindow}</div>`:""}
+
+      <div class="section-lbl">嘉義市東區 天氣（即時 + 後 6 小時）</div>
+      <div class="card">
+        <div class="g3" style="margin-bottom:10px">
+          <div class="metric"><div class="metric-lbl">溫度範圍</div><div class="metric-val">${tRng}</div></div>
+          <div class="metric"><div class="metric-lbl">最高降雨率</div><div class="metric-val">${pMax}</div></div>
+          <div class="metric"><div class="metric-lbl">更新時間</div><div class="metric-val" style="font-size:15px">${fmtTime(n)}</div></div>
+        </div>
+        ${fcstRows}
+      </div>
+
+      <div class="section-lbl">即時觀測（真實測站）</div>
+      <div class="card">${obsRows||'<div class="info-note">觀測資料無法取得</div>'}</div>
+
+      <div class="section-lbl">東石海風預報（即時 + 後 6 小時）</div>
+      <div class="card">
+        ${windRows}
+        <div class="info-note">預報為平均風速，陣風／浪高請見官方連結</div>
+      </div>
+
+      <div class="section-lbl">潮汐時序（今明後三日）</div>
+      <div class="card">${tideHtml||'<div class="info-note">潮汐資料無法取得</div>'}</div>
+
+      ${windowHtml?`<div class="section-lbl">今日趕潮窗口（±2 小時）</div><div class="card">${windowHtml}<div class="info-note">★ 依潮高估算，非官方流速資料</div></div>`:""}
+
+      <div style="margin-top:12px">
+        <a class="ext-link" href="https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html?cID=10010&pointID=1001009C01" target="_blank">完整沿海預報（浪高／流速）→</a>
+      </div>
+    `;
+
+    content.innerHTML=html;
+    meta.textContent=`最後更新：${n.toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"})}`;
+
+  } catch(err){
+    const isCors=err.message.includes("Failed to fetch")||err.name==="TypeError";
+    content.innerHTML=`<div class="err-box">
+      ${isCors?"⚠ 瀏覽器 CORS 政策擋住了對氣象署 API 的請求。<br><br>氣象署 API 不開放跨來源存取，需要後端 proxy 才能在瀏覽器即時呼叫。<br>建議改用<strong>選項 C（部署 proxy）</strong>，或直接執行 Python 腳本。":"⚠ 載入失敗："+err.message}
+    </div>`;
+    meta.textContent="載入失敗";
+  }
+
+  btn.disabled=false;
+  btn.textContent="重新整理";
+}
+
+loadAll();
+</script>
