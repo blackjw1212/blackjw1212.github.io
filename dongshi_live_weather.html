@@ -100,7 +100,7 @@ body {
   font-family: 'Noto Sans TC', system-ui, sans-serif;
   background: var(--bg);
   color: var(--txt);
-  font-size: 16px; /* Base font increased to 16px */
+  font-size: 16px; 
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
@@ -122,7 +122,6 @@ body {
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
-.topbar-left {}
 .title {
   font-size: 20px;
   font-weight: 600;
@@ -216,7 +215,7 @@ body {
 .verdict-main { font-size: 16px; font-weight: 600; }
 .verdict-sub  { font-size: 13px; margin-top: 4px; opacity: .82; font-family: 'DM Mono', monospace; }
 
-/* ─── Current Focus (New) ────────────────────────────────── */
+/* ─── Current Focus ────────────────────────────────── */
 .current-focus {
   display: flex;
   align-items: center;
@@ -244,9 +243,8 @@ body {
 }
 .metric-lbl { font-size: 13px; color: var(--txt-3); margin-bottom: 4px; }
 .metric-val { font-size: 20px; font-weight: 600; font-family: 'DM Mono', monospace; }
-.metric-sub { font-size: 12px; color: var(--txt-3); margin-top: 3px; }
 
-/* ─── Horizontal Scroll 24h Forecast (New) ───────────────── */
+/* ─── Horizontal Scroll 24h Forecast ───────────────── */
 .hz-scroll {
   display: flex;
   overflow-x: auto;
@@ -315,9 +313,9 @@ body {
   letter-spacing: .01em;
 }
 .b-ok      { background: var(--ok-badge-bg);   color: var(--ok-badge-txt);   }
-.b-caution { background: var(--warn-badge-bg);  color: var(--warn-badge-txt); }
-.b-danger  { background: var(--err-badge-bg);   color: var(--err-badge-txt);  }
-.b-gray    { background: var(--bg-subtle);       color: var(--txt-3);          border: 1px solid var(--border); }
+.b-caution { background: var(--warn-badge-bg); color: var(--warn-badge-txt); }
+.b-danger  { background: var(--err-badge-bg);  color: var(--err-badge-txt);  }
+.b-gray    { background: var(--bg-subtle);     color: var(--txt-3);          border: 1px solid var(--border); }
 
 /* ─── Tide grid ──────────────────────────────────────────── */
 .tide-grid {
@@ -333,10 +331,10 @@ body {
   border: 1px solid var(--border);
 }
 .tide-type { font-size: 12px; color: var(--txt-3); margin-bottom: 4px; letter-spacing: .04em; }
-.tide-ht   { font-size: 20px; font-weight: 600; font-family: 'DM Mono', monospace; }
+.tide-tm   { font-size: 20px; font-weight: 600; color: var(--txt); font-family: 'DM Mono', monospace; }
+.tide-ht   { font-size: 14px; margin-top: 4px; font-family: 'DM Mono', monospace; }
 .tide-ht.hi { color: var(--tide-hi); }
 .tide-ht.lo { color: var(--tide-lo); }
-.tide-tm   { font-size: 13px; color: var(--txt-3); margin-top: 4px; font-family: 'DM Mono', monospace; }
 
 /* ─── Day header ─────────────────────────────────────────── */
 .day-hdr {
@@ -389,25 +387,6 @@ body {
   line-height: 1.55;
 }
 .info-note:first-child { margin-top: 0; }
-
-/* ─── Best window highlight ──────────────────────────────── */
-.best-window {
-  background: var(--accent-dim);
-  border: 1px solid rgba(26,115,200,.25);
-  border-radius: var(--radius-lg);
-  padding: 12px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--accent);
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-@media (prefers-color-scheme: dark) {
-  .best-window { border-color: rgba(75,159,225,.3); }
-}
-.best-window-icon { font-size: 18px; flex-shrink: 0; }
 
 /* ─── External link ──────────────────────────────────────── */
 .ext-link {
@@ -560,19 +539,35 @@ async function loadAll(){
     const n = now();
     const today = n.toISOString().slice(0,10);
 
-    const [obsData, cityData, windData, tideData] = await Promise.allSettled([
+    const [obsData, cityData, windData, tideData, astroData] = await Promise.allSettled([
       apiFetch("O-A0001-001",{}),
       apiFetch("F-D0047-057",{LocationName:"東區"}),
       apiFetch("F-D0047-029",{LocationName:"東石鄉"}),
-      apiFetch("F-A0021-001",{LocationName:"嘉義縣東石鄉"})
+      apiFetch("F-A0021-001",{LocationName:"嘉義縣東石鄉"}),
+      apiFetch("A-B0062-001",{CountyName:"嘉義市"})
     ]);
 
-    const obs  = obsData.status==="fulfilled"  ? obsData.value  : null;
-    const city = cityData.status==="fulfilled"  ? parseForecast(cityData.value,"東區") : {};
-    const sea  = windData.status==="fulfilled"  ? parseForecast(windData.value,"東石") : {};
-    const tide = tideData.status==="fulfilled"  ? tideData.value : null;
+    const obs   = obsData.status==="fulfilled"  ? obsData.value  : null;
+    const city  = cityData.status==="fulfilled" ? parseForecast(cityData.value,"東區") : {};
+    const sea   = windData.status==="fulfilled" ? parseForecast(windData.value,"東石") : {};
+    const tide  = tideData.status==="fulfilled" ? tideData.value : null;
+    const astro = astroData.status==="fulfilled"? astroData.value: null;
 
     let maxObsBft=0, maxFcstBft=0;
+
+    /* ── 取得日出日沒 ──────────────────────────────────────── */
+    let sunrise = "—", sunset = "—";
+    if(astro) {
+      try {
+        const locs = astro.records.locations.location;
+        const loc = locs.find(l => l.CountyName === "嘉義市") || locs[0];
+        const t = loc.time.find(x => x.Date === today) || loc.time[0];
+        if(t){
+           sunrise = t.SunRiseTime;
+           sunset  = t.SunSetTime;
+        }
+      } catch(e) { console.error("天文資料解析失敗", e); }
+    }
 
     /* ── 觀測站 ──────────────────────────────────────────── */
     let obsRows = "";
@@ -600,8 +595,8 @@ async function loadAll(){
     }
 
     /* ── 天氣預報 (24小時 + 當前重點) ─────────────────────── */
-    // 當前重點
     const curTmp = nearest(city, "溫度", n);
+    const curAT  = nearest(city, "體感溫度", n);
     const curHum = nearest(city, "相對濕度", n);
     const curPop = nearest(city, "3小時降雨機率", n);
     const curWx  = nearest(city, "天氣現象", n);
@@ -621,7 +616,7 @@ async function loadAll(){
       </div>
     `;
 
-    // 24小時預報橫向捲動（間隔 3 小時）
+    // 24小時預報橫向捲動
     let hzRows = "";
     let temps=[], pops=[];
     for(let i=0; i<=24; i+=3){
@@ -643,8 +638,6 @@ async function loadAll(){
         <span class="hz-sub" title="降雨機率">☔ ${pop?.ProbabilityOfPrecipitation??'—'}%</span>
       </div>`;
     }
-    const tRng = temps.length?`${Math.round(Math.min(...temps))}–${Math.round(Math.max(...temps))}°C`:"—";
-    const pMax = pops.length?`${Math.round(Math.max(...pops))}%`:"—";
 
     /* ── 海風預報 ─────────────────────────────────────────── */
     let windRows = "";
@@ -689,8 +682,8 @@ async function loadAll(){
             if(!isHi && date===today) dryTides.push({dt:evDt,h});
             tideHtml += `<div class="tide-cell">
               <div class="tide-type">${isHi?"▲ 滿潮":"▽ 乾潮"} ${evDt.getHours()<12?"上午":"下午"}</div>
-              <div class="tide-ht ${isHi?"hi":"lo"}">${h>0?"+":""}${h} cm</div>
               <div class="tide-tm">${fmtTime(evDt)}</div>
+              <div class="tide-ht ${isHi?"hi":"lo"}">${h>0?"+":""}${h} cm</div>
             </div>`;
           }
           tideHtml += "</div>";
@@ -728,17 +721,6 @@ async function loadAll(){
       vCls="danger";  vIcon="✕"; vMain=`不建議出海（最高 ${maxBft} 級）`; vSub=`即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
     }
 
-    const bestDry = dryTides.length ? dryTides.slice().sort((a,b)=>a.h-b.h)[0] : null;
-    let bestWindowHtml = "";
-    if(bestDry){
-      const s = new Date(bestDry.dt.getTime()-2*3600000);
-      const e = new Date(bestDry.dt.getTime()+2*3600000);
-      bestWindowHtml = `<div class="best-window">
-        <span class="best-window-icon">🏖</span>
-        趕潮最佳：${fmtTime(s)} – ${fmtTime(e)}（乾潮 ${fmtTime(bestDry.dt)} ${bestDry.h>0?"+":""}${bestDry.h}cm）
-      </div>`;
-    }
-
     /* ── 組裝 HTML ───────────────────────────────────────── */
     content.innerHTML = `
       <div class="verdict ${vCls}">
@@ -749,8 +731,6 @@ async function loadAll(){
         </div>
       </div>
 
-      ${bestWindowHtml}
-
       <div class="two-col">
 
         <div class="col-wrap">
@@ -760,16 +740,16 @@ async function loadAll(){
               ${currentFocusHtml}
               <div class="g3">
                 <div class="metric">
-                  <div class="metric-lbl">溫度範圍</div>
-                  <div class="metric-val">${tRng}</div>
+                  <div class="metric-lbl">溫度</div>
+                  <div class="metric-val">${curTmp?.Temperature??'—'}°C</div>
                 </div>
                 <div class="metric">
-                  <div class="metric-lbl">最高降雨機率</div>
-                  <div class="metric-val">${pMax}</div>
+                  <div class="metric-lbl">體感溫度</div>
+                  <div class="metric-val">${curAT?.ApparentTemperature??'—'}°C</div>
                 </div>
                 <div class="metric">
-                  <div class="metric-lbl">更新時間</div>
-                  <div class="metric-val" style="font-size:16px">${fmtTime(n)}</div>
+                  <div class="metric-lbl">日出 / 日沒</div>
+                  <div class="metric-val" style="font-size:15px">${sunrise} / ${sunset}</div>
                 </div>
               </div>
               <div class="hz-scroll">
