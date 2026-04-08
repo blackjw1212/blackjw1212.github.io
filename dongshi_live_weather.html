@@ -528,6 +528,67 @@ function nearest(data, field, dt){
   return use[0][1];
 }
 
+/* ── 強健的日出日沒解析 ──────────────────────────────────────
+   支援 CWA REST API v1 的多種可能回傳結構：
+   (A) records.locations.location[]  ← 標準格式
+   (B) records.locations[]           ← 陣列格式
+   (C) records.location[]            ← 舊版格式
+   欄位名稱也兼容：SunRiseTime / SunSetTime（REST v1）
+                   及 parameter[].parameterName（舊版靜態檔）
+───────────────────────────────────────────────────────────── */
+function parseAstro(astro, today){
+  if(!astro) return {sunrise:"—", sunset:"—"};
+  try{
+    const r = astro.records;
+
+    // 找出 location 陣列（容錯多種結構）
+    let locs = [];
+    if(Array.isArray(r?.locations?.location)){
+      locs = r.locations.location;
+    } else if(r?.locations?.location && typeof r.locations.location === "object"){
+      locs = [r.locations.location];
+    } else if(Array.isArray(r?.locations)){
+      locs = r.locations;
+    } else if(Array.isArray(r?.location)){
+      locs = r.location;
+    }
+
+    if(!locs.length) return {sunrise:"—", sunset:"—"};
+
+    // 優先找嘉義市，找不到就用第一筆
+    const loc = locs.find(l => l.CountyName === "嘉義市") || locs[0];
+    if(!loc) return {sunrise:"—", sunset:"—"};
+
+    const times = Array.isArray(loc.time) ? loc.time : [];
+    // 優先找當天，找不到用第一筆
+    const t = times.find(x => x.Date === today) || times[0];
+    if(!t) return {sunrise:"—", sunset:"—"};
+
+    // 欄位名稱：REST API v1 使用 SunRiseTime / SunSetTime
+    let sunrise = t.SunRiseTime || t.sunRiseTime || t.sunrise || "";
+    let sunset  = t.SunSetTime  || t.sunSetTime  || t.sunset  || "";
+
+    // 相容舊版靜態檔案格式（parameter 陣列）
+    if((!sunrise || !sunset) && Array.isArray(t.parameter)){
+      for(const p of t.parameter){
+        const n = p.parameterName || "";
+        const v = p.parameterValue || "";
+        if(n === "日出" || n.toLowerCase() === "sunrise") sunrise = sunrise || v;
+        if(n === "日沒" || n.toLowerCase() === "sunset")  sunset  = sunset  || v;
+      }
+    }
+
+    // 格式標準化：API 可能回傳 "HH:mm" 或 "HH:mm:ss"，統一取前五碼
+    sunrise = sunrise ? sunrise.slice(0,5) : "—";
+    sunset  = sunset  ? sunset.slice(0,5)  : "—";
+
+    return {sunrise, sunset};
+  }catch(e){
+    console.error("天文資料解析失敗", e);
+    return {sunrise:"—", sunset:"—"};
+  }
+}
+
 async function loadAll(){
   const btn     = document.getElementById("refresh");
   const content = document.getElementById("content");
@@ -538,13 +599,15 @@ async function loadAll(){
   try{
     const n = now();
     const today = n.toISOString().slice(0,10);
+    // 加 timeFrom / timeTo 只拉今天，大幅縮小回傳量，避免超時
+    const tomorrow = new Date(n.getTime()+86400000).toISOString().slice(0,10);
 
     const [obsData, cityData, windData, tideData, astroData] = await Promise.allSettled([
       apiFetch("O-A0001-001",{}),
       apiFetch("F-D0047-057",{LocationName:"東區"}),
       apiFetch("F-D0047-029",{LocationName:"東石鄉"}),
       apiFetch("F-A0021-001",{LocationName:"嘉義縣東石鄉"}),
-      apiFetch("A-B0062-001",{CountyName:"嘉義市"})
+      apiFetch("A-B0062-001",{CountyName:"嘉義市", timeFrom:today, timeTo:tomorrow})
     ]);
 
     const obs   = obsData.status==="fulfilled"  ? obsData.value  : null;
@@ -555,19 +618,8 @@ async function loadAll(){
 
     let maxObsBft=0, maxFcstBft=0;
 
-    /* ── 取得日出日沒 ──────────────────────────────────────── */
-    let sunrise = "—", sunset = "—";
-    if(astro) {
-      try {
-        const locs = astro.records.locations.location;
-        const loc = locs.find(l => l.CountyName === "嘉義市") || locs[0];
-        const t = loc.time.find(x => x.Date === today) || loc.time[0];
-        if(t){
-           sunrise = t.SunRiseTime;
-           sunset  = t.SunSetTime;
-        }
-      } catch(e) { console.error("天文資料解析失敗", e); }
-    }
+    /* ── 取得日出日沒（使用強健解析函式）────────────────────── */
+    const {sunrise, sunset} = parseAstro(astro, today);
 
     /* ── 觀測站 ──────────────────────────────────────────── */
     let obsRows = "";
@@ -618,17 +670,12 @@ async function loadAll(){
 
     // 24小時預報橫向捲動
     let hzRows = "";
-    let temps=[], pops=[];
     for(let i=0; i<=24; i+=3){
       const t   = new Date(n.getTime()+i*3600000);
       const tmp = nearest(city,"溫度",t);
       const hum = nearest(city,"相對濕度",t);
       const pop = nearest(city,"3小時降雨機率",t);
       const wx  = nearest(city,"天氣現象",t);
-
-      if(tmp?.Temperature) temps.push(+tmp.Temperature);
-      if(pop?.ProbabilityOfPrecipitation) pops.push(+pop.ProbabilityOfPrecipitation);
-
       const wxStr = wx?.Weather||"—";
       hzRows += `<div class="hz-item">
         <span class="hz-time">${fmtTime(t)}</span>
@@ -721,6 +768,12 @@ async function loadAll(){
       vCls="danger";  vIcon="✕"; vMain=`不建議出海（最高 ${maxBft} 級）`; vSub=`即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
     }
 
+    /* ── 日出日沒狀態標記 ────────────────────────────────── */
+    const sunriseOk = sunrise !== "—";
+    const sunriseLabel = sunriseOk
+      ? `${sunrise} / ${sunset}`
+      : `— / — <span style="font-size:11px;color:var(--txt-3)">(API 無資料)</span>`;
+
     /* ── 組裝 HTML ───────────────────────────────────────── */
     content.innerHTML = `
       <div class="verdict ${vCls}">
@@ -749,7 +802,7 @@ async function loadAll(){
                 </div>
                 <div class="metric">
                   <div class="metric-lbl">日出 / 日沒</div>
-                  <div class="metric-val" style="font-size:15px">${sunrise} / ${sunset}</div>
+                  <div class="metric-val" style="font-size:15px">${sunriseLabel}</div>
                 </div>
               </div>
               <div class="hz-scroll">
