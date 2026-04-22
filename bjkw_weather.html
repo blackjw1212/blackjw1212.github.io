@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BJKW即時氣象報告</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ─── Design tokens ─────────────────────────────────────── */
+:root {
+  --bg:            #F4F6F8;
+  --bg-card:       #FFFFFF;
+  --bg-raised:     #EDF0F3;
+  --bg-subtle:     #E7ECF1;
+  --border:        rgba(0,0,0,.09);
+  --border-strong: rgba(0,0,0,.15);
+  --txt:           #0F1923;
+  --txt-2:         #435360;
+  --txt-3:         #7A909F;
+  --accent:        #1A73C8;
+  --accent-dim:    rgba(26,115,200,.12);
+  --link:          #1A73C8;
+
+  --ok-bg:         #E8F5DB;
+  --ok-border:     #7DB94A;
+  --ok-txt:        #1A4006;
+  --ok-badge-bg:   #D4EEC0;
+  --ok-badge-txt:  #2A6010;
+
+  --warn-bg:       #FEF3DC;
+  --warn-border:   #E9A130;
+  --warn-txt:      #5C3507;
+  --warn-badge-bg: #FAEAC5;
+  --warn-badge-txt:#7C4A0A;
+
+  --err-bg:        #FDEAEA;
+  --err-border:    #E87575;
+  --err-txt:       #4A1010;
+  --err-badge-bg:  #FACECE;
+  --err-badge-txt: #8B1E1E;
+
+  --tide-hi:       #1A5FA8;
+  --tide-lo:       #B85C00;
+
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     14px;
+  --radius-xl:     18px;
+
+  --shadow-sm:     0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:     0 3px 10px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:            #0D1620;
+    --bg-card:       #162030;
+    --bg-raised:     #1C2A3E;
+    --bg-subtle:     #1A2535;
+    --border:        rgba(255,255,255,.08);
+    --border-strong: rgba(255,255,255,.14);
+    --txt:           #E8EFF5;
+    --txt-2:         #8FAFC4;
+    --txt-3:         #5A7A8F;
+    --accent:        #4B9FE1;
+    --accent-dim:    rgba(75,159,225,.14);
+    --link:          #5AADE8;
+
+    --ok-bg:         #152B0A;
+    --ok-border:     #4A8525;
+    --ok-txt:        #A8E07A;
+    --ok-badge-bg:   #1C3E0E;
+    --ok-badge-txt:  #90D060;
+
+    --warn-bg:       #2A1A04;
+    --warn-border:   #C4820A;
+    --warn-txt:      #F5C87A;
+    --warn-badge-bg: #3A2308;
+    --warn-badge-txt:#EDB860;
+
+    --err-bg:        #2A0A0A;
+    --err-border:    #C44040;
+    --err-txt:       #F5A0A0;
+    --err-badge-bg:  #3A1010;
+    --err-badge-txt: #E88080;
+
+    --tide-hi:       #5AADE8;
+    --tide-lo:       #E8A040;
+
+    --shadow-sm:     0 1px 3px rgba(0,0,0,.3);
+    --shadow-md:     0 3px 12px rgba(0,0,0,.35);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans TC', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--txt);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 20px 20px 48px;
+}
+
+/* ─── Top bar ────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--txt); }
+.meta  { font-size: 13px; color: var(--txt-3); margin-top: 4px; font-family: 'DM Mono', monospace; }
+#refresh {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 13px; font-weight: 500;
+  padding: 8px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--txt-2);
+  cursor: pointer;
+  transition: background .15s, color .15s, opacity .15s;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+#refresh:hover   { background: var(--bg-raised); color: var(--txt); }
+#refresh:disabled{ opacity: .4; cursor: default; }
+
+/* ─── 暫存警告橫幅 ─────────────────────────────────────── */
+.cache-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-lg);
+  color: var(--warn-txt);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.cache-banner .cb-icon { font-size: 16px; flex-shrink: 0; }
+
+/* ─── Spinner ────────────────────────────────────────────── */
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--txt-2);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Section label ──────────────────────────────────────── */
+.section-lbl {
+  font-size: 13px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--txt-3); margin: 20px 0 10px;
+}
+
+/* ─── Card ───────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ─── Verdict banner ─────────────────────────────────────── */
+.verdict {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 18px 20px;
+  border-radius: var(--radius-xl); border: 1px solid;
+  margin-bottom: 14px; box-shadow: var(--shadow-sm);
+}
+.verdict.ok      { background: var(--ok-bg);   border-color: var(--ok-border);   color: var(--ok-txt);   }
+.verdict.caution { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-txt); }
+.verdict.danger  { background: var(--err-bg);  border-color: var(--err-border);  color: var(--err-txt);  }
+.verdict.unknown { background: var(--bg-raised); border-color: var(--border);    color: var(--txt-2);    }
+.verdict-icon {
+  font-size: 22px; line-height: 1.2; flex-shrink: 0;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: rgba(255,255,255,.18); font-weight: 700;
+}
+.verdict-main { font-size: 16px; font-weight: 600; }
+.verdict-sub  { font-size: 13px; margin-top: 4px; opacity: .82; font-family: 'DM Mono', monospace; }
+
+/* ─── Current Focus ──────────────────────────────────────── */
+.current-focus {
+  display: flex; align-items: center; gap: 18px; padding: 8px 0 20px;
+}
+.cf-icon { font-size: 54px; line-height: 1; }
+.cf-data { display: flex; flex-direction: column; }
+.cf-temp { font-size: 38px; font-weight: 600; font-family: 'DM Mono', monospace; line-height: 1.1; }
+.cf-desc { font-size: 16px; color: var(--txt-2); font-weight: 500; margin-top: 2px; }
+.cf-sub  { display: flex; gap: 14px; font-size: 13px; color: var(--txt-3); margin-top: 6px; }
+
+/* ─── Metric grid ────────────────────────────────────────── */
+.g2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.metric {
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+}
+.metric-lbl { font-size: 13px; color: var(--txt-3); margin-bottom: 4px; }
+.metric-val { font-size: 20px; font-weight: 600; font-family: 'DM Mono', monospace; }
+
+/* ─── 日光條 ─────────────────────────────────────────────── */
+.daylight-wrap {
+  margin-bottom: 16px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+}
+.daylight-lbl { font-size: 13px; color: var(--txt-3); margin-bottom: 8px; }
+.daylight-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.dl-time {
+  font-size: 13px; font-family: 'DM Mono', monospace;
+  color: var(--txt-2); white-space: nowrap; flex-shrink: 0;
+}
+.dl-track {
+  flex: 1; height: 8px;
+  background: var(--bg-card);
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  position: relative; overflow: hidden;
+}
+.dl-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #F5A623 0%, #FFD166 60%, #F5A623 100%);
+  border-radius: 999px;
+  transition: width .4s ease;
+}
+.dl-night-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3A5A8A 0%, #1A2F50 100%);
+  border-radius: 999px;
+}
+.dl-now {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 12px; height: 12px;
+  background: #fff;
+  border: 2px solid #E9A130;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(233,161,48,.3);
+}
+.dl-remain {
+  font-size: 11px; color: var(--txt-3); margin-top: 6px; text-align: center;
+  font-family: 'DM Mono', monospace;
+}
+
+/* ─── 橫向捲動預報 ───────────────────────────────────────── */
+.hz-scroll {
+  display: flex; overflow-x: auto; gap: 12px;
+  padding-bottom: 8px; scrollbar-width: thin;
+}
+.hz-scroll::-webkit-scrollbar { height: 6px; }
+.hz-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
+.hz-item {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; align-items: center;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 12px; min-width: 76px;
+}
+.hz-item.hz-now {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.hz-time { font-size: 13px; font-family: 'DM Mono', monospace; color: var(--txt-3); margin-bottom: 8px; }
+.hz-icon { font-size: 24px; margin-bottom: 8px; }
+.hz-temp { font-size: 18px; font-weight: 600; font-family: 'DM Mono', monospace; margin-bottom: 8px; }
+.hz-sub  { font-size: 13px; color: var(--txt-2); display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+
+/* ─── Data rows ──────────────────────────────────────────── */
+.row {
+  display: flex; align-items: center; padding: 10px 0;
+  border-bottom: 1px solid var(--border); gap: 10px;
+}
+.row:last-child { border-bottom: none; }
+.row-time   { color: var(--txt-3); width: 50px; flex-shrink: 0; font-size: 13px; font-family: 'DM Mono', monospace; }
+.row-name   { font-weight: 600; width: 64px; flex-shrink: 0; font-size: 15px; }
+.row-detail {
+  font-size: 14px; color: var(--txt-2);
+  flex: 1; min-width: 0; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis;
+}
+
+/* ─── Badges ─────────────────────────────────────────────── */
+.badge {
+  font-size: 12px; font-weight: 500;
+  padding: 4px 10px; border-radius: 20px;
+  white-space: nowrap; flex-shrink: 0; letter-spacing: .01em;
+}
+.b-ok      { background: var(--ok-badge-bg);   color: var(--ok-badge-txt);   }
+.b-caution { background: var(--warn-badge-bg); color: var(--warn-badge-txt); }
+.b-danger  { background: var(--err-badge-bg);  color: var(--err-badge-txt);  }
+.b-gray    { background: var(--bg-subtle);     color: var(--txt-3); border: 1px solid var(--border); }
+
+/* ─── Tide grid ──────────────────────────────────────────── */
+.tide-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-top: 10px;
+}
+.tide-cell {
+  background: var(--bg-subtle); border-radius: var(--radius-md);
+  padding: 10px 14px; border: 1px solid var(--border);
+}
+.tide-type { font-size: 12px; color: var(--txt-3); margin-bottom: 4px; letter-spacing: .04em; }
+.tide-tm   { font-size: 20px; font-weight: 600; color: var(--txt); font-family: 'DM Mono', monospace; }
+.tide-ht   { font-size: 14px; margin-top: 4px; font-family: 'DM Mono', monospace; }
+.tide-ht.hi { color: var(--tide-hi); }
+.tide-ht.lo { color: var(--tide-lo); }
+
+.day-hdr {
+  font-size: 15px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 18px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.day-hdr:first-child { margin-top: 0; }
+.day-pill {
+  font-size: 12px; font-weight: 500;
+  padding: 3px 10px; border-radius: 20px;
+  background: var(--accent-dim); color: var(--accent);
+  border: 1px solid rgba(26,115,200,.18);
+}
+@media (prefers-color-scheme: dark) {
+  .day-pill { border-color: rgba(75,159,225,.25); }
+}
+
+/* ─── 趕潮窗口 ───────────────────────────────────────────── */
+.window-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+}
+.window-row:last-of-type { border-bottom: none; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dot-g { background: #58A834; }
+.dot-r { background: #E14B4B; }
+.dot-y { background: #E59B20; }
+.win-time   { font-weight: 600; min-width: 124px; font-family: 'DM Mono', monospace; font-size: 14px; }
+.win-detail { flex: 1; color: var(--txt-2); }
+.stars      { color: #E59B20; font-size: 13px; letter-spacing: 1.5px; }
+
+.info-note { font-size: 13px; color: var(--txt-3); margin-top: 10px; line-height: 1.55; }
+.info-note:first-child { margin-top: 0; }
+
+.ext-link {
+  font-size: 13px; color: var(--link); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-weight: 500;
+}
+.ext-link:hover { text-decoration: underline; }
+
+.err-box {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); padding: 32px 24px;
+  text-align: center; color: var(--txt-2); font-size: 15px;
+  line-height: 1.6; box-shadow: var(--shadow-sm);
+}
+
+/* ─── 2-col grid ─────────────────────────────────────────── */
+@media (min-width: 600px) {
+  .page { padding: 32px 32px 64px; }
+  .two-col {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 20px; align-items: start;
+  }
+  .two-col .section-lbl { margin-top: 0; }
+  .col-wrap { display: flex; flex-direction: column; gap: 20px; }
+  .full { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="title">BJKW即時氣象報告</div>
+      <div class="meta" id="meta">資料載入中…</div>
+    </div>
+    <button id="refresh" onclick="loadAll()">重新整理</button>
+  </div>
+  <div id="content">
+    <div class="err-box"><span class="spinner"></span> 連線中央氣象署 API…</div>
+  </div>
+</div>
+
+<script>
+const API_KEY = "CWA-FA47367B-3420-4F98-A4D5-ADD81BE0B26E";
+const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
+const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
+const WEEKDAYS   = ["日","一","二","三","四","五","六"];
+const LUNAR_MONTH = ["","正","二","三","四","五","六","七","八","九","十","冬","臘"];
+const LUNAR_DAY   = ["","初一","初二","初三","初四","初五","初六","初七","初八","初九","初十",
+  "十一","十二","十三","十四","十五","十六","十七","十八","十九","二十",
+  "廿一","廿二","廿三","廿四","廿五","廿六","廿七","廿八","廿九","三十"];
+
+/* ─── 暫存（localStorage）────────────────────────────────── */
+const CACHE_NS  = "bjkw_v2";
+const CACHE_MAX = 60 * 60 * 1000; // 60 分鐘內視為有效
+
+function saveCache(key, data) {
+  try {
+    localStorage.setItem(`${CACHE_NS}_${key}`, JSON.stringify({ ts: Date.now(), data }));
+  } catch(e) {}
+}
+function loadCache(key) {
+  try {
+    const raw = localStorage.getItem(`${CACHE_NS}_${key}`);
+    if (!raw) return null;
+    return JSON.parse(raw); // { ts, data }
+  } catch(e) { return null; }
+}
+function cacheAge(ts) {
+  const m = Math.round((Date.now() - ts) / 60000);
+  return m < 60 ? `${m} 分鐘前` : `${Math.round(m/60)} 小時前`;
+}
+
+/* 嘗試 API，失敗回傳暫存 */
+async function tryFetch(ep, params, cacheKey) {
+  try {
+    const data = await apiFetch(ep, params);
+    saveCache(cacheKey, data);
+    return { data, cached: false };
+  } catch(e) {
+    const hit = loadCache(cacheKey);
+    if (hit) return { data: hit.data, cached: true, ts: hit.ts };
+    return { data: null, cached: false };
+  }
+}
+
+/* ─── API ────────────────────────────────────────────────── */
+async function apiFetch(ep, params) {
+  const p = new URLSearchParams({...params, Authorization: API_KEY, format: "JSON"});
+  const r = await fetch(`${BASE}/${ep}?${p}`);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function now() { return new Date(); }
+
+/* ─── 蒲福風級 ────────────────────────────────────────────── */
+function bft(ms) {
+  const v = parseFloat(ms);
+  if (isNaN(v) || v < 0) return null;
+  if (v < 0.3)  return 0; if (v < 1.6)  return 1; if (v < 3.4)  return 2;
+  if (v < 5.5)  return 3; if (v < 8.0)  return 4; if (v < 10.8) return 5;
+  if (v < 13.9) return 6; if (v < 17.2) return 7; return 8;
+}
+function bftLabel(b) { return ["無風","軟風","輕風","微風","和風","清風","強風","疾風","大風"][b] || "—"; }
+function bftBadge(b) {
+  if (b == null) return `<span class="badge b-gray">—</span>`;
+  const cls = b <= 3 ? "b-ok" : b <= 4 ? "b-caution" : "b-danger";
+  return `<span class="badge ${cls}">${b}級 ${bftLabel(b)}</span>`;
+}
+
+/* ─── 天氣圖示 ───────────────────────────────────────────── */
+function wxIcon(w) {
+  if (!w) return "🌤";
+  if (w.includes("雷")) return "⛈";
+  if (w.includes("雨")) return "🌧";
+  if (w.includes("陰")) return "☁";
+  if (w.includes("多雲")) return "⛅";
+  if (w.includes("晴")) return "☀";
+  return "🌤";
+}
+
+function valid(v) {
+  return (v === undefined || v === null || String(v).trim() === "-99" || String(v).trim() === "") ? null : v;
+}
+function fmtTime(dt) { return dt.toTimeString().slice(0, 5); }
+function fmtDate(s)  { return s.slice(5); }
+
+/* ─── 取整點時刻（往下取整到當前整點）───────────────────── */
+function floorHour(dt) {
+  const r = new Date(dt);
+  r.setMinutes(0, 0, 0);
+  return r;
+}
+
+/* ─── 預報解析 ───────────────────────────────────────────── */
+function parseForecast(data, target) {
+  const res = {};
+  if (!data) return res;
+  try {
+    for (const loc of data.records.Locations) {
+      for (const l of loc.Location) {
+        if (l.LocationName.includes(target)) {
+          for (const e of l.WeatherElement) {
+            const name = e.ElementName; res[name] = {};
+            for (const t of (e.Time || [])) {
+              const dtk = t.DataTime || t.StartTime || "";
+              if (!dtk) continue;
+              const key = dtk.slice(0,10) + "_" + parseInt(dtk.slice(11,13));
+              res[name][key] = t.ElementValue[0];
+            }
+          }
+        }
+      }
+    }
+  } catch(e) {}
+  return res;
+}
+
+function nearest(data, field, dt) {
+  const d = data[field] || {};
+  const date = dt.toISOString().slice(0, 10);
+  const hour = dt.getHours();
+  const cands = Object.entries(d).filter(([k]) => k.startsWith(date));
+  if (!cands.length) return null;
+  const before = cands.filter(([k]) => parseInt(k.split("_")[1]) <= hour);
+  const use = before.length ? before : cands;
+  use.sort((a, b) => parseInt(b[0].split("_")[1]) - parseInt(a[0].split("_")[1]));
+  return use[0][1];
+}
+
+/* ─── 天文資料解析（多格式容錯）────────────────────────── */
+function parseAstro(astro, today) {
+  if (!astro) return { sunrise: "—", sunset: "—" };
+  try {
+    const r = astro.records;
+    let locs = [];
+    if (Array.isArray(r?.locations?.location))         locs = r.locations.location;
+    else if (r?.locations?.location)                   locs = [r.locations.location];
+    else if (Array.isArray(r?.locations))              locs = r.locations;
+    else if (Array.isArray(r?.location))               locs = r.location;
+    if (!locs.length) return { sunrise: "—", sunset: "—" };
+
+    const loc = locs.find(l => l.CountyName === "嘉義市") || locs[0];
+    if (!loc) return { sunrise: "—", sunset: "—" };
+
+    const times = Array.isArray(loc.time) ? loc.time : [];
+    const t = times.find(x => x.Date === today) || times[0];
+    if (!t) return { sunrise: "—", sunset: "—" };
+
+    let sunrise = t.SunRiseTime || t.sunRiseTime || t.sunrise || "";
+    let sunset  = t.SunSetTime  || t.sunSetTime  || t.sunset  || "";
+
+    if ((!sunrise || !sunset) && Array.isArray(t.parameter)) {
+      for (const p of t.parameter) {
+        const n = p.parameterName || "";
+        const v = p.parameterValue || "";
+        if (n === "日出" || n.toLowerCase() === "sunrise") sunrise = sunrise || v;
+        if (n === "日沒" || n.toLowerCase() === "sunset")  sunset  = sunset  || v;
+      }
+    }
+    sunrise = sunrise ? sunrise.slice(0, 5) : "—";
+    sunset  = sunset  ? sunset.slice(0, 5)  : "—";
+    return { sunrise, sunset };
+  } catch(e) {
+    console.error("天文資料解析失敗", e);
+    return { sunrise: "—", sunset: "—" };
+  }
+}
+
+/* ─── 日光條 HTML ────────────────────────────────────────── */
+function daylightBarHtml(sunrise, sunset, n) {
+  // 解析時間字串為今天的 Date 物件
+  function parseTime(str) {
+    if (!str || str === "—") return null;
+    const [h, m] = str.split(":").map(Number);
+    const d = new Date(n);
+    d.setHours(h, m, 0, 0);
+    return d;
+  }
+
+  const srDt = parseTime(sunrise);
+  const ssDt = parseTime(sunset);
+  const nowMs = n.getTime();
+
+  // 剩餘時間字串
+  function remainStr() {
+    if (!srDt || !ssDt) return "";
+    if (nowMs < srDt.getTime()) {
+      const diffM = Math.round((srDt.getTime() - nowMs) / 60000);
+      return `距日出 ${Math.floor(diffM/60)}h${diffM%60}m`;
+    }
+    if (nowMs <= ssDt.getTime()) {
+      const diffM = Math.round((ssDt.getTime() - nowMs) / 60000);
+      return `日落倒數 ${Math.floor(diffM/60)}h${diffM%60}m`;
+    }
+    return "日已落";
+  }
+
+  // 進度百分比（限 0~100）
+  let pct = 0;
+  let isDaytime = false;
+  if (srDt && ssDt) {
+    const total = ssDt.getTime() - srDt.getTime();
+    const elapsed = nowMs - srDt.getTime();
+    isDaytime = elapsed >= 0 && elapsed <= total;
+    if (elapsed < 0) pct = 0;
+    else if (elapsed > total) pct = 100;
+    else pct = Math.round(elapsed / total * 100);
+  }
+
+  const hasData = srDt && ssDt;
+  const fillColor = isDaytime
+    ? `background: linear-gradient(90deg, #F5A623, #FFD166 ${pct}%, transparent ${pct}%)`
+    : `background: linear-gradient(90deg, #3A5A8A, #1A2F50)`;
+
+  const dotHtml = hasData
+    ? `<div class="dl-now" style="left:${pct}%"></div>`
+    : "";
+
+  const srLabel = hasData ? `🌅 ${sunrise}` : `🌅 —`;
+  const ssLabel = hasData ? `🌇 ${sunset}` : `🌇 —`;
+
+  return `
+    <div class="daylight-wrap">
+      <div class="daylight-lbl">日光時段</div>
+      <div class="daylight-row">
+        <span class="dl-time">${srLabel}</span>
+        <div class="dl-track">
+          <div style="height:100%; border-radius:999px; ${fillColor};"></div>
+          ${dotHtml}
+        </div>
+        <span class="dl-time">${ssLabel}</span>
+      </div>
+      ${hasData ? `<div class="dl-remain">${remainStr()}</div>` : ""}
+    </div>`;
+}
+
+/* ─── 主要載入函式 ────────────────────────────────────────── */
+async function loadAll() {
+  const btn     = document.getElementById("refresh");
+  const content = document.getElementById("content");
+  const meta    = document.getElementById("meta");
+  btn.disabled  = true;
+  btn.innerHTML = `<span class="spinner"></span>載入中`;
+
+  try {
+    const n     = now();
+    const today = n.toISOString().slice(0, 10);
+    const tomorrow = new Date(n.getTime() + 86400000).toISOString().slice(0, 10);
+
+    // 並行取得所有資料（自動 fallback 至暫存）
+    const [obsRes, cityRes, windRes, tideRes, astroRes] = await Promise.all([
+      tryFetch("O-A0001-001", {}, "obs"),
+      tryFetch("F-D0047-057", { LocationName: "東區" }, "city"),
+      tryFetch("F-D0047-029", { LocationName: "東石鄉" }, "sea"),
+      tryFetch("F-A0021-001", { LocationName: "嘉義縣東石鄉" }, "tide"),
+      tryFetch("A-B0062-001", { CountyName: "嘉義市", timeFrom: today, timeTo: tomorrow }, "astro"),
+    ]);
+
+    // 判斷是否有任何暫存資料被使用
+    const usedCache = [obsRes, cityRes, windRes, tideRes, astroRes]
+      .filter(r => r.cached);
+    const cacheTs = usedCache.length
+      ? Math.min(...usedCache.map(r => r.ts))
+      : null;
+
+    const obs   = obsRes.data;
+    const city  = cityRes.data  ? parseForecast(cityRes.data,  "東區") : {};
+    const sea   = windRes.data  ? parseForecast(windRes.data,  "東石") : {};
+    const tide  = tideRes.data;
+    const astro = astroRes.data;
+
+    let maxObsBft = 0, maxFcstBft = 0;
+
+    const { sunrise, sunset } = parseAstro(astro, today);
+
+    /* ── 觀測站 ────────────────────────────────────────────── */
+    let obsRows = "";
+    if (obs) {
+      const stations = obs.records.Station.filter(s => OBS_STATIONS[s.StationId]);
+      const dirs = ["北","東北","東","東南","南","西南","西","西北"];
+      for (const s of stations) {
+        const we   = s.WeatherElement;
+        const name = OBS_STATIONS[s.StationId];
+        const wspd = valid(we.WindSpeed);
+        const wdir = valid(we.WindDirection);
+        const temp = valid(we.AirTemperature);
+        const humi = valid(we.RelativeHumidity);
+        const rain = we.Now?.Precipitation || "0";
+        const wx   = we.Weather || "—";
+        const b    = bft(wspd);
+        if (b != null && b > maxObsBft) maxObsBft = b;
+        const dirStr = wdir ? dirs[Math.round(parseFloat(wdir) / 45) % 8] : "—";
+        obsRows += `<div class="row">
+          <span class="row-name">${name}</span>
+          <span class="row-detail">${wxIcon(wx)} ${wx} · ${dirStr}風 ${wspd ?? '—'}m/s · ${temp ?? '—'}°C · ${humi ?? '—'}% · ${rain}mm</span>
+          ${bftBadge(b)}
+        </div>`;
+      }
+    }
+
+    /* ── 當前天氣重點 ──────────────────────────────────────── */
+    const curTmp = nearest(city, "溫度", n);
+    const curAT  = nearest(city, "體感溫度", n);
+    const curHum = nearest(city, "相對濕度", n);
+    const curPop = nearest(city, "3小時降雨機率", n);
+    const curWx  = nearest(city, "天氣現象", n);
+    const curWxStr = curWx?.Weather || "—";
+
+    const currentFocusHtml = `
+      <div class="current-focus">
+        <div class="cf-icon">${wxIcon(curWxStr)}</div>
+        <div class="cf-data">
+          <div class="cf-temp">${curTmp?.Temperature ?? '—'}°C</div>
+          <div class="cf-desc">${curWxStr}</div>
+          <div class="cf-sub">
+            <span title="相對濕度">💧 濕度 ${curHum?.RelativeHumidity ?? '—'}%</span>
+            <span title="3小時降雨機率">☔ 降雨 ${curPop?.ProbabilityOfPrecipitation ?? '—'}%</span>
+          </div>
+        </div>
+      </div>`;
+
+    /* ── 6 小時整點預報 ─────────────────────────────────────
+       從「目前整點」起，依序取 +0h ~ +6h，共 7 個整點
+    ────────────────────────────────────────────────────────── */
+    const baseHour = floorHour(n);
+    let hzRows = "";
+    for (let i = 0; i <= 6; i++) {
+      const t = new Date(baseHour.getTime() + i * 3600000);
+      const tmp = nearest(city, "溫度", t);
+      const hum = nearest(city, "相對濕度", t);
+      const pop = nearest(city, "3小時降雨機率", t);
+      const wx  = nearest(city, "天氣現象", t);
+      const wxStr = wx?.Weather || "—";
+      const isNow = i === 0;
+      const label = isNow
+        ? `${String(t.getHours()).padStart(2,'0')}:00<br><small style="font-size:10px;color:var(--accent)">現在</small>`
+        : `${String(t.getHours()).padStart(2,'0')}:00`;
+      hzRows += `<div class="hz-item${isNow ? ' hz-now' : ''}">
+        <span class="hz-time" style="text-align:center">${label}</span>
+        <span class="hz-icon">${wxIcon(wxStr)}</span>
+        <span class="hz-temp">${tmp?.Temperature ?? '—'}°C</span>
+        <span class="hz-sub" title="相對濕度">💧 ${hum?.RelativeHumidity ?? '—'}%</span>
+        <span class="hz-sub" title="降雨機率">☔ ${pop?.ProbabilityOfPrecipitation ?? '—'}%</span>
+      </div>`;
+    }
+
+    /* ── 海風預報（後 6 整點）──────────────────────────────── */
+    let windRows = "";
+    for (let i = 0; i <= 6; i++) {
+      const t    = new Date(baseHour.getTime() + i * 3600000);
+      const spd  = nearest(sea, "風速", t);
+      const wdir = nearest(sea, "風向", t);
+      const wx   = nearest(sea, "天氣現象", t);
+      const bftN = spd?.BeaufortScale != null ? parseInt(spd.BeaufortScale) : null;
+      if (bftN != null && bftN > maxFcstBft) maxFcstBft = bftN;
+      const wxStr = wx?.Weather || "—";
+      const timeLabel = `${String(t.getHours()).padStart(2,'0')}:00`;
+      windRows += `<div class="row">
+        <span class="row-time">${timeLabel}</span>
+        <span class="row-detail">${wdir?.WindDirection ?? '—'} ${spd?.WindSpeed ?? '—'}m/s · ${wxIcon(wxStr)} ${wxStr}</span>
+        ${bftBadge(bftN)}
+      </div>`;
+    }
+
+    /* ── 潮汐 ─────────────────────────────────────────────── */
+    let tideHtml = "";
+    let dryTides = [];
+    if (tide) {
+      try {
+        const daily    = tide.records.TideForecasts[0].Location.TimePeriods.Daily;
+        const upcoming = daily.filter(d => d.Date >= today)
+                              .sort((a,b) => a.Date > b.Date ? 1 : -1)
+                              .slice(0, 3);
+        for (const day of upcoming) {
+          const date   = day.Date;
+          const lunar  = day.LunarDate || "";
+          const lunarStr = lunar
+            ? `農曆${LUNAR_MONTH[+lunar.split("-")[1]] || ""}月${LUNAR_DAY[+lunar.split("-")[2]] || ""}`
+            : "";
+          const trange = day.TideRange || "";
+          const wday   = WEEKDAYS[new Date(date + "T00:00:00").getDay()];
+          const events = day.Time || [];
+          tideHtml += `<div class="day-hdr">
+            ${fmtDate(date)} 週${wday}
+            <span class="day-pill">${lunarStr}</span>
+            <span class="day-pill">${trange}潮</span>
+          </div><div class="tide-grid">`;
+          for (const ev of events) {
+            const evDt = new Date(ev.DateTime);
+            const isHi = ev.Tide === "滿潮";
+            const h    = parseInt(ev.TideHeights?.AboveTWVD || 0);
+            if (!isHi && date === today) dryTides.push({ dt: evDt, h });
+            tideHtml += `<div class="tide-cell">
+              <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${evDt.getHours() < 12 ? "上午" : "下午"}</div>
+              <div class="tide-tm">${fmtTime(evDt)}</div>
+              <div class="tide-ht ${isHi ? 'hi' : 'lo'}">${h > 0 ? "+" : ""}${h} cm</div>
+            </div>`;
+          }
+          tideHtml += "</div>";
+        }
+      } catch(e) { tideHtml = `<div class="info-note">潮汐解析錯誤</div>`; }
+    }
+
+    /* ── 趕潮窗口 ─────────────────────────────────────────── */
+    let windowHtml = "";
+    for (const { dt, h } of dryTides) {
+      const s   = new Date(dt.getTime() - 2 * 3600000);
+      const e   = new Date(dt.getTime() + 2 * 3600000);
+      const cls = h < -40 ? "dot-r" : h < 0 ? "dot-g" : "dot-y";
+      const stars = h < -40 ? "★★★" : h < 0 ? "★★" : "★";
+      windowHtml += `<div class="window-row">
+        <div class="dot ${cls}"></div>
+        <span class="win-time">${fmtTime(s)} – ${fmtTime(e)}</span>
+        <span class="win-detail">乾潮 ${fmtTime(dt)}（${h > 0 ? "+" : ""}${h}cm）</span>
+        <span class="stars">${stars}</span>
+      </div>`;
+    }
+
+    /* ── 出海建議 ─────────────────────────────────────────── */
+    const maxBft = Math.max(maxObsBft, maxFcstBft);
+    let vCls, vIcon, vMain, vSub;
+    if (maxBft === 0 && maxObsBft === 0) {
+      vCls = "unknown"; vIcon = "?"; vMain = "無風速資料"; vSub = "請確認觀測站回傳";
+    } else if (maxBft <= 3) {
+      vCls = "ok";      vIcon = "✓"; vMain = "適合出海 — 風平浪靜";
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+    } else if (maxBft === 4) {
+      vCls = "caution"; vIcon = "!"; vMain = "可出海，留意風況";
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+    } else if (maxBft === 5) {
+      vCls = "caution"; vIcon = "!"; vMain = "謹慎評估，確認現場後再出發";
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+    } else {
+      vCls = "danger";  vIcon = "✕"; vMain = `不建議出海（最高 ${maxBft} 級）`;
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+    }
+
+    /* ── 暫存橫幅 ─────────────────────────────────────────── */
+    const cacheBannerHtml = usedCache.length
+      ? `<div class="cache-banner">
+           <span class="cb-icon">⚠</span>
+           <span>部分資料無法取得，目前顯示暫存資料（${cacheAge(cacheTs)}）。請確認網路後重新整理。</span>
+         </div>`
+      : "";
+
+    /* ── 日光條 ───────────────────────────────────────────── */
+    const daylightHtml = daylightBarHtml(sunrise, sunset, n);
+
+    /* ── 組裝 HTML ──────────────────────────────────────────── */
+    content.innerHTML = `
+      ${cacheBannerHtml}
+
+      <div class="verdict ${vCls}">
+        <div class="verdict-icon">${vIcon}</div>
+        <div>
+          <div class="verdict-main">${vMain}</div>
+          <div class="verdict-sub">${vSub}</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+
+        <div class="col-wrap">
+          <div>
+            <div class="section-lbl">嘉義市東區 天氣（6 小時預報）</div>
+            <div class="card">
+              ${currentFocusHtml}
+              <div class="g2">
+                <div class="metric">
+                  <div class="metric-lbl">溫度</div>
+                  <div class="metric-val">${curTmp?.Temperature ?? '—'}°C</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-lbl">體感溫度</div>
+                  <div class="metric-val">${curAT?.ApparentTemperature ?? '—'}°C</div>
+                </div>
+              </div>
+              ${daylightHtml}
+              <div class="hz-scroll">${hzRows}</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-lbl">潮汐時序（今明後三日）</div>
+            <div class="card">${tideHtml || '<div class="info-note">潮汐資料無法取得</div>'}</div>
+          </div>
+        </div>
+
+        <div class="col-wrap">
+          <div>
+            <div class="section-lbl">東石海風預報（即時 + 後 6 整點）</div>
+            <div class="card">
+              ${windRows}
+              <div class="info-note">預報為平均風速，陣風／浪高請見官方連結</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-lbl">即時觀測（真實測站）</div>
+            <div class="card">${obsRows || '<div class="info-note">觀測資料無法取得</div>'}</div>
+          </div>
+        </div>
+
+        ${windowHtml ? `<div class="full">
+          <div class="section-lbl">今日趕潮窗口（± 2 小時）</div>
+          <div class="card">
+            ${windowHtml}
+            <div class="info-note">★ 依潮高估算，非官方流速資料</div>
+          </div>
+        </div>` : ""}
+
+        <div class="full" style="margin-top:4px">
+          <a class="ext-link" href="https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html?cID=10010&pointID=1001009C01" target="_blank">
+            完整沿海預報（浪高／流速）→
+          </a>
+        </div>
+
+      </div>
+    `;
+
+    meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
+
+  } catch(err) {
+    const isCors = err.message.includes("Failed to fetch") || err.name === "TypeError";
+    content.innerHTML = `<div class="err-box">
+      ${isCors
+        ? "⚠ 瀏覽器 CORS 政策擋住了對氣象署 API 的請求。<br><br>氣象署 API 不開放跨來源存取，需要後端 proxy 才能在瀏覽器即時呼叫。"
+        : "⚠ 載入失敗：" + err.message}
+    </div>`;
+    meta.textContent = "載入失敗";
+  }
+
+  btn.disabled = false;
+  btn.textContent = "重新整理";
+}
+
+loadAll();
+</script>
+</body>
+</html>
