@@ -429,6 +429,13 @@ body {
   background: var(--bg-subtle); border-radius: var(--radius-md);
   padding: 10px 14px; border: 1px solid var(--border);
 }
+.tide-cell.tide-next-cycle {
+  border-style: dashed;
+  border-color: rgba(26,115,200,.35);
+}
+@media (prefers-color-scheme: dark) {
+  .tide-cell.tide-next-cycle { border-color: rgba(75,159,225,.35); }
+}
 .tide-type { font-size: 12px; color: var(--txt-3); margin-bottom: 4px; letter-spacing: .04em; }
 .tide-tm   { font-size: 20px; font-weight: 600; color: var(--txt); font-family: 'DM Mono', monospace; }
 .tide-ht   { font-size: 14px; margin-top: 4px; font-family: 'DM Mono', monospace; }
@@ -499,52 +506,6 @@ body {
   border-top: none;
   padding-top: 0;
   margin-top: 0;
-}
-.future-brief-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 9px 11px;
-  margin-top: 8px;
-  color: var(--txt-2);
-  font-size: 13px;
-}
-.future-brief-row strong {
-  color: var(--txt);
-  font-family: 'DM Mono', monospace;
-  white-space: nowrap;
-}
-.future-full-detail {
-  margin-top: 8px;
-}
-.future-full-detail > summary {
-  cursor: pointer;
-  list-style: none;
-}
-.future-full-detail > summary::-webkit-details-marker { display: none; }
-.future-full-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--txt-3);
-  font-size: 12px;
-  font-weight: 600;
-}
-.future-full-detail:not([open]) .future-full-summary::after {
-  content: "展開完整";
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 500;
-}
-.future-full-detail[open] .future-full-summary::after {
-  content: "收合完整";
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 500;
 }
 .today-window-inline {
   border-top: 1px solid var(--border);
@@ -786,13 +747,6 @@ body {
   .future-day {
     padding-top: 9px;
     margin-top: 9px;
-  }
-  .future-brief-row {
-    font-size: 12px;
-    padding: 8px 9px;
-  }
-  .future-full-summary {
-    font-size: 11px;
   }
   .today-window-inline {
     margin-top: 10px;
@@ -1444,7 +1398,7 @@ async function loadAll() {
                               .slice(0, 3);
         let futureTideHtml = "";
         let futureTideDates = [];
-        for (const day of upcoming) {
+        for (const [dayIndex, day] of upcoming.entries()) {
           const date   = day.Date;
           const lunar  = day.LunarDate || "";
           const lunarStr = lunar
@@ -1455,17 +1409,21 @@ async function loadAll() {
           const events = day.Time || [];
           const isToday = date === today;
           let dayCells = "";
-          let dayDryEvents = [];
-          for (const ev of events) {
+          const nextDay = upcoming[dayIndex + 1];
+          const nextEvent = nextDay?.Time?.[0];
+          const displayEvents = events.map(ev => ({ ev, sourceDate: date, isNextCycle: false }));
+          if (isToday && events.length % 2 === 1 && nextEvent) {
+            displayEvents.push({ ev: nextEvent, sourceDate: nextDay.Date, isNextCycle: true });
+          }
+          for (const { ev, sourceDate, isNextCycle } of displayEvents) {
             const evDt = new Date(ev.DateTime);
             const isHi = ev.Tide === "滿潮";
             const h    = parseInt(ev.TideHeights?.AboveTWVD || 0);
-            if (!isHi) {
-              dayDryEvents.push({ dt: evDt, h });
-              if (date === today) dryTides.push({ dt: evDt, h });
-            }
-            dayCells += `<div class="tide-cell">
-              <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${twHour(evDt) < 12 ? "上午" : "下午"}</div>
+            if (!isHi && sourceDate === today) dryTides.push({ dt: evDt, h });
+            const cyclePeriod = isNextCycle ? "翌日" : (twHour(evDt) < 12 ? "上午" : "下午");
+            const cycleClass = isNextCycle ? " tide-next-cycle" : "";
+            dayCells += `<div class="tide-cell${cycleClass}">
+              <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${cyclePeriod}</div>
               <div class="tide-tm">${fmtTime(evDt)}</div>
               <div class="tide-ht ${isHi ? 'hi' : 'lo'}">${h > 0 ? "+" : ""}${h} cm</div>
             </div>`;
@@ -1482,20 +1440,9 @@ async function loadAll() {
             </details>`;
           } else {
             futureTideDates.push(fmtDate(date));
-            const lowestDry = dayDryEvents.sort((a, b) => a.h - b.h)[0];
-            const lowestDryHtml = lowestDry
-              ? `<div class="future-brief-row">
-                   <span>最低乾潮</span>
-                   <strong>${fmtTime(lowestDry.dt)}（${lowestDry.h > 0 ? "+" : ""}${lowestDry.h}cm）</strong>
-                 </div>`
-              : "";
             futureTideHtml += `<div class="future-day">
               <div class="day-hdr">${dayHeader}</div>
-              ${lowestDryHtml}
-              <details class="future-full-detail today-mode-detail" data-mobile-open="false">
-                <summary class="future-full-summary">完整潮汐</summary>
-                <div class="tide-grid">${dayCells}</div>
-              </details>
+              ${dayCells ? `<div class="tide-grid">${dayCells}</div>` : '<div class="info-note">潮汐資料無法取得</div>'}
             </div>`;
           }
         }
