@@ -497,15 +497,15 @@ body {
 @media (max-width: 520px) {
   body { font-size: 15px; }
   .page {
-    padding: 12px 10px 32px;
+    padding: 8px 8px 28px;
     max-width: 100%;
   }
   .topbar {
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
-  .title { font-size: 16px; }
+  .title { font-size: 15px; }
   .meta  { font-size: 11px; margin-top: 2px; }
   #refresh {
     font-size: 11px;
@@ -514,60 +514,67 @@ body {
   .section-lbl {
     font-size: 12px;
     letter-spacing: .04em;
-    margin: 14px 0 7px;
+    margin: 10px 0 6px;
   }
   .card,
   .quick-summary {
     border-radius: var(--radius-lg);
-    padding: 12px;
-    margin-bottom: 10px;
+    padding: 10px;
+    margin-bottom: 8px;
   }
-  .quick-kicker { font-size: 11px; }
-  .quick-title { font-size: 16px; }
+  .quick-kicker {
+    display: inline;
+    font-size: 11px;
+    margin-right: 8px;
+  }
+  .quick-title {
+    display: none;
+  }
   .decision-list {
-    gap: 7px;
-    margin-top: 10px;
+    gap: 6px;
+    margin-top: 7px;
   }
   .decision-line {
-    padding: 8px 9px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 8px;
     border-left-width: 3px;
   }
   .decision-label {
     font-size: 11px;
-    margin-bottom: 3px;
+    margin-bottom: 0;
   }
-  .decision-main { font-size: 20px; }
+  .decision-main {
+    font-size: 17px;
+    white-space: nowrap;
+  }
   .quick-metrics {
     grid-template-columns: 1.25fr .85fr .8fr;
     gap: 6px;
-    margin-top: 10px;
-    padding-top: 10px;
+    margin-top: 8px;
+    padding-top: 8px;
   }
   .quick-metric span { font-size: 10px; }
   .quick-metric strong { font-size: 12px; }
   .quick-note {
-    font-size: 11px;
-    margin-top: 8px;
+    display: none;
   }
   .current-focus {
-    gap: 12px;
-    padding: 0 0 12px;
+    gap: 10px;
+    padding: 0 0 8px;
   }
-  .cf-icon { font-size: 44px; }
-  .cf-temp { font-size: 32px; }
-  .cf-desc { font-size: 14px; }
+  .cf-icon { font-size: 38px; }
+  .cf-temp { font-size: 30px; }
+  .cf-desc { font-size: 13px; }
   .cf-sub {
-    gap: 8px;
+    gap: 7px;
     flex-wrap: wrap;
-    font-size: 12px;
-    margin-top: 4px;
+    font-size: 11px;
+    margin-top: 3px;
   }
-  .g2 {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-  .g2 .metric:first-child { display: none; }
+  .g2 { display: none; }
   .metric {
     padding: 9px 11px;
     border-radius: var(--radius-md);
@@ -578,21 +585,18 @@ body {
   }
   .metric-val { font-size: 18px; }
   .daylight-wrap {
-    padding: 9px 10px;
-    margin-bottom: 12px;
+    padding: 8px 9px;
+    margin-bottom: 9px;
     border-radius: var(--radius-md);
   }
-  .daylight-lbl {
-    font-size: 12px;
-    margin-bottom: 6px;
-  }
+  .daylight-lbl { display: none; }
   .daylight-row { gap: 6px; }
   .dl-time { font-size: 12px; }
   .dl-track { height: 7px; }
   .dl-now { width: 10px; height: 10px; }
-  .dl-remain { font-size: 10px; margin-top: 4px; }
+  .dl-remain { font-size: 10px; margin-top: 3px; }
   .hz-scroll {
-    gap: 8px;
+    gap: 7px;
     padding-bottom: 0;
     margin: 0 -2px;
     scrollbar-width: none;
@@ -600,15 +604,15 @@ body {
   }
   .hz-scroll::-webkit-scrollbar { display: none; }
   .hz-item {
-    min-width: 66px;
-    padding: 10px 8px;
+    min-width: 60px;
+    padding: 8px 6px;
     border-radius: var(--radius-md);
     scroll-snap-align: start;
   }
-  .hz-time { font-size: 12px; margin-bottom: 6px; }
-  .hz-icon { font-size: 21px; margin-bottom: 6px; }
-  .hz-temp { font-size: 16px; margin-bottom: 6px; }
-  .hz-sub  { font-size: 11px; gap: 2px; margin-top: 0; }
+  .hz-time { font-size: 11px; margin-bottom: 5px; }
+  .hz-icon { font-size: 18px; margin-bottom: 5px; }
+  .hz-temp { font-size: 15px; margin-bottom: 5px; }
+  .hz-sub  { font-size: 10px; gap: 2px; margin-top: 0; }
   .row {
     gap: 8px;
     padding: 9px 0;
@@ -1160,6 +1164,7 @@ async function loadAll() {
           <div class="cf-temp">${show(curTmp?.Temperature, "°C")}</div>
           <div class="cf-desc">${esc(curWxStr)}</div>
           <div class="cf-sub">
+            <span title="體感溫度">體感 ${show(curAT?.ApparentTemperature, "°C")}</span>
             <span title="相對濕度">💧 濕度 ${show(curHum?.RelativeHumidity, "%")}</span>
             <span title="3小時降雨機率">☔ 降雨 ${show(curPop?.ProbabilityOfPrecipitation, "%")}</span>
           </div>
