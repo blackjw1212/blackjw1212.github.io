@@ -387,12 +387,12 @@ body {
 @media (min-width: 600px) {
   .page { padding: 32px 32px 64px; }
   .two-col {
-    display: grid; grid-template-columns: 1fr 1fr;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px; align-items: start;
   }
   .two-col .section-lbl { margin-top: 0; }
-  .col-wrap { display: flex; flex-direction: column; gap: 20px; }
-  .full { grid-column: 1 / -1; }
+  .col-wrap { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .full { grid-column: 1 / -1; min-width: 0; }
 }
 </style>
 </head>
@@ -413,6 +413,8 @@ body {
 <script>
 const API_KEY = "CWA-FA47367B-3420-4F98-A4D5-ADD81BE0B26E";
 const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
+const TZ      = "Asia/Taipei";
+const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
 const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
 const WEEKDAYS   = ["日","一","二","三","四","五","六"];
 const LUNAR_MONTH = ["","正","二","三","四","五","六","七","八","九","十","冬","臘"];
@@ -427,13 +429,20 @@ const CACHE_MAX = 60 * 60 * 1000; // 60 分鐘內視為有效
 function saveCache(key, data) {
   try {
     localStorage.setItem(`${CACHE_NS}_${key}`, JSON.stringify({ ts: Date.now(), data }));
-  } catch(e) {}
+  } catch(e) {
+    console.warn("暫存寫入失敗", key, e);
+  }
 }
 function loadCache(key) {
   try {
     const raw = localStorage.getItem(`${CACHE_NS}_${key}`);
     if (!raw) return null;
-    return JSON.parse(raw); // { ts, data }
+    const hit = JSON.parse(raw); // { ts, data }
+    if (!hit || typeof hit.ts !== "number" || Date.now() - hit.ts > CACHE_MAX) {
+      localStorage.removeItem(`${CACHE_NS}_${key}`);
+      return null;
+    }
+    return hit;
   } catch(e) { return null; }
 }
 function cacheAge(ts) {
@@ -441,28 +450,108 @@ function cacheAge(ts) {
   return m < 60 ? `${m} 分鐘前` : `${Math.round(m/60)} 小時前`;
 }
 
-/* 嘗試 API，失敗回傳暫存 */
+/* 嘗試 API，失敗回傳有效暫存；沒有資料時保留錯誤狀態 */
 async function tryFetch(ep, params, cacheKey) {
   try {
     const data = await apiFetch(ep, params);
     saveCache(cacheKey, data);
-    return { data, cached: false };
+    return { data, cached: false, ok: true, error: null };
   } catch(e) {
     const hit = loadCache(cacheKey);
-    if (hit) return { data: hit.data, cached: true, ts: hit.ts };
-    return { data: null, cached: false };
+    if (hit) return { data: hit.data, cached: true, ts: hit.ts, ok: true, error: e };
+    return { data: null, cached: false, ok: false, error: e };
   }
+}
+
+async function tryLoadTownCoastalPlot(url, cacheKey) {
+  try {
+    const data = await loadTownCoastalPlot(url);
+    saveCache(cacheKey, data);
+    return { data, cached: false, ok: true, error: null };
+  } catch(e) {
+    const hit = loadCache(cacheKey);
+    if (hit) return { data: hit.data, cached: true, ts: hit.ts, ok: true, error: e };
+    return { data: null, cached: false, ok: false, error: e };
+  }
+}
+
+function loadTownCoastalPlot(url) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    const cleanup = () => {
+      script.remove();
+      delete window.ChartType;
+      delete window.ST_Name;
+      delete window.Time;
+      delete window.TimeRange;
+      delete window.Wind_Data;
+      delete window.Wave_Data;
+    };
+
+    cleanup();
+    script.src = `${url}?T=${Date.now()}`;
+    script.async = true;
+    script.onload = () => {
+      const data = {
+        Time: Array.isArray(window.Time) ? [...window.Time] : [],
+        Wave_Data: Array.isArray(window.Wave_Data) ? [...window.Wave_Data] : [],
+      };
+      cleanup();
+      if (!data.Time.length || !data.Wave_Data.length) {
+        reject(new Error("東石浪高資料格式不完整"));
+        return;
+      }
+      resolve(data);
+    };
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("東石浪高資料載入失敗"));
+    };
+    document.head.appendChild(script);
+  });
 }
 
 /* ─── API ────────────────────────────────────────────────── */
 async function apiFetch(ep, params) {
   const p = new URLSearchParams({...params, Authorization: API_KEY, format: "JSON"});
   const r = await fetch(`${BASE}/${ep}?${p}`);
-  if (!r.ok) throw new Error(r.status);
+  if (!r.ok) throw new Error(`${ep} HTTP ${r.status}`);
   return r.json();
 }
 
 function now() { return new Date(); }
+function twDateKey(dt) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(dt).reduce((acc, p) => {
+    if (p.type !== "literal") acc[p.type] = p.value;
+    return acc;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+function twDateParts(dt) {
+  return twDateKey(dt).split("-").map(Number);
+}
+function twHour(dt) {
+  const hour = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, hour: "2-digit", hour12: false
+  }).formatToParts(dt).find(p => p.type === "hour")?.value ?? "0";
+  return Number(hour) % 24;
+}
+function addDays(dt, days) {
+  return new Date(dt.getTime() + days * 86400000);
+}
+function monthDayKey(mmdd, baseDate) {
+  const m = mmdd.match(/(\d{1,2})\/(\d{1,2})/);
+  if (!m) return null;
+  const [baseYear, baseMonth] = twDateParts(baseDate);
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  let year = baseYear;
+  if (baseMonth === 12 && month === 1) year += 1;
+  if (baseMonth === 1 && month === 12) year -= 1;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
 
 /* ─── 蒲福風級 ────────────────────────────────────────────── */
 function bft(ms) {
@@ -478,6 +567,21 @@ function bftBadge(b) {
   const cls = b <= 3 ? "b-ok" : b <= 4 ? "b-caution" : "b-danger";
   return `<span class="badge ${cls}">${b}級 ${bftLabel(b)}</span>`;
 }
+function parseBftValue(v) {
+  const clean = valid(v);
+  if (clean == null) return null;
+  const match = String(clean).match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+function esc(v) {
+  return String(v ?? "—").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+function show(v, suffix = "") {
+  return v == null ? "—" : `${esc(v)}${suffix}`;
+}
 
 /* ─── 天氣圖示 ───────────────────────────────────────────── */
 function wxIcon(w) {
@@ -491,7 +595,31 @@ function wxIcon(w) {
 }
 
 function valid(v) {
-  return (v === undefined || v === null || String(v).trim() === "-99" || String(v).trim() === "") ? null : v;
+  const s = String(v ?? "").trim();
+  return (!s || s === "X" || Number(s) === -99) ? null : v;
+}
+function validRain(v) {
+  const s = String(v ?? "").trim();
+  if (!s || s === "X" || Number(s) === -99) return null;
+  if (Number(s) === -98) return "0.0";
+  return v;
+}
+function showRain(v) {
+  if (v == null) return "—";
+  if (String(v).trim() === "T") return "雨跡";
+  return `${esc(v)}mm`;
+}
+function showMeters(v) {
+  return v == null ? "—" : `${esc(v)}m`;
+}
+function windDirText(v) {
+  const clean = valid(v);
+  if (clean == null) return "—";
+  const deg = parseFloat(clean);
+  if (deg === 990) return "不定";
+  if (Number.isNaN(deg)) return String(clean);
+  const dirs = ["北","東北","東","東南","南","西南","西","西北"];
+  return dirs[Math.round(deg / 45) % 8];
 }
 function fmtTime(dt) { return dt.toTimeString().slice(0, 5); }
 function fmtDate(s)  { return s.slice(5); }
@@ -523,20 +651,41 @@ function parseForecast(data, target) {
         }
       }
     }
-  } catch(e) {}
+  } catch(e) {
+    console.warn("預報解析失敗", target, e);
+  }
+  return res;
+}
+
+function parseTownCoastalPlot(data, baseDate) {
+  const res = { "浪高": {} };
+  if (!data?.Time?.length || !data?.Wave_Data?.length) return res;
+  try {
+    data.Time.forEach((label, index) => {
+      const [hourPart, datePart] = String(label).split("<br>");
+      const hour = parseInt(hourPart, 10);
+      const date = monthDayKey(datePart || "", baseDate);
+      const waveHeight = valid(data.Wave_Data[index]);
+      if (!date || Number.isNaN(hour) || waveHeight == null) return;
+      res["浪高"][`${date}_${hour}`] = { WaveHeight: waveHeight };
+    });
+    if (!Object.keys(res["浪高"]).length) {
+      throw new Error("沒有可用浪高時序");
+    }
+  } catch(e) {
+    console.warn("東石沿海浪高解析失敗", e);
+  }
   return res;
 }
 
 function nearest(data, field, dt) {
   const d = data[field] || {};
-  const date = dt.toISOString().slice(0, 10);
-  const hour = dt.getHours();
+  const date = twDateKey(dt);
+  const hour = twHour(dt);
   const cands = Object.entries(d).filter(([k]) => k.startsWith(date));
   if (!cands.length) return null;
-  const before = cands.filter(([k]) => parseInt(k.split("_")[1]) <= hour);
-  const use = before.length ? before : cands;
-  use.sort((a, b) => parseInt(b[0].split("_")[1]) - parseInt(a[0].split("_")[1]));
-  return use[0][1];
+  cands.sort((a, b) => Math.abs(parseInt(a[0].split("_")[1]) - hour) - Math.abs(parseInt(b[0].split("_")[1]) - hour));
+  return cands[0][1];
 }
 
 /* ─── 天文資料解析（多格式容錯）────────────────────────── */
@@ -628,8 +777,8 @@ function daylightBarHtml(sunrise, sunset, n) {
     ? `<div class="dl-now" style="left:${pct}%"></div>`
     : "";
 
-  const srLabel = hasData ? `🌅 ${sunrise}` : `🌅 —`;
-  const ssLabel = hasData ? `🌇 ${sunset}` : `🌇 —`;
+  const srLabel = hasData ? `🌅 ${esc(sunrise)}` : `🌅 —`;
+  const ssLabel = hasData ? `🌇 ${esc(sunset)}` : `🌇 —`;
 
   return `
     <div class="daylight-wrap">
@@ -656,40 +805,50 @@ async function loadAll() {
 
   try {
     const n     = now();
-    const today = n.toISOString().slice(0, 10);
-    const tomorrow = new Date(n.getTime() + 86400000).toISOString().slice(0, 10);
+    const today = twDateKey(n);
+    const tomorrow = twDateKey(addDays(n, 1));
 
     // 並行取得所有資料（自動 fallback 至暫存）
-    const [obsRes, cityRes, windRes, tideRes, astroRes] = await Promise.all([
+    const [obsRes, cityRes, windRes, tideRes, astroRes, marineRes] = await Promise.all([
       tryFetch("O-A0001-001", {}, "obs"),
       tryFetch("F-D0047-057", { LocationName: "東區" }, "city"),
       tryFetch("F-D0047-029", { LocationName: "東石鄉" }, "sea"),
       tryFetch("F-A0021-001", { LocationName: "嘉義縣東石鄉" }, "tide"),
       tryFetch("A-B0062-001", { CountyName: "嘉義市", timeFrom: today, timeTo: tomorrow }, "astro"),
+      tryLoadTownCoastalPlot(TOWN_COASTAL_PLOT, "marine"),
     ]);
 
     // 判斷是否有任何暫存資料被使用
-    const usedCache = [obsRes, cityRes, windRes, tideRes, astroRes]
+    const usedCache = [obsRes, cityRes, windRes, tideRes, astroRes, marineRes]
       .filter(r => r.cached);
     const cacheTs = usedCache.length
       ? Math.min(...usedCache.map(r => r.ts))
       : null;
+
+    const failedFeeds = [
+      ["即時觀測", obsRes],
+      ["城市預報", cityRes],
+      ["海風預報", windRes],
+      ["潮汐", tideRes],
+      ["日出日落", astroRes],
+      ["東石浪高", marineRes],
+    ].filter(([, r]) => !r.ok && !r.data).map(([name]) => name);
 
     const obs   = obsRes.data;
     const city  = cityRes.data  ? parseForecast(cityRes.data,  "東區") : {};
     const sea   = windRes.data  ? parseForecast(windRes.data,  "東石") : {};
     const tide  = tideRes.data;
     const astro = astroRes.data;
+    const marine = marineRes.data ? parseTownCoastalPlot(marineRes.data, n) : {};
 
-    let maxObsBft = 0, maxFcstBft = 0;
+    let maxObsBft = null, maxFcstBft = null, maxWaveHeight = null;
 
     const { sunrise, sunset } = parseAstro(astro, today);
 
     /* ── 觀測站 ────────────────────────────────────────────── */
     let obsRows = "";
-    if (obs) {
+    if (obs?.records?.Station) {
       const stations = obs.records.Station.filter(s => OBS_STATIONS[s.StationId]);
-      const dirs = ["北","東北","東","東南","南","西南","西","西北"];
       for (const s of stations) {
         const we   = s.WeatherElement;
         const name = OBS_STATIONS[s.StationId];
@@ -697,14 +856,14 @@ async function loadAll() {
         const wdir = valid(we.WindDirection);
         const temp = valid(we.AirTemperature);
         const humi = valid(we.RelativeHumidity);
-        const rain = we.Now?.Precipitation || "0";
-        const wx   = we.Weather || "—";
+        const rain = validRain(we.Now?.Precipitation);
+        const wx   = valid(we.Weather) || "—";
         const b    = bft(wspd);
-        if (b != null && b > maxObsBft) maxObsBft = b;
-        const dirStr = wdir ? dirs[Math.round(parseFloat(wdir) / 45) % 8] : "—";
+        if (b != null && (maxObsBft == null || b > maxObsBft)) maxObsBft = b;
+        const dirStr = windDirText(wdir);
         obsRows += `<div class="row">
-          <span class="row-name">${name}</span>
-          <span class="row-detail">${wxIcon(wx)} ${wx} · ${dirStr}風 ${wspd ?? '—'}m/s · ${temp ?? '—'}°C · ${humi ?? '—'}% · ${rain}mm</span>
+          <span class="row-name">${esc(name)}</span>
+          <span class="row-detail">${wxIcon(wx)} ${esc(wx)} · ${esc(dirStr)}風 ${show(wspd, "m/s")} · ${show(temp, "°C")} · ${show(humi, "%")} · ${showRain(rain)}</span>
           ${bftBadge(b)}
         </div>`;
       }
@@ -716,17 +875,17 @@ async function loadAll() {
     const curHum = nearest(city, "相對濕度", n);
     const curPop = nearest(city, "3小時降雨機率", n);
     const curWx  = nearest(city, "天氣現象", n);
-    const curWxStr = curWx?.Weather || "—";
+    const curWxStr = valid(curWx?.Weather) || "—";
 
     const currentFocusHtml = `
       <div class="current-focus">
-        <div class="cf-icon">${wxIcon(curWxStr)}</div>
-        <div class="cf-data">
-          <div class="cf-temp">${curTmp?.Temperature ?? '—'}°C</div>
-          <div class="cf-desc">${curWxStr}</div>
+          <div class="cf-icon">${wxIcon(curWxStr)}</div>
+          <div class="cf-data">
+          <div class="cf-temp">${show(curTmp?.Temperature, "°C")}</div>
+          <div class="cf-desc">${esc(curWxStr)}</div>
           <div class="cf-sub">
-            <span title="相對濕度">💧 濕度 ${curHum?.RelativeHumidity ?? '—'}%</span>
-            <span title="3小時降雨機率">☔ 降雨 ${curPop?.ProbabilityOfPrecipitation ?? '—'}%</span>
+            <span title="相對濕度">💧 濕度 ${show(curHum?.RelativeHumidity, "%")}</span>
+            <span title="3小時降雨機率">☔ 降雨 ${show(curPop?.ProbabilityOfPrecipitation, "%")}</span>
           </div>
         </div>
       </div>`;
@@ -742,17 +901,18 @@ async function loadAll() {
       const hum = nearest(city, "相對濕度", t);
       const pop = nearest(city, "3小時降雨機率", t);
       const wx  = nearest(city, "天氣現象", t);
-      const wxStr = wx?.Weather || "—";
+      const wxStr = valid(wx?.Weather) || "—";
       const isNow = i === 0;
+      const hourLabel = String(twHour(t)).padStart(2,'0');
       const label = isNow
-        ? `${String(t.getHours()).padStart(2,'0')}:00<br><small style="font-size:10px;color:var(--accent)">現在</small>`
-        : `${String(t.getHours()).padStart(2,'0')}:00`;
+        ? `${hourLabel}:00<br><small style="font-size:10px;color:var(--accent)">現在</small>`
+        : `${hourLabel}:00`;
       hzRows += `<div class="hz-item${isNow ? ' hz-now' : ''}">
         <span class="hz-time" style="text-align:center">${label}</span>
         <span class="hz-icon">${wxIcon(wxStr)}</span>
-        <span class="hz-temp">${tmp?.Temperature ?? '—'}°C</span>
-        <span class="hz-sub" title="相對濕度">💧 ${hum?.RelativeHumidity ?? '—'}%</span>
-        <span class="hz-sub" title="降雨機率">☔ ${pop?.ProbabilityOfPrecipitation ?? '—'}%</span>
+        <span class="hz-temp">${show(tmp?.Temperature, "°C")}</span>
+        <span class="hz-sub" title="相對濕度">💧 ${show(hum?.RelativeHumidity, "%")}</span>
+        <span class="hz-sub" title="降雨機率">☔ ${show(pop?.ProbabilityOfPrecipitation, "%")}</span>
       </div>`;
     }
 
@@ -763,13 +923,17 @@ async function loadAll() {
       const spd  = nearest(sea, "風速", t);
       const wdir = nearest(sea, "風向", t);
       const wx   = nearest(sea, "天氣現象", t);
-      const bftN = spd?.BeaufortScale != null ? parseInt(spd.BeaufortScale) : null;
-      if (bftN != null && bftN > maxFcstBft) maxFcstBft = bftN;
-      const wxStr = wx?.Weather || "—";
-      const timeLabel = `${String(t.getHours()).padStart(2,'0')}:00`;
+      const wave = nearest(marine, "浪高", t);
+      const bftN = parseBftValue(spd?.BeaufortScale);
+      if (bftN != null && (maxFcstBft == null || bftN > maxFcstBft)) maxFcstBft = bftN;
+      const waveH = valid(wave?.WaveHeight);
+      const waveN = waveH != null ? parseFloat(waveH) : null;
+      if (waveN != null && !Number.isNaN(waveN) && (maxWaveHeight == null || waveN > maxWaveHeight)) maxWaveHeight = waveN;
+      const wxStr = valid(wx?.Weather) || "—";
+      const timeLabel = `${String(twHour(t)).padStart(2,'0')}:00`;
       windRows += `<div class="row">
         <span class="row-time">${timeLabel}</span>
-        <span class="row-detail">${wdir?.WindDirection ?? '—'} ${spd?.WindSpeed ?? '—'}m/s · ${wxIcon(wxStr)} ${wxStr}</span>
+        <span class="row-detail">${show(wdir?.WindDirection)} ${show(spd?.WindSpeed, "m/s")} · 浪 ${showMeters(wave?.WaveHeight)} · ${wxIcon(wxStr)} ${esc(wxStr)}</span>
         ${bftBadge(bftN)}
       </div>`;
     }
@@ -793,9 +957,9 @@ async function loadAll() {
           const wday   = WEEKDAYS[new Date(date + "T00:00:00").getDay()];
           const events = day.Time || [];
           tideHtml += `<div class="day-hdr">
-            ${fmtDate(date)} 週${wday}
-            <span class="day-pill">${lunarStr}</span>
-            <span class="day-pill">${trange}潮</span>
+            ${esc(fmtDate(date))} 週${esc(wday)}
+            <span class="day-pill">${esc(lunarStr)}</span>
+            <span class="day-pill">${show(trange, "潮")}</span>
           </div><div class="tide-grid">`;
           for (const ev of events) {
             const evDt = new Date(ev.DateTime);
@@ -803,7 +967,7 @@ async function loadAll() {
             const h    = parseInt(ev.TideHeights?.AboveTWVD || 0);
             if (!isHi && date === today) dryTides.push({ dt: evDt, h });
             tideHtml += `<div class="tide-cell">
-              <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${evDt.getHours() < 12 ? "上午" : "下午"}</div>
+              <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${twHour(evDt) < 12 ? "上午" : "下午"}</div>
               <div class="tide-tm">${fmtTime(evDt)}</div>
               <div class="tide-ht ${isHi ? 'hi' : 'lo'}">${h > 0 ? "+" : ""}${h} cm</div>
             </div>`;
@@ -829,22 +993,33 @@ async function loadAll() {
     }
 
     /* ── 出海建議 ─────────────────────────────────────────── */
-    const maxBft = Math.max(maxObsBft, maxFcstBft);
+    const missingSafetyData = [];
+    if (maxObsBft == null) missingSafetyData.push("即時觀測風速");
+    if (maxFcstBft == null) missingSafetyData.push("海風預報風速");
+    if (maxWaveHeight == null) missingSafetyData.push("東石浪高");
+    const maxBft = missingSafetyData.length ? null : Math.max(maxObsBft, maxFcstBft);
     let vCls, vIcon, vMain, vSub;
-    if (maxBft === 0 && maxObsBft === 0) {
-      vCls = "unknown"; vIcon = "?"; vMain = "無風速資料"; vSub = "請確認觀測站回傳";
+    if (missingSafetyData.length) {
+      vCls = "danger"; vIcon = "!"; vMain = "資料不足，暫不提供出海建議";
+      vSub = `缺少：${missingSafetyData.join("、")}`;
+    } else if (maxBft >= 8 || maxWaveHeight >= 6) {
+      vCls = "danger";  vIcon = "✕"; vMain = "不建議出海（風浪危險）";
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級 · 浪高最高 ${maxWaveHeight.toFixed(1)}m`;
+    } else if (maxBft >= 6 || maxWaveHeight >= 3) {
+      vCls = "danger";  vIcon = "✕"; vMain = "不建議出海（風浪偏強）";
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級 · 浪高最高 ${maxWaveHeight.toFixed(1)}m`;
+    } else if (maxBft === 5 || maxWaveHeight >= 1.5) {
+      vCls = "caution"; vIcon = "!"; vMain = "謹慎評估，確認現場後再出發";
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級 · 浪高最高 ${maxWaveHeight.toFixed(1)}m`;
+    } else if (maxBft === 4 || maxWaveHeight >= 1) {
+      vCls = "caution"; vIcon = "!"; vMain = "可出海，留意風浪";
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級 · 浪高最高 ${maxWaveHeight.toFixed(1)}m`;
     } else if (maxBft <= 3) {
       vCls = "ok";      vIcon = "✓"; vMain = "適合出海 — 風平浪靜";
-      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
-    } else if (maxBft === 4) {
-      vCls = "caution"; vIcon = "!"; vMain = "可出海，留意風況";
-      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
-    } else if (maxBft === 5) {
-      vCls = "caution"; vIcon = "!"; vMain = "謹慎評估，確認現場後再出發";
-      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級 · 浪高最高 ${maxWaveHeight.toFixed(1)}m`;
     } else {
       vCls = "danger";  vIcon = "✕"; vMain = `不建議出海（最高 ${maxBft} 級）`;
-      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級`;
+      vSub = `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級 · 浪高最高 ${maxWaveHeight.toFixed(1)}m`;
     }
 
     /* ── 暫存橫幅 ─────────────────────────────────────────── */
@@ -854,6 +1029,12 @@ async function loadAll() {
            <span>部分資料無法取得，目前顯示暫存資料（${cacheAge(cacheTs)}）。請確認網路後重新整理。</span>
          </div>`
       : "";
+    const errorBannerHtml = failedFeeds.length
+      ? `<div class="cache-banner">
+           <span class="cb-icon">⚠</span>
+           <span>部分資料載入失敗：${esc(failedFeeds.join("、"))}。相關區塊與出海建議已保守降級。</span>
+         </div>`
+      : "";
 
     /* ── 日光條 ───────────────────────────────────────────── */
     const daylightHtml = daylightBarHtml(sunrise, sunset, n);
@@ -861,6 +1042,7 @@ async function loadAll() {
     /* ── 組裝 HTML ──────────────────────────────────────────── */
     content.innerHTML = `
       ${cacheBannerHtml}
+      ${errorBannerHtml}
 
       <div class="verdict ${vCls}">
         <div class="verdict-icon">${vIcon}</div>
@@ -880,11 +1062,11 @@ async function loadAll() {
               <div class="g2">
                 <div class="metric">
                   <div class="metric-lbl">溫度</div>
-                  <div class="metric-val">${curTmp?.Temperature ?? '—'}°C</div>
+                  <div class="metric-val">${show(curTmp?.Temperature, "°C")}</div>
                 </div>
                 <div class="metric">
                   <div class="metric-lbl">體感溫度</div>
-                  <div class="metric-val">${curAT?.ApparentTemperature ?? '—'}°C</div>
+                  <div class="metric-val">${show(curAT?.ApparentTemperature, "°C")}</div>
                 </div>
               </div>
               ${daylightHtml}
@@ -900,10 +1082,10 @@ async function loadAll() {
 
         <div class="col-wrap">
           <div>
-            <div class="section-lbl">東石海風預報（即時 + 後 6 整點）</div>
+            <div class="section-lbl">東石海風與浪高預報（後 6 整點）</div>
             <div class="card">
               ${windRows}
-              <div class="info-note">預報為平均風速，陣風／浪高請見官方連結</div>
+              <div class="info-note">浪高為示性波高，官方提醒最大波高可能達示性波高 2 倍。</div>
             </div>
           </div>
 
@@ -922,7 +1104,7 @@ async function loadAll() {
         </div>` : ""}
 
         <div class="full" style="margin-top:4px">
-          <a class="ext-link" href="https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html?cID=10010&pointID=1001009C01" target="_blank">
+          <a class="ext-link" href="https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html?cID=10010&pointID=1001009C01" target="_blank" rel="noopener noreferrer">
             完整沿海預報（浪高／流速）→
           </a>
         </div>
@@ -933,11 +1115,12 @@ async function loadAll() {
     meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
 
   } catch(err) {
-    const isCors = err.message.includes("Failed to fetch") || err.name === "TypeError";
+    const errMsg = String(err?.message || err);
+    const isCors = errMsg.includes("Failed to fetch") || err?.name === "TypeError";
     content.innerHTML = `<div class="err-box">
       ${isCors
         ? "⚠ 瀏覽器 CORS 政策擋住了對氣象署 API 的請求。<br><br>氣象署 API 不開放跨來源存取，需要後端 proxy 才能在瀏覽器即時呼叫。"
-        : "⚠ 載入失敗：" + err.message}
+        : "⚠ 載入失敗：" + esc(errMsg)}
     </div>`;
     meta.textContent = "載入失敗";
   }
