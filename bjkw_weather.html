@@ -441,6 +441,69 @@ body {
   margin-top: 18px; margin-bottom: 6px; flex-wrap: wrap;
 }
 .day-hdr:first-child { margin-top: 0; }
+.day-detail {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.day-detail:first-child {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+.day-detail > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.day-detail > summary::-webkit-details-marker { display: none; }
+.day-detail:not([open]) .day-hdr { margin-bottom: 0; }
+.future-tide-group:not([open]) .future-tide-summary::after,
+.collapse-summary::after {
+  content: "展開";
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--txt-3);
+  font-weight: 500;
+}
+.future-tide-group[open] .future-tide-summary::after,
+.support-detail[open] .collapse-summary::after {
+  content: "收合";
+}
+.day-detail.day-today > summary {
+  cursor: default;
+  pointer-events: none;
+}
+.future-tide-group {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.future-tide-group > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.future-tide-group > summary::-webkit-details-marker { display: none; }
+.future-tide-summary {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.future-tide-group[open] .future-tide-summary {
+  margin-bottom: 8px;
+}
+.future-day {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.future-day:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
 .day-pill {
   font-size: 12px; font-weight: 500;
   padding: 3px 10px; border-radius: 20px;
@@ -450,6 +513,27 @@ body {
 @media (prefers-color-scheme: dark) {
   .day-pill { border-color: rgba(75,159,225,.25); }
 }
+
+.support-detail {
+  margin-bottom: 14px;
+}
+.support-detail > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.support-detail > summary::-webkit-details-marker { display: none; }
+.collapse-summary {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--txt-3);
+  margin: 20px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.support-detail .card { margin-bottom: 0; }
 
 /* ─── 趕潮窗口 ───────────────────────────────────────────── */
 .window-row {
@@ -500,6 +584,14 @@ body {
     padding: 8px 8px 28px;
     max-width: 100%;
   }
+  .two-col {
+    display: flex;
+    flex-direction: column;
+  }
+  .today-col { order: 1; }
+  .today-window { order: 2; }
+  .support-col { order: 3; }
+  .ext-full { order: 4; }
   .topbar {
     align-items: center;
     gap: 8px;
@@ -628,14 +720,50 @@ body {
   .tide-grid { gap: 8px; }
   .tide-cell { padding: 9px 10px; }
   .tide-tm { font-size: 18px; }
+  .day-detail {
+    padding-top: 9px;
+    margin-top: 9px;
+  }
+  .future-tide-group {
+    padding-top: 9px;
+    margin-top: 9px;
+  }
+  .future-tide-summary {
+    font-size: 14px;
+    gap: 6px;
+  }
+  .future-day {
+    padding-top: 9px;
+    margin-top: 9px;
+  }
   .day-hdr {
     font-size: 14px;
     gap: 6px;
-    margin-top: 14px;
+    margin-top: 0;
+    margin-bottom: 7px;
   }
+  .day-detail:not([open]) .day-hdr { margin-bottom: 0; }
   .day-pill {
     font-size: 11px;
     padding: 2px 8px;
+  }
+  .collapse-summary {
+    font-size: 12px;
+    letter-spacing: .04em;
+    margin: 10px 0 6px;
+  }
+  .support-detail {
+    margin-bottom: 8px;
+  }
+  .support-detail:not([open]) {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
+    padding: 9px 10px;
+    box-shadow: var(--shadow-sm);
+  }
+  .support-detail:not([open]) .collapse-summary {
+    margin: 0;
   }
   .window-row {
     gap: 8px;
@@ -1069,6 +1197,16 @@ function daylightBarHtml(sunrise, sunset, n) {
     </div>`;
 }
 
+function syncTodayModeDetails() {
+  const isMobile = window.matchMedia("(max-width: 520px)").matches;
+  document.querySelectorAll("details.today-mode-detail").forEach(detail => {
+    detail.open = isMobile
+      ? detail.dataset.mobileOpen === "true"
+      : true;
+  });
+}
+window.matchMedia("(max-width: 520px)").addEventListener?.("change", syncTodayModeDetails);
+
 /* ─── 主要載入函式 ────────────────────────────────────────── */
 async function loadAll() {
   const btn     = document.getElementById("refresh");
@@ -1237,6 +1375,8 @@ async function loadAll() {
         const upcoming = daily.filter(d => d.Date >= today)
                               .sort((a,b) => a.Date > b.Date ? 1 : -1)
                               .slice(0, 3);
+        let futureTideHtml = "";
+        let futureTideDates = [];
         for (const day of upcoming) {
           const date   = day.Date;
           const lunar  = day.LunarDate || "";
@@ -1246,23 +1386,45 @@ async function loadAll() {
           const trange = day.TideRange || "";
           const wday   = WEEKDAYS[new Date(date + "T00:00:00").getDay()];
           const events = day.Time || [];
-          tideHtml += `<div class="day-hdr">
-            ${esc(fmtDate(date))} 週${esc(wday)}
-            <span class="day-pill">${esc(lunarStr)}</span>
-            <span class="day-pill">${show(trange, "潮")}</span>
-          </div><div class="tide-grid">`;
+          const isToday = date === today;
+          let dayCells = "";
           for (const ev of events) {
             const evDt = new Date(ev.DateTime);
             const isHi = ev.Tide === "滿潮";
             const h    = parseInt(ev.TideHeights?.AboveTWVD || 0);
             if (!isHi && date === today) dryTides.push({ dt: evDt, h });
-            tideHtml += `<div class="tide-cell">
+            dayCells += `<div class="tide-cell">
               <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${twHour(evDt) < 12 ? "上午" : "下午"}</div>
               <div class="tide-tm">${fmtTime(evDt)}</div>
               <div class="tide-ht ${isHi ? 'hi' : 'lo'}">${h > 0 ? "+" : ""}${h} cm</div>
             </div>`;
           }
-          tideHtml += "</div>";
+          const dayHeader = `
+            ${esc(fmtDate(date))} 週${esc(wday)}
+            ${isToday ? '<span class="day-pill">今日</span>' : ""}
+            <span class="day-pill">${esc(lunarStr)}</span>
+            <span class="day-pill">${show(trange, "潮")}</span>`;
+          if (isToday) {
+            tideHtml += `<details class="day-detail today-mode-detail day-today" data-mobile-open="true" open>
+              <summary class="day-hdr">${dayHeader}</summary>
+              <div class="tide-grid">${dayCells}</div>
+            </details>`;
+          } else {
+            futureTideDates.push(fmtDate(date));
+            futureTideHtml += `<div class="future-day">
+              <div class="day-hdr">${dayHeader}</div>
+              <div class="tide-grid">${dayCells}</div>
+            </div>`;
+          }
+        }
+        if (futureTideHtml) {
+          tideHtml += `<details class="future-tide-group today-mode-detail" data-mobile-open="false">
+            <summary class="future-tide-summary">
+              明後天潮汐
+              <span class="day-pill">${esc(futureTideDates.join(" / "))}</span>
+            </summary>
+            ${futureTideHtml}
+          </details>`;
         }
       } catch(e) { tideHtml = `<div class="info-note">潮汐解析錯誤</div>`; }
     }
@@ -1369,7 +1531,7 @@ async function loadAll() {
 
       <div class="two-col">
 
-        <div class="col-wrap">
+        <div class="col-wrap today-col">
           <div>
             <div class="section-lbl">東區天氣（6 小時）</div>
             <div class="card">
@@ -1395,22 +1557,7 @@ async function loadAll() {
           </div>
         </div>
 
-        <div class="col-wrap">
-          <div>
-            <div class="section-lbl">東石風浪（6 小時）</div>
-            <div class="card">
-              ${windRows}
-              <div class="info-note">浪高為逐 3 小時示性波高；最大波高可能約為 2 倍。${waveTimeInfo}</div>
-            </div>
-          </div>
-
-          <div>
-            <div class="section-lbl">測站即時風</div>
-            <div class="card">${obsRows || '<div class="info-note">觀測資料無法取得</div>'}</div>
-          </div>
-        </div>
-
-        ${windowHtml ? `<div class="full">
+        ${windowHtml ? `<div class="full today-window">
           <div class="section-lbl">今日潮窗</div>
           <div class="card">
             ${windowHtml}
@@ -1418,7 +1565,22 @@ async function loadAll() {
           </div>
         </div>` : ""}
 
-        <div class="full" style="margin-top:4px">
+        <div class="col-wrap support-col">
+          <details class="support-detail today-mode-detail" data-mobile-open="false">
+            <summary class="collapse-summary">東石風浪（6 小時）</summary>
+            <div class="card">
+              ${windRows}
+              <div class="info-note">浪高為逐 3 小時示性波高；最大波高可能約為 2 倍。${waveTimeInfo}</div>
+            </div>
+          </details>
+
+          <details class="support-detail today-mode-detail" data-mobile-open="false">
+            <summary class="collapse-summary">測站即時風</summary>
+            <div class="card">${obsRows || '<div class="info-note">觀測資料無法取得</div>'}</div>
+          </details>
+        </div>
+
+        <div class="full ext-full" style="margin-top:4px">
           <a class="ext-link" href="https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html?cID=10010&pointID=1001009C01" target="_blank" rel="noopener noreferrer">
             完整沿海預報（浪高／流速）→
           </a>
@@ -1426,6 +1588,7 @@ async function loadAll() {
 
       </div>
     `;
+    syncTodayModeDetails();
 
     meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
 
