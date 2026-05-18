@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BJKW即時氣象報告</title>
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -207,6 +208,90 @@ body {
   opacity: .76;
 }
 
+/* ─── Quick summary ──────────────────────────────────────── */
+.quick-summary {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.quick-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  color: var(--txt-3);
+}
+.quick-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--txt);
+  margin-top: 2px;
+}
+.decision-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.decision-line {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 10px 11px;
+  min-width: 0;
+}
+.decision-line.ok      { border-left-color: var(--ok-border); }
+.decision-line.caution { border-left-color: var(--warn-border); }
+.decision-line.danger  { border-left-color: var(--err-border); }
+.decision-line.unknown { border-left-color: var(--txt-3); }
+.decision-label {
+  font-size: 12px;
+  color: var(--txt-3);
+  margin-bottom: 4px;
+}
+.decision-main {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--txt);
+  line-height: 1.1;
+}
+.decision-line.ok .decision-main { color: var(--ok-txt); }
+.decision-line.caution .decision-main { color: var(--warn-txt); }
+.decision-line.danger .decision-main { color: var(--err-txt); }
+.quick-metrics {
+  display: grid;
+  grid-template-columns: 1.25fr .85fr .8fr;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.quick-metric {
+  min-width: 0;
+}
+.quick-metric span {
+  display: block;
+  font-size: 11px;
+  color: var(--txt-3);
+  margin-bottom: 2px;
+}
+.quick-metric strong {
+  display: block;
+  font-size: 13px;
+  color: var(--txt);
+  font-family: 'DM Mono', monospace;
+  white-space: nowrap;
+}
+.quick-note {
+  font-size: 12px;
+  color: var(--txt-3);
+  line-height: 1.45;
+  margin-top: 10px;
+}
+
 /* ─── Current Focus ──────────────────────────────────────── */
 .current-focus {
   display: flex; align-items: center; gap: 18px; padding: 8px 0 20px;
@@ -406,6 +491,154 @@ body {
   .two-col .section-lbl { margin-top: 0; }
   .col-wrap { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
   .full { grid-column: 1 / -1; min-width: 0; }
+}
+
+/* ─── Mobile first-view tuning ───────────────────────────── */
+@media (max-width: 520px) {
+  body { font-size: 15px; }
+  .page {
+    padding: 12px 10px 32px;
+    max-width: 100%;
+  }
+  .topbar {
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .title { font-size: 16px; }
+  .meta  { font-size: 11px; margin-top: 2px; }
+  #refresh {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  .section-lbl {
+    font-size: 12px;
+    letter-spacing: .04em;
+    margin: 14px 0 7px;
+  }
+  .card,
+  .quick-summary {
+    border-radius: var(--radius-lg);
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .quick-kicker { font-size: 11px; }
+  .quick-title { font-size: 16px; }
+  .decision-list {
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .decision-line {
+    padding: 8px 9px;
+    border-left-width: 3px;
+  }
+  .decision-label {
+    font-size: 11px;
+    margin-bottom: 3px;
+  }
+  .decision-main { font-size: 20px; }
+  .quick-metrics {
+    grid-template-columns: 1.25fr .85fr .8fr;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+  .quick-metric span { font-size: 10px; }
+  .quick-metric strong { font-size: 12px; }
+  .quick-note {
+    font-size: 11px;
+    margin-top: 8px;
+  }
+  .current-focus {
+    gap: 12px;
+    padding: 0 0 12px;
+  }
+  .cf-icon { font-size: 44px; }
+  .cf-temp { font-size: 32px; }
+  .cf-desc { font-size: 14px; }
+  .cf-sub {
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .g2 {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .g2 .metric:first-child { display: none; }
+  .metric {
+    padding: 9px 11px;
+    border-radius: var(--radius-md);
+  }
+  .metric-lbl {
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+  .metric-val { font-size: 18px; }
+  .daylight-wrap {
+    padding: 9px 10px;
+    margin-bottom: 12px;
+    border-radius: var(--radius-md);
+  }
+  .daylight-lbl {
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .daylight-row { gap: 6px; }
+  .dl-time { font-size: 12px; }
+  .dl-track { height: 7px; }
+  .dl-now { width: 10px; height: 10px; }
+  .dl-remain { font-size: 10px; margin-top: 4px; }
+  .hz-scroll {
+    gap: 8px;
+    padding-bottom: 0;
+    margin: 0 -2px;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .hz-scroll::-webkit-scrollbar { display: none; }
+  .hz-item {
+    min-width: 66px;
+    padding: 10px 8px;
+    border-radius: var(--radius-md);
+    scroll-snap-align: start;
+  }
+  .hz-time { font-size: 12px; margin-bottom: 6px; }
+  .hz-icon { font-size: 21px; margin-bottom: 6px; }
+  .hz-temp { font-size: 16px; margin-bottom: 6px; }
+  .hz-sub  { font-size: 11px; gap: 2px; margin-top: 0; }
+  .row {
+    gap: 8px;
+    padding: 9px 0;
+  }
+  .row-time { width: 44px; font-size: 12px; }
+  .row-name { width: 56px; font-size: 14px; }
+  .row-detail { font-size: 13px; }
+  .row-meta { font-size: 11px; }
+  .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  .tide-grid { gap: 8px; }
+  .tide-cell { padding: 9px 10px; }
+  .tide-tm { font-size: 18px; }
+  .day-hdr {
+    font-size: 14px;
+    gap: 6px;
+    margin-top: 14px;
+  }
+  .day-pill {
+    font-size: 11px;
+    padding: 2px 8px;
+  }
+  .window-row {
+    gap: 8px;
+    font-size: 13px;
+  }
+  .win-time { min-width: 112px; font-size: 13px; }
+  .info-note { font-size: 12px; }
 }
 </style>
 </head>
@@ -905,7 +1138,7 @@ async function loadAll() {
           <span class="row-name">${esc(name)}</span>
           <span class="row-detail">
             <span class="row-main">${wxIcon(wx)} ${esc(wx)} · ${esc(dirStr)}風 ${show(wspd, "m/s")}</span>
-            <span class="row-meta">溫度 ${show(temp, "°C")} · 濕度 ${show(humi, "%")} · 雨量 ${showRain(rain)}</span>
+            <span class="row-meta">${show(temp, "°C")} · 雨量 ${showRain(rain)}</span>
           </span>
           ${bftBadge(b)}
         </div>`;
@@ -976,16 +1209,18 @@ async function loadAll() {
       const wxStr = valid(wx?.Weather) || "—";
       const timeLabel = `${String(twHour(t)).padStart(2,'0')}:00`;
       const waveLabel = waveHit
-        ? `鄰近 ${waveKeyLabel(waveHit.key)} 浪高 ${showMeters(wave?.WaveHeight)}`
+        ? `浪高時段 ${waveKeyLabel(waveHit.key)}`
         : "浪高 —";
-      windRows += `<div class="row row-wave">
-        <span class="row-time">${timeLabel}</span>
-        <span class="row-detail">
-          <span class="row-main">${show(wdir?.WindDirection)} · 風速 ${show(spd?.WindSpeed, "m/s")} · ${wxIcon(wxStr)} ${esc(wxStr)}</span>
-          <span class="row-meta">${waveLabel}</span>
-        </span>
-        ${bftBadge(bftN)}
-      </div>`;
+      if (i === 0 || i === 2 || i === 4 || i === 6) {
+        windRows += `<div class="row row-wave">
+          <span class="row-time">${timeLabel}</span>
+          <span class="row-detail">
+            <span class="row-main">${show(wdir?.WindDirection)} · ${show(spd?.WindSpeed, "m/s")} · 浪 ${showMeters(wave?.WaveHeight)}</span>
+            <span class="row-meta">${waveLabel}</span>
+          </span>
+          ${bftBadge(bftN)}
+        </div>`;
+      }
     }
 
     /* ── 潮汐 ─────────────────────────────────────────────── */
@@ -1042,39 +1277,66 @@ async function loadAll() {
       </div>`;
     }
 
-    /* ── 出海建議 ─────────────────────────────────────────── */
+    /* ── 首屏快速判斷 ─────────────────────────────────────── */
     const missingSafetyData = [];
     if (maxObsBft == null) missingSafetyData.push("即時觀測風速");
     if (maxFcstBft == null) missingSafetyData.push("海風預報風速");
     if (maxWaveHeight == null) missingSafetyData.push("東石浪高");
     const maxBft = missingSafetyData.length ? null : Math.max(maxObsBft, maxFcstBft);
-    const safetySub = missingSafetyData.length
-      ? ""
-      : `即時 ${maxObsBft} 級 · 預報最高 ${maxFcstBft} 級 · 浪高最高 ${maxWaveHeight.toFixed(1)}m`;
-    let vCls, vIcon, vMain, vSub;
+    const tideWindows = dryTides
+      .map(({ dt, h }) => ({
+        s: new Date(dt.getTime() - 2 * 3600000),
+        e: new Date(dt.getTime() + 2 * 3600000),
+        dt,
+        h,
+      }))
+      .sort((a, b) => a.s - b.s);
+    const nextTideWindow = tideWindows.find(w => w.e >= n) || null;
+    const tideWindowText = nextTideWindow
+      ? `${fmtTime(nextTideWindow.s)}-${fmtTime(nextTideWindow.e)}`
+      : tideWindows.length ? "今日已過" : "—";
+    const windMetricText = missingSafetyData.length ? "—" : `${maxObsBft}/${maxFcstBft}級`;
+    const waveMetricText = maxWaveHeight == null ? "—" : `${maxWaveHeight.toFixed(1)}m`;
+
+    let shoreDecision, boatDecision;
     if (missingSafetyData.length) {
-      vCls = "danger"; vIcon = "!"; vMain = "資料不足，僅顯示氣象資訊";
-      vSub = `缺少：${missingSafetyData.join("、")}`;
-    } else if (maxBft >= 8 || maxWaveHeight >= 6) {
-      vCls = "danger";  vIcon = "✕"; vMain = "風浪危險，不建議出海";
-      vSub = safetySub;
-    } else if (maxBft >= 6 || maxWaveHeight >= 3) {
-      vCls = "danger";  vIcon = "✕"; vMain = "風浪偏強，不建議出海";
-      vSub = safetySub;
-    } else if (maxBft === 5 || maxWaveHeight >= 1.5) {
-      vCls = "caution"; vIcon = "!"; vMain = "謹慎評估，確認現場後再出發";
-      vSub = safetySub;
-    } else if (maxBft === 4 || maxWaveHeight >= 1) {
-      vCls = "caution"; vIcon = "!"; vMain = "風浪條件尚可，仍需現場判斷";
-      vSub = safetySub;
-    } else if (maxBft <= 3) {
-      vCls = "ok";      vIcon = "✓"; vMain = "風浪條件偏平穩，仍需現場判斷";
-      vSub = safetySub;
+      shoreDecision = { cls: "unknown", main: "看資料" };
+      boatDecision  = { cls: "unknown", main: "看資料" };
     } else {
-      vCls = "danger";  vIcon = "✕"; vMain = `最高 ${maxBft} 級，不建議出海`;
-      vSub = safetySub;
+      shoreDecision = maxBft >= 7 || maxWaveHeight >= 2.5
+        ? { cls: "danger", main: "先暫緩" }
+        : maxBft >= 5 || maxWaveHeight >= 1.5
+          ? { cls: "caution", main: "看場況" }
+          : { cls: "ok", main: "可岸釣" };
+
+      boatDecision = maxBft >= 5 || maxWaveHeight >= 1.5
+        ? { cls: "danger", main: "不建議" }
+        : maxBft >= 4 || maxWaveHeight >= 1
+          ? { cls: "caution", main: "現場判斷" }
+          : { cls: "ok", main: "可評估" };
     }
-    const verdictNoteHtml = "風浪初步評估，未納入警特報、雷雨、濃霧、航道與船況；出發前請確認官方資訊與現場。";
+
+    const decisionLine = (label, d) => `<div class="decision-line ${d.cls}">
+      <div class="decision-label">${label}</div>
+      <div class="decision-main">${d.main}</div>
+    </div>`;
+    const quickNoteHtml = missingSafetyData.length
+      ? `缺少 ${missingSafetyData.join("、")}，判斷已降級。`
+      : "初判只看風、浪、潮窗；雷雨警特報與現場浪況仍要另查。";
+    const quickSummaryHtml = `<div class="quick-summary">
+      <div class="quick-kicker">今日初判</div>
+      <div class="quick-title">岸釣與出船</div>
+      <div class="decision-list">
+        ${decisionLine("岸邊釣魚", shoreDecision)}
+        ${decisionLine("出船", boatDecision)}
+      </div>
+      <div class="quick-metrics">
+        <div class="quick-metric"><span>潮窗</span><strong>${tideWindowText}</strong></div>
+        <div class="quick-metric"><span>風 現/預</span><strong>${windMetricText}</strong></div>
+        <div class="quick-metric"><span>最高浪</span><strong>${waveMetricText}</strong></div>
+      </div>
+      <div class="quick-note">${quickNoteHtml}</div>
+    </div>`;
 
     /* ── 暫存橫幅 ─────────────────────────────────────────── */
     const cacheBannerHtml = usedCache.length
@@ -1086,7 +1348,7 @@ async function loadAll() {
     const errorBannerHtml = failedFeeds.length
       ? `<div class="cache-banner">
            <span class="cb-icon">⚠</span>
-           <span>部分資料載入失敗：${esc(failedFeeds.join("、"))}。相關區塊與出海建議已保守降級。</span>
+           <span>部分資料載入失敗：${esc(failedFeeds.join("、"))}。相關區塊與快速判斷已保守降級。</span>
          </div>`
       : "";
 
@@ -1098,20 +1360,13 @@ async function loadAll() {
       ${cacheBannerHtml}
       ${errorBannerHtml}
 
-      <div class="verdict ${vCls}">
-        <div class="verdict-icon">${vIcon}</div>
-        <div>
-          <div class="verdict-main">${vMain}</div>
-          <div class="verdict-sub">${vSub}</div>
-          <div class="verdict-note">${verdictNoteHtml}</div>
-        </div>
-      </div>
+      ${quickSummaryHtml}
 
       <div class="two-col">
 
         <div class="col-wrap">
           <div>
-            <div class="section-lbl">嘉義市東區 天氣（6 小時預報）</div>
+            <div class="section-lbl">東區天氣（6 小時）</div>
             <div class="card">
               ${currentFocusHtml}
               <div class="g2">
@@ -1130,28 +1385,28 @@ async function loadAll() {
           </div>
 
           <div>
-            <div class="section-lbl">潮汐時序（今明後三日）</div>
+            <div class="section-lbl">潮汐（今明後）</div>
             <div class="card">${tideHtml || '<div class="info-note">潮汐資料無法取得</div>'}</div>
           </div>
         </div>
 
         <div class="col-wrap">
           <div>
-            <div class="section-lbl">東石海風與浪高概況（未來 6 小時）</div>
+            <div class="section-lbl">東石風浪（6 小時）</div>
             <div class="card">
               ${windRows}
-              <div class="info-note">浪高為中央氣象署東石沿海逐 3 小時示性波高；列內使用鄰近時段值。${waveTimeInfo}官方提醒最大波高可能達示性波高 2 倍。</div>
+              <div class="info-note">浪高為逐 3 小時示性波高；最大波高可能約為 2 倍。${waveTimeInfo}</div>
             </div>
           </div>
 
           <div>
-            <div class="section-lbl">即時觀測（真實測站）</div>
+            <div class="section-lbl">測站即時風</div>
             <div class="card">${obsRows || '<div class="info-note">觀測資料無法取得</div>'}</div>
           </div>
         </div>
 
         ${windowHtml ? `<div class="full">
-          <div class="section-lbl">今日趕潮窗口（± 2 小時）</div>
+          <div class="section-lbl">今日潮窗</div>
           <div class="card">
             ${windowHtml}
             <div class="info-note">★ 依潮高估算，非官方流速資料</div>
