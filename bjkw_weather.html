@@ -814,6 +814,8 @@ const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
 const TZ      = "Asia/Taipei";
 const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
 const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
+const BOAT_WAVE_LIMIT = 0.5;
+const BOAT_BFT_LIMIT = 3;
 const WEEKDAYS   = ["日","一","二","三","四","五","六"];
 const LUNAR_MONTH = ["","正","二","三","四","五","六","七","八","九","十","冬","臘"];
 const LUNAR_DAY   = ["","初一","初二","初三","初四","初五","初六","初七","初八","初九","初十",
@@ -965,6 +967,12 @@ function bftBadge(b) {
   if (b == null) return `<span class="badge b-gray">—</span>`;
   const cls = b <= 3 ? "b-ok" : b <= 4 ? "b-caution" : "b-danger";
   return `<span class="badge ${cls}">${b}級 ${bftLabel(b)}</span>`;
+}
+function boatDecisionFromRules(maxWaveHeight, maxBft, hasMissingData) {
+  if (hasMissingData) return { cls: "unknown", main: "資料不足" };
+  return maxWaveHeight <= BOAT_WAVE_LIMIT && maxBft <= BOAT_BFT_LIMIT
+    ? { cls: "ok", main: "可出船" }
+    : { cls: "caution", main: "暫緩" };
 }
 function parseBftValue(v) {
   const clean = valid(v);
@@ -1504,31 +1512,25 @@ async function loadAll() {
     const windMetricText = missingSafetyData.length ? "—" : `${maxObsBft}/${maxFcstBft}級`;
     const waveMetricText = maxWaveHeight == null ? "—" : `${maxWaveHeight.toFixed(1)}m`;
 
-    let shoreDecision, boatDecision;
+    let shoreDecision;
     if (missingSafetyData.length) {
       shoreDecision = { cls: "unknown", main: "看資料" };
-      boatDecision  = { cls: "unknown", main: "看資料" };
     } else {
       shoreDecision = maxBft >= 7 || maxWaveHeight >= 2.5
         ? { cls: "danger", main: "先暫緩" }
         : maxBft >= 5 || maxWaveHeight >= 1.5
           ? { cls: "caution", main: "看場況" }
           : { cls: "ok", main: "可岸釣" };
-
-      boatDecision = maxBft >= 5 || maxWaveHeight >= 1.5
-        ? { cls: "danger", main: "不建議" }
-        : maxBft >= 4 || maxWaveHeight >= 1
-          ? { cls: "caution", main: "現場判斷" }
-          : { cls: "ok", main: "可評估" };
     }
+    const boatDecision = boatDecisionFromRules(maxWaveHeight, maxBft, missingSafetyData.length > 0);
 
     const decisionLine = (label, d) => `<div class="decision-line ${d.cls}">
       <div class="decision-label">${label}</div>
       <div class="decision-main">${d.main}</div>
     </div>`;
     const quickNoteHtml = missingSafetyData.length
-      ? `缺少 ${missingSafetyData.join("、")}，判斷已降級。`
-      : "初判只看風、浪、潮窗；雷雨警特報與現場浪況仍要另查。";
+      ? `缺少 ${missingSafetyData.join("、")}，出船顯示資料不足。`
+      : "出船看未來6小時：浪≤0.5m、風≤3級；岸釣另看潮窗。";
     const quickSummaryHtml = `<div class="quick-summary">
       <div class="quick-kicker">今日初判</div>
       <div class="quick-title">岸釣與出船</div>
