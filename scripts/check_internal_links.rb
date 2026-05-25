@@ -9,6 +9,7 @@ abort "_site does not exist. Run `bundle exec jekyll build` first." unless site_
 
 html_files = Dir.glob(site_dir.join("**/*.html").to_s).map { |path| Pathname(path) }
 missing = Set.new
+externally_served_prefixes = ["/resume/"]
 
 html_files.each do |file|
   html = file.read(encoding: "UTF-8")
@@ -19,6 +20,8 @@ html_files.each do |file|
     next unless href.start_with?("/")
 
     path = href.split("#", 2).first.split("?", 2).first
+    next if externally_served_prefixes.any? { |prefix| path.start_with?(prefix) }
+
     path = CGI.unescape(path)
     relative_path = path.delete_prefix("/")
     target = site_dir.join(relative_path)
