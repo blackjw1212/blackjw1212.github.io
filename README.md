@@ -24,3 +24,4 @@ The site is published at <https://blackjw1212.github.io/>.
 - Keep navigation links backed by real pages.
 - Do not commit local OS artifacts such as `.DS_Store`.
 - Keep repo descriptions, profile links, and pinned projects aligned with the current portfolio focus.
+- Every push runs a GitHub Actions site check that builds Jekyll and verifies internal links.

@@ -11,6 +11,7 @@ Taiwan-based engineer exploring HomeLab, HomeKit/HomeSpan, Hackintosh, and pract
 
 ## Projects worth checking out
 
+- [HomeSpan HomeKit Lab](https://github.com/blackjw1212/homespan-homekit-lab): ESP32/HomeSpan experiments focused on stable HomeKit accessories and operations notes.
 - [Hackintosh](https://github.com/blackjw1212/Hackintosh): OpenCore EFI notes for an i7-9700 / ASUS TUF Z370 / RX 6650 XT build.
 - [Blackjw's Blog](https://blackjw1212.github.io/): Technical notes on HomeLab, HomeKit, system customization, and Taiwan tech/life observations.
 - [Resume](https://blackjw1212.github.io/resume/): Public resume and portfolio page.
