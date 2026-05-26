@@ -10,7 +10,7 @@ title                    : "Blackjw's Blog"
 title_separator          : "-"
 subtitle                 : "記錄、分享成長過程"
 name                     : "Blackjw1212"
-description              : "紀錄 HomeSpan、HomeKit 實作與台灣生活的技術部落格"
+description              : "整理個人作品、介面實驗與公開技術紀錄的作品集網站"
 url                      : "https://blackjw1212.github.io" # 已取消註解，修復絕對路徑
 baseurl                  : ""
 repository               : "blackjw1212/blackjw1212.github.io"
@@ -22,7 +22,7 @@ words_per_minute         : 200
 author:
   name             : "Blackjw1212"
   avatar           : "/assets/images/avatar.png" # 已對齊上傳資產
-  bio              : "土生土長台灣小孩，追求穩定性與勝率的開發者。"
+  bio              : "重視整理、紀錄與長期維護的創作者。"
   location         : "Taiwan"
   links:
     - label: "Twitter"
@@ -91,6 +91,6 @@ defaults:
       layout: single
       author_profile: true
       read_time: true
-      comments: true
+      comments: false
       share: true
       related: true

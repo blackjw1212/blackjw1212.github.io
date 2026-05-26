@@ -5,17 +5,13 @@ permalink: /works/
 author_profile: true
 ---
 
-## Hackintosh / OpenCore
+## Hackintosh
 
-[Hackintosh](https://github.com/blackjw1212/Hackintosh) documents an OpenCore EFI setup for an Intel i7-9700, ASUS TUF Z370-PLUS GAMING, and AMD Radeon RX 6650 XT desktop build. It includes hardware details, compatibility notes, benchmark links, and privacy-safe SMBIOS guidance.
+[Hackintosh](https://github.com/blackjw1212/Hackintosh) is a public record of desktop compatibility notes, version history, and related project screenshots for one personal build.
 
 ## HomeSpan / HomeKit Lab
 
-[HomeSpan HomeKit Lab](https://github.com/blackjw1212/homespan-homekit-lab) is a small ESP32/HomeSpan portfolio repo focused on stable HomeKit accessory experiments, operations notes, field logging, and recovery habits.
-
-## HomeLab / PVE / IoT
-
-The blog collects notes on Proxmox VE, VLAN-based IoT isolation, and HomeKit/HomeSpan deployment discipline. The goal is to make smart-home experiments stable, observable, and recoverable rather than just functional.
+[HomeSpan HomeKit Lab](https://github.com/blackjw1212/homespan-homekit-lab) is a small portfolio repo for home automation experiments, project structure, and maintenance notes.
 
 ## BJKW Weather
 
@@ -23,4 +19,4 @@ The blog collects notes on Proxmox VE, VLAN-based IoT isolation, and HomeKit/Hom
 
 ## Resume
 
-[Public resume](/resume/) summarizes facility management, maintenance, operations, and IoT-related experience.
+[Public resume](/resume/) summarizes facility management, maintenance, operations, and project experience.

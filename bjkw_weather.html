@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* ─── Design tokens ─────────────────────────────────────── */
+/* ─── Design values ─────────────────────────────────────── */
 :root {
   --bg:            #F4F6F8;
   --bg-card:       #FFFFFF;
@@ -799,17 +799,16 @@ body {
   <div class="topbar">
     <div class="topbar-left">
       <div class="title">BJKW即時氣象報告</div>
-      <div class="meta" id="meta">資料載入中…</div>
+      <div class="meta" id="meta">資料來源未設定</div>
     </div>
     <button id="refresh" onclick="loadAll()">重新整理</button>
   </div>
   <div id="content">
-    <div class="err-box"><span class="spinner"></span> 連線中央氣象署 API…</div>
+    <div class="err-box">資料來源未設定，頁面目前僅保留介面展示。</div>
   </div>
 </div>
 
 <script>
-const API_KEY = "CWA-FA47367B-3420-4F98-A4D5-ADD81BE0B26E";
 const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
 const TZ      = "Asia/Taipei";
 const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
@@ -850,7 +849,7 @@ function cacheAge(ts) {
   return m < 60 ? `${m} 分鐘前` : `${Math.round(m/60)} 小時前`;
 }
 
-/* 嘗試 API，失敗回傳有效暫存；沒有資料時保留錯誤狀態 */
+/* 嘗試資料載入，失敗回傳有效暫存；沒有資料時保留錯誤狀態 */
 async function tryFetch(ep, params, cacheKey) {
   try {
     const data = await apiFetch(ep, params);
@@ -912,12 +911,8 @@ function loadTownCoastalPlot(url) {
   });
 }
 
-/* ─── API ────────────────────────────────────────────────── */
 async function apiFetch(ep, params) {
-  const p = new URLSearchParams({...params, Authorization: API_KEY, format: "JSON"});
-  const r = await fetch(`${BASE}/${ep}?${p}`);
-  if (!r.ok) throw new Error(`${ep} HTTP ${r.status}`);
-  return r.json();
+  throw new Error("資料來源未設定");
 }
 
 function now() { return new Date(); }
@@ -1241,7 +1236,15 @@ async function loadAll() {
   const content = document.getElementById("content");
   const meta    = document.getElementById("meta");
   btn.disabled  = true;
-  btn.innerHTML = `<span class="spinner"></span>載入中`;
+  btn.textContent = "重新整理";
+
+  content.innerHTML = `<div class="err-box">
+    資料來源未設定，頁面目前僅保留介面展示。<br><br>
+    <span class="info-note">公開版本不在前端保存外部資料來源授權資料。</span>
+  </div>`;
+  meta.textContent = "資料來源未設定";
+  btn.disabled = false;
+  return;
 
   try {
     const n     = now();
