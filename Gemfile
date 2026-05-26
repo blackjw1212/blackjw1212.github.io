@@ -14,7 +14,7 @@ gem "jekyll", "~> 4.4.0"
 # uncomment the line below. To upgrade, run `bundle update github-pages`.
 # gem "github-pages", group: :jekyll_plugins
 
-gem "minimal-mistakes-jekyll"
+gem "minimal-mistakes-jekyll", "~> 4.28.0"
 
 # The following plugins are automatically loaded by the theme-gem:
 #   gem "jekyll-paginate"
