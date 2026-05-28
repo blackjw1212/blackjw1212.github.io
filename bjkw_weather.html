@@ -881,7 +881,7 @@ body {
 const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
 const TZ      = "Asia/Taipei";
 const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
-const WEATHER_PROXY_BASE = "https://bjkw-weather-proxy.blackjw1212.workers.dev";
+const WEATHER_PROXY_BASE = "";
 const CWA_API_KEY_PREFIX = "CWA" + "-";
 const USE_LOCAL_API_KEY_SESSION = "bjkw-weather-use-local-api-key";
 const API_KEY_SESSION_STORAGE = "bjkw-weather-cwa-api-key-session";
@@ -1038,7 +1038,7 @@ function safeErrorMessage(err) {
 
 function renderApiKeySetup(content, meta, message = "") {
   content.innerHTML = `<div class="err-box">
-    雲端 API 代理尚未可用，請改用本機授權碼載入即時資料。<br>
+    需要設定中央氣象署 Open Data API 授權碼，才能載入即時資料。<br>
     <span class="info-note">預設只保存到此分頁工作階段；勾選「記住此裝置」才會保存到這台瀏覽器。授權碼不會寫進公開 GitHub Pages。</span>
     ${message ? `<br><span class="info-note">${esc(message)}</span>` : ""}
     <div class="api-key-form">
