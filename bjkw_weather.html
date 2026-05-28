@@ -881,7 +881,9 @@ body {
 const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
 const TZ      = "Asia/Taipei";
 const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
+const WEATHER_PROXY_BASE = "https://bjkw-weather-proxy.blackjw1212.workers.dev";
 const CWA_API_KEY_PREFIX = "CWA" + "-";
+const USE_LOCAL_API_KEY_SESSION = "bjkw-weather-use-local-api-key";
 const API_KEY_SESSION_STORAGE = "bjkw-weather-cwa-api-key-session";
 const API_KEY_LOCAL_STORAGE = "bjkw-weather-cwa-api-key";
 const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
@@ -1011,6 +1013,14 @@ function getApiKey() {
   ).trim();
 }
 
+function getApiProxyBase() {
+  return WEATHER_PROXY_BASE.trim().replace(/\/+$/, "");
+}
+
+function isLocalApiMode() {
+  return safeStorageGet(sessionStorage, USE_LOCAL_API_KEY_SESSION) === "1";
+}
+
 function isLikelyCwaApiKey(key) {
   return new RegExp(`^${CWA_API_KEY_PREFIX}[A-Z0-9-]{20,}$`, "i").test(key);
 }
@@ -1018,6 +1028,7 @@ function isLikelyCwaApiKey(key) {
 function safeErrorMessage(err) {
   const msg = String(err?.message || err || "");
   if (!msg) return "未知錯誤";
+  if (msg.includes("雲端代理")) return msg;
   if (msg.includes("尚未設定")) return msg;
   if (msg.includes("401") || msg.includes("403")) return "授權碼可能無效或權限不足，請檢查後重新輸入。";
   if (msg.includes("429")) return "API 呼叫太頻繁，請稍後再試。";
@@ -1027,7 +1038,7 @@ function safeErrorMessage(err) {
 
 function renderApiKeySetup(content, meta, message = "") {
   content.innerHTML = `<div class="err-box">
-    需要設定中央氣象署 Open Data API 授權碼，才能載入即時資料。<br>
+    雲端 API 代理尚未可用，請改用本機授權碼載入即時資料。<br>
     <span class="info-note">預設只保存到此分頁工作階段；勾選「記住此裝置」才會保存到這台瀏覽器。授權碼不會寫進公開 GitHub Pages。</span>
     ${message ? `<br><span class="info-note">${esc(message)}</span>` : ""}
     <div class="api-key-form">
@@ -1042,6 +1053,7 @@ function renderApiKeySetup(content, meta, message = "") {
       </label>
       <div class="api-key-actions">
         <button type="button" onclick="saveApiKeyAndReload()">保存並載入</button>
+        ${getApiProxyBase() ? '<button type="button" class="secondary" onclick="useCloudProxyAndReload()">改用雲端代理</button>' : ""}
         <button type="button" class="secondary" onclick="clearApiKeyAndReload()">清除授權碼</button>
       </div>
     </div>
@@ -1071,6 +1083,7 @@ function saveApiKeyAndReload() {
     return;
   }
   const remember = document.getElementById("rememberApiKey")?.checked;
+  safeStorageSet(sessionStorage, USE_LOCAL_API_KEY_SESSION, "1");
   const sessionSaved = safeStorageSet(sessionStorage, API_KEY_SESSION_STORAGE, key);
   if (remember) {
     if (!safeStorageSet(localStorage, API_KEY_LOCAL_STORAGE, key)) {
@@ -1089,12 +1102,67 @@ function saveApiKeyAndReload() {
 }
 
 function clearApiKeyAndReload() {
+  safeStorageRemove(sessionStorage, USE_LOCAL_API_KEY_SESSION);
   safeStorageRemove(sessionStorage, API_KEY_SESSION_STORAGE);
   safeStorageRemove(localStorage, API_KEY_LOCAL_STORAGE);
   loadAll();
 }
 
+function useLocalApiKeyAndReload(message = "") {
+  safeStorageSet(sessionStorage, USE_LOCAL_API_KEY_SESSION, "1");
+  renderApiKeySetup(
+    document.getElementById("content"),
+    document.getElementById("meta"),
+    message
+  );
+}
+
+function useCloudProxyAndReload() {
+  safeStorageRemove(sessionStorage, USE_LOCAL_API_KEY_SESSION);
+  loadAll();
+}
+
+async function ensureDataAccess(content, meta) {
+  const proxyBase = getApiProxyBase();
+  if (!isLocalApiMode() && proxyBase) {
+    try {
+      const r = await fetch(`${proxyBase}/health`, {
+        method: "GET",
+        cache: "no-store",
+        headers: { "Accept": "application/json" },
+      });
+      if (!r.ok) throw new Error(`雲端代理 HTTP ${r.status}`);
+      const health = await r.json().catch(() => ({}));
+      if (!health.ok || !health.configured) throw new Error("雲端代理尚未設定 API 授權碼");
+      return true;
+    } catch(e) {
+      if (getApiKey()) {
+        safeStorageSet(sessionStorage, USE_LOCAL_API_KEY_SESSION, "1");
+        return true;
+      }
+      renderApiKeySetup(content, meta, "雲端代理暫時無法連線。部署 Worker 後可直接使用，或先貼上本機授權碼。");
+      return false;
+    }
+  }
+
+  if (!getApiKey()) {
+    renderApiKeySetup(content, meta);
+    return false;
+  }
+  return true;
+}
+
 async function apiFetch(ep, params) {
+  const proxyBase = getApiProxyBase();
+  if (!isLocalApiMode() && proxyBase) {
+    const p = new URLSearchParams({...params, format: "JSON"});
+    const r = await fetch(`${proxyBase}/api/${encodeURIComponent(ep)}?${p}`, {
+      headers: { "Accept": "application/json" },
+    });
+    if (!r.ok) throw new Error(`雲端代理 HTTP ${r.status}`);
+    return r.json();
+  }
+
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("尚未設定中央氣象署 API 授權碼");
   const p = new URLSearchParams({...params, Authorization: apiKey, format: "JSON"});
@@ -1426,8 +1494,7 @@ async function loadAll() {
   btn.disabled  = true;
   btn.innerHTML = `<span class="spinner"></span>載入中`;
 
-  if (!getApiKey()) {
-    renderApiKeySetup(content, meta);
+  if (!await ensureDataAccess(content, meta)) {
     btn.disabled = false;
     btn.textContent = "重新整理";
     return;
@@ -1817,13 +1884,15 @@ async function loadAll() {
     `;
     syncTodayModeDetails();
 
-    meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
+    const modeLabel = (!isLocalApiMode() && getApiProxyBase()) ? "雲端代理" : "本機授權";
+    meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} · ${modeLabel}`;
 
   } catch(err) {
     content.innerHTML = `<div class="err-box">
       ⚠ 資料載入失敗，請稍後再試。<br><br><span class="info-note">${esc(safeErrorMessage(err))}</span>
       <div class="api-key-actions" style="justify-content:center; margin-top:16px">
-        <button type="button" class="secondary" onclick="clearApiKeyAndReload()">重新設定授權碼</button>
+        ${getApiProxyBase() ? '<button type="button" class="secondary" onclick="useCloudProxyAndReload()">重試雲端代理</button>' : ""}
+        <button type="button" class="secondary" onclick="useLocalApiKeyAndReload('請重新輸入授權碼。')">改用本機授權碼</button>
       </div>
     </div>`;
     meta.textContent = "載入失敗";

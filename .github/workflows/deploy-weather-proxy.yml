@@ -1,0 +1,51 @@
+name: Deploy Weather Proxy
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "weather-proxy/**"
+      - ".github/workflows/deploy-weather-proxy.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check required secrets
+        id: secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] && [ -n "$CWA_API_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Weather proxy deploy skipped because one or more required secrets are missing."
+          fi
+
+      - name: Check out repository
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set Worker secret
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: weather-proxy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+        run: |
+          printf '%s' "$CWA_API_KEY" | npx --yes wrangler@latest secret put CWA_API_KEY
+
+      - name: Deploy Worker
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: weather-proxy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@latest deploy
