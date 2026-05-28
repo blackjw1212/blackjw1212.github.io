@@ -592,6 +592,11 @@ body {
   font-weight: 600;
   color: var(--txt);
 }
+.api-key-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
 .api-key-form input {
   width: 100%;
   box-sizing: border-box;
@@ -602,6 +607,27 @@ body {
   font-size: 13px;
   color: var(--txt);
   background: var(--bg);
+}
+.api-key-toggle {
+  white-space: nowrap;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: var(--bg-card);
+  color: var(--txt-2);
+  cursor: pointer;
+}
+.api-key-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--txt-2);
+  line-height: 1.45;
+}
+.api-key-option input {
+  width: auto;
+  margin-top: 2px;
 }
 .api-key-actions {
   display: flex;
@@ -855,7 +881,8 @@ body {
 const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
 const TZ      = "Asia/Taipei";
 const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
-const API_KEY_STORAGE = "bjkw-weather-cwa-api-key";
+const API_KEY_SESSION_STORAGE = "bjkw-weather-cwa-api-key-session";
+const API_KEY_LOCAL_STORAGE = "bjkw-weather-cwa-api-key";
 const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
 const BOAT_WAVE_LIMIT = 0.5;
 const BOAT_BFT_LIMIT = 3;
@@ -956,17 +983,62 @@ function loadTownCoastalPlot(url) {
 }
 
 /* ─── API ────────────────────────────────────────────────── */
-function getApiKey() {
-  return (localStorage.getItem(API_KEY_STORAGE) || "").trim();
+function safeStorageGet(storage, key) {
+  try { return storage.getItem(key); }
+  catch(e) { return ""; }
 }
 
-function renderApiKeySetup(content, meta) {
+function safeStorageSet(storage, key, value) {
+  try {
+    storage.setItem(key, value);
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+function safeStorageRemove(storage, key) {
+  try { storage.removeItem(key); }
+  catch(e) {}
+}
+
+function getApiKey() {
+  return (
+    safeStorageGet(sessionStorage, API_KEY_SESSION_STORAGE) ||
+    safeStorageGet(localStorage, API_KEY_LOCAL_STORAGE) ||
+    ""
+  ).trim();
+}
+
+function isLikelyCwaApiKey(key) {
+  return /^CWA-[A-Z0-9-]{20,}$/i.test(key);
+}
+
+function safeErrorMessage(err) {
+  const msg = String(err?.message || err || "");
+  if (!msg) return "未知錯誤";
+  if (msg.includes("尚未設定")) return msg;
+  if (msg.includes("401") || msg.includes("403")) return "授權碼可能無效或權限不足，請檢查後重新輸入。";
+  if (msg.includes("429")) return "API 呼叫太頻繁，請稍後再試。";
+  if (msg.includes("HTTP")) return "資料來源暫時無法回應，請稍後再試。";
+  return "資料載入失敗，請稍後再試。";
+}
+
+function renderApiKeySetup(content, meta, message = "") {
   content.innerHTML = `<div class="err-box">
     需要設定中央氣象署 Open Data API 授權碼，才能載入即時資料。<br>
-    <span class="info-note">授權碼只會保存在這台瀏覽器的 localStorage，不會寫進公開 GitHub Pages。</span>
+    <span class="info-note">預設只保存到此分頁工作階段；勾選「記住此裝置」才會保存到這台瀏覽器。授權碼不會寫進公開 GitHub Pages。</span>
+    ${message ? `<br><span class="info-note">${esc(message)}</span>` : ""}
     <div class="api-key-form">
       <label for="apiKeyInput">CWA API Authorization</label>
-      <input id="apiKeyInput" type="password" autocomplete="off" placeholder="貼上你的 CWA Authorization">
+      <div class="api-key-field">
+        <input id="apiKeyInput" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="貼上你的 CWA Authorization">
+        <button class="api-key-toggle" type="button" onclick="toggleApiKeyVisibility()">顯示</button>
+      </div>
+      <label class="api-key-option">
+        <input id="rememberApiKey" type="checkbox">
+        <span>記住此裝置。適合自己的私人電腦；公用或借用裝置請不要勾選。</span>
+      </label>
       <div class="api-key-actions">
         <button type="button" onclick="saveApiKeyAndReload()">保存並載入</button>
         <button type="button" class="secondary" onclick="clearApiKeyAndReload()">清除授權碼</button>
@@ -977,16 +1049,47 @@ function renderApiKeySetup(content, meta) {
   setTimeout(() => document.getElementById("apiKeyInput")?.focus(), 0);
 }
 
+function toggleApiKeyVisibility() {
+  const input = document.getElementById("apiKeyInput");
+  const button = document.querySelector(".api-key-toggle");
+  if (!input || !button) return;
+  const showing = input.type === "text";
+  input.type = showing ? "password" : "text";
+  button.textContent = showing ? "顯示" : "隱藏";
+}
+
 function saveApiKeyAndReload() {
   const input = document.getElementById("apiKeyInput");
   const key = (input?.value || "").trim();
-  if (!key) return;
-  localStorage.setItem(API_KEY_STORAGE, key);
+  if (!key) {
+    renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "請先輸入授權碼。");
+    return;
+  }
+  if (!isLikelyCwaApiKey(key)) {
+    renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "授權碼格式看起來不正確，通常會以 CWA- 開頭。");
+    return;
+  }
+  const remember = document.getElementById("rememberApiKey")?.checked;
+  const sessionSaved = safeStorageSet(sessionStorage, API_KEY_SESSION_STORAGE, key);
+  if (remember) {
+    if (!safeStorageSet(localStorage, API_KEY_LOCAL_STORAGE, key)) {
+      renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "瀏覽器拒絕保存授權碼，請取消「記住此裝置」後再試。");
+      return;
+    }
+  } else {
+    safeStorageRemove(localStorage, API_KEY_LOCAL_STORAGE);
+  }
+  if (!sessionSaved && !remember) {
+    renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "瀏覽器拒絕保存工作階段授權碼，請允許網站資料儲存或改用私人裝置。");
+    return;
+  }
+  input.value = "";
   loadAll();
 }
 
 function clearApiKeyAndReload() {
-  localStorage.removeItem(API_KEY_STORAGE);
+  safeStorageRemove(sessionStorage, API_KEY_SESSION_STORAGE);
+  safeStorageRemove(localStorage, API_KEY_LOCAL_STORAGE);
   loadAll();
 }
 
@@ -1716,9 +1819,11 @@ async function loadAll() {
     meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
 
   } catch(err) {
-    const errMsg = String(err?.message || err);
     content.innerHTML = `<div class="err-box">
-      ⚠ 資料載入失敗，請稍後再試。<br><br><span class="info-note">${esc(errMsg)}</span>
+      ⚠ 資料載入失敗，請稍後再試。<br><br><span class="info-note">${esc(safeErrorMessage(err))}</span>
+      <div class="api-key-actions" style="justify-content:center; margin-top:16px">
+        <button type="button" class="secondary" onclick="clearApiKeyAndReload()">重新設定授權碼</button>
+      </div>
     </div>`;
     meta.textContent = "載入失敗";
   }
