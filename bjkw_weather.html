@@ -1345,6 +1345,14 @@ function tideCurvePath(points) {
   }
   return segments.join(" ");
 }
+function tideCurvePairPath(points) {
+  const segments = [];
+  for (let i = 0; i + 1 < points.length; i += 2) {
+    const pairPath = tideCurvePath([points[i], points[i + 1]]);
+    if (pairPath) segments.push(pairPath);
+  }
+  return segments.join(" ");
+}
 function tideCurveSvgHtml(events) {
   if (events.length < 2) return "";
   return `<svg class="tide-curve" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -1383,7 +1391,7 @@ function syncTideCurves() {
       })
       .filter(Boolean);
 
-    const path = tideCurvePath(points);
+    const path = tideCurvePairPath(points);
     svg.setAttribute("viewBox", `0 0 ${compactNumber(wrapRect.width)} ${compactNumber(wrapRect.height)}`);
     paths.forEach(pathEl => pathEl.setAttribute("d", path));
   });
