@@ -1346,26 +1346,10 @@ function tideCurvePath(points) {
   return segments.join(" ");
 }
 function tideCurveSvgHtml(events) {
-  const clean = events
-    .map(event => ({ height: Number(event.height) }))
-    .filter(event => Number.isFinite(event.height));
-  if (clean.length < 2) return "";
-  const columns = 2;
-  const rowCount = Math.ceil(clean.length / columns);
-  const rowHeight = 100 / rowCount;
-  const points = clean.map((event, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    return {
-      x: ((column + 0.5) / columns) * 100,
-      y: row * rowHeight + (tideLevelY(event.height) / 100) * rowHeight,
-    };
-  });
-  const path = tideCurvePath(points);
-  if (!path) return "";
-  return `<svg class="tide-curve" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-    <path class="tide-curve-glow" d="${esc(path)}"></path>
-    <path class="tide-curve-line" d="${esc(path)}"></path>
+  if (events.length < 2) return "";
+  return `<svg class="tide-curve" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <path class="tide-curve-glow"></path>
+    <path class="tide-curve-line"></path>
   </svg>`;
 }
 function tideGridHtml(cellsHtml, events) {
@@ -1374,6 +1358,42 @@ function tideGridHtml(cellsHtml, events) {
     ${tideCurveSvgHtml(events)}
     <div class="tide-grid">${cellsHtml}</div>
   </div>`;
+}
+let tideCurveSyncFrame = 0;
+function syncTideCurves() {
+  document.querySelectorAll(".tide-curve-wrap").forEach(wrap => {
+    const svg = wrap.querySelector(".tide-curve");
+    const paths = wrap.querySelectorAll(".tide-curve path");
+    const cells = Array.from(wrap.querySelectorAll(".tide-cell[data-tide-height]"))
+      .sort((a, b) => Number(a.dataset.tideIndex || 0) - Number(b.dataset.tideIndex || 0));
+    if (!svg || paths.length < 2 || cells.length < 2) return;
+
+    const wrapRect = wrap.getBoundingClientRect();
+    if (wrapRect.width <= 0 || wrapRect.height <= 0) return;
+    const points = cells
+      .map(cell => {
+        const height = Number(cell.dataset.tideHeight);
+        if (!Number.isFinite(height)) return null;
+        const rect = cell.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return null;
+        return {
+          x: rect.left - wrapRect.left + rect.width / 2,
+          y: rect.top - wrapRect.top + rect.height * tideLevelY(height) / 100,
+        };
+      })
+      .filter(Boolean);
+
+    const path = tideCurvePath(points);
+    svg.setAttribute("viewBox", `0 0 ${compactNumber(wrapRect.width)} ${compactNumber(wrapRect.height)}`);
+    paths.forEach(pathEl => pathEl.setAttribute("d", path));
+  });
+}
+function requestSyncTideCurves() {
+  if (tideCurveSyncFrame) cancelAnimationFrame(tideCurveSyncFrame);
+  tideCurveSyncFrame = requestAnimationFrame(() => {
+    tideCurveSyncFrame = 0;
+    syncTideCurves();
+  });
 }
 function windDirText(v) {
   const clean = valid(v);
@@ -1588,8 +1608,13 @@ function syncTodayModeDetails() {
       ? detail.dataset.mobileOpen === "true"
       : true;
   });
+  requestSyncTideCurves();
 }
 window.matchMedia("(max-width: 520px)").addEventListener?.("change", syncTodayModeDetails);
+window.addEventListener("resize", requestSyncTideCurves);
+document.addEventListener("toggle", event => {
+  if (event.target?.matches?.("details.today-mode-detail")) requestSyncTideCurves();
+}, true);
 
 /* ─── 主要載入函式 ────────────────────────────────────────── */
 async function loadAll() {
@@ -1790,11 +1815,12 @@ async function loadAll() {
             const evDt = new Date(ev.DateTime);
             const isHi = ev.Tide === "滿潮";
             const h    = parseInt(ev.TideHeights?.AboveTWVD || 0);
+            const tideIndex = tideCurveEvents.length;
             tideCurveEvents.push({ height: h, isHi });
             if (!isHi && sourceDate === today) dryTides.push({ dt: evDt, h });
             const cyclePeriod = isNextCycle ? "翌日" : (twHour(evDt) < 12 ? "上午" : "下午");
             const cycleClass = isNextCycle ? " tide-next-cycle" : "";
-            dayCells += `<div class="tide-cell${cycleClass}">
+            dayCells += `<div class="tide-cell${cycleClass}" data-tide-height="${h}" data-tide-index="${tideIndex}">
               <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${cyclePeriod}</div>
               <div class="tide-tm">${fmtTime(evDt)}</div>
               <div class="tide-ht ${isHi ? 'hi' : 'lo'}">${h > 0 ? "+" : ""}${h} cm</div>
