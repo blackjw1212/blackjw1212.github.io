@@ -881,6 +881,7 @@ body {
 const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
 const TZ      = "Asia/Taipei";
 const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
+const CWA_API_KEY_PREFIX = "CWA" + "-";
 const API_KEY_SESSION_STORAGE = "bjkw-weather-cwa-api-key-session";
 const API_KEY_LOCAL_STORAGE = "bjkw-weather-cwa-api-key";
 const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
@@ -1011,7 +1012,7 @@ function getApiKey() {
 }
 
 function isLikelyCwaApiKey(key) {
-  return /^CWA-[A-Z0-9-]{20,}$/i.test(key);
+  return new RegExp(`^${CWA_API_KEY_PREFIX}[A-Z0-9-]{20,}$`, "i").test(key);
 }
 
 function safeErrorMessage(err) {
@@ -1066,7 +1067,7 @@ function saveApiKeyAndReload() {
     return;
   }
   if (!isLikelyCwaApiKey(key)) {
-    renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "授權碼格式看起來不正確，通常會以 CWA- 開頭。");
+    renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "授權碼格式看起來不正確，通常會以 CWA 加連字號開頭。");
     return;
   }
   const remember = document.getElementById("rememberApiKey")?.checked;
