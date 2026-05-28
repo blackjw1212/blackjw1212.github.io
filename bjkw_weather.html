@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* ─── Design values ─────────────────────────────────────── */
+/* ─── Design tokens ─────────────────────────────────────── */
 :root {
   --bg:            #F4F6F8;
   --bg-card:       #FFFFFF;
@@ -580,6 +580,49 @@ body {
   text-align: center; color: var(--txt-2); font-size: 15px;
   line-height: 1.6; box-shadow: var(--shadow-sm);
 }
+.api-key-form {
+  display: grid;
+  gap: 12px;
+  max-width: 520px;
+  margin: 18px auto 0;
+  text-align: left;
+}
+.api-key-form label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--txt);
+}
+.api-key-form input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--txt);
+  background: var(--bg);
+}
+.api-key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.api-key-actions button {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--txt);
+  color: var(--bg-card);
+  cursor: pointer;
+}
+.api-key-actions .secondary {
+  background: var(--bg-card);
+  color: var(--txt-2);
+}
 
 /* ─── 2-col grid ─────────────────────────────────────────── */
 @media (min-width: 600px) {
@@ -799,12 +842,12 @@ body {
   <div class="topbar">
     <div class="topbar-left">
       <div class="title">BJKW即時氣象報告</div>
-      <div class="meta" id="meta">資料來源未設定</div>
+      <div class="meta" id="meta">資料載入中…</div>
     </div>
     <button id="refresh" onclick="loadAll()">重新整理</button>
   </div>
   <div id="content">
-    <div class="err-box">資料來源未設定，頁面目前僅保留介面展示。</div>
+    <div class="err-box"><span class="spinner"></span> 連線中央氣象署 API…</div>
   </div>
 </div>
 
@@ -812,6 +855,7 @@ body {
 const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
 const TZ      = "Asia/Taipei";
 const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
+const API_KEY_STORAGE = "bjkw-weather-cwa-api-key";
 const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
 const BOAT_WAVE_LIMIT = 0.5;
 const BOAT_BFT_LIMIT = 3;
@@ -849,7 +893,7 @@ function cacheAge(ts) {
   return m < 60 ? `${m} 分鐘前` : `${Math.round(m/60)} 小時前`;
 }
 
-/* 嘗試資料載入，失敗回傳有效暫存；沒有資料時保留錯誤狀態 */
+/* 嘗試 API，失敗回傳有效暫存；沒有資料時保留錯誤狀態 */
 async function tryFetch(ep, params, cacheKey) {
   try {
     const data = await apiFetch(ep, params);
@@ -911,8 +955,48 @@ function loadTownCoastalPlot(url) {
   });
 }
 
+/* ─── API ────────────────────────────────────────────────── */
+function getApiKey() {
+  return (localStorage.getItem(API_KEY_STORAGE) || "").trim();
+}
+
+function renderApiKeySetup(content, meta) {
+  content.innerHTML = `<div class="err-box">
+    需要設定中央氣象署 Open Data API 授權碼，才能載入即時資料。<br>
+    <span class="info-note">授權碼只會保存在這台瀏覽器的 localStorage，不會寫進公開 GitHub Pages。</span>
+    <div class="api-key-form">
+      <label for="apiKeyInput">CWA API Authorization</label>
+      <input id="apiKeyInput" type="password" autocomplete="off" placeholder="貼上你的 CWA Authorization">
+      <div class="api-key-actions">
+        <button type="button" onclick="saveApiKeyAndReload()">保存並載入</button>
+        <button type="button" class="secondary" onclick="clearApiKeyAndReload()">清除授權碼</button>
+      </div>
+    </div>
+  </div>`;
+  meta.textContent = "等待授權碼";
+  setTimeout(() => document.getElementById("apiKeyInput")?.focus(), 0);
+}
+
+function saveApiKeyAndReload() {
+  const input = document.getElementById("apiKeyInput");
+  const key = (input?.value || "").trim();
+  if (!key) return;
+  localStorage.setItem(API_KEY_STORAGE, key);
+  loadAll();
+}
+
+function clearApiKeyAndReload() {
+  localStorage.removeItem(API_KEY_STORAGE);
+  loadAll();
+}
+
 async function apiFetch(ep, params) {
-  throw new Error("資料來源未設定");
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("尚未設定中央氣象署 API 授權碼");
+  const p = new URLSearchParams({...params, Authorization: apiKey, format: "JSON"});
+  const r = await fetch(`${BASE}/${ep}?${p}`);
+  if (!r.ok) throw new Error(`${ep} HTTP ${r.status}`);
+  return r.json();
 }
 
 function now() { return new Date(); }
@@ -1236,15 +1320,14 @@ async function loadAll() {
   const content = document.getElementById("content");
   const meta    = document.getElementById("meta");
   btn.disabled  = true;
-  btn.textContent = "重新整理";
+  btn.innerHTML = `<span class="spinner"></span>載入中`;
 
-  content.innerHTML = `<div class="err-box">
-    資料來源未設定，頁面目前僅保留介面展示。<br><br>
-    <span class="info-note">公開版本不在前端保存外部資料來源授權資料。</span>
-  </div>`;
-  meta.textContent = "資料來源未設定";
-  btn.disabled = false;
-  return;
+  if (!getApiKey()) {
+    renderApiKeySetup(content, meta);
+    btn.disabled = false;
+    btn.textContent = "重新整理";
+    return;
+  }
 
   try {
     const n     = now();
