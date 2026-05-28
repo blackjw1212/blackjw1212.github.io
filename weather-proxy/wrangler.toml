@@ -1,6 +1,7 @@
 name = "bjkw-weather-proxy"
 main = "src/index.js"
 compatibility_date = "2026-05-28"
+workers_dev = true
 
 [vars]
 ALLOWED_ORIGIN = "https://blackjw1212.github.io"
