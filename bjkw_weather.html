@@ -1350,12 +1350,17 @@ function tideCurveSvgHtml(events) {
     .map(event => ({ height: Number(event.height) }))
     .filter(event => Number.isFinite(event.height));
   if (clean.length < 2) return "";
-  const widthStart = 10;
-  const widthEnd = 90;
-  const points = clean.map((event, index) => ({
-    x: clean.length === 1 ? 50 : widthStart + (widthEnd - widthStart) * (index / (clean.length - 1)),
-    y: tideLevelY(event.height),
-  }));
+  const columns = 2;
+  const rowCount = Math.ceil(clean.length / columns);
+  const rowHeight = 100 / rowCount;
+  const points = clean.map((event, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    return {
+      x: ((column + 0.5) / columns) * 100,
+      y: row * rowHeight + (tideLevelY(event.height) / 100) * rowHeight,
+    };
+  });
   const path = tideCurvePath(points);
   if (!path) return "";
   return `<svg class="tide-curve" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
