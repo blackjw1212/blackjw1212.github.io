@@ -1345,19 +1345,17 @@ function tideCurvePath(points) {
   }
   return segments.join(" ");
 }
-function tideCurvePairPath(points) {
-  const segments = [];
+function tideCurvePairPaths(points) {
+  const paths = [];
   for (let i = 0; i + 1 < points.length; i += 2) {
     const pairPath = tideCurvePath([points[i], points[i + 1]]);
-    if (pairPath) segments.push(pairPath);
+    if (pairPath) paths.push(pairPath);
   }
-  return segments.join(" ");
+  return paths;
 }
 function tideCurveSvgHtml(events) {
   if (events.length < 2) return "";
   return `<svg class="tide-curve" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-    <path class="tide-curve-glow"></path>
-    <path class="tide-curve-line"></path>
   </svg>`;
 }
 function tideGridHtml(cellsHtml, events) {
@@ -1371,10 +1369,9 @@ let tideCurveSyncFrame = 0;
 function syncTideCurves() {
   document.querySelectorAll(".tide-curve-wrap").forEach(wrap => {
     const svg = wrap.querySelector(".tide-curve");
-    const paths = wrap.querySelectorAll(".tide-curve path");
     const cells = Array.from(wrap.querySelectorAll(".tide-cell[data-tide-height]"))
       .sort((a, b) => Number(a.dataset.tideIndex || 0) - Number(b.dataset.tideIndex || 0));
-    if (!svg || paths.length < 2 || cells.length < 2) return;
+    if (!svg || cells.length < 2) return;
 
     const wrapRect = wrap.getBoundingClientRect();
     if (wrapRect.width <= 0 || wrapRect.height <= 0) return;
@@ -1391,9 +1388,12 @@ function syncTideCurves() {
       })
       .filter(Boolean);
 
-    const path = tideCurvePairPath(points);
+    const paths = tideCurvePairPaths(points);
     svg.setAttribute("viewBox", `0 0 ${compactNumber(wrapRect.width)} ${compactNumber(wrapRect.height)}`);
-    paths.forEach(pathEl => pathEl.setAttribute("d", path));
+    svg.innerHTML = paths.map(path => `
+      <path class="tide-curve-glow" d="${esc(path)}"></path>
+      <path class="tide-curve-line" d="${esc(path)}"></path>
+    `).join("");
   });
 }
 function requestSyncTideCurves() {
