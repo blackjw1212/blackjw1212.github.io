@@ -933,6 +933,8 @@ const TIDE_LEVEL_MIN_CM = -80;
 const TIDE_LEVEL_MAX_CM = 160;
 const TIDE_CURVE_TOP = 14;
 const TIDE_CURVE_BOTTOM = 86;
+const TIDE_CURVE_START_X = 0.08;
+const TIDE_CURVE_END_X = 0.92;
 const WEEKDAYS   = ["日","一","二","三","四","五","六"];
 const LUNAR_MONTH = ["","正","二","三","四","五","六","七","八","九","十","冬","臘"];
 const LUNAR_DAY   = ["","初一","初二","初三","初四","初五","初六","初七","初八","初九","初十",
@@ -1378,11 +1380,13 @@ function syncTideCurves() {
     const points = cells
       .map(cell => {
         const height = Number(cell.dataset.tideHeight);
+        const tideIndex = Number(cell.dataset.tideIndex || 0);
         if (!Number.isFinite(height)) return null;
         const rect = cell.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return null;
+        const xRatio = tideIndex % 2 === 0 ? TIDE_CURVE_START_X : TIDE_CURVE_END_X;
         return {
-          x: rect.left - wrapRect.left + rect.width / 2,
+          x: rect.left - wrapRect.left + rect.width * xRatio,
           y: rect.top - wrapRect.top + rect.height * tideLevelY(height) / 100,
         };
       })
