@@ -1,0 +1,14 @@
+name = "bjkw-weather-proxy"
+main = "src/index.js"
+compatibility_date = "2026-05-28"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGIN = "https://blackjw1212.github.io"
+CWA_BASE_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore"
+
+# Required secret:
+# CWA_API_KEY
+#
+# Set it with:
+#   npx wrangler secret put CWA_API_KEY

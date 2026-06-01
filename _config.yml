@@ -1,0 +1,96 @@
+# Welcome to Jekyll!
+# 完整優化版 _config.yml - Blackjw1212
+
+# Theme Settings
+minimal_mistakes_skin    : "dark"
+
+# Site Settings
+locale                   : "zh-TW"
+title                    : "Blackjw's Blog"
+title_separator          : "-"
+subtitle                 : "記錄、分享成長過程"
+name                     : "Blackjw1212"
+description              : "整理個人作品、介面實驗與公開技術紀錄的作品集網站"
+url                      : "https://blackjw1212.github.io" # 已取消註解，修復絕對路徑
+baseurl                  : ""
+repository               : "blackjw1212/blackjw1212.github.io"
+teaser                   : # "/assets/images/500x300.png"
+logo                     : # "/assets/images/88x88.png"
+words_per_minute         : 200
+
+# Site Author
+author:
+  name             : "Blackjw1212"
+  avatar           : "/assets/images/avatar.png" # 已對齊上傳資產
+  bio              : "重視整理、紀錄與長期維護的創作者。"
+  location         : "Taiwan"
+  links:
+    - label: "Twitter"
+      icon: "fab fa-fw fa-twitter-square"
+      url: "https://twitter.com/a0926043323"
+    - label: "GitHub"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/blackjw1212"
+    - label: "Instagram"
+      icon: "fab fa-fw fa-instagram"
+      url: "https://www.instagram.com/blackjw12/"
+
+# Analytics
+analytics:
+  provider               : "google-gtag" # 已修正為支援 G-ID 的 gtag
+  google:
+    tracking_id          : "G-K41TMS3508"
+    anonymize_ip         : true
+
+# SEO Related
+og_image                 : "/assets/images/android-chrome-512x512.png" # 設定分享預覽圖
+
+# Reading Files
+include:
+  - .htaccess
+  - _pages
+exclude:
+  - vendor
+  - .bundle
+  - Gemfile
+  - Gemfile.lock
+  - LICENSE
+  - README
+  - /docs
+  - /test
+keep_files:
+  - .git
+
+# Outputting
+permalink: /:categories/:title/
+paginate: 5
+paginate_path: /page:num/
+
+# Plugins
+plugins:
+  - jekyll-paginate
+  - jekyll-sitemap
+  - jekyll-gist
+  - jekyll-feed
+  - jekyll-include-cache
+
+# Archives (需搭配根目錄的 .md 檔案使用)
+category_archive:
+  type: liquid
+  path: /categories/
+tag_archive:
+  type: liquid
+  path: /tags/
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: single
+      author_profile: true
+      read_time: true
+      comments: false
+      share: true
+      related: true

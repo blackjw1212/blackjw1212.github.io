@@ -1,0 +1,8 @@
+# main links
+    main:
+      - title: "網誌"
+        url: /year-archive/
+      - title: "類別"
+        url: /categories/
+      - title: "作品"
+        url: /works/
