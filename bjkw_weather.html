@@ -202,6 +202,29 @@ body {
   letter-spacing: .07em; text-transform: uppercase;
   color: var(--txt-3); margin: 20px 0 10px;
 }
+.weather-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 20px 0 10px;
+}
+.weather-section-head .section-lbl {
+  margin: 0;
+  min-width: 0;
+}
+.current-region-label {
+  flex: 0 1 auto;
+  max-width: 48%;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--txt-3);
+  line-height: 1.4;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ─── Card ───────────────────────────────────────────────── */
 .card {
@@ -710,6 +733,14 @@ body {
     letter-spacing: .04em;
     margin: 10px 0 6px;
   }
+  .weather-section-head {
+    gap: 8px;
+    margin: 10px 0 6px;
+  }
+  .current-region-label {
+    max-width: 46%;
+    font-size: 12px;
+  }
   .card,
   .quick-summary {
     border-radius: var(--radius-lg);
@@ -885,6 +916,11 @@ body {
   .meta  { font-size: 10px; }
   .area-control { gap: 4px; }
   .area-label { font-size: 10px; }
+  .weather-section-head { gap: 6px; }
+  .current-region-label {
+    max-width: 44%;
+    font-size: 11px;
+  }
   #coastSelect {
     font-size: 10px;
     max-width: 44vw;
@@ -1764,7 +1800,11 @@ async function loadAll() {
     const sea   = coastRes.data ? parseForecast(coastRes.data, selectedCoast.label) : {};
     const tide  = tideRes.data;
     const astro = astroRes.data;
-    const weatherTitle = `${weatherInfo.location || GPS_FALLBACK.location}天氣（6 小時）`;
+    const weatherSectionTitle = "即時天氣（6 小時）";
+    const currentRegionLabel = [
+      weatherInfo.county || GPS_FALLBACK.county,
+      weatherInfo.location || GPS_FALLBACK.location,
+    ].filter(Boolean).join(" ");
     const coastTitle = `${selectedCoast.label}風浪（6 小時）`;
     const waveTimeInfo = coastTimeInfo(coastRes.data);
 
@@ -2062,7 +2102,10 @@ async function loadAll() {
 
         <div class="col-wrap today-col">
           <div>
-            <div class="section-lbl">${esc(weatherTitle)}</div>
+            <div class="weather-section-head">
+              <div class="section-lbl">${esc(weatherSectionTitle)}</div>
+              <div class="current-region-label">${esc(currentRegionLabel)}</div>
+            </div>
             <div class="card">
               ${currentFocusHtml}
               <div class="g2">
