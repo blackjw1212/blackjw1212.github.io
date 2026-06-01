@@ -123,21 +123,44 @@ body {
 }
 .title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--txt); }
 .meta  { font-size: 13px; color: var(--txt-3); margin-top: 4px; font-family: 'DM Mono', monospace; }
-#refresh {
+.area-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.area-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  color: var(--txt-3);
+  white-space: nowrap;
+}
+#coastSelect {
   font-family: 'Noto Sans TC', sans-serif;
   font-size: 13px; font-weight: 500;
-  padding: 8px 16px;
+  min-width: 178px;
+  max-width: min(54vw, 260px);
+  padding: 8px 34px 8px 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--bg-card);
   color: var(--txt-2);
   cursor: pointer;
-  transition: background .15s, color .15s, opacity .15s;
+  transition: background .15s, color .15s, opacity .15s, border-color .15s;
   white-space: nowrap;
   box-shadow: var(--shadow-sm);
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--txt-3) 50%),
+    linear-gradient(135deg, var(--txt-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
-#refresh:hover   { background: var(--bg-raised); color: var(--txt); }
-#refresh:disabled{ opacity: .4; cursor: default; }
+#coastSelect:hover   { background-color: var(--bg-raised); color: var(--txt); }
+#coastSelect:disabled{ opacity: .5; cursor: default; }
 
 /* ─── 暫存警告橫幅 ─────────────────────────────────────── */
 .cache-banner {
@@ -395,7 +418,14 @@ body {
 }
 .row:last-child { border-bottom: none; }
 .row-time   { color: var(--txt-3); width: 50px; flex-shrink: 0; font-size: 13px; font-family: 'DM Mono', monospace; }
-.row-name   { font-weight: 600; width: 64px; flex-shrink: 0; font-size: 15px; }
+.row-name   {
+  font-weight: 600;
+  width: 82px;
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
 .row-detail {
   font-size: 14px; color: var(--txt-2);
   flex: 1; min-width: 0; overflow: visible;
@@ -619,75 +649,6 @@ body {
   text-align: center; color: var(--txt-2); font-size: 15px;
   line-height: 1.6; box-shadow: var(--shadow-sm);
 }
-.api-key-form {
-  display: grid;
-  gap: 12px;
-  max-width: 520px;
-  margin: 18px auto 0;
-  text-align: left;
-}
-.api-key-form label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--txt);
-}
-.api-key-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-}
-.api-key-form input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  color: var(--txt);
-  background: var(--bg);
-}
-.api-key-toggle {
-  white-space: nowrap;
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  padding: 0 12px;
-  background: var(--bg-card);
-  color: var(--txt-2);
-  cursor: pointer;
-}
-.api-key-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--txt-2);
-  line-height: 1.45;
-}
-.api-key-option input {
-  width: auto;
-  margin-top: 2px;
-}
-.api-key-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.api-key-actions button {
-  font-family: 'Noto Sans TC', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  background: var(--txt);
-  color: var(--bg-card);
-  cursor: pointer;
-}
-.api-key-actions .secondary {
-  background: var(--bg-card);
-  color: var(--txt-2);
-}
 
 /* ─── 2-col grid ─────────────────────────────────────────── */
 @media (min-width: 600px) {
@@ -723,9 +684,19 @@ body {
   }
   .title { font-size: 15px; }
   .meta  { font-size: 11px; margin-top: 2px; }
-  #refresh {
+  .area-control {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .area-label {
     font-size: 11px;
-    padding: 6px 10px;
+  }
+  #coastSelect {
+    font-size: 11px;
+    padding: 6px 28px 6px 10px;
+    min-width: 0;
+    flex: 1;
+    max-width: none;
   }
   .section-lbl {
     font-size: 12px;
@@ -834,7 +805,7 @@ body {
     padding: 9px 0;
   }
   .row-time { width: 44px; font-size: 12px; }
-  .row-name { width: 56px; font-size: 14px; }
+  .row-name { width: 68px; font-size: 13px; }
   .row-detail { font-size: 13px; }
   .row-meta { font-size: 11px; }
   .badge {
@@ -842,7 +813,6 @@ body {
     padding: 3px 8px;
   }
   .tide-grid { gap: 8px; }
-  .tide-curve-wrap { margin-top: 8px; }
   .tide-cell { padding: 9px 10px; }
   .tide-tm { font-size: 18px; }
   .day-detail {
@@ -910,7 +880,12 @@ body {
       <div class="title">BJKW即時氣象報告</div>
       <div class="meta" id="meta">資料載入中…</div>
     </div>
-    <button id="refresh" onclick="loadAll()">重新整理</button>
+    <div class="area-control">
+      <label class="area-label" for="coastSelect">地區</label>
+      <select id="coastSelect" aria-label="選擇台灣海線地區" disabled>
+        <option value="東石鄉沿海">東石鄉沿海</option>
+      </select>
+    </div>
   </div>
   <div id="content">
     <div class="err-box"><span class="spinner"></span> 連線中央氣象署 API…</div>
@@ -918,15 +893,38 @@ body {
 </div>
 
 <script>
+const API_KEY = "CWA-FA47367B-3420-4F98-A4D5-ADD81BE0B26E";
 const BASE    = "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
+const FILE_BASE = "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi";
 const TZ      = "Asia/Taipei";
-const TOWN_COASTAL_PLOT = "https://www.cwa.gov.tw/Data/js/towncoastal/plot/1001009C01.js";
-const WEATHER_PROXY_BASE = "https://bjkw-weather-proxy.a0926043323.workers.dev";
-const CWA_API_KEY_PREFIX = "CWA" + "-";
-const USE_LOCAL_API_KEY_SESSION = "bjkw-weather-use-local-api-key";
-const API_KEY_SESSION_STORAGE = "bjkw-weather-cwa-api-key-session";
-const API_KEY_LOCAL_STORAGE = "bjkw-weather-cwa-api-key";
-const OBS_STATIONS = {C0M710:"東石", CAL090:"西濱北", CAL100:"西濱南"};
+const DEFAULT_COAST_LOCATION = "東石鄉沿海";
+const COAST_DATA_ID = "F-D0047-095";
+const SELECTED_COAST_KEY = "bjkw_selected_coast_location";
+const GPS_FALLBACK = { endpoint: "F-D0047-057", county: "嘉義市", location: "東區" };
+const TOWN_FORECAST_ENDPOINTS = [
+  { county: "宜蘭縣", endpoint: "F-D0047-001", geocodePrefix: "10002" },
+  { county: "桃園市", endpoint: "F-D0047-005", geocodePrefix: "68000" },
+  { county: "新竹縣", endpoint: "F-D0047-009", geocodePrefix: "10004" },
+  { county: "苗栗縣", endpoint: "F-D0047-013", geocodePrefix: "10005" },
+  { county: "彰化縣", endpoint: "F-D0047-017", geocodePrefix: "10007" },
+  { county: "南投縣", endpoint: "F-D0047-021", geocodePrefix: "10008" },
+  { county: "雲林縣", endpoint: "F-D0047-025", geocodePrefix: "10009" },
+  { county: "嘉義縣", endpoint: "F-D0047-029", geocodePrefix: "10010" },
+  { county: "屏東縣", endpoint: "F-D0047-033", geocodePrefix: "10013" },
+  { county: "臺東縣", endpoint: "F-D0047-037", geocodePrefix: "10014" },
+  { county: "花蓮縣", endpoint: "F-D0047-041", geocodePrefix: "10015" },
+  { county: "澎湖縣", endpoint: "F-D0047-045", geocodePrefix: "10016" },
+  { county: "基隆市", endpoint: "F-D0047-049", geocodePrefix: "10017" },
+  { county: "新竹市", endpoint: "F-D0047-053", geocodePrefix: "10018" },
+  { county: "嘉義市", endpoint: "F-D0047-057", geocodePrefix: "10020" },
+  { county: "臺北市", endpoint: "F-D0047-061", geocodePrefix: "63000" },
+  { county: "高雄市", endpoint: "F-D0047-065", geocodePrefix: "64000" },
+  { county: "新北市", endpoint: "F-D0047-069", geocodePrefix: "65000" },
+  { county: "臺中市", endpoint: "F-D0047-073", geocodePrefix: "66000" },
+  { county: "臺南市", endpoint: "F-D0047-077", geocodePrefix: "67000" },
+  { county: "連江縣", endpoint: "F-D0047-081", geocodePrefix: "09007" },
+  { county: "金門縣", endpoint: "F-D0047-085", geocodePrefix: "09020" },
+];
 const BOAT_WAVE_LIMIT = 0.5;
 const BOAT_BFT_LIMIT = 3;
 const TIDE_LEVEL_MIN_CM = -80;
@@ -982,9 +980,9 @@ async function tryFetch(ep, params, cacheKey) {
   }
 }
 
-async function tryLoadTownCoastalPlot(url, cacheKey) {
+async function tryFileFetch(dataId, params, cacheKey) {
   try {
-    const data = await loadTownCoastalPlot(url);
+    const data = await fileFetch(dataId, params);
     saveCache(cacheKey, data);
     return { data, cached: false, ok: true, error: null };
   } catch(e) {
@@ -994,227 +992,278 @@ async function tryLoadTownCoastalPlot(url, cacheKey) {
   }
 }
 
-function loadTownCoastalPlot(url) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    const cleanup = () => {
-      script.remove();
-      delete window.ChartType;
-      delete window.ST_Name;
-      delete window.Time;
-      delete window.TimeRange;
-      delete window.Wind_Data;
-      delete window.Wave_Data;
-    };
-
-    cleanup();
-    script.src = `${url}?T=${Date.now()}`;
-    script.async = true;
-    script.onload = () => {
-      const data = {
-        Time: Array.isArray(window.Time) ? [...window.Time] : [],
-        Wave_Data: Array.isArray(window.Wave_Data) ? [...window.Wave_Data] : [],
-        TimeRange: typeof window.TimeRange === "string" ? window.TimeRange : "",
-      };
-      cleanup();
-      if (!data.Time.length || !data.Wave_Data.length) {
-        reject(new Error("東石浪高資料格式不完整"));
-        return;
-      }
-      resolve(data);
-    };
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("東石浪高資料載入失敗"));
-    };
-    document.head.appendChild(script);
-  });
-}
-
 /* ─── API ────────────────────────────────────────────────── */
-function safeStorageGet(storage, key) {
-  try { return storage.getItem(key); }
-  catch(e) { return ""; }
-}
-
-function safeStorageSet(storage, key, value) {
-  try {
-    storage.setItem(key, value);
-    return true;
-  } catch(e) {
-    return false;
-  }
-}
-
-function safeStorageRemove(storage, key) {
-  try { storage.removeItem(key); }
-  catch(e) {}
-}
-
-function getApiKey() {
-  return (
-    safeStorageGet(sessionStorage, API_KEY_SESSION_STORAGE) ||
-    safeStorageGet(localStorage, API_KEY_LOCAL_STORAGE) ||
-    ""
-  ).trim();
-}
-
-function getApiProxyBase() {
-  return WEATHER_PROXY_BASE.trim().replace(/\/+$/, "");
-}
-
-function isLocalApiMode() {
-  return safeStorageGet(sessionStorage, USE_LOCAL_API_KEY_SESSION) === "1";
-}
-
-function isLikelyCwaApiKey(key) {
-  return new RegExp(`^${CWA_API_KEY_PREFIX}[A-Z0-9-]{20,}$`, "i").test(key);
-}
-
-function safeErrorMessage(err) {
-  const msg = String(err?.message || err || "");
-  if (!msg) return "未知錯誤";
-  if (msg.includes("雲端代理")) return msg;
-  if (msg.includes("尚未設定")) return msg;
-  if (msg.includes("401") || msg.includes("403")) return "授權碼可能無效或權限不足，請檢查後重新輸入。";
-  if (msg.includes("429")) return "API 呼叫太頻繁，請稍後再試。";
-  if (msg.includes("HTTP")) return "資料來源暫時無法回應，請稍後再試。";
-  return "資料載入失敗，請稍後再試。";
-}
-
-function renderApiKeySetup(content, meta, message = "") {
-  content.innerHTML = `<div class="err-box">
-    需要設定中央氣象署 Open Data API 授權碼，才能載入即時資料。<br>
-    <span class="info-note">預設只保存到此分頁工作階段；勾選「記住此裝置」才會保存到這台瀏覽器。授權碼不會寫進公開 GitHub Pages。</span>
-    ${message ? `<br><span class="info-note">${esc(message)}</span>` : ""}
-    <div class="api-key-form">
-      <label for="apiKeyInput">CWA API Authorization</label>
-      <div class="api-key-field">
-        <input id="apiKeyInput" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="貼上你的 CWA Authorization">
-        <button class="api-key-toggle" type="button" onclick="toggleApiKeyVisibility()">顯示</button>
-      </div>
-      <label class="api-key-option">
-        <input id="rememberApiKey" type="checkbox">
-        <span>記住此裝置。適合自己的私人電腦；公用或借用裝置請不要勾選。</span>
-      </label>
-      <div class="api-key-actions">
-        <button type="button" onclick="saveApiKeyAndReload()">保存並載入</button>
-        ${getApiProxyBase() ? '<button type="button" class="secondary" onclick="useCloudProxyAndReload()">改用雲端代理</button>' : ""}
-        <button type="button" class="secondary" onclick="clearApiKeyAndReload()">清除授權碼</button>
-      </div>
-    </div>
-  </div>`;
-  meta.textContent = "等待授權碼";
-  setTimeout(() => document.getElementById("apiKeyInput")?.focus(), 0);
-}
-
-function toggleApiKeyVisibility() {
-  const input = document.getElementById("apiKeyInput");
-  const button = document.querySelector(".api-key-toggle");
-  if (!input || !button) return;
-  const showing = input.type === "text";
-  input.type = showing ? "password" : "text";
-  button.textContent = showing ? "顯示" : "隱藏";
-}
-
-function saveApiKeyAndReload() {
-  const input = document.getElementById("apiKeyInput");
-  const key = (input?.value || "").trim();
-  if (!key) {
-    renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "請先輸入授權碼。");
-    return;
-  }
-  if (!isLikelyCwaApiKey(key)) {
-    renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "授權碼格式看起來不正確，通常會以 CWA 加連字號開頭。");
-    return;
-  }
-  const remember = document.getElementById("rememberApiKey")?.checked;
-  safeStorageSet(sessionStorage, USE_LOCAL_API_KEY_SESSION, "1");
-  const sessionSaved = safeStorageSet(sessionStorage, API_KEY_SESSION_STORAGE, key);
-  if (remember) {
-    if (!safeStorageSet(localStorage, API_KEY_LOCAL_STORAGE, key)) {
-      renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "瀏覽器拒絕保存授權碼，請取消「記住此裝置」後再試。");
-      return;
-    }
-  } else {
-    safeStorageRemove(localStorage, API_KEY_LOCAL_STORAGE);
-  }
-  if (!sessionSaved && !remember) {
-    renderApiKeySetup(document.getElementById("content"), document.getElementById("meta"), "瀏覽器拒絕保存工作階段授權碼，請允許網站資料儲存或改用私人裝置。");
-    return;
-  }
-  input.value = "";
-  loadAll();
-}
-
-function clearApiKeyAndReload() {
-  safeStorageRemove(sessionStorage, USE_LOCAL_API_KEY_SESSION);
-  safeStorageRemove(sessionStorage, API_KEY_SESSION_STORAGE);
-  safeStorageRemove(localStorage, API_KEY_LOCAL_STORAGE);
-  loadAll();
-}
-
-function useLocalApiKeyAndReload(message = "") {
-  safeStorageSet(sessionStorage, USE_LOCAL_API_KEY_SESSION, "1");
-  renderApiKeySetup(
-    document.getElementById("content"),
-    document.getElementById("meta"),
-    message
-  );
-}
-
-function useCloudProxyAndReload() {
-  safeStorageRemove(sessionStorage, USE_LOCAL_API_KEY_SESSION);
-  loadAll();
-}
-
-async function ensureDataAccess(content, meta) {
-  const proxyBase = getApiProxyBase();
-  if (!isLocalApiMode() && proxyBase) {
-    try {
-      const r = await fetch(`${proxyBase}/health`, {
-        method: "GET",
-        cache: "no-store",
-        headers: { "Accept": "application/json" },
-      });
-      if (!r.ok) throw new Error(`雲端代理 HTTP ${r.status}`);
-      const health = await r.json().catch(() => ({}));
-      if (!health.ok || !health.configured) throw new Error("雲端代理尚未設定 API 授權碼");
-      return true;
-    } catch(e) {
-      if (getApiKey()) {
-        safeStorageSet(sessionStorage, USE_LOCAL_API_KEY_SESSION, "1");
-        return true;
-      }
-      renderApiKeySetup(content, meta, "雲端代理暫時無法連線。部署 Worker 後可直接使用，或先貼上本機授權碼。");
-      return false;
-    }
-  }
-
-  if (!getApiKey()) {
-    renderApiKeySetup(content, meta);
-    return false;
-  }
-  return true;
-}
-
 async function apiFetch(ep, params) {
-  const proxyBase = getApiProxyBase();
-  if (!isLocalApiMode() && proxyBase) {
-    const p = new URLSearchParams({...params, format: "JSON"});
-    const r = await fetch(`${proxyBase}/api/${encodeURIComponent(ep)}?${p}`, {
-      headers: { "Accept": "application/json" },
-    });
-    if (!r.ok) throw new Error(`雲端代理 HTTP ${r.status}`);
-    return r.json();
-  }
-
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("尚未設定中央氣象署 API 授權碼");
-  const p = new URLSearchParams({...params, Authorization: apiKey, format: "JSON"});
+  const p = new URLSearchParams({...params, Authorization: API_KEY, format: "JSON"});
   const r = await fetch(`${BASE}/${ep}?${p}`);
   if (!r.ok) throw new Error(`${ep} HTTP ${r.status}`);
   return r.json();
+}
+async function fileFetch(dataId, params = {}) {
+  const p = new URLSearchParams({...params, Authorization: API_KEY, format: "JSON"});
+  const r = await fetch(`${FILE_BASE}/${dataId}?${p}`);
+  if (!r.ok) throw new Error(`${dataId} HTTP ${r.status}`);
+  return r.json();
+}
+
+function asArray(v) {
+  if (Array.isArray(v)) return v;
+  return v == null ? [] : [v];
+}
+
+function cacheKey(...parts) {
+  return parts.map(p => encodeURIComponent(String(p ?? ""))).join("_");
+}
+
+function getStoredCoastName() {
+  try {
+    return localStorage.getItem(SELECTED_COAST_KEY) || DEFAULT_COAST_LOCATION;
+  } catch(e) {
+    return DEFAULT_COAST_LOCATION;
+  }
+}
+
+function saveSelectedCoastName(name) {
+  try {
+    localStorage.setItem(SELECTED_COAST_KEY, name);
+  } catch(e) {
+    console.warn("地區偏好儲存失敗", e);
+  }
+}
+
+function getCountyConfigByGeocode(geocode) {
+  const prefix = String(geocode || "").slice(0, 5);
+  return TOWN_FORECAST_ENDPOINTS.find(c => c.geocodePrefix === prefix) || null;
+}
+
+function baseCoastTownName(name) {
+  return String(name || "")
+    .replace(/沿海$/, "")
+    .replace(/_.+$/, "");
+}
+
+function parameterValue(parameterSet, key) {
+  for (const p of asArray(parameterSet?.Parameter)) {
+    if (p?.ParameterName === key) return p.ParameterValue;
+  }
+  return "";
+}
+
+function normalizeForecastGroups(data) {
+  if (data?.records?.Locations) return asArray(data.records.Locations);
+  if (data?.cwaopendata?.Dataset?.Locations) return asArray(data.cwaopendata.Dataset.Locations);
+  return [];
+}
+
+function normalizeCoastLocations(data) {
+  const groups = normalizeForecastGroups(data);
+  return groups.flatMap(g => asArray(g.Location));
+}
+
+function firstElementValue(timeEntry) {
+  const values = timeEntry?.ElementValue;
+  if (Array.isArray(values)) return values[0] || {};
+  return values || {};
+}
+
+function fallbackCoastConfig() {
+  return {
+    label: DEFAULT_COAST_LOCATION,
+    baseTown: "東石鄉",
+    county: "嘉義縣",
+    endpoint: "F-D0047-029",
+    geocode: "10010090",
+    cID: "10010",
+    pointID: "10010090C01",
+    tideName: "嘉義縣東石鄉",
+    lat: 23.46,
+    lon: 119.96,
+    source: null,
+  };
+}
+
+function buildCoastConfigs(data) {
+  const configs = normalizeCoastLocations(data)
+    .map(loc => {
+      const countyCfg = getCountyConfigByGeocode(loc.Geocode);
+      const label = loc.LocationName || "";
+      const baseTown = baseCoastTownName(label);
+      const lat = Number(loc.Latitude);
+      const lon = Number(loc.Longitude);
+      const geocode = String(loc.Geocode || "");
+      const pointID = parameterValue(loc.ParameterSet, "id");
+      if (!label || !countyCfg) return null;
+      return {
+        label,
+        baseTown,
+        county: countyCfg.county,
+        endpoint: countyCfg.endpoint,
+        geocode,
+        cID: geocode.slice(0, 5),
+        pointID,
+        tideName: `${countyCfg.county}${baseTown}`,
+        lat: Number.isFinite(lat) ? lat : null,
+        lon: Number.isFinite(lon) ? lon : null,
+        source: loc,
+      };
+    })
+    .filter(Boolean);
+  if (!configs.some(c => c.label === DEFAULT_COAST_LOCATION)) {
+    configs.unshift(fallbackCoastConfig());
+  }
+  return configs.length ? configs : [fallbackCoastConfig()];
+}
+
+function resolveSelectedCoast(configs) {
+  const wanted = getStoredCoastName();
+  return configs.find(c => c.label === wanted)
+      || configs.find(c => c.label === DEFAULT_COAST_LOCATION)
+      || configs[0]
+      || fallbackCoastConfig();
+}
+
+function renderCoastSelect(configs, selectedName, disabled = false) {
+  const select = document.getElementById("coastSelect");
+  if (!select) return;
+  const oldValue = select.value;
+  select.innerHTML = "";
+  const orderedCounties = TOWN_FORECAST_ENDPOINTS.map(c => c.county);
+  for (const county of orderedCounties) {
+    const groupItems = configs.filter(c => c.county === county);
+    if (!groupItems.length) continue;
+    const group = document.createElement("optgroup");
+    group.label = county;
+    for (const cfg of groupItems) {
+      const opt = document.createElement("option");
+      opt.value = cfg.label;
+      opt.textContent = cfg.label;
+      group.appendChild(opt);
+    }
+    select.appendChild(group);
+  }
+  if (!select.options.length) {
+    const opt = document.createElement("option");
+    opt.value = DEFAULT_COAST_LOCATION;
+    opt.textContent = DEFAULT_COAST_LOCATION;
+    select.appendChild(opt);
+  }
+  select.value = selectedName || oldValue || DEFAULT_COAST_LOCATION;
+  select.disabled = disabled;
+}
+
+function coastExternalUrl(cfg) {
+  if (!cfg?.pointID || !cfg?.cID) return "https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html";
+  return `https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html?cID=${encodeURIComponent(cfg.cID)}&pointID=${encodeURIComponent(cfg.pointID)}`;
+}
+
+function getGpsPosition() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+      }),
+      err => {
+        console.warn("GPS 定位失敗，改用東區", err);
+        resolve(null);
+      },
+      { enableHighAccuracy: false, maximumAge: 15 * 60 * 1000, timeout: 5000 }
+    );
+  });
+}
+
+function distanceKm(aLat, aLon, bLat, bLon) {
+  const toRad = d => d * Math.PI / 180;
+  const r = 6371;
+  const dLat = toRad(bLat - aLat);
+  const dLon = toRad(bLon - aLon);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * r * Math.asin(Math.sqrt(h));
+}
+
+function locationLatLon(loc) {
+  const lat = Number(loc?.Latitude);
+  const lon = Number(loc?.Longitude);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+}
+
+async function fallbackWeatherForecast() {
+  const result = await tryFetch(
+    GPS_FALLBACK.endpoint,
+    { LocationName: GPS_FALLBACK.location },
+    cacheKey("weather", GPS_FALLBACK.endpoint, GPS_FALLBACK.location)
+  );
+  return {
+    data: result.data,
+    result,
+    county: GPS_FALLBACK.county,
+    location: GPS_FALLBACK.location,
+    gps: false,
+    distanceKm: null,
+  };
+}
+
+async function resolveGpsWeatherForecast() {
+  const pos = await getGpsPosition();
+  if (!pos) return fallbackWeatherForecast();
+
+  const feeds = await Promise.all(TOWN_FORECAST_ENDPOINTS.map(cfg =>
+    tryFetch(cfg.endpoint, {}, cacheKey("weather-full", cfg.endpoint))
+      .then(result => ({ cfg, result }))
+  ));
+  const towns = [];
+  for (const { cfg, result } of feeds) {
+    if (!result.data) continue;
+    for (const group of normalizeForecastGroups(result.data)) {
+      const county = group.LocationsName || cfg.county;
+      for (const loc of asArray(group.Location)) {
+        const point = locationLatLon(loc);
+        if (!point) continue;
+        towns.push({
+          county,
+          endpoint: cfg.endpoint,
+          location: loc.LocationName,
+          data: result.data,
+          result,
+          lat: point.lat,
+          lon: point.lon,
+          distanceKm: distanceKm(pos.lat, pos.lon, point.lat, point.lon),
+        });
+      }
+    }
+  }
+  towns.sort((a, b) => a.distanceKm - b.distanceKm);
+  const nearest = towns[0];
+  if (!nearest) return fallbackWeatherForecast();
+  return { ...nearest, gps: true };
+}
+
+function nearestObservationStations(obs, coastCfg, limit = 3) {
+  const stations = asArray(obs?.records?.Station)
+    .map(s => {
+      const coords = asArray(s.GeoInfo?.Coordinates)[0] || {};
+      const lat = Number(coords.StationLatitude);
+      const lon = Number(coords.StationLongitude);
+      const wspd = valid(s.WeatherElement?.WindSpeed);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || wspd == null) return null;
+      return {
+        station: s,
+        distanceKm: coastCfg?.lat != null && coastCfg?.lon != null
+          ? distanceKm(coastCfg.lat, coastCfg.lon, lat, lon)
+          : 99999,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, limit);
+  return stations.map(x => x.station);
 }
 
 function now() { return new Date(); }
@@ -1431,16 +1480,16 @@ function parseForecast(data, target) {
   const res = {};
   if (!data) return res;
   try {
-    for (const loc of data.records.Locations) {
-      for (const l of loc.Location) {
+    for (const loc of normalizeForecastGroups(data)) {
+      for (const l of asArray(loc.Location)) {
         if (l.LocationName.includes(target)) {
-          for (const e of l.WeatherElement) {
+          for (const e of asArray(l.WeatherElement)) {
             const name = e.ElementName; res[name] = {};
-            for (const t of (e.Time || [])) {
+            for (const t of asArray(e.Time)) {
               const dtk = t.DataTime || t.StartTime || "";
               if (!dtk) continue;
               const key = dtk.slice(0,10) + "_" + parseInt(dtk.slice(11,13));
-              res[name][key] = t.ElementValue[0];
+              res[name][key] = firstElementValue(t);
             }
           }
         }
@@ -1452,43 +1501,25 @@ function parseForecast(data, target) {
   return res;
 }
 
-function parseTownCoastalPlot(data, baseDate) {
-  const res = { "浪高": {} };
-  if (!data?.Time?.length || !data?.Wave_Data?.length) return res;
-  try {
-    data.Time.forEach((label, index) => {
-      const [hourPart, datePart] = String(label).split("<br>");
-      const hour = parseInt(hourPart, 10);
-      const date = monthDayKey(datePart || "", baseDate);
-      const waveHeight = valid(data.Wave_Data[index]);
-      if (!date || Number.isNaN(hour) || waveHeight == null) return;
-      res["浪高"][`${date}_${hour}`] = { WaveHeight: waveHeight };
-    });
-    if (!Object.keys(res["浪高"]).length) {
-      throw new Error("沒有可用浪高時序");
-    }
-    const keys = Object.keys(res["浪高"]).sort((a, b) => {
-      const [ad, ah] = a.split("_");
-      const [bd, bh] = b.split("_");
-      return new Date(`${ad}T${String(ah).padStart(2, "0")}:00:00`) -
-             new Date(`${bd}T${String(bh).padStart(2, "0")}:00:00`);
-    });
-    res._meta = {
-      first: waveKeyLabel(keys[0]),
-      last: waveKeyLabel(keys[keys.length - 1]),
-      interval: "逐 3 小時",
-      sourceRange: typeof data.TimeRange === "string" ? data.TimeRange : "",
-    };
-  } catch(e) {
-    console.warn("東石沿海浪高解析失敗", e);
-  }
-  return res;
-}
-
 function waveKeyLabel(key) {
   const [date, hour] = String(key || "").split("_");
   if (!date || hour == null) return "";
   return `${date.slice(5).replace("-", "/")} ${String(hour).padStart(2, "0")}:00`;
+}
+
+function cwaShortTime(v) {
+  if (!v) return "";
+  return String(v).slice(5, 16).replace("T", " ");
+}
+
+function coastTimeInfo(data) {
+  const info = data?.cwaopendata?.Dataset?.DatasetInfo;
+  const start = cwaShortTime(info?.ValidTime?.StartTime);
+  const end = cwaShortTime(info?.ValidTime?.EndTime);
+  const update = cwaShortTime(info?.Update || info?.IssueTime);
+  const range = start && end ? `資料時段：${esc(start)}–${esc(end)}。` : "";
+  const updated = update ? `更新：${esc(update)}。` : "";
+  return `${range}${updated}`;
 }
 
 function nearestEntry(data, field, dt) {
@@ -1507,7 +1538,7 @@ function nearest(data, field, dt) {
 }
 
 /* ─── 天文資料解析（多格式容錯）────────────────────────── */
-function parseAstro(astro, today) {
+function parseAstro(astro, today, countyName = "嘉義市") {
   if (!astro) return { sunrise: "—", sunset: "—" };
   try {
     const r = astro.records;
@@ -1518,7 +1549,7 @@ function parseAstro(astro, today) {
     else if (Array.isArray(r?.location))               locs = r.location;
     if (!locs.length) return { sunrise: "—", sunset: "—" };
 
-    const loc = locs.find(l => l.CountyName === "嘉義市") || locs[0];
+    const loc = locs.find(l => l.CountyName === countyName) || locs[0];
     if (!loc) return { sunrise: "—", sunset: "—" };
 
     const times = Array.isArray(loc.time) ? loc.time : [];
@@ -1630,74 +1661,76 @@ document.addEventListener("toggle", event => {
 
 /* ─── 主要載入函式 ────────────────────────────────────────── */
 async function loadAll() {
-  const btn     = document.getElementById("refresh");
+  const select  = document.getElementById("coastSelect");
   const content = document.getElementById("content");
   const meta    = document.getElementById("meta");
-  btn.disabled  = true;
-  btn.innerHTML = `<span class="spinner"></span>載入中`;
-
-  if (!await ensureDataAccess(content, meta)) {
-    btn.disabled = false;
-    btn.textContent = "重新整理";
-    return;
-  }
+  if (select) select.disabled = true;
+  meta.textContent = "資料載入中…";
 
   try {
     const n     = now();
     const today = twDateKey(n);
     const tomorrow = twDateKey(addDays(n, 1));
 
-    // 並行取得所有資料（自動 fallback 至暫存）
-    const [obsRes, cityRes, windRes, tideRes, astroRes, marineRes] = await Promise.all([
+    // 海線地區由選單控制；天氣卡由 GPS 判定，GPS 失敗時 fallback 東區。
+    const [coastRes, obsRes, weatherInfo] = await Promise.all([
+      tryFileFetch(COAST_DATA_ID, {}, cacheKey("coast", COAST_DATA_ID)),
       tryFetch("O-A0001-001", {}, "obs"),
-      tryFetch("F-D0047-057", { LocationName: "東區" }, "city"),
-      tryFetch("F-D0047-029", { LocationName: "東石鄉" }, "sea"),
-      tryFetch("F-A0021-001", { LocationName: "嘉義縣東石鄉" }, "tide"),
-      tryFetch("A-B0062-001", { CountyName: "嘉義市", timeFrom: today, timeTo: tomorrow }, "astro"),
-      tryLoadTownCoastalPlot(TOWN_COASTAL_PLOT, "marine"),
+      resolveGpsWeatherForecast(),
+    ]);
+
+    const coastConfigs = buildCoastConfigs(coastRes.data);
+    const selectedCoast = resolveSelectedCoast(coastConfigs);
+    saveSelectedCoastName(selectedCoast.label);
+    renderCoastSelect(coastConfigs, selectedCoast.label, true);
+
+    const [tideRes, astroRes] = await Promise.all([
+      tryFetch("F-A0021-001", { LocationName: selectedCoast.tideName }, cacheKey("tide", selectedCoast.tideName)),
+      tryFetch(
+        "A-B0062-001",
+        { CountyName: weatherInfo.county || GPS_FALLBACK.county, timeFrom: today, timeTo: tomorrow },
+        cacheKey("astro", weatherInfo.county || GPS_FALLBACK.county, today)
+      ),
     ]);
 
     // 判斷是否有任何暫存資料被使用
-    const usedCache = [obsRes, cityRes, windRes, tideRes, astroRes, marineRes]
+    const usedCache = [coastRes, obsRes, weatherInfo.result, tideRes, astroRes]
       .filter(r => r.cached);
     const cacheTs = usedCache.length
       ? Math.min(...usedCache.map(r => r.ts))
       : null;
 
     const failedFeeds = [
+      ["海線預報", coastRes],
       ["即時觀測", obsRes],
-      ["城市預報", cityRes],
-      ["海風預報", windRes],
+      [weatherInfo.gps ? "GPS天氣" : "東區天氣", weatherInfo.result],
       ["潮汐", tideRes],
       ["日出日落", astroRes],
-      ["東石浪高", marineRes],
     ].filter(([, r]) => !r.ok && !r.data).map(([name]) => name);
 
     const obs   = obsRes.data;
-    const city  = cityRes.data  ? parseForecast(cityRes.data,  "東區") : {};
-    const sea   = windRes.data  ? parseForecast(windRes.data,  "東石") : {};
+    const city  = weatherInfo.data ? parseForecast(weatherInfo.data, weatherInfo.location) : {};
+    const sea   = coastRes.data ? parseForecast(coastRes.data, selectedCoast.label) : {};
     const tide  = tideRes.data;
     const astro = astroRes.data;
-    const marine = marineRes.data ? parseTownCoastalPlot(marineRes.data, n) : {};
-    const waveTimeInfo = marine._meta?.first && marine._meta?.last
-      ? `資料時段：${esc(marine._meta.first)}–${esc(marine._meta.last)}。`
-      : "";
+    const weatherTitle = `${weatherInfo.location || GPS_FALLBACK.location}天氣（6 小時）`;
+    const coastTitle = `${selectedCoast.label}風浪（6 小時）`;
+    const waveTimeInfo = coastTimeInfo(coastRes.data);
 
     let maxObsBft = null, maxFcstBft = null, maxWaveHeight = null;
 
-    const { sunrise, sunset } = parseAstro(astro, today);
+    const { sunrise, sunset } = parseAstro(astro, today, weatherInfo.county || GPS_FALLBACK.county);
 
     /* ── 觀測站 ────────────────────────────────────────────── */
     let obsRows = "";
     if (obs?.records?.Station) {
-      const stations = obs.records.Station.filter(s => OBS_STATIONS[s.StationId]);
+      const stations = nearestObservationStations(obs, selectedCoast, 3);
       for (const s of stations) {
         const we   = s.WeatherElement;
-        const name = OBS_STATIONS[s.StationId];
+        const name = s.StationName || s.StationId || "測站";
         const wspd = valid(we.WindSpeed);
         const wdir = valid(we.WindDirection);
         const temp = valid(we.AirTemperature);
-        const humi = valid(we.RelativeHumidity);
         const rain = validRain(we.Now?.Precipitation);
         const wx   = valid(we.Weather) || "—";
         const b    = bft(wspd);
@@ -1768,25 +1801,27 @@ async function loadAll() {
       const t    = new Date(baseHour.getTime() + i * 3600000);
       const spd  = nearest(sea, "風速", t);
       const wdir = nearest(sea, "風向", t);
-      const wx   = nearest(sea, "天氣現象", t);
-      const waveHit = nearestEntry(marine, "浪高", t);
+      const waveHit = nearestEntry(sea, "浪高", t);
       const wave = waveHit?.value;
+      const waveDir = nearest(sea, "浪向", t);
+      const wavePeriod = nearest(sea, "浪週期", t);
       const bftN = parseBftValue(spd?.BeaufortScale);
       if (bftN != null && (maxFcstBft == null || bftN > maxFcstBft)) maxFcstBft = bftN;
       const waveH = valid(wave?.WaveHeight);
       const waveN = waveH != null ? parseFloat(waveH) : null;
       if (waveN != null && !Number.isNaN(waveN) && (maxWaveHeight == null || waveN > maxWaveHeight)) maxWaveHeight = waveN;
-      const wxStr = valid(wx?.Weather) || "—";
       const timeLabel = `${String(twHour(t)).padStart(2,'0')}:00`;
-      const waveLabel = waveHit
-        ? `浪高時段 ${waveKeyLabel(waveHit.key)}`
-        : "浪高 —";
+      const waveMeta = [
+        waveHit ? `浪高時段 ${waveKeyLabel(waveHit.key)}` : "浪高 —",
+        valid(waveDir?.WaveDirection) ? `浪向 ${esc(waveDir.WaveDirection)}` : "",
+        valid(wavePeriod?.WavePeriod) ? `週期 ${esc(wavePeriod.WavePeriod)}s` : "",
+      ].filter(Boolean).join(" · ");
       if (i === 0 || i === 2 || i === 4 || i === 6) {
         windRows += `<div class="row row-wave">
           <span class="row-time">${timeLabel}</span>
           <span class="row-detail">
             <span class="row-main">${show(wdir?.WindDirection)} · ${show(spd?.WindSpeed, "m/s")} · 浪 ${showMeters(wave?.WaveHeight)}</span>
-            <span class="row-meta">${waveLabel}</span>
+            <span class="row-meta">${waveMeta}</span>
           </span>
           ${bftBadge(bftN)}
         </div>`;
@@ -1897,7 +1932,7 @@ async function loadAll() {
     const missingSafetyData = [];
     if (maxObsBft == null) missingSafetyData.push("即時觀測風速");
     if (maxFcstBft == null) missingSafetyData.push("海風預報風速");
-    if (maxWaveHeight == null) missingSafetyData.push("東石浪高");
+    if (maxWaveHeight == null) missingSafetyData.push(`${selectedCoast.baseTown}浪高`);
     const maxBft = missingSafetyData.length ? null : Math.max(maxObsBft, maxFcstBft);
     const tideWindows = dryTides
       .map(({ dt, h }) => ({
@@ -1976,7 +2011,7 @@ async function loadAll() {
 
         <div class="col-wrap today-col">
           <div>
-            <div class="section-lbl">東區天氣（6 小時）</div>
+            <div class="section-lbl">${esc(weatherTitle)}</div>
             <div class="card">
               ${currentFocusHtml}
               <div class="g2">
@@ -2006,9 +2041,9 @@ async function loadAll() {
 
         <div class="col-wrap support-col">
           <details class="support-detail today-mode-detail" data-mobile-open="false">
-            <summary class="collapse-summary">東石風浪（6 小時）</summary>
+            <summary class="collapse-summary">${esc(coastTitle)}</summary>
             <div class="card">
-              ${windRows}
+              ${windRows || '<div class="info-note">海線風浪資料無法取得</div>'}
               <div class="info-note">浪高為逐 3 小時示性波高；最大波高可能約為 2 倍。${waveTimeInfo}</div>
             </div>
           </details>
@@ -2020,7 +2055,7 @@ async function loadAll() {
         </div>
 
         <div class="full ext-full" style="margin-top:4px">
-          <a class="ext-link" href="https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html?cID=10010&pointID=1001009C01" target="_blank" rel="noopener noreferrer">
+          <a class="ext-link" href="${coastExternalUrl(selectedCoast)}" target="_blank" rel="noopener noreferrer">
             完整沿海預報（浪高／流速）→
           </a>
         </div>
@@ -2028,24 +2063,25 @@ async function loadAll() {
       </div>
     `;
     syncTodayModeDetails();
+    requestSyncTideCurves();
 
-    const modeLabel = (!isLocalApiMode() && getApiProxyBase()) ? "雲端代理" : "本機授權";
-    meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} · ${modeLabel}`;
+    meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
 
   } catch(err) {
+    const errMsg = String(err?.message || err);
     content.innerHTML = `<div class="err-box">
-      ⚠ 資料載入失敗，請稍後再試。<br><br><span class="info-note">${esc(safeErrorMessage(err))}</span>
-      <div class="api-key-actions" style="justify-content:center; margin-top:16px">
-        ${getApiProxyBase() ? '<button type="button" class="secondary" onclick="useCloudProxyAndReload()">重試雲端代理</button>' : ""}
-        <button type="button" class="secondary" onclick="useLocalApiKeyAndReload('請重新輸入授權碼。')">改用本機授權碼</button>
-      </div>
+      ⚠ 資料載入失敗，請稍後再試。<br><br><span class="info-note">${esc(errMsg)}</span>
     </div>`;
     meta.textContent = "載入失敗";
   }
 
-  btn.disabled = false;
-  btn.textContent = "重新整理";
+  if (select) select.disabled = false;
 }
+
+document.getElementById("coastSelect")?.addEventListener("change", e => {
+  saveSelectedCoastName(e.target.value);
+  loadAll();
+});
 
 loadAll();
 </script>
