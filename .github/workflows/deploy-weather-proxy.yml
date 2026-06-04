@@ -2,7 +2,7 @@ name: Deploy Weather Proxy
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - "weather-proxy/**"
       - ".github/workflows/deploy-weather-proxy.yml"

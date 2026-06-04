@@ -119,6 +119,7 @@ body {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 .topbar-left {
   min-width: 0;
@@ -717,7 +718,8 @@ body {
   .meta  { font-size: 11px; margin-top: 2px; }
   .area-control {
     gap: 6px;
-    margin-left: auto;
+    width: 100%;
+    justify-content: space-between;
   }
   .area-label {
     font-size: 11px;
@@ -726,7 +728,8 @@ body {
     font-size: 11px;
     padding: 6px 28px 6px 10px;
     min-width: 0;
-    max-width: 46vw;
+    flex: 1;
+    max-width: none;
   }
   .section-lbl {
     font-size: 12px;
