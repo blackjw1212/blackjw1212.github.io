@@ -1,4 +1,1048 @@
----
-layout: home
-author_profile: true
----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taiwan Stock Risk Tracker</title>
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<style>
+:root {
+  --bg: #f5f6f8;
+  --card: #ffffff;
+  --raised: #eef1f4;
+  --line: rgba(22, 31, 43, .11);
+  --line-strong: rgba(22, 31, 43, .18);
+  --text: #121a23;
+  --muted: #5a6875;
+  --soft: #82909c;
+  --blue: #286f9f;
+  --green: #19735a;
+  --red: #a83c3c;
+  --amber: #9a6827;
+  --violet: #62508f;
+  --shadow: 0 1px 3px rgba(18, 26, 35, .08), 0 8px 24px rgba(18, 26, 35, .06);
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161b;
+    --card: #1b222a;
+    --raised: #242d36;
+    --line: rgba(230, 236, 242, .09);
+    --line-strong: rgba(230, 236, 242, .16);
+    --text: #edf2f7;
+    --muted: #a4b0bd;
+    --soft: #71808e;
+    --blue: #72acd4;
+    --green: #79c6aa;
+    --red: #e18484;
+    --amber: #d5a45f;
+    --violet: #b6a6e0;
+    --shadow: 0 1px 4px rgba(0, 0, 0, .25), 0 8px 28px rgba(0, 0, 0, .22);
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 18px 44px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand img {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.subtitle {
+  margin-top: 3px;
+  color: var(--soft);
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.btn {
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 8px 11px;
+  cursor: pointer;
+  min-height: 38px;
+}
+
+.btn:hover {
+  border-color: var(--blue);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  background: var(--card);
+  color: var(--muted);
+  min-height: 38px;
+}
+
+.toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.chip.ok { color: var(--green); }
+.chip.warn { color: var(--amber); }
+.chip.error { color: var(--red); }
+.chip.loading { color: var(--blue); }
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
+  gap: 14px;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px 11px;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.panel-meta {
+  color: var(--soft);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.panel-body {
+  padding: 14px 16px 16px;
+}
+
+.macro-grid,
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric {
+  min-width: 0;
+  padding: 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.metric span {
+  display: block;
+  color: var(--soft);
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.metric strong {
+  display: block;
+  font-size: 22px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric small {
+  display: block;
+  color: var(--muted);
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+.yield-row {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.yield-field {
+  min-width: 170px;
+  flex: 0 0 auto;
+}
+
+.yield-field label {
+  display: block;
+  color: var(--soft);
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.yield-field input {
+  width: 100%;
+  min-height: 38px;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 7px 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-band {
+  flex: 1 1 auto;
+  min-height: 38px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  padding: 8px 11px;
+  background: var(--raised);
+  color: var(--muted);
+}
+
+.risk-band.ok { color: var(--green); }
+.risk-band.warn { color: var(--amber); }
+.risk-band.error { color: var(--red); }
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 780px;
+}
+
+th,
+td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+th {
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+th:first-child,
+td:first-child,
+th:nth-child(2),
+td:nth-child(2) {
+  text-align: left;
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--raised) 60%, transparent);
+}
+
+.ticker {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.muted {
+  color: var(--soft);
+}
+
+.up { color: var(--green); }
+.down { color: var(--red); }
+.flat { color: var(--muted); }
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.filing {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+
+.filing-date {
+  color: var(--soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.filing a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.filing a:hover {
+  color: var(--blue);
+}
+
+.empty {
+  color: var(--soft);
+  padding: 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 11px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--soft);
+  font-size: 12px;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .macro-grid,
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+  .yield-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .yield-field {
+    min-width: 0;
+  }
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="topbar">
+    <div class="brand">
+      <img src="./favicon.svg" alt="">
+      <div>
+        <h1>Taiwan Stock Risk Tracker</h1>
+        <div class="subtitle" id="appUpdated">Waiting for data</div>
+      </div>
+    </div>
+    <div class="actions">
+      <span class="chip" id="proxyBadge">Backend unset</span>
+      <label class="toggle"><input type="checkbox" id="quoteToggle"> Intraday</label>
+      <button class="btn" id="refreshBtn" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <section class="grid">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Macro Dashboard</h2>
+          <div class="panel-meta" id="macroUpdated">Yield waiting</div>
+        </div>
+        <span class="chip" id="macroStatus">Idle</span>
+      </div>
+      <div class="panel-body">
+        <div class="yield-row">
+          <div class="yield-field">
+            <label for="yield10y">US 10Y yield</label>
+            <input id="yield10y" inputmode="decimal" placeholder="4.25" aria-label="US 10Y yield">
+          </div>
+          <div class="risk-band" id="riskBand">Risk posture waiting</div>
+        </div>
+        <div class="macro-grid">
+          <div class="metric">
+            <span>Market Breadth</span>
+            <strong id="breadthMetric">--</strong>
+            <small id="breadthDetail">EOD waiting</small>
+          </div>
+          <div class="metric">
+            <span>Average Move</span>
+            <strong id="avgMoveMetric">--</strong>
+            <small id="avgMoveDetail">EOD waiting</small>
+          </div>
+          <div class="metric">
+            <span>Macro Pressure</span>
+            <strong id="macroPressureMetric">--</strong>
+            <small id="macroPressureDetail">Yield input</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Positioning Stats</h2>
+          <div class="panel-meta" id="positionUpdated">Prices waiting</div>
+        </div>
+        <span class="chip" id="quoteStatus">Intraday off</span>
+      </div>
+      <div class="panel-body">
+        <div class="stat-grid">
+          <div class="metric">
+            <span>Position Value</span>
+            <strong id="positionValue">--</strong>
+            <small id="positionPnl">Cost basis waiting</small>
+          </div>
+          <div class="metric">
+            <span>Largest Weight</span>
+            <strong id="largestWeight">--</strong>
+            <small id="largestName">Portfolio waiting</small>
+          </div>
+          <div class="metric">
+            <span>Cash Buffer</span>
+            <strong id="cashBuffer">--</strong>
+            <small id="cashDetail">Static model</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel full">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Stock Valuation Table</h2>
+          <div class="panel-meta" id="eodUpdated">EOD waiting</div>
+        </div>
+        <span class="chip" id="eodStatus">Idle</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Price</th>
+              <th>Change</th>
+              <th>P/E</th>
+              <th>Fair Value</th>
+              <th>Gap</th>
+              <th>Weight</th>
+            </tr>
+          </thead>
+          <tbody id="stockRows"></tbody>
+        </table>
+      </div>
+      <div class="foot">
+        <span id="tableSource">Source waiting</span>
+        <span id="tableDelay">Delay waiting</span>
+      </div>
+    </div>
+
+    <div class="panel full">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Material Announcements</h2>
+          <div class="panel-meta" id="filingsUpdated">MOPS waiting</div>
+        </div>
+        <span class="chip" id="filingsStatus">Idle</span>
+      </div>
+      <div class="panel-body">
+        <div class="feed" id="filingsFeed"></div>
+      </div>
+      <div class="foot">
+        <span id="filingsSource">Source waiting</span>
+        <span id="filingsDelay">Delay waiting</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
+  const CASH = 250000;
+  const QUOTE_REFRESH_MS = 30000;
+
+  const STOCKS = [
+    { code: "2330", name: "TSMC", shares: 12, cost: 880, eps: 45.25, targetPe: 24 },
+    { code: "2308", name: "Delta", shares: 20, cost: 300, eps: 17.20, targetPe: 22 },
+    { code: "2317", name: "Hon Hai", shares: 25, cost: 160, eps: 12.00, targetPe: 15 },
+    { code: "2454", name: "MediaTek", shares: 6, cost: 1180, eps: 66.50, targetPe: 18 },
+    { code: "2412", name: "Chunghwa Tel", shares: 30, cost: 118, eps: 4.60, targetPe: 22 },
+    { code: "2881", name: "Fubon Fin", shares: 45, cost: 78, eps: 6.50, targetPe: 14 },
+    { code: "2891", name: "CTBC Fin", shares: 70, cost: 32, eps: 3.00, targetPe: 13 },
+    { code: "2603", name: "Evergreen", shares: 12, cost: 175, eps: 13.50, targetPe: 9 },
+  ];
+
+  const state = {
+    eod: new Map(),
+    quotes: new Map(),
+    filings: [],
+    filingsMessage: "No filings loaded.",
+    quoteFresh: false,
+    yieldTouched: false,
+    yieldSource: "empty",
+    quoteTimer: null,
+    proxyBase: "",
+  };
+
+  const ids = [
+    "appUpdated", "proxyBadge", "quoteToggle", "refreshBtn", "macroUpdated", "macroStatus",
+    "yield10y", "riskBand", "breadthMetric", "breadthDetail", "avgMoveMetric", "avgMoveDetail",
+    "macroPressureMetric", "macroPressureDetail", "positionUpdated", "quoteStatus",
+    "positionValue", "positionPnl", "largestWeight", "largestName", "cashBuffer", "cashDetail",
+    "eodUpdated", "eodStatus", "stockRows", "tableSource", "tableDelay", "filingsUpdated",
+    "filingsStatus", "filingsFeed", "filingsSource", "filingsDelay",
+  ];
+
+  const el = {};
+
+  function byId(id) {
+    return document.getElementById(id);
+  }
+
+  function collectElements() {
+    for (const id of ids) el[id] = byId(id);
+  }
+
+  function proxyBase() {
+    const params = new URLSearchParams(window.location.search || "");
+    const raw = window.PROXY_BASE || window.TW_STOCK_PROXY_BASE || params.get("proxy") || "";
+    return String(raw).trim().replace(/\/+$/, "");
+  }
+
+  function setStatus(target, tone, text) {
+    if (!target) return;
+    target.className = "chip" + (tone ? " " + tone : "");
+    target.textContent = text;
+  }
+
+  function setPanelTime(target, label, date) {
+    if (!target) return;
+    target.textContent = date ? label + " " + formatDateTime(date) : label;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, function (char) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[char];
+    });
+  }
+
+  function parseNumber(value) {
+    if (value == null) return null;
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    const match = String(value).replace(/,/g, "").replace(/%/g, "").match(/[+-]?\d+(?:\.\d+)?/);
+    if (!match) return null;
+    const parsed = Number(match[0]);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function roundNumber(value, digits) {
+    if (value == null || !Number.isFinite(value)) return null;
+    const factor = 10 ** digits;
+    return Math.round((value + Number.EPSILON) * factor) / factor;
+  }
+
+  function formatNumber(value, digits) {
+    if (value == null || !Number.isFinite(value)) return "--";
+    return value.toLocaleString("en-US", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  }
+
+  function formatSigned(value, digits) {
+    if (value == null || !Number.isFinite(value)) return "--";
+    const sign = value > 0 ? "+" : "";
+    return sign + formatNumber(value, digits);
+  }
+
+  function formatPercent(value, digits) {
+    if (value == null || !Number.isFinite(value)) return "--";
+    return formatSigned(value, digits) + "%";
+  }
+
+  function formatCurrency(value) {
+    if (value == null || !Number.isFinite(value)) return "--";
+    return "NT$" + value.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  }
+
+  function formatDateTime(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "--";
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function changeClass(value) {
+    if (value > 0) return "up";
+    if (value < 0) return "down";
+    return "flat";
+  }
+
+  function normalizeTwseEod(payload) {
+    const rows = Array.isArray(payload) ? payload : Array.isArray(payload && payload.data) ? payload.data : [];
+    return rows.map(function (row) {
+      const code = String(row.Code || row.code || "").trim();
+      const name = String(row.Name || row.name || "").trim();
+      const close = parseNumber(row.ClosingPrice || row.close || row.Close);
+      const change = parseNumber(row.Change || row.change || row.PriceChange);
+      if (!/^\d{4,6}$/.test(code) || !name || close == null) return null;
+      return { code: code, name: name, close: roundNumber(close, 2), change: roundNumber(change, 2) };
+    }).filter(Boolean);
+  }
+
+  async function fetchJson(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(function () { controller.abort(); }, 9000);
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return {
+        data: await response.json(),
+        headers: response.headers,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  function stockSnapshot(stock) {
+    const quote = state.quoteFresh ? state.quotes.get(stock.code) : null;
+    const eod = state.eod.get(stock.code);
+    const price = quote && quote.price != null ? quote.price : eod && eod.close != null ? eod.close : null;
+    const change = quote && quote.change != null ? quote.change : eod && eod.change != null ? eod.change : null;
+    const previous = price != null && change != null ? price - change : null;
+    const pctChange = previous ? (change / previous) * 100 : null;
+    const fairValue = roundNumber(stock.eps * stock.targetPe, 2);
+    const gap = price ? ((fairValue - price) / price) * 100 : null;
+    const pe = price && stock.eps ? price / stock.eps : null;
+    const value = price != null ? price * stock.shares : null;
+    const costValue = stock.cost * stock.shares;
+    const pnl = value != null ? value - costValue : null;
+    return { stock, price, change, pctChange, fairValue, gap, pe, value, costValue, pnl };
+  }
+
+  function snapshots() {
+    return STOCKS.map(stockSnapshot);
+  }
+
+  function pricedSnapshots() {
+    return snapshots().filter(function (item) { return item.price != null; });
+  }
+
+  function renderTable() {
+    const priced = pricedSnapshots();
+    const total = priced.reduce(function (sum, item) { return sum + (item.value || 0); }, 0);
+
+    el.stockRows.innerHTML = snapshots().map(function (item) {
+      const weight = total && item.value != null ? (item.value / total) * 100 : null;
+      return "<tr>" +
+        "<td><span class=\"ticker\">" + escapeHtml(item.stock.code) + "</span></td>" +
+        "<td>" + escapeHtml(item.stock.name) + "</td>" +
+        "<td>" + formatNumber(item.price, 2) + "</td>" +
+        "<td class=\"" + changeClass(item.change) + "\">" + formatSigned(item.change, 2) + " (" + formatPercent(item.pctChange, 2) + ")</td>" +
+        "<td>" + formatNumber(item.pe, 1) + "</td>" +
+        "<td>" + formatNumber(item.fairValue, 2) + "</td>" +
+        "<td class=\"" + changeClass(item.gap) + "\">" + formatPercent(item.gap, 1) + "</td>" +
+        "<td>" + formatPercent(weight, 1) + "</td>" +
+      "</tr>";
+    }).join("");
+  }
+
+  function renderMacro() {
+    const priced = pricedSnapshots();
+    const changes = priced.filter(function (item) { return item.change != null; });
+    const advancers = changes.filter(function (item) { return item.change > 0; }).length;
+    const breadth = changes.length ? (advancers / changes.length) * 100 : null;
+    const avgMove = changes.length
+      ? changes.reduce(function (sum, item) { return sum + (item.pctChange || 0); }, 0) / changes.length
+      : null;
+    const yield10y = parseNumber(el.yield10y.value);
+    const pressure = yield10y == null ? null : yield10y >= 4.6 ? 3 : yield10y >= 4.2 ? 2 : yield10y >= 3.8 ? 1 : 0;
+    const breadthRisk = breadth == null ? 1 : breadth < 35 ? 2 : breadth < 50 ? 1 : 0;
+    const moveRisk = avgMove == null ? 1 : avgMove < -1 ? 2 : avgMove < 0 ? 1 : 0;
+    const score = pressure == null ? null : pressure + breadthRisk + moveRisk;
+
+    el.breadthMetric.textContent = breadth == null ? "--" : formatPercent(breadth, 0);
+    el.breadthDetail.textContent = changes.length ? advancers + " of " + changes.length + " advancing" : "EOD waiting";
+    el.avgMoveMetric.textContent = avgMove == null ? "--" : formatPercent(avgMove, 2);
+    el.avgMoveDetail.textContent = changes.length ? "Equal-weight watchlist" : "EOD waiting";
+    el.macroPressureMetric.textContent = pressure == null ? "--" : ["Low", "Firm", "High", "Tight"][pressure];
+    if (yield10y == null) {
+      el.macroPressureDetail.textContent = "Yield waiting";
+    } else if (state.yieldSource === "fetched") {
+      el.macroPressureDetail.textContent = formatNumber(yield10y, 3) + "% US 10Y";
+    } else {
+      el.macroPressureDetail.textContent = "Manual yield " + formatNumber(yield10y, 3) + "%";
+    }
+
+    el.riskBand.className = "risk-band";
+    if (score == null) {
+      el.riskBand.textContent = "Risk posture waiting";
+    } else if (score >= 5) {
+      el.riskBand.classList.add("error");
+      el.riskBand.textContent = "Tight risk";
+    } else if (score >= 3) {
+      el.riskBand.classList.add("warn");
+      el.riskBand.textContent = "Watch closely";
+    } else {
+      el.riskBand.classList.add("ok");
+      el.riskBand.textContent = "Constructive";
+    }
+  }
+
+  function renderPositions() {
+    const priced = pricedSnapshots();
+    const totalValue = priced.reduce(function (sum, item) { return sum + (item.value || 0); }, 0);
+    const totalCost = priced.reduce(function (sum, item) { return sum + (item.costValue || 0); }, 0);
+    const pnl = totalValue ? totalValue - totalCost : null;
+    const pnlPct = totalCost ? (pnl / totalCost) * 100 : null;
+    const largest = priced.reduce(function (best, item) {
+      if (!best || (item.value || 0) > (best.value || 0)) return item;
+      return best;
+    }, null);
+    const largestWeight = largest && totalValue ? (largest.value / totalValue) * 100 : null;
+    const buffer = totalValue ? (CASH / (CASH + totalValue)) * 100 : null;
+
+    el.positionValue.textContent = totalValue ? formatCurrency(totalValue) : "--";
+    el.positionPnl.textContent = pnl == null ? "Cost basis waiting" : formatCurrency(pnl) + " / " + formatPercent(pnlPct, 1);
+    el.largestWeight.textContent = largestWeight == null ? "--" : formatPercent(largestWeight, 1);
+    el.largestName.textContent = largest ? largest.stock.code + " " + largest.stock.name : "Portfolio waiting";
+    el.cashBuffer.textContent = buffer == null ? "--" : formatPercent(buffer, 1);
+    el.cashDetail.textContent = formatCurrency(CASH) + " cash model";
+  }
+
+  function renderFilings() {
+    if (!state.filings.length) {
+      el.filingsFeed.innerHTML = "<div class=\"empty\">" + escapeHtml(state.filingsMessage || "No filings loaded.") + "</div>";
+      return;
+    }
+    el.filingsFeed.innerHTML = state.filings.slice(0, 12).map(function (item) {
+      return "<div class=\"filing\">" +
+        "<div class=\"filing-date\">" + escapeHtml(item.date || "--") + "<br>" + escapeHtml(item.code || "") + "</div>" +
+        "<div><a href=\"" + escapeHtml(item.url || "#") + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(item.title || "Untitled filing") + "</a></div>" +
+      "</div>";
+    }).join("");
+  }
+
+  function renderAll() {
+    renderTable();
+    renderMacro();
+    renderPositions();
+    renderFilings();
+    el.appUpdated.textContent = "Updated " + formatDateTime(new Date());
+  }
+
+  async function loadEod() {
+    setStatus(el.eodStatus, "loading", "Loading");
+    const usingProxy = Boolean(state.proxyBase);
+    let proxyError = null;
+    try {
+      let response;
+      let rows;
+      if (usingProxy) {
+        try {
+          response = await fetchJson(state.proxyBase + "/eod");
+          rows = response.data;
+        } catch (error) {
+          proxyError = error;
+        }
+      }
+      if (!usingProxy || proxyError) {
+        response = await fetchJson(DIRECT_TWSE_EOD);
+        rows = normalizeTwseEod(response.data);
+      }
+      if (!Array.isArray(rows)) throw new Error("Unexpected EOD payload");
+      state.eod = new Map(rows.map(function (row) { return [row.code, row]; }));
+
+      const source = proxyError
+        ? "TWSE OpenAPI direct fallback"
+        : response.headers.get("X-Data-Source") || (usingProxy ? "Backend EOD proxy" : "TWSE OpenAPI direct");
+      const delay = response.headers.get("X-Data-Delay") || "End-of-day close data";
+      const updatedAt = response.headers.get("X-Data-Updated-At") || new Date().toISOString();
+      el.tableSource.textContent = source;
+      el.tableDelay.textContent = delay;
+      setPanelTime(el.eodUpdated, "EOD updated", updatedAt);
+      setPanelTime(el.positionUpdated, "Positions updated", updatedAt);
+      setStatus(el.eodStatus, proxyError ? "warn" : "ok", proxyError ? "Fallback" : "Loaded");
+    } catch (error) {
+      state.eod = new Map();
+      setStatus(el.eodStatus, "error", "EOD error");
+      el.tableSource.textContent = "EOD unavailable";
+      el.tableDelay.textContent = error.message || "Request failed";
+    }
+  }
+
+  async function loadYield10y() {
+    if (!state.proxyBase) {
+      if (!state.yieldTouched) {
+        el.yield10y.value = "";
+        state.yieldSource = "empty";
+      }
+      setStatus(el.macroStatus, "warn", "Backend required");
+      el.macroUpdated.textContent = "FRED yield waiting for backend";
+      return;
+    }
+    setStatus(el.macroStatus, "loading", "Loading");
+    try {
+      const response = await fetchJson(state.proxyBase + "/yield10y");
+      const value = parseNumber(response.data && response.data.value);
+      if (value == null) throw new Error("Unexpected yield payload");
+      if (!state.yieldTouched) {
+        el.yield10y.value = formatNumber(value, 3);
+        state.yieldSource = "fetched";
+      }
+      setPanelTime(el.macroUpdated, "Yield updated", response.data.updatedAt || new Date());
+      setStatus(el.macroStatus, "ok", "Loaded");
+    } catch (error) {
+      if (!state.yieldTouched) {
+        el.yield10y.value = "";
+        state.yieldSource = "empty";
+      }
+      setStatus(el.macroStatus, "error", "Yield error");
+      el.macroUpdated.textContent = error.message || "FRED unavailable";
+    }
+  }
+
+  async function loadFilings() {
+    if (!state.proxyBase) {
+      setStatus(el.filingsStatus, "warn", "Backend required");
+      el.filingsSource.textContent = "MOPS backend proxy required";
+      el.filingsDelay.textContent = "No client-side scraping";
+      state.filings = [];
+      state.filingsMessage = "Backend required for MOPS filings.";
+      return;
+    }
+
+    setStatus(el.filingsStatus, "loading", "Loading");
+    state.filingsMessage = "Loading filings.";
+    const results = await Promise.allSettled(STOCKS.map(async function (stock) {
+      const response = await fetchJson(state.proxyBase + "/filings?code=" + encodeURIComponent(stock.code));
+      if (!Array.isArray(response.data)) throw new Error("Unexpected filings payload");
+      const rows = response.data;
+      return rows.slice(0, 5).map(function (item) {
+        return { code: stock.code, date: item.date, title: item.title, url: item.url };
+      });
+    }));
+
+    const fulfilled = results.filter(function (result) { return result.status === "fulfilled"; });
+    const rejected = results.length - fulfilled.length;
+    state.filings = fulfilled
+      .flatMap(function (result) { return result.value; })
+      .sort(function (a, b) { return String(b.date || "").localeCompare(String(a.date || "")); });
+
+    el.filingsSource.textContent = "MOPS t05st01 via backend";
+    el.filingsDelay.textContent = "Latest available disclosure data";
+    setPanelTime(el.filingsUpdated, "Filings updated", new Date());
+    state.filingsMessage = fulfilled.length
+      ? "No recent filings from available sources."
+      : "Filings unavailable.";
+    if (fulfilled.length && rejected) setStatus(el.filingsStatus, "warn", "Partial");
+    else if (fulfilled.length) setStatus(el.filingsStatus, "ok", "Loaded");
+    else setStatus(el.filingsStatus, "error", "Filings error");
+  }
+
+  async function loadQuotes() {
+    if (!el.quoteToggle.checked) {
+      state.quotes = new Map();
+      state.quoteFresh = false;
+      setStatus(el.quoteStatus, "", "Intraday off");
+      return;
+    }
+    if (!state.proxyBase) {
+      state.quotes = new Map();
+      state.quoteFresh = false;
+      setStatus(el.quoteStatus, "warn", "Backend required");
+      return;
+    }
+
+    setStatus(el.quoteStatus, "loading", "Refreshing");
+    try {
+      const codes = STOCKS.map(function (stock) { return stock.code; }).join(",");
+      const response = await fetchJson(state.proxyBase + "/quote?codes=" + encodeURIComponent(codes));
+      const quotes = Array.isArray(response.data && response.data.quotes) ? response.data.quotes : [];
+      state.quotes = new Map(quotes.map(function (quote) {
+        const price = parseNumber(quote.price);
+        const change = parseNumber(quote.change);
+        if (!/^\d{4,6}$/.test(String(quote.code || "")) || price == null) return null;
+        return [String(quote.code), {
+          code: String(quote.code),
+          name: String(quote.name || ""),
+          price: roundNumber(price, 2),
+          change: roundNumber(change, 2),
+        }];
+      }).filter(Boolean));
+      state.quoteFresh = true;
+      setStatus(el.quoteStatus, "ok", "Intraday on");
+      setPanelTime(el.positionUpdated, "Intraday updated", response.data.updatedAt || new Date());
+      el.tableDelay.textContent = response.data.delay || "Intraday public feed delay varies";
+    } catch (error) {
+      state.quotes = new Map();
+      state.quoteFresh = false;
+      setStatus(el.quoteStatus, "error", "Quote error");
+    }
+  }
+
+  async function refreshAll() {
+    state.proxyBase = proxyBase();
+    el.proxyBadge.textContent = state.proxyBase ? "Backend set" : "Backend unset";
+    setStatus(el.proxyBadge, state.proxyBase ? "ok" : "warn", state.proxyBase ? "Backend set" : "Backend unset");
+    await Promise.allSettled([loadEod(), loadYield10y(), loadFilings()]);
+    await loadQuotes();
+    renderAll();
+  }
+
+  function setQuoteTimer(enabled) {
+    if (state.quoteTimer) {
+      clearInterval(state.quoteTimer);
+      state.quoteTimer = null;
+    }
+    if (enabled) {
+      loadQuotes().then(renderAll).catch(function () {});
+      state.quoteTimer = setInterval(function () {
+        loadQuotes().then(renderAll).catch(function () {});
+      }, QUOTE_REFRESH_MS);
+    } else {
+      setStatus(el.quoteStatus, "", "Intraday off");
+    }
+  }
+
+  async function init() {
+    collectElements();
+    el.yield10y.addEventListener("input", function () {
+      state.yieldTouched = true;
+      state.yieldSource = parseNumber(el.yield10y.value) == null ? "empty" : "manual";
+      renderMacro();
+    });
+    el.refreshBtn.addEventListener("click", function () {
+      refreshAll().catch(function () {});
+    });
+    el.quoteToggle.addEventListener("change", function () {
+      setQuoteTimer(el.quoteToggle.checked);
+      renderAll();
+    });
+    renderAll();
+    await refreshAll();
+  }
+
+  window.RiskTrackerApp = {
+    init: init,
+    refreshAll: refreshAll,
+    normalizeTwseEod: normalizeTwseEod,
+    parseNumber: parseNumber,
+    getState: function () { return state; },
+  };
+
+  if (!window.__TW_RISK_SKIP_AUTO_INIT__) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", function () {
+        init().catch(function () {});
+      });
+    } else {
+      init().catch(function () {});
+    }
+  }
+}());
+</script>
+</body>
+</html>

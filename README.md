@@ -9,7 +9,7 @@ Personal portfolio site for blackjw1212, built with Jekyll and the Minimal Mista
 - Hardware-related project records
 - Public resume and selected works
 
-## Local development
+## Local Development
 
 ```bash
 bundle install
@@ -18,7 +18,73 @@ bundle exec jekyll serve
 
 The site is published at <https://blackjw1212.github.io/>.
 
-## Maintenance notes
+## Taiwan Stock Risk Tracker
+
+This repository also includes a plain static Taiwan stock risk tracker at `index.html` plus a Cloudflare Worker proxy in `backend/`.
+
+The page reads the backend URL from either:
+
+- `window.PROXY_BASE`
+- `window.TW_STOCK_PROXY_BASE`
+- `?proxy=https://your-worker.example.workers.dev`
+
+Example:
+
+```text
+index.html?proxy=https://taiwan-risk-tracker-proxy.<account>.workers.dev
+```
+
+If no backend is configured, the stock table still attempts the direct TWSE end-of-day OpenAPI fallback. MOPS filings, FRED 10Y yield, and intraday quotes stay disabled because they require the backend proxy.
+
+### Backend Routes
+
+- `GET /eod` returns normalized TWSE end-of-day rows: `[{ code, name, close, change }]`.
+- `GET /quote?codes=2330,2308` returns TWSE MIS public quote rows plus source and delay metadata.
+- `GET /filings?code=2330` returns latest normalized MOPS material announcements: `[{ date, title, url }]`.
+- `GET /yield10y` returns the latest numeric FRED DGS10 observation.
+- `GET /health` returns a simple service health payload.
+
+### Backend Environment
+
+- `FRED_API_KEY` is required for `/yield10y`.
+- `ALLOWED_ORIGINS` is optional. Use `*` for a public demo, or a comma-separated allowlist such as `https://blackjw1212.github.io,https://your-preview.example`.
+
+Set the FRED key as a Worker secret:
+
+```bash
+cd backend
+npm install
+npx wrangler secret put FRED_API_KEY
+npx wrangler deploy
+```
+
+For production, set `ALLOWED_ORIGINS` in `backend/wrangler.toml` or with Cloudflare environment variables before deploying. Do not store `FRED_API_KEY` in `wrangler.toml`; keep it as a secret.
+
+### Post-Deploy Check
+
+After deploy, verify the Worker and connect the static frontend:
+
+```bash
+curl https://taiwan-risk-tracker-proxy.<account>.workers.dev/health
+```
+
+Then open:
+
+```text
+index.html?proxy=https://taiwan-risk-tracker-proxy.<account>.workers.dev
+```
+
+### Stock Tracker Tests
+
+Run the dependency-free tests from the repository root:
+
+```bash
+node --test backend/test/*.test.js
+```
+
+The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for both backend and no-backend paths.
+
+## Maintenance Notes
 
 - Keep navigation links backed by real pages.
 - Do not commit local OS artifacts such as `.DS_Store`.
