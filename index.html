@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI 供應鏈觀察台 · 散戶直觀版</title>
-<meta name="description" content="台灣 AI 供應鏈觀察台，以散戶直觀方式呈現觀察門檻、核心與衛星配置、收盤資料與本機分批觀察紀錄。" />
+<title>AI 供應鏈觀察台 · 散戶一眼全自動版</title>
+<meta name="description" content="台灣 AI 供應鏈觀察台，以散戶一眼可讀方式呈現全自動觀察門檻、核心與衛星配置、收盤資料與本機分批觀察紀錄。" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -136,8 +136,8 @@
 
 <header>
   <div class="wrap">
-    <div class="kick">Retail Observation Console · v0.4</div>
-    <h1>AI 供應鏈觀察台 · <span>全自動觀察版</span></h1>
+    <div class="kick">Retail Observation Console · v0.5</div>
+    <h1>AI 供應鏈觀察台 · <span>散戶一眼全自動版</span></h1>
     <div class="profile">
       <span class="tagp">定位 <b>觀察門檻</b></span>
       <span class="tagp">資料 <b>收盤/10Y 自動</b></span>
@@ -227,6 +227,8 @@
 
 <script>
 (function(){
+const ROOT = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {});
+const DOC = typeof document !== "undefined" ? document : null;
 const DEFAULT_PROXY_BASE = "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev";
 const ALLOWED_PROXIES = new Set([DEFAULT_PROXY_BASE]);
 const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
@@ -272,10 +274,10 @@ const MAX_TRANCHE_TEXT = 120;
 let state = loadState();
 let staticFeedPromise = null;
 
-function $(id){return document.getElementById(id);}
+function $(id){return DOC ? DOC.getElementById(id) : null;}
 
 function storage(){
-  try { return window.localStorage || null; } catch (error) { return null; }
+  try { return ROOT.localStorage || null; } catch (error) { return null; }
 }
 
 function defaultState(){
@@ -442,9 +444,10 @@ function normalizeYieldPayload(payload){
 }
 
 function proxyDecision(){
-  const params = new URLSearchParams(window.location.search || "");
-  const defaultProxy = window.location.hostname === "blackjw1212.github.io" ? DEFAULT_PROXY_BASE : "";
-  const raw = window.PROXY_BASE || window.TW_STOCK_PROXY_BASE || params.get("proxy") || "";
+  const loc = ROOT.location || {};
+  const params = new URLSearchParams(loc.search || "");
+  const defaultProxy = loc.hostname === "blackjw1212.github.io" ? DEFAULT_PROXY_BASE : "";
+  const raw = ROOT.PROXY_BASE || ROOT.TW_STOCK_PROXY_BASE || params.get("proxy") || "";
   if (!raw) return {base:defaultProxy,rejected:false};
   const normalized = String(raw).trim().replace(/\/+$/, "");
   if (ALLOWED_PROXIES.has(normalized)) return {base:normalized,rejected:false};
@@ -974,6 +977,72 @@ function dataLabel(){
   return (meta.cache ? "本機快取" : meta.source || "收盤資料") + (when ? " / " + when : "");
 }
 
+function plPct(cost, price){
+  const base = Number(cost);
+  const current = Number(price);
+  if (!(base > 0) || price == null || Number.isNaN(current)) return null;
+  return roundNumber((current - base) / base * 100, 1);
+}
+
+function holdingStatus(pl, stopPct, targetPct){
+  const value = Number(pl);
+  if (pl == null || Number.isNaN(value)) return {tone:"n",label:"待更新收盤"};
+  if (value <= -Math.abs(Number(stopPct) || 0)) return {tone:"r",label:"低於風險線 · 退場觀察"};
+  if (value >= Math.abs(Number(targetPct) || 0)) return {tone:"a",label:"高於目標區 · 降風險觀察"};
+  return {tone:"g",label:"區間內 · 持續觀察"};
+}
+
+function marketTone(upRatio, y10, dataOk){
+  if (!dataOk) return {tone:"n",title:"資料不足",reason:"先更新收盤與 10Y，暫不判讀。"};
+  const breadth = Number(upRatio);
+  const yieldValue = Number(y10);
+  let score = 0;
+  if (breadth >= 0.6) score += 1;
+  else if (breadth <= 0.3) score -= 1;
+  if (!Number.isNaN(yieldValue)) {
+    if (yieldValue > 4.7) score -= 1;
+    else if (yieldValue < 4.5) score += 1;
+  }
+  if (score >= 2) return {tone:"g",title:"偏進場觀察",reason:"廣度轉強且利率壓力較低，仍需核對自己的資金規則。"};
+  if (score <= -1) return {tone:"r",title:"偏退場降風險",reason:"廣度或利率壓力偏高，先回到風險檢查。"};
+  return {tone:"a",title:"等待",reason:"訊號分歧，只追蹤，不解讀為新增部位。"};
+}
+
+const RETAIL_SCORE_VALUE = {h:2,mh:1.5,m:1,ml:0.5,l:0};
+
+function bodyStars(scores){
+  const list = Array.isArray(scores) ? scores : [];
+  if (!list.length) return 1;
+  const sum = list.reduce(function(total, score){return total + (RETAIL_SCORE_VALUE[score] || 0);}, 0);
+  return Math.max(1, Math.min(5, Math.round((sum / list.length) / 2 * 5)));
+}
+
+function valTag(valScore){
+  if (valScore === "h") return {cls:"cheap",t:"相對便宜"};
+  if (valScore === "l") return {cls:"rich",t:"估值偏貴"};
+  return {cls:"fair",t:"估值合理"};
+}
+
+function normalizeEodRows(rows){
+  const out = {};
+  normalizeEodPayload(rows).forEach(function(row){
+    out[row.code] = {close:row.close,change:row.change};
+  });
+  return out;
+}
+
+function normalizeYield(payload){
+  try {
+    return normalizeYieldPayload(payload).value;
+  } catch (error) {
+    return null;
+  }
+}
+
+function mopsUrl(code){
+  return "https://mops.twse.com.tw/mops/web/t05st01?step=1&colorChg=1&co_id=" + encodeURIComponent(String(code));
+}
+
 function scoreClass(value, index){
   return index === 4 ? RISK_SCLS[value] : SCLS[value];
 }
@@ -1093,7 +1162,7 @@ async function init(){
   await refresh();
 }
 
-window.PortfolioConsoleApp = {
+const portfolioApp = {
   init:init,
   refresh:refresh,
   getState:function(){return state;},
@@ -1108,10 +1177,25 @@ window.PortfolioConsoleApp = {
     condColor:condColor,
   },
 };
+ROOT.PortfolioConsoleApp = portfolioApp;
 
-if (!window.__PORTFOLIO_CONSOLE_SKIP_AUTO_INIT__) {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function(){init().catch(function(error){$("stamp").textContent = "初始化失敗：" + error.message;});});
+ROOT.RetailConsole = {
+  proxyBase:proxyBase,
+  helpers:{
+    holdingStatus:holdingStatus,
+    plPct:plPct,
+    marketTone:marketTone,
+    bodyStars:bodyStars,
+    valTag:valTag,
+    normalizeEodRows:normalizeEodRows,
+    normalizeYield:normalizeYield,
+    mopsUrl:mopsUrl,
+  },
+};
+
+if (DOC && !ROOT.__PORTFOLIO_CONSOLE_SKIP_AUTO_INIT__) {
+  if (DOC.readyState === "loading") {
+    DOC.addEventListener("DOMContentLoaded", function(){init().catch(function(error){$("stamp").textContent = "初始化失敗：" + error.message;});});
   } else {
     init().catch(function(error){$("stamp").textContent = "初始化失敗：" + error.message;});
   }

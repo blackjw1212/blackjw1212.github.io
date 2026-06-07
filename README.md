@@ -108,7 +108,7 @@ Run the dependency-free tests from the repository root:
 node --test backend/test/*.test.js
 ```
 
-The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for Worker-backed EOD/yield, no-backend static fallback, proxy allowlist enforcement, manual 10Y override, localStorage cache fallback, observation-log interaction, malformed localStorage state, and verdict/EOD/yield helper logic.
+The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for Worker-backed EOD/yield, no-backend static fallback, proxy allowlist enforcement, manual 10Y override, localStorage cache fallback, observation-log interaction, malformed localStorage state, verdict/EOD/yield helper logic, and the conservative `RetailConsole` retail-glance helper contract.
 
 ### Static Data Feed
 

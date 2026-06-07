@@ -1,5 +1,7 @@
 # Changes
 
+- Added a `RetailConsole` helper compatibility layer for the user-provided retail-glance checks, while keeping labels conservative (`觀察` / `風險線` / `暫不判讀`) instead of trading-command wording.
+- Expanded frontend smoke coverage with the retail-glance helper truth table, MOPS URL allowlist check, and guardrails against direct action-style helper labels.
 - Rebuilt the first-screen verdict as a fully automated observation console with three plain states: `偏進場觀察`, `等待`, and `偏退場降風險`.
 - Replaced manual SOX/margin/FedWatch controls with auto-derived signals from existing honest data: EOD source coverage, 10Y pressure, tracked-stock breadth, core-stock health, and satellite/WAIT-list pressure.
 - Added an in-card signal summary so the main verdict shows its reasons without requiring a scroll, while keeping non-personalized observation wording and non-real-time source labels.
