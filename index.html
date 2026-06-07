@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Taiwan Stock Risk Tracker</title>
+<title>台股持股風險儀表板</title>
+<meta name="description" content="台股持股風險儀表板，整合收盤行情、盤中公開報價、重大訊息與美債 10 年期殖利率。">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <style>
 :root {
@@ -49,7 +50,7 @@ body {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: 15px/1.5 "Noto Sans TC", "Microsoft JhengHei", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 button,
@@ -420,14 +421,14 @@ tbody tr:hover {
     <div class="brand">
       <img src="./favicon.svg" alt="">
       <div>
-        <h1>Taiwan Stock Risk Tracker</h1>
-        <div class="subtitle" id="appUpdated">Waiting for data</div>
+        <h1>台股持股風險儀表板</h1>
+        <div class="subtitle" id="appUpdated">等待資料</div>
       </div>
     </div>
     <div class="actions">
-      <span class="chip" id="proxyBadge">Backend unset</span>
-      <label class="toggle"><input type="checkbox" id="quoteToggle"> Intraday</label>
-      <button class="btn" id="refreshBtn" type="button">Refresh</button>
+      <span class="chip" id="proxyBadge">資料代理未設定</span>
+      <label class="toggle"><input type="checkbox" id="quoteToggle"> 盤中報價</label>
+      <button class="btn" id="refreshBtn" type="button">重新整理</button>
     </div>
   </header>
 
@@ -435,34 +436,34 @@ tbody tr:hover {
     <div class="panel">
       <div class="panel-head">
         <div>
-          <h2 class="panel-title">Macro Dashboard</h2>
-          <div class="panel-meta" id="macroUpdated">Yield waiting</div>
+          <h2 class="panel-title">總經風險儀表板</h2>
+          <div class="panel-meta" id="macroUpdated">等待殖利率</div>
         </div>
-        <span class="chip" id="macroStatus">Idle</span>
+        <span class="chip" id="macroStatus">待命</span>
       </div>
       <div class="panel-body">
         <div class="yield-row">
           <div class="yield-field">
-            <label for="yield10y">US 10Y yield</label>
-            <input id="yield10y" inputmode="decimal" placeholder="4.25" aria-label="US 10Y yield">
+            <label for="yield10y">美國 10 年期公債殖利率</label>
+            <input id="yield10y" inputmode="decimal" placeholder="4.25" aria-label="美國 10 年期公債殖利率">
           </div>
-          <div class="risk-band" id="riskBand">Risk posture waiting</div>
+          <div class="risk-band" id="riskBand">等待風險評估</div>
         </div>
         <div class="macro-grid">
           <div class="metric">
-            <span>Market Breadth</span>
+            <span>持股上漲比</span>
             <strong id="breadthMetric">--</strong>
-            <small id="breadthDetail">EOD waiting</small>
+            <small id="breadthDetail">等待收盤資料</small>
           </div>
           <div class="metric">
-            <span>Average Move</span>
+            <span>平均漲跌幅</span>
             <strong id="avgMoveMetric">--</strong>
-            <small id="avgMoveDetail">EOD waiting</small>
+            <small id="avgMoveDetail">等待收盤行情</small>
           </div>
           <div class="metric">
-            <span>Macro Pressure</span>
+            <span>利率壓力</span>
             <strong id="macroPressureMetric">--</strong>
-            <small id="macroPressureDetail">Yield input</small>
+            <small id="macroPressureDetail">等待殖利率輸入</small>
           </div>
         </div>
       </div>
@@ -471,27 +472,27 @@ tbody tr:hover {
     <div class="panel">
       <div class="panel-head">
         <div>
-          <h2 class="panel-title">Positioning Stats</h2>
-          <div class="panel-meta" id="positionUpdated">Prices waiting</div>
+          <h2 class="panel-title">持股配置</h2>
+          <div class="panel-meta" id="positionUpdated">等待報價</div>
         </div>
-        <span class="chip" id="quoteStatus">Intraday off</span>
+        <span class="chip" id="quoteStatus">盤中關閉</span>
       </div>
       <div class="panel-body">
         <div class="stat-grid">
           <div class="metric">
-            <span>Position Value</span>
+            <span>持倉市值</span>
             <strong id="positionValue">--</strong>
-            <small id="positionPnl">Cost basis waiting</small>
+            <small id="positionPnl">等待成本基準</small>
           </div>
           <div class="metric">
-            <span>Largest Weight</span>
+            <span>最大權重</span>
             <strong id="largestWeight">--</strong>
-            <small id="largestName">Portfolio waiting</small>
+            <small id="largestName">等待持倉資料</small>
           </div>
           <div class="metric">
-            <span>Cash Buffer</span>
+            <span>現金緩衝</span>
             <strong id="cashBuffer">--</strong>
-            <small id="cashDetail">Static model</small>
+            <small id="cashDetail">靜態模型</small>
           </div>
         </div>
       </div>
@@ -500,48 +501,48 @@ tbody tr:hover {
     <div class="panel full">
       <div class="panel-head">
         <div>
-          <h2 class="panel-title">Stock Valuation Table</h2>
-          <div class="panel-meta" id="eodUpdated">EOD waiting</div>
+          <h2 class="panel-title">持股估值表</h2>
+          <div class="panel-meta" id="eodUpdated">等待收盤行情</div>
         </div>
-        <span class="chip" id="eodStatus">Idle</span>
+        <span class="chip" id="eodStatus">待命</span>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Price</th>
-              <th>Change</th>
-              <th>P/E</th>
-              <th>Fair Value</th>
-              <th>Gap</th>
-              <th>Weight</th>
+              <th>代號</th>
+              <th>名稱</th>
+              <th>股價</th>
+              <th>漲跌</th>
+              <th>本益比</th>
+              <th>合理價</th>
+              <th>距合理價</th>
+              <th>權重</th>
             </tr>
           </thead>
           <tbody id="stockRows"></tbody>
         </table>
       </div>
       <div class="foot">
-        <span id="tableSource">Source waiting</span>
-        <span id="tableDelay">Delay waiting</span>
+        <span id="tableSource">等待資料來源</span>
+        <span id="tableDelay">等待延遲說明</span>
       </div>
     </div>
 
     <div class="panel full">
       <div class="panel-head">
         <div>
-          <h2 class="panel-title">Material Announcements</h2>
-          <div class="panel-meta" id="filingsUpdated">MOPS waiting</div>
+          <h2 class="panel-title">重大訊息公告</h2>
+          <div class="panel-meta" id="filingsUpdated">等待公開資訊觀測站資料</div>
         </div>
-        <span class="chip" id="filingsStatus">Idle</span>
+        <span class="chip" id="filingsStatus">待命</span>
       </div>
       <div class="panel-body">
         <div class="feed" id="filingsFeed"></div>
       </div>
       <div class="foot">
-        <span id="filingsSource">Source waiting</span>
-        <span id="filingsDelay">Delay waiting</span>
+        <span id="filingsSource">等待資料來源</span>
+        <span id="filingsDelay">等待延遲說明</span>
       </div>
     </div>
   </section>
@@ -556,21 +557,21 @@ tbody tr:hover {
   const QUOTE_REFRESH_MS = 30000;
 
   const STOCKS = [
-    { code: "2330", name: "TSMC", shares: 12, cost: 880, eps: 45.25, targetPe: 24 },
-    { code: "2308", name: "Delta", shares: 20, cost: 300, eps: 17.20, targetPe: 22 },
-    { code: "2317", name: "Hon Hai", shares: 25, cost: 160, eps: 12.00, targetPe: 15 },
-    { code: "2454", name: "MediaTek", shares: 6, cost: 1180, eps: 66.50, targetPe: 18 },
-    { code: "2412", name: "Chunghwa Tel", shares: 30, cost: 118, eps: 4.60, targetPe: 22 },
-    { code: "2881", name: "Fubon Fin", shares: 45, cost: 78, eps: 6.50, targetPe: 14 },
-    { code: "2891", name: "CTBC Fin", shares: 70, cost: 32, eps: 3.00, targetPe: 13 },
-    { code: "2603", name: "Evergreen", shares: 12, cost: 175, eps: 13.50, targetPe: 9 },
+    { code: "2330", name: "台積電", shares: 12, cost: 880, eps: 45.25, targetPe: 24 },
+    { code: "2308", name: "台達電", shares: 20, cost: 300, eps: 17.20, targetPe: 22 },
+    { code: "2317", name: "鴻海", shares: 25, cost: 160, eps: 12.00, targetPe: 15 },
+    { code: "2454", name: "聯發科", shares: 6, cost: 1180, eps: 66.50, targetPe: 18 },
+    { code: "2412", name: "中華電", shares: 30, cost: 118, eps: 4.60, targetPe: 22 },
+    { code: "2881", name: "富邦金", shares: 45, cost: 78, eps: 6.50, targetPe: 14 },
+    { code: "2891", name: "中信金", shares: 70, cost: 32, eps: 3.00, targetPe: 13 },
+    { code: "2603", name: "長榮", shares: 12, cost: 175, eps: 13.50, targetPe: 9 },
   ];
 
   const state = {
     eod: new Map(),
     quotes: new Map(),
     filings: [],
-    filingsMessage: "No filings loaded.",
+    filingsMessage: "尚未載入重大訊息。",
     quoteFresh: false,
     yieldTouched: false,
     yieldSource: "empty",
@@ -623,7 +624,14 @@ tbody tr:hover {
   function parseNumber(value) {
     if (value == null) return null;
     if (typeof value === "number") return Number.isFinite(value) ? value : null;
-    const match = String(value).replace(/,/g, "").replace(/%/g, "").match(/[+-]?\d+(?:\.\d+)?/);
+    const normalized = String(value).replace(/[０-９．，％＋－]/g, function (char) {
+      return {
+        "０": "0", "１": "1", "２": "2", "３": "3", "４": "4",
+        "５": "5", "６": "6", "７": "7", "８": "8", "９": "9",
+        "．": ".", "，": ",", "％": "%", "＋": "+", "－": "-",
+      }[char] || char;
+    });
+    const match = normalized.replace(/,/g, "").replace(/%/g, "").match(/[+-]?\d+(?:\.\d+)?/);
     if (!match) return null;
     const parsed = Number(match[0]);
     return Number.isFinite(parsed) ? parsed : null;
@@ -637,7 +645,7 @@ tbody tr:hover {
 
   function formatNumber(value, digits) {
     if (value == null || !Number.isFinite(value)) return "--";
-    return value.toLocaleString("en-US", {
+    return value.toLocaleString("zh-TW", {
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
     });
@@ -656,17 +664,19 @@ tbody tr:hover {
 
   function formatCurrency(value) {
     if (value == null || !Number.isFinite(value)) return "--";
-    return "NT$" + value.toLocaleString("en-US", { maximumFractionDigits: 0 });
+    return "NT$" + value.toLocaleString("zh-TW", { maximumFractionDigits: 0 });
   }
 
   function formatDateTime(value) {
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) return "--";
-    return date.toLocaleString("en-US", {
-      month: "short",
+    return date.toLocaleString("zh-TW", {
+      year: "numeric",
+      month: "2-digit",
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
   }
 
@@ -764,30 +774,30 @@ tbody tr:hover {
     const score = pressure == null ? null : pressure + breadthRisk + moveRisk;
 
     el.breadthMetric.textContent = breadth == null ? "--" : formatPercent(breadth, 0);
-    el.breadthDetail.textContent = changes.length ? advancers + " of " + changes.length + " advancing" : "EOD waiting";
+    el.breadthDetail.textContent = changes.length ? advancers + " / " + changes.length + " 檔上漲" : "等待收盤行情";
     el.avgMoveMetric.textContent = avgMove == null ? "--" : formatPercent(avgMove, 2);
-    el.avgMoveDetail.textContent = changes.length ? "Equal-weight watchlist" : "EOD waiting";
-    el.macroPressureMetric.textContent = pressure == null ? "--" : ["Low", "Firm", "High", "Tight"][pressure];
+    el.avgMoveDetail.textContent = changes.length ? "自選股等權計算" : "等待收盤行情";
+    el.macroPressureMetric.textContent = pressure == null ? "--" : ["偏低", "偏緊", "偏高", "緊縮"][pressure];
     if (yield10y == null) {
-      el.macroPressureDetail.textContent = "Yield waiting";
+      el.macroPressureDetail.textContent = "等待殖利率";
     } else if (state.yieldSource === "fetched") {
-      el.macroPressureDetail.textContent = formatNumber(yield10y, 3) + "% US 10Y";
+      el.macroPressureDetail.textContent = "美國 10 年期 " + formatNumber(yield10y, 3) + "%";
     } else {
-      el.macroPressureDetail.textContent = "Manual yield " + formatNumber(yield10y, 3) + "%";
+      el.macroPressureDetail.textContent = "手動殖利率 " + formatNumber(yield10y, 3) + "%";
     }
 
     el.riskBand.className = "risk-band";
     if (score == null) {
-      el.riskBand.textContent = "Risk posture waiting";
+      el.riskBand.textContent = "等待風險評估";
     } else if (score >= 5) {
       el.riskBand.classList.add("error");
-      el.riskBand.textContent = "Tight risk";
+      el.riskBand.textContent = "風險偏高";
     } else if (score >= 3) {
       el.riskBand.classList.add("warn");
-      el.riskBand.textContent = "Watch closely";
+      el.riskBand.textContent = "提高警戒";
     } else {
       el.riskBand.classList.add("ok");
-      el.riskBand.textContent = "Constructive";
+      el.riskBand.textContent = "環境偏正向";
     }
   }
 
@@ -805,22 +815,22 @@ tbody tr:hover {
     const buffer = totalValue ? (CASH / (CASH + totalValue)) * 100 : null;
 
     el.positionValue.textContent = totalValue ? formatCurrency(totalValue) : "--";
-    el.positionPnl.textContent = pnl == null ? "Cost basis waiting" : formatCurrency(pnl) + " / " + formatPercent(pnlPct, 1);
+    el.positionPnl.textContent = pnl == null ? "等待成本基準" : formatCurrency(pnl) + " / " + formatPercent(pnlPct, 1);
     el.largestWeight.textContent = largestWeight == null ? "--" : formatPercent(largestWeight, 1);
-    el.largestName.textContent = largest ? largest.stock.code + " " + largest.stock.name : "Portfolio waiting";
+    el.largestName.textContent = largest ? largest.stock.code + " " + largest.stock.name : "等待持倉資料";
     el.cashBuffer.textContent = buffer == null ? "--" : formatPercent(buffer, 1);
-    el.cashDetail.textContent = formatCurrency(CASH) + " cash model";
+    el.cashDetail.textContent = "現金模型 " + formatCurrency(CASH);
   }
 
   function renderFilings() {
     if (!state.filings.length) {
-      el.filingsFeed.innerHTML = "<div class=\"empty\">" + escapeHtml(state.filingsMessage || "No filings loaded.") + "</div>";
+      el.filingsFeed.innerHTML = "<div class=\"empty\">" + escapeHtml(state.filingsMessage || "尚未載入重大訊息。") + "</div>";
       return;
     }
     el.filingsFeed.innerHTML = state.filings.slice(0, 12).map(function (item) {
       return "<div class=\"filing\">" +
         "<div class=\"filing-date\">" + escapeHtml(item.date || "--") + "<br>" + escapeHtml(item.code || "") + "</div>" +
-        "<div><a href=\"" + escapeHtml(item.url || "#") + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(item.title || "Untitled filing") + "</a></div>" +
+        "<div><a href=\"" + escapeHtml(item.url || "#") + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(item.title || "未命名公告") + "</a></div>" +
       "</div>";
     }).join("");
   }
@@ -830,11 +840,11 @@ tbody tr:hover {
     renderMacro();
     renderPositions();
     renderFilings();
-    el.appUpdated.textContent = "Updated " + formatDateTime(new Date());
+    el.appUpdated.textContent = "更新時間 " + formatDateTime(new Date());
   }
 
   async function loadEod() {
-    setStatus(el.eodStatus, "loading", "Loading");
+    setStatus(el.eodStatus, "loading", "載入中");
     const usingProxy = Boolean(state.proxyBase);
     let proxyError = null;
     try {
@@ -852,24 +862,24 @@ tbody tr:hover {
         response = await fetchJson(DIRECT_TWSE_EOD);
         rows = normalizeTwseEod(response.data);
       }
-      if (!Array.isArray(rows)) throw new Error("Unexpected EOD payload");
+      if (!Array.isArray(rows)) throw new Error("收盤行情資料格式異常");
       state.eod = new Map(rows.map(function (row) { return [row.code, row]; }));
 
       const source = proxyError
-        ? "TWSE OpenAPI direct fallback"
-        : response.headers.get("X-Data-Source") || (usingProxy ? "Backend EOD proxy" : "TWSE OpenAPI direct");
-      const delay = response.headers.get("X-Data-Delay") || "End-of-day close data";
+        ? "證交所 OpenAPI 直連備援"
+        : response.headers.get("X-Data-Source") || (usingProxy ? "收盤行情由資料代理提供" : "證交所 OpenAPI 直連");
+      const delay = response.headers.get("X-Data-Delay") || "收盤行情資料";
       const updatedAt = response.headers.get("X-Data-Updated-At") || new Date().toISOString();
       el.tableSource.textContent = source;
       el.tableDelay.textContent = delay;
-      setPanelTime(el.eodUpdated, "EOD updated", updatedAt);
-      setPanelTime(el.positionUpdated, "Positions updated", updatedAt);
-      setStatus(el.eodStatus, proxyError ? "warn" : "ok", proxyError ? "Fallback" : "Loaded");
+      setPanelTime(el.eodUpdated, "收盤行情更新於", updatedAt);
+      setPanelTime(el.positionUpdated, "持股資料更新於", updatedAt);
+      setStatus(el.eodStatus, proxyError ? "warn" : "ok", proxyError ? "已改用備援" : "已載入");
     } catch (error) {
       state.eod = new Map();
-      setStatus(el.eodStatus, "error", "EOD error");
-      el.tableSource.textContent = "EOD unavailable";
-      el.tableDelay.textContent = error.message || "Request failed";
+      setStatus(el.eodStatus, "error", "收盤失敗");
+      el.tableSource.textContent = "收盤行情暫不可用";
+      el.tableDelay.textContent = error.message || "請求失敗";
     }
   }
 
@@ -879,46 +889,46 @@ tbody tr:hover {
         el.yield10y.value = "";
         state.yieldSource = "empty";
       }
-      setStatus(el.macroStatus, "warn", "Backend required");
-      el.macroUpdated.textContent = "FRED yield waiting for backend";
+      setStatus(el.macroStatus, "warn", "需代理");
+      el.macroUpdated.textContent = "等待資料代理取得 FRED 殖利率";
       return;
     }
-    setStatus(el.macroStatus, "loading", "Loading");
+    setStatus(el.macroStatus, "loading", "載入中");
     try {
       const response = await fetchJson(state.proxyBase + "/yield10y");
       const value = parseNumber(response.data && response.data.value);
-      if (value == null) throw new Error("Unexpected yield payload");
+      if (value == null) throw new Error("殖利率資料格式異常");
       if (!state.yieldTouched) {
         el.yield10y.value = formatNumber(value, 3);
         state.yieldSource = "fetched";
       }
-      setPanelTime(el.macroUpdated, "Yield updated", response.data.updatedAt || new Date());
-      setStatus(el.macroStatus, "ok", "Loaded");
+      setPanelTime(el.macroUpdated, "殖利率更新於", response.data.updatedAt || new Date());
+      setStatus(el.macroStatus, "ok", "已載入");
     } catch (error) {
       if (!state.yieldTouched) {
         el.yield10y.value = "";
         state.yieldSource = "empty";
       }
-      setStatus(el.macroStatus, "error", "Yield error");
-      el.macroUpdated.textContent = error.message || "FRED unavailable";
+      setStatus(el.macroStatus, "error", "殖利率失敗");
+      el.macroUpdated.textContent = error.message || "FRED 資料暫不可用";
     }
   }
 
   async function loadFilings() {
     if (!state.proxyBase) {
-      setStatus(el.filingsStatus, "warn", "Backend required");
-      el.filingsSource.textContent = "MOPS backend proxy required";
-      el.filingsDelay.textContent = "No client-side scraping";
+      setStatus(el.filingsStatus, "warn", "需代理");
+      el.filingsSource.textContent = "需透過資料代理查詢公開資訊觀測站";
+      el.filingsDelay.textContent = "瀏覽器端不直接擷取公開資訊觀測站資料";
       state.filings = [];
-      state.filingsMessage = "Backend required for MOPS filings.";
+      state.filingsMessage = "需設定資料代理才能載入重大訊息。";
       return;
     }
 
-    setStatus(el.filingsStatus, "loading", "Loading");
-    state.filingsMessage = "Loading filings.";
+    setStatus(el.filingsStatus, "loading", "載入中");
+    state.filingsMessage = "重大訊息載入中。";
     const results = await Promise.allSettled(STOCKS.map(async function (stock) {
       const response = await fetchJson(state.proxyBase + "/filings?code=" + encodeURIComponent(stock.code));
-      if (!Array.isArray(response.data)) throw new Error("Unexpected filings payload");
+      if (!Array.isArray(response.data)) throw new Error("重大訊息資料格式異常");
       const rows = response.data;
       return rows.slice(0, 5).map(function (item) {
         return { code: stock.code, date: item.date, title: item.title, url: item.url };
@@ -931,32 +941,32 @@ tbody tr:hover {
       .flatMap(function (result) { return result.value; })
       .sort(function (a, b) { return String(b.date || "").localeCompare(String(a.date || "")); });
 
-    el.filingsSource.textContent = "MOPS t05st01 via backend";
-    el.filingsDelay.textContent = "Latest available disclosure data";
-    setPanelTime(el.filingsUpdated, "Filings updated", new Date());
+    el.filingsSource.textContent = "公開資訊觀測站 t05st01（資料代理）";
+    el.filingsDelay.textContent = "最新可取得之公告資料";
+    setPanelTime(el.filingsUpdated, "重大訊息更新於", new Date());
     state.filingsMessage = fulfilled.length
-      ? "No recent filings from available sources."
-      : "Filings unavailable.";
-    if (fulfilled.length && rejected) setStatus(el.filingsStatus, "warn", "Partial");
-    else if (fulfilled.length) setStatus(el.filingsStatus, "ok", "Loaded");
-    else setStatus(el.filingsStatus, "error", "Filings error");
+      ? "目前沒有可取得的近期重大訊息。"
+      : "重大訊息暫不可用。";
+    if (fulfilled.length && rejected) setStatus(el.filingsStatus, "warn", "部分載入");
+    else if (fulfilled.length) setStatus(el.filingsStatus, "ok", "已載入");
+    else setStatus(el.filingsStatus, "error", "公告失敗");
   }
 
   async function loadQuotes() {
     if (!el.quoteToggle.checked) {
       state.quotes = new Map();
       state.quoteFresh = false;
-      setStatus(el.quoteStatus, "", "Intraday off");
+      setStatus(el.quoteStatus, "", "盤中關閉");
       return;
     }
     if (!state.proxyBase) {
       state.quotes = new Map();
       state.quoteFresh = false;
-      setStatus(el.quoteStatus, "warn", "Backend required");
+      setStatus(el.quoteStatus, "warn", "需代理");
       return;
     }
 
-    setStatus(el.quoteStatus, "loading", "Refreshing");
+    setStatus(el.quoteStatus, "loading", "更新中");
     try {
       const codes = STOCKS.map(function (stock) { return stock.code; }).join(",");
       const response = await fetchJson(state.proxyBase + "/quote?codes=" + encodeURIComponent(codes));
@@ -973,20 +983,20 @@ tbody tr:hover {
         }];
       }).filter(Boolean));
       state.quoteFresh = true;
-      setStatus(el.quoteStatus, "ok", "Intraday on");
-      setPanelTime(el.positionUpdated, "Intraday updated", response.data.updatedAt || new Date());
-      el.tableDelay.textContent = response.data.delay || "Intraday public feed delay varies";
+      setStatus(el.quoteStatus, "ok", "盤中開啟");
+      setPanelTime(el.positionUpdated, "盤中報價更新於", response.data.updatedAt || new Date());
+      el.tableDelay.textContent = response.data.delay || "盤中公開報價延遲依來源而異";
     } catch (error) {
       state.quotes = new Map();
       state.quoteFresh = false;
-      setStatus(el.quoteStatus, "error", "Quote error");
+      setStatus(el.quoteStatus, "error", "報價失敗");
     }
   }
 
   async function refreshAll() {
     state.proxyBase = proxyBase();
-    el.proxyBadge.textContent = state.proxyBase ? "Backend set" : "Backend unset";
-    setStatus(el.proxyBadge, state.proxyBase ? "ok" : "warn", state.proxyBase ? "Backend set" : "Backend unset");
+    el.proxyBadge.textContent = state.proxyBase ? "資料代理已設定" : "資料代理未設定";
+    setStatus(el.proxyBadge, state.proxyBase ? "ok" : "warn", state.proxyBase ? "資料代理已設定" : "資料代理未設定");
     await Promise.allSettled([loadEod(), loadYield10y(), loadFilings()]);
     await loadQuotes();
     renderAll();
@@ -1003,7 +1013,7 @@ tbody tr:hover {
         loadQuotes().then(renderAll).catch(function () {});
       }, QUOTE_REFRESH_MS);
     } else {
-      setStatus(el.quoteStatus, "", "Intraday off");
+      setStatus(el.quoteStatus, "", "盤中關閉");
     }
   }
 

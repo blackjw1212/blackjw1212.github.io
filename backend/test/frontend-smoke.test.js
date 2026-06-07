@@ -76,7 +76,7 @@ function createFetchMock() {
     if (href.includes("/filings?code=")) {
       const code = new URL(href).searchParams.get("code");
       return response([
-        { date: "2026-06-05", title: `Material update ${code}`, url: `https://example.test/${code}` },
+        { date: "2026-06-05", title: `重大訊息 ${code}`, url: `https://example.test/${code}` },
       ]);
     }
     throw new Error(`Unexpected fetch URL: ${href}`);
@@ -135,29 +135,42 @@ test("index.html initializes and renders with mocked fetch", async () => {
   });
 
   assert.match(document.getElementById("stockRows").innerHTML, /2330/);
-  assert.match(document.getElementById("filingsFeed").innerHTML, /Material update/);
-  assert.equal(document.getElementById("macroStatus").textContent, "Loaded");
-  assert.equal(document.getElementById("eodStatus").textContent, "Loaded");
-  assert.equal(document.getElementById("proxyBadge").textContent, "Backend set");
+  assert.match(document.getElementById("filingsFeed").innerHTML, /重大訊息/);
+  assert.equal(document.getElementById("macroStatus").textContent, "已載入");
+  assert.equal(document.getElementById("macroStatus").className, "chip ok");
+  assert.equal(document.getElementById("eodStatus").textContent, "已載入");
+  assert.equal(document.getElementById("eodStatus").className, "chip ok");
+  assert.equal(document.getElementById("proxyBadge").textContent, "資料代理已設定");
+  assert.equal(document.getElementById("proxyBadge").className, "chip ok");
+  assert.equal(document.getElementById("filingsStatus").className, "chip ok");
 
   document.getElementById("quoteToggle").checked = true;
   await context.window.RiskTrackerApp.refreshAll();
   assert.equal(context.window.RiskTrackerApp.getState().quoteFresh, true);
+  assert.equal(document.getElementById("quoteStatus").className, "chip ok");
   assert.match(document.getElementById("stockRows").innerHTML, /1,100.00/);
 
   document.getElementById("quoteToggle").checked = false;
   await context.window.RiskTrackerApp.refreshAll();
   assert.equal(context.window.RiskTrackerApp.getState().quoteFresh, false);
+  assert.equal(context.window.RiskTrackerApp.getState().quotes.size, 0);
+  assert.equal(document.getElementById("quoteStatus").className, "chip");
   assert.doesNotMatch(document.getElementById("stockRows").innerHTML, /1,100.00/);
 });
 
 test("index.html supports no-backend direct EOD fallback", async () => {
   const { document } = await loadApp(createDirectEodFetchMock());
 
-  assert.equal(document.getElementById("proxyBadge").textContent, "Backend unset");
-  assert.equal(document.getElementById("eodStatus").textContent, "Loaded");
-  assert.match(document.getElementById("tableSource").textContent, /TWSE OpenAPI direct/);
-  assert.equal(document.getElementById("macroStatus").textContent, "Backend required");
-  assert.equal(document.getElementById("filingsStatus").textContent, "Backend required");
-  assert.match(document.getElementById("filingsFeed").innerHTML, /Backend required for MOPS filings/);
+  assert.equal(document.getElementById("proxyBadge").textContent, "資料代理未設定");
+  assert.equal(document.getElementById("proxyBadge").className, "chip warn");
+  assert.equal(document.getElementById("eodStatus").textContent, "已載入");
+  assert.equal(document.getElementById("eodStatus").className, "chip ok");
+  assert.match(document.getElementById("stockRows").innerHTML, /2330/);
+  assert.match(document.getElementById("stockRows").innerHTML, /1,000.00/);
+  assert.match(document.getElementById("tableSource").textContent, /證交所 OpenAPI 直連/);
+  assert.equal(document.getElementById("macroStatus").textContent, "需代理");
+  assert.equal(document.getElementById("macroStatus").className, "chip warn");
+  assert.equal(document.getElementById("filingsStatus").textContent, "需代理");
+  assert.equal(document.getElementById("filingsStatus").className, "chip warn");
+  assert.match(document.getElementById("filingsFeed").innerHTML, /需設定資料代理才能載入重大訊息/);
 });
