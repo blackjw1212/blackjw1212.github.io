@@ -1,5 +1,7 @@
 # Changes
 
+- Removed the extra page-title/header tagline so the console title stays concise.
+- Hardened the local tranche observation log with visible field labels, readable progress/status text, structured mobile-friendly rows, confirmed deletes, 50-row live caps, save-failure feedback, and deeper persistence/XSS/delete tests.
 - Changed allowlisted TradingView links from technical-analysis summary pages to full chart URLs with encoded TWSE/TPEX symbols.
 - Added allowlisted TradingView chart links on stock codes/names in the desktop score table and mobile cards, using safe new-tab anchors and TWSE/TPEX symbol mapping.
 - Expanded tests for TradingView URL safety, malicious-code rejection, desktop/mobile anchor rendering, and `PortfolioConsoleApp` / `RetailConsole` helper exports.

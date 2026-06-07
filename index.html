@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI 供應鏈觀察台 · 散戶一眼全自動版</title>
+<title>AI 供應鏈觀察台</title>
 <meta name="description" content="台灣 AI 供應鏈觀察台，以散戶一眼可讀方式呈現全自動觀察門檻、核心與衛星配置、收盤資料與本機分批觀察紀錄。" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -110,12 +110,24 @@
   .data-line{font-size:11px;color:var(--faint);margin-top:8px}
 
   .tranche{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:6px}
+  .tranche-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .tranche-plan{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+  .tranche-count{font-weight:700}
   .tranche .prog{display:flex;gap:6px;margin:8px 0}
+  .tranche-status{font-size:12px;color:var(--soft);margin-bottom:8px}
   .pill{flex:1;height:8px;border-radius:8px;background:var(--panel2);border:1px solid var(--line2)}
   .pill.done{background:var(--teal);border-color:var(--teal)}
   .logrow{display:grid;grid-template-columns:150px 80px minmax(150px,1fr) minmax(120px,1fr) minmax(150px,1fr) auto;gap:8px;margin-top:8px}
+  .field{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .field span{font-size:11px;color:var(--faint)}
   .logitem{font-size:12px;color:var(--soft);border-bottom:1px dotted var(--line);padding:7px 0}
   .logitem b{color:var(--ink)}
+  .log-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .log-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:3px}
+  .log-reason{margin-top:3px;color:var(--faint)}
+  .empty-log{font-size:12px;color:var(--faint);border:1px dashed var(--line2);border-radius:8px;padding:8px;margin-top:8px}
+  .delete-tranche{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--red);background:transparent;border:1px solid var(--line2);border-radius:8px;padding:4px 8px;cursor:pointer;min-height:32px}
+  .delete-tranche:hover{border-color:var(--red)}
   footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
   footer b{color:var(--soft)}
 
@@ -135,6 +147,8 @@
     .stock-cards{display:block}
     .stock-card .stock-tv-link{min-height:44px}
     .logrow{grid-template-columns:1fr}
+    input,select,.btn{min-height:44px}
+    .delete-tranche{min-height:40px}
   }
 </style>
 </head>
@@ -143,7 +157,7 @@
 <header>
   <div class="wrap">
     <div class="kick">Retail Observation Console · v0.5</div>
-    <h1>AI 供應鏈觀察台 · <span>散戶一眼全自動版</span></h1>
+    <h1>AI 供應鏈觀察台</h1>
     <div class="profile">
       <span class="tagp">定位 <b>觀察門檻</b></span>
       <span class="tagp">資料 <b>收盤/10Y 自動</b></span>
@@ -206,19 +220,22 @@
 
   <section aria-labelledby="trancheHeading">
     <h2 id="trancheHeading">分批觀察紀錄 <em>LOCAL LOG</em></h2>
-    <p class="hint">這是給自己回頭檢查用的本機紀錄，不會上傳。用「第幾筆」記錄觀察流程，避免事後忘記當時為什麼想動。</p>
+    <p class="hint">更新收盤資料後，若燈號、參考基準或風險理由有變化，就留一筆本機觀察紀錄；避免事後忘記當時的觀察理由。</p>
     <div class="tranche">
-      <div>計畫筆數
-        <select id="planN" style="width:70px"><option>3</option><option selected>4</option><option>5</option></select>
-        已記錄 <b id="doneN" class="mono">0</b> 筆
+      <div class="tranche-head">
+        <label class="tranche-plan" for="planN">計畫筆數
+          <select id="planN" style="width:70px"><option>3</option><option selected>4</option><option>5</option></select>
+        </label>
+        <span class="tranche-count">已記錄 <b id="doneN" class="mono">0/4</b> 筆</span>
       </div>
-      <div class="prog" id="prog"></div>
+      <div class="prog" id="prog" aria-label="觀察紀錄進度"></div>
+      <div class="tranche-status" id="trancheStatus" aria-live="polite"></div>
       <div class="logrow">
-        <input type="date" id="tDate">
-        <select id="tStep"><option value="">第幾筆</option><option>第 1 筆</option><option>第 2 筆</option><option>第 3 筆</option><option>第 4 筆</option><option>第 5 筆</option></select>
-        <input type="text" id="tTarget" placeholder="標的或組合，例如 2330 核心">
-        <input type="text" id="tPrice" placeholder="觀察價格/比例">
-        <input type="text" id="tNote" placeholder="原因，例如 燈號/估值/風險">
+        <label class="field" for="tDate"><span>資料日</span><input type="date" id="tDate"></label>
+        <label class="field" for="tStep"><span>觀察階段</span><select id="tStep"><option value="">第幾筆</option></select></label>
+        <label class="field" for="tTarget"><span>標的 / 組合</span><input type="text" id="tTarget" placeholder="例如 2330 核心"></label>
+        <label class="field" for="tPrice"><span>觀察值</span><input type="text" id="tPrice" placeholder="價格或比例"></label>
+        <label class="field" for="tNote"><span>觀察理由</span><input type="text" id="tNote" placeholder="例如 燈號 / 估值 / 風險"></label>
         <button class="btn" id="addT" type="button">記錄觀察</button>
       </div>
       <div id="tLog"></div>
@@ -287,6 +304,7 @@ const TRADINGVIEW_SYMBOLS = {
 };
 const EOD_CACHE_KEY = LS + ":eod:" + STOCK_CODES.join(",");
 const MAX_TRANCHE_TEXT = 120;
+const MAX_TRANCHES = 50;
 
 let state = loadState();
 let staticFeedPromise = null;
@@ -339,7 +357,7 @@ function sanitizeState(raw){
   }
 
   if (Array.isArray(raw.tranches)) {
-    next.tranches = raw.tranches.slice(0, 50).map(function(item){
+    next.tranches = raw.tranches.map(function(item){
       return {
         date: clampText(item && item.date, 16),
         step: clampText(item && item.step, 24),
@@ -348,7 +366,7 @@ function sanitizeState(raw){
         note: clampText(item && item.note, MAX_TRANCHE_TEXT),
         verdict: clampText(item && item.verdict, MAX_TRANCHE_TEXT),
       };
-    }).filter(function(item){return item.target;});
+    }).filter(function(item){return item.target;}).slice(0, MAX_TRANCHES);
   }
 
   const planN = parseInt(raw.planN, 10);
@@ -380,8 +398,13 @@ function loadState(){
 
 function saveState(){
   const store = storage();
-  if (!store) return;
-  try { store.setItem(LS, JSON.stringify(state)); } catch (error) {}
+  if (!store) return false;
+  try {
+    store.setItem(LS, JSON.stringify(state));
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function escapeHtml(value){
@@ -1119,11 +1142,49 @@ function renderScore(){
   });
 }
 
-function renderTranches(){
+function localDateString(){
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+function syncStepOptions(){
+  const select = $("tStep");
+  const current = select.value;
+  const allowed = new Set([""]);
+  let html = '<option value="">第幾筆</option>';
+  for (let i = 1; i <= state.planN; i += 1) {
+    const label = "第 " + i + " 筆";
+    allowed.add(label);
+    html += "<option>" + label + "</option>";
+  }
+  select.innerHTML = html;
+  select.value = allowed.has(current) ? current : "";
+}
+
+function trancheStatusText(){
+  const count = state.tranches.length;
+  if (count >= MAX_TRANCHES) return "本機最多保留 50 筆觀察紀錄；請先刪除舊紀錄再新增。";
+  if (count === 0) return "尚未留下本機觀察紀錄。下一筆：第 1 筆觀察。";
+  if (count > state.planN) return "已記錄 " + count + "/" + state.planN + "（含 " + (count - state.planN) + " 筆補充紀錄）。";
+  if (count === state.planN) return "計畫筆數已完成；仍可補充觀察紀錄。";
+  return "下一筆：第 " + (count + 1) + " 筆觀察。先寫下原因與資料狀態。";
+}
+
+function trancheDeleteLabel(item, index){
+  const detail = [item && item.date, item && item.target].filter(Boolean).join(" ");
+  return "刪除第 " + (index + 1) + " 筆本機觀察紀錄" + (detail ? "：" + detail : "");
+}
+
+function renderTranches(message){
   const plan = parseInt($("planN").value, 10);
   state.planN = [3,4,5].includes(plan) ? plan : 4;
+  syncStepOptions();
   const done = Math.min(state.tranches.length, state.planN);
-  $("doneN").textContent = state.tranches.length;
+  $("doneN").textContent = state.tranches.length + "/" + state.planN;
+  $("trancheStatus").textContent = message || trancheStatusText();
   const prog = $("prog");
   prog.innerHTML = "";
   for (let i = 0; i < state.planN; i += 1) {
@@ -1133,23 +1194,35 @@ function renderTranches(){
   }
   const log = $("tLog");
   log.innerHTML = "";
+  if (!state.tranches.length) {
+    log.innerHTML = '<div class="empty-log">尚未留下本機觀察紀錄。</div>';
+    return;
+  }
   state.tranches.forEach(function(item, index){
-    const parts = [item.step, item.target, item.price, item.note, item.verdict].filter(Boolean).map(escapeHtml).join(" · ");
     const div = document.createElement("div");
     div.className = "logitem";
-    div.innerHTML = '<b>' + escapeHtml(item.date || "—") + '</b> · ' + (parts || "—") + ' <a href="#" data-i="' + index + '" class="del" style="color:var(--red)">刪</a>';
+    div.innerHTML = '<div class="log-main"><b>' + escapeHtml(item.date || "未填日期") + '</b><span>' + escapeHtml(item.step || "未選階段") + '</span><button type="button" class="delete-tranche" data-i="' + index + '" aria-label="' + escapeHtml(trancheDeleteLabel(item, index)) + '">刪除</button></div>'
+      + '<div class="log-meta"><span>標的：' + escapeHtml(item.target || "—") + '</span><span>觀察值：' + escapeHtml(item.price || "—") + '</span></div>'
+      + '<div class="log-reason">理由：' + escapeHtml(item.note || "未填寫") + ' · 當時觀察：' + escapeHtml(item.verdict || "未判讀") + '</div>';
     log.appendChild(div);
   });
-  Array.prototype.forEach.call(log.querySelectorAll(".del"), function(link){
+  Array.prototype.forEach.call(log.querySelectorAll(".delete-tranche"), function(link){
     link.addEventListener("click", function(event){
       event.preventDefault();
       const index = parseInt(link.dataset.i, 10);
-      if (!Number.isNaN(index)) state.tranches.splice(index, 1);
-      saveState();
-      renderTranches();
+      const item = state.tranches[index];
+      if (Number.isNaN(index) || !item) return;
+      const ok = typeof ROOT.confirm === "function" ? ROOT.confirm("刪除這筆本機觀察紀錄？" + (item.target ? " " + item.target : "")) : true;
+      if (!ok) return;
+      const removed = state.tranches.splice(index, 1);
+      if (!saveState()) {
+        state.tranches.splice(index, 0, removed[0]);
+        renderTranches("本機保存失敗，未刪除此筆觀察紀錄。");
+        return;
+      }
+      renderTranches("已刪除一筆本機觀察紀錄。");
     });
   });
-  saveState();
 }
 
 async function refresh(){
@@ -1167,29 +1240,45 @@ async function init(){
   renderBuckets();
   renderScore();
   $("planN").value = String(state.planN);
+  if (!$("tDate").value) $("tDate").value = localDateString();
   renderTranches();
 
   $("refresh").addEventListener("click", function(){refresh().catch(function(error){
     $("stamp").textContent = "更新失敗，保留既有畫面：" + error.message;
   });});
-  $("planN").addEventListener("change", renderTranches);
+  $("planN").addEventListener("change", function(){
+    renderTranches();
+    if (!saveState()) $("trancheStatus").textContent = "本機保存失敗，計畫筆數可能不會保留。";
+  });
   $("addT").addEventListener("click", function(){
     const target = clampText($("tTarget").value.trim(), MAX_TRANCHE_TEXT);
-    if (!target) return;
+    if (!target) {
+      renderTranches("請先填寫標的或組合，再留下本機觀察紀錄。");
+      return;
+    }
+    if (state.tranches.length >= MAX_TRANCHES) {
+      renderTranches("本機最多保留 50 筆觀察紀錄；請先刪除舊紀錄再新增。");
+      return;
+    }
     const verdict = aggregateVerdict(deriveAutoSignals(state));
-    state.tranches.push({
+    const item = {
       date: clampText($("tDate").value, 16),
       step: clampText($("tStep").value, 24),
       target: target,
       price: clampText($("tPrice").value.trim(), MAX_TRANCHE_TEXT),
       note: clampText($("tNote").value.trim(), MAX_TRANCHE_TEXT),
       verdict: verdict.title,
-    });
+    };
+    state.tranches.push(item);
+    if (!saveState()) {
+      state.tranches.pop();
+      renderTranches("本機保存失敗，請稍後再記錄觀察。");
+      return;
+    }
     $("tTarget").value = "";
     $("tPrice").value = "";
     $("tNote").value = "";
-    saveState();
-    renderTranches();
+    renderTranches("已新增一筆本機觀察紀錄。");
   });
 
   await refresh();
