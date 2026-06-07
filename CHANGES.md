@@ -7,6 +7,7 @@
 - Added `backend/package.json` and `backend/wrangler.toml`.
 - Added `README.md` with backend URL placeholder, env vars, endpoint list, deploy notes, and test command.
 - Added `scripts/update-stock-risk-feed.mjs`, `data/stock-risk-feed.json`, and a GitHub Actions updater so the static site has same-origin material-announcement and 10Y-yield fallback data.
+- Added a stock-risk Cloudflare Worker deployment workflow and tightened the default Worker CORS origin to the GitHub Pages site.
 - Hardened Worker CORS handling, quote-code validation/cache canonicalization, bounded upstream body reads, MOPS URL validation, and public error messages after multi-agent review.
 - Hardened frontend stale-data behavior so failed/disabled intraday quotes do not override EOD prices, proxy EOD failure falls back to direct TWSE, backend-dependent panels distinguish missing backend from empty data, and material announcements can fall back to local last-good cache.
 

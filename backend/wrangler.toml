@@ -1,6 +1,7 @@
 name = "taiwan-risk-tracker-proxy"
 main = "src/worker.js"
 compatibility_date = "2026-06-01"
+workers_dev = true
 
 [vars]
-ALLOWED_ORIGINS = "*"
+ALLOWED_ORIGINS = "https://blackjw1212.github.io"

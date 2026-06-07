@@ -47,7 +47,7 @@ If no backend is configured, the page enters static-data mode. The stock table s
 ### Backend Environment
 
 - `FRED_API_KEY` is required for `/yield10y`.
-- `ALLOWED_ORIGINS` is optional. Use `*` for a public demo, or a comma-separated allowlist such as `https://blackjw1212.github.io,https://your-preview.example`.
+- `ALLOWED_ORIGINS` is optional. It defaults to `https://blackjw1212.github.io` in `backend/wrangler.toml`; use `*` for a public demo, or a comma-separated allowlist such as `https://blackjw1212.github.io,https://your-preview.example`.
 
 Set the FRED key as a Worker secret:
 
@@ -59,6 +59,22 @@ npx wrangler deploy
 ```
 
 For production, set `ALLOWED_ORIGINS` in `backend/wrangler.toml` or with Cloudflare environment variables before deploying. Do not store `FRED_API_KEY` in `wrangler.toml`; keep it as a secret.
+
+### GitHub Actions Worker Deploy
+
+`.github/workflows/deploy-stock-risk-worker.yml` deploys the stock risk Worker from `backend/` when these repository secrets are present:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `FRED_API_KEY`
+
+After the Worker deploys, open the page with the Worker URL:
+
+```text
+https://blackjw1212.github.io/?proxy=https://taiwan-risk-tracker-proxy.<account>.workers.dev
+```
+
+Or set `window.TW_STOCK_PROXY_BASE` before the tracker script if you want the page to use the Worker without a query string.
 
 ### Post-Deploy Check
 
