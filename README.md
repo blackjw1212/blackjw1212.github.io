@@ -34,13 +34,13 @@ Example:
 index.html?proxy=https://taiwan-risk-tracker-proxy.<account>.workers.dev
 ```
 
-If no backend is configured, the stock table still attempts the direct TWSE end-of-day OpenAPI fallback. MOPS filings, FRED 10Y yield, and intraday quotes stay disabled because they require the backend proxy.
+If no backend is configured, the stock table still attempts the direct TWSE end-of-day OpenAPI fallback, and material announcements first try the TWSE/TPEx daily material-information OpenAPI feeds with a localStorage last-good cache. If a browser blocks those OpenAPI requests with CORS and there is no cache, configure the backend proxy for the optional `/filings` fallback. FRED 10Y yield and intraday quotes stay disabled because they require the backend proxy.
 
 ### Backend Routes
 
 - `GET /eod` returns normalized TWSE end-of-day rows: `[{ code, name, close, change }]`.
 - `GET /quote?codes=2330,2308` returns TWSE MIS public quote rows plus source and delay metadata.
-- `GET /filings?code=2330` returns latest normalized MOPS material announcements: `[{ date, title, url }]`.
+- `GET /filings?code=2330` returns latest normalized MOPS material announcements as an optional legacy fallback: `[{ date, title, url }]`.
 - `GET /yield10y` returns the latest numeric FRED DGS10 observation.
 - `GET /health` returns a simple service health payload.
 
@@ -82,7 +82,7 @@ Run the dependency-free tests from the repository root:
 node --test backend/test/*.test.js
 ```
 
-The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for both backend and no-backend paths.
+The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for backend, no-backend, direct filings, localStorage cache fallback, and optional `/filings` fallback paths.
 
 ## Maintenance Notes
 

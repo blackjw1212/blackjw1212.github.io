@@ -360,6 +360,12 @@ tbody tr:hover {
   color: var(--blue);
 }
 
+.filing-title {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+}
+
 .empty {
   color: var(--soft);
   padding: 14px;
@@ -553,6 +559,13 @@ tbody tr:hover {
   "use strict";
 
   const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
+  const DIRECT_TWSE_FILINGS = "https://openapi.twse.com.tw/v1/opendata/t187ap04_L";
+  const DIRECT_TPEX_FILINGS = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O";
+  const FILINGS_CACHE_KEY = "bjkw_stock_filings_v1";
+  const FILINGS_CACHE_SOFT_MS = 60 * 60 * 1000;
+  const FILINGS_CACHE_HARD_MS = 24 * 60 * 60 * 1000;
+  const FILINGS_PER_STOCK_LIMIT = 5;
+  const FILINGS_VISIBLE_LIMIT = 12;
   const CASH = 250000;
   const QUOTE_REFRESH_MS = 30000;
 
@@ -572,6 +585,14 @@ tbody tr:hover {
     quotes: new Map(),
     filings: [],
     filingsMessage: "尚未載入重大訊息。",
+    filingsMeta: {
+      phase: "idle",
+      source: "等待資料來源",
+      delay: "等待延遲說明",
+      failedSources: [],
+      cacheTs: null,
+      sourceUpdatedAt: null,
+    },
     quoteFresh: false,
     yieldTouched: false,
     yieldSource: "empty",
@@ -696,6 +717,214 @@ tbody tr:hover {
       if (!/^\d{4,6}$/.test(code) || !name || close == null) return null;
       return { code: code, name: name, close: roundNumber(close, 2), change: roundNumber(change, 2) };
     }).filter(Boolean);
+  }
+
+  function getRowField(row, label) {
+    if (!row || typeof row !== "object") return "";
+    for (const key of Object.keys(row)) {
+      if (String(key).trim() === label) return row[key];
+    }
+    return "";
+  }
+
+  function getAnyRowField(row, labels) {
+    for (const label of labels) {
+      const value = getRowField(row, label);
+      if (value != null && String(value).trim() !== "") return value;
+    }
+    return "";
+  }
+
+  function parseRocDate(value) {
+    const raw = String(value || "").trim();
+    const digits = raw.replace(/\D/g, "");
+    let year = "";
+    let month = "";
+    let day = "";
+    if (digits.length === 7) {
+      year = String(Number(digits.slice(0, 3)) + 1911);
+      month = digits.slice(3, 5);
+      day = digits.slice(5, 7);
+    } else if (digits.length === 8) {
+      year = digits.slice(0, 4);
+      month = digits.slice(4, 6);
+      day = digits.slice(6, 8);
+    } else {
+      const parts = raw.split(/[\/.-]/).map(function (part) { return part.trim(); });
+      if (parts.length === 3) {
+        const parsedYear = Number(parts[0]);
+        year = String(parsedYear < 1911 ? parsedYear + 1911 : parsedYear);
+        month = parts[1].padStart(2, "0");
+        day = parts[2].padStart(2, "0");
+      }
+    }
+    const date = new Date(year + "-" + month + "-" + day + "T00:00:00");
+    if (!year || Number.isNaN(date.getTime())) return "";
+    return year + "-" + month + "-" + day;
+  }
+
+  function parseRocTime(value) {
+    const digits = String(value || "").replace(/\D/g, "");
+    if (!digits) return "";
+    const normalized = digits.padStart(6, "0").slice(-6);
+    const hour = normalized.slice(0, 2);
+    const minute = normalized.slice(2, 4);
+    const second = normalized.slice(4, 6);
+    if (Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59) return "";
+    return hour + ":" + minute + ":" + second;
+  }
+
+  function sourceUpdatedAt(date, time) {
+    if (!date) return null;
+    return date + "T" + (time || "00:00:00") + "+08:00";
+  }
+
+  function safeFilingUrl(value) {
+    if (!value) return "";
+    try {
+      const url = new URL(String(value), window.location.href);
+      const allowedHosts = new Set(["mops.twse.com.tw", "openapi.twse.com.tw", "www.tpex.org.tw"]);
+      if (url.protocol !== "https:" || !allowedHosts.has(url.hostname)) return "";
+      return url.href;
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function payloadRows(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload && payload.data)) return payload.data;
+    return null;
+  }
+
+  function normalizeOpenApiFilings(payload, source) {
+    const tracked = new Set(STOCKS.map(function (stock) { return stock.code; }));
+    const rows = payloadRows(payload);
+    if (!rows) throw new Error(source + " 資料格式異常");
+    return rows.map(function (row) {
+      const code = String(getAnyRowField(row, ["公司代號", "SecuritiesCompanyCode", "CompanyCode"]) || "").trim();
+      if (!tracked.has(code)) return null;
+      const name = String(getAnyRowField(row, ["公司名稱", "CompanyName"]) || "").trim();
+      const title = String(getAnyRowField(row, ["主旨", "Subject", "Title"]) || "").trim();
+      const description = String(getAnyRowField(row, ["說明", "Description", "Content"]) || "").trim();
+      const date = parseRocDate(getAnyRowField(row, ["發言日期", "出表日期", "Date", "AnnouncementDate"]));
+      const time = parseRocTime(getAnyRowField(row, ["發言時間", "Time", "AnnouncementTime"]));
+      const displayDate = date ? date + (time ? " " + time.slice(0, 5) : "") : String(getAnyRowField(row, ["發言日期", "Date"]) || "--");
+      return {
+        code: code,
+        name: name,
+        date: displayDate,
+        title: title || "未命名公告",
+        description: description,
+        source: source,
+        url: "",
+        sortKey: sourceUpdatedAt(date, time) || displayDate,
+      };
+    }).filter(Boolean);
+  }
+
+  function normalizeProxyFilings(rows, stock) {
+    if (!Array.isArray(rows)) return [];
+    return rows.slice(0, FILINGS_PER_STOCK_LIMIT).map(function (item) {
+      return {
+        code: stock.code,
+        name: stock.name,
+        date: String(item.date || "--"),
+        title: String(item.title || "未命名公告"),
+        description: "",
+        source: "公開資訊觀測站 t05st01（資料代理）",
+        url: safeFilingUrl(item.url || ""),
+        sortKey: String(item.date || ""),
+      };
+    });
+  }
+
+  function sortedLimitedFilings(items) {
+    const counts = new Map();
+    return items
+      .slice()
+      .sort(function (a, b) { return String(b.sortKey || b.date || "").localeCompare(String(a.sortKey || a.date || "")); })
+      .filter(function (item) {
+        const count = counts.get(item.code) || 0;
+        if (count >= FILINGS_PER_STOCK_LIMIT) return false;
+        counts.set(item.code, count + 1);
+        return true;
+      });
+  }
+
+  function sanitizeFilingItem(item) {
+    const code = String(item && item.code || "").trim();
+    const title = String(item && item.title || "").trim();
+    if (!/^\d{4,6}$/.test(code) || !title) return null;
+    return {
+      code: code,
+      name: String(item.name || ""),
+      date: String(item.date || "--"),
+      title: title,
+      description: String(item.description || ""),
+      source: String(item.source || ""),
+      url: safeFilingUrl(item.url || ""),
+      sortKey: String(item.sortKey || item.date || ""),
+    };
+  }
+
+  function storage() {
+    try {
+      return window.localStorage || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function filingsCacheKey() {
+    return FILINGS_CACHE_KEY + ":" + STOCKS.map(function (stock) { return stock.code; }).join(",");
+  }
+
+  function saveFilingsCache(payload) {
+    const store = storage();
+    if (!store) return;
+    try {
+      store.setItem(filingsCacheKey(), JSON.stringify({
+        savedAt: new Date().toISOString(),
+        items: payload.items,
+        source: payload.source,
+        delay: payload.delay,
+        sourceUpdatedAt: payload.sourceUpdatedAt,
+      }));
+    } catch (error) {}
+  }
+
+  function loadFilingsCache() {
+    const store = storage();
+    if (!store) return null;
+    try {
+      const parsed = JSON.parse(store.getItem(filingsCacheKey()) || "null");
+      const savedAt = parsed && parsed.savedAt ? new Date(parsed.savedAt) : null;
+      if (!savedAt || Number.isNaN(savedAt.getTime())) return null;
+      const age = Date.now() - savedAt.getTime();
+      const items = Array.isArray(parsed.items) ? parsed.items.map(sanitizeFilingItem).filter(Boolean) : [];
+      if (!items.length) return null;
+      return {
+        age: age,
+        stale: age > FILINGS_CACHE_SOFT_MS,
+        expired: age > FILINGS_CACHE_HARD_MS,
+        savedAt: savedAt,
+        items: items,
+        source: String(parsed.source || "重大訊息本機暫存"),
+        delay: String(parsed.delay || "顯示上次成功取得的公告資料"),
+        sourceUpdatedAt: parsed.sourceUpdatedAt || null,
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function ageLabel(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return "剛剛";
+    const minutes = Math.round(ms / 60000);
+    if (minutes < 60) return minutes + " 分鐘前";
+    const hours = Math.round(minutes / 60);
+    return hours + " 小時前";
   }
 
   async function fetchJson(url) {
@@ -827,10 +1056,18 @@ tbody tr:hover {
       el.filingsFeed.innerHTML = "<div class=\"empty\">" + escapeHtml(state.filingsMessage || "尚未載入重大訊息。") + "</div>";
       return;
     }
-    el.filingsFeed.innerHTML = state.filings.slice(0, 12).map(function (item) {
+    const meta = state.filingsMeta || {};
+    const notice = meta.phase === "cache" || meta.phase === "stale" || meta.phase === "partial"
+      ? "<div class=\"empty\">" + escapeHtml(state.filingsMessage || "") + "</div>"
+      : "";
+    el.filingsFeed.innerHTML = notice + state.filings.slice(0, FILINGS_VISIBLE_LIMIT).map(function (item) {
+      const title = escapeHtml(item.title || "未命名公告");
+      const body = item.url
+        ? "<a href=\"" + escapeHtml(item.url) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + title + "</a>"
+        : "<span class=\"filing-title\">" + title + "</span>";
       return "<div class=\"filing\">" +
         "<div class=\"filing-date\">" + escapeHtml(item.date || "--") + "<br>" + escapeHtml(item.code || "") + "</div>" +
-        "<div><a href=\"" + escapeHtml(item.url || "#") + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(item.title || "未命名公告") + "</a></div>" +
+        "<div>" + body + "</div>" +
       "</div>";
     }).join("");
   }
@@ -914,42 +1151,158 @@ tbody tr:hover {
     }
   }
 
-  async function loadFilings() {
-    if (!state.proxyBase) {
-      setStatus(el.filingsStatus, "warn", "需代理");
-      el.filingsSource.textContent = "需透過資料代理查詢公開資訊觀測站";
-      el.filingsDelay.textContent = "瀏覽器端不直接擷取公開資訊觀測站資料";
-      state.filings = [];
-      state.filingsMessage = "需設定資料代理才能載入重大訊息。";
-      return;
-    }
+  async function loadDirectFilings() {
+    const sources = [
+      { name: "證交所上市重大訊息 OpenAPI", url: DIRECT_TWSE_FILINGS },
+      { name: "櫃買中心上櫃重大訊息 OpenAPI", url: DIRECT_TPEX_FILINGS },
+    ];
+    const results = await Promise.allSettled(sources.map(async function (source) {
+      const response = await fetchJson(source.url);
+      return {
+        source: source.name,
+        items: normalizeOpenApiFilings(response.data, source.name),
+      };
+    }));
+    const fulfilled = results.filter(function (result) { return result.status === "fulfilled"; });
+    if (!fulfilled.length) throw new Error("官方重大訊息來源暫不可用");
+    const failedSources = results.map(function (result, index) {
+      return result.status === "rejected" ? sources[index].name : "";
+    }).filter(Boolean);
+    const items = sortedLimitedFilings(fulfilled.flatMap(function (result) { return result.value.items; }));
+    const sourceUpdatedAt = items.reduce(function (latest, item) {
+      return String(item.sortKey || "").localeCompare(String(latest || "")) > 0 ? item.sortKey : latest;
+    }, null);
+    return {
+      items: items,
+      failedSources: failedSources,
+      source: fulfilled.map(function (result) { return result.value.source; }).join("、"),
+      delay: failedSources.length
+        ? "部分官方來源暫不可用；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則"
+        : "官方每日 OpenAPI；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則",
+      sourceUpdatedAt: sourceUpdatedAt,
+    };
+  }
 
-    setStatus(el.filingsStatus, "loading", "載入中");
-    state.filingsMessage = "重大訊息載入中。";
+  async function loadProxyFilings() {
+    if (!state.proxyBase) throw new Error("資料代理未設定");
     const results = await Promise.allSettled(STOCKS.map(async function (stock) {
       const response = await fetchJson(state.proxyBase + "/filings?code=" + encodeURIComponent(stock.code));
       if (!Array.isArray(response.data)) throw new Error("重大訊息資料格式異常");
-      const rows = response.data;
-      return rows.slice(0, 5).map(function (item) {
-        return { code: stock.code, date: item.date, title: item.title, url: item.url };
-      });
+      return normalizeProxyFilings(response.data, stock);
     }));
-
     const fulfilled = results.filter(function (result) { return result.status === "fulfilled"; });
-    const rejected = results.length - fulfilled.length;
-    state.filings = fulfilled
-      .flatMap(function (result) { return result.value; })
-      .sort(function (a, b) { return String(b.date || "").localeCompare(String(a.date || "")); });
+    if (!fulfilled.length) throw new Error("資料代理重大訊息暫不可用");
+    const failedCodes = results.map(function (result, index) {
+      return result.status === "rejected" ? STOCKS[index].code : "";
+    }).filter(Boolean);
+    const items = sortedLimitedFilings(fulfilled.flatMap(function (result) { return result.value; }));
+    return {
+      items: items,
+      failedSources: failedCodes.map(function (code) { return code + " 代理查詢"; }),
+      source: "公開資訊觀測站 t05st01（資料代理備援）",
+      delay: failedCodes.length
+        ? "部分股票代理查詢失敗；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則"
+        : "代理備援公告資料；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則",
+      sourceUpdatedAt: null,
+    };
+  }
 
-    el.filingsSource.textContent = "公開資訊觀測站 t05st01（資料代理）";
-    el.filingsDelay.textContent = "最新可取得之公告資料";
-    setPanelTime(el.filingsUpdated, "重大訊息更新於", new Date());
-    state.filingsMessage = fulfilled.length
-      ? "目前沒有可取得的近期重大訊息。"
-      : "重大訊息暫不可用。";
-    if (fulfilled.length && rejected) setStatus(el.filingsStatus, "warn", "部分載入");
-    else if (fulfilled.length) setStatus(el.filingsStatus, "ok", "已載入");
-    else setStatus(el.filingsStatus, "error", "公告失敗");
+  function applyFilingsResult(result, phase) {
+    const effectivePhase = result.failedSources.length ? "partial" : phase;
+    state.filings = result.items.map(sanitizeFilingItem).filter(Boolean);
+    state.filingsMessage = state.filings.length
+      ? (result.failedSources.length ? "部分來源暫不可用：" + result.failedSources.join("、") : "")
+      : "目前沒有持股相關的每日重大訊息。";
+    state.filingsMeta = {
+      phase: effectivePhase,
+      source: result.source,
+      delay: result.delay,
+      failedSources: result.failedSources,
+      cacheTs: null,
+      sourceUpdatedAt: result.sourceUpdatedAt,
+    };
+    el.filingsSource.textContent = result.source;
+    el.filingsDelay.textContent = result.delay;
+    if (result.sourceUpdatedAt) setPanelTime(el.filingsUpdated, "重大訊息來源更新於", result.sourceUpdatedAt);
+    else setPanelTime(el.filingsUpdated, "重大訊息查詢於", new Date());
+    setStatus(el.filingsStatus, result.failedSources.length ? "warn" : "ok", result.failedSources.length ? "部分載入" : "已載入");
+    saveFilingsCache({
+      items: state.filings,
+      source: result.source,
+      delay: result.delay,
+      sourceUpdatedAt: result.sourceUpdatedAt,
+    });
+  }
+
+  function applyCachedFilings(cache) {
+    state.filings = cache.items;
+    const cachePhase = cache.expired || cache.stale ? "stale" : "cache";
+    state.filingsMessage = cache.expired
+      ? "暫存已超過 24 小時，請勿視為最新公告。"
+      : cache.stale
+        ? "官方來源暫不可用，目前顯示 " + ageLabel(cache.age) + " 的較舊暫存資料。"
+        : "官方來源暫不可用，目前顯示 " + ageLabel(cache.age) + " 的暫存資料。";
+    state.filingsMeta = {
+      phase: cachePhase,
+      source: cache.source,
+      delay: cache.delay,
+      failedSources: [],
+      cacheTs: cache.savedAt.toISOString(),
+      sourceUpdatedAt: cache.sourceUpdatedAt,
+    };
+    el.filingsSource.textContent = cache.source;
+    el.filingsDelay.textContent = (cache.expired ? "資料過期；" : cache.stale ? "暫存偏舊；" : "顯示暫存；") + "本機暫存於 " + formatDateTime(cache.savedAt);
+    if (cache.sourceUpdatedAt) setPanelTime(el.filingsUpdated, "重大訊息來源更新於", cache.sourceUpdatedAt);
+    else setPanelTime(el.filingsUpdated, "本機暫存於", cache.savedAt);
+    setStatus(el.filingsStatus, cache.expired ? "error" : "warn", cache.expired ? "資料過期" : cache.stale ? "暫存偏舊" : "顯示暫存");
+  }
+
+  async function loadFilings() {
+    setStatus(el.filingsStatus, "loading", "載入中");
+    state.filingsMessage = "正在查詢證交所與櫃買中心重大訊息。";
+    state.filingsMeta = {
+      phase: "loading",
+      source: "TWSE/TPEx OpenAPI",
+      delay: "正在取得官方每日重大訊息",
+      failedSources: [],
+      cacheTs: null,
+      sourceUpdatedAt: null,
+    };
+    el.filingsSource.textContent = "TWSE/TPEx OpenAPI";
+    el.filingsDelay.textContent = "正在取得官方每日重大訊息";
+    renderFilings();
+
+    try {
+      applyFilingsResult(await loadDirectFilings(), "ok");
+      return;
+    } catch (directError) {
+      if (state.proxyBase) {
+        try {
+          applyFilingsResult(await loadProxyFilings(), "fallback");
+          setStatus(el.filingsStatus, "warn", "代理備援");
+          return;
+        } catch (proxyError) {}
+      }
+      const cache = loadFilingsCache();
+      if (cache) {
+        applyCachedFilings(cache);
+        return;
+      }
+      state.filings = [];
+      state.filingsMessage = "重大訊息暫不可用。官方來源可能未開放跨來源讀取，且沒有可顯示的本機暫存資料。";
+      state.filingsMeta = {
+        phase: "error",
+        source: "TWSE/TPEx OpenAPI",
+        delay: "官方來源請求失敗",
+        failedSources: ["證交所上市重大訊息 OpenAPI", "櫃買中心上櫃重大訊息 OpenAPI"],
+        cacheTs: null,
+        sourceUpdatedAt: null,
+      };
+      el.filingsSource.textContent = "TWSE/TPEx OpenAPI";
+      el.filingsDelay.textContent = "官方來源請求失敗；可設定資料代理作為備援";
+      setPanelTime(el.filingsUpdated, "重大訊息查詢於", new Date());
+      setStatus(el.filingsStatus, "error", "公告失敗");
+    }
   }
 
   async function loadQuotes() {
@@ -995,8 +1348,7 @@ tbody tr:hover {
 
   async function refreshAll() {
     state.proxyBase = proxyBase();
-    el.proxyBadge.textContent = state.proxyBase ? "資料代理已設定" : "資料代理未設定";
-    setStatus(el.proxyBadge, state.proxyBase ? "ok" : "warn", state.proxyBase ? "資料代理已設定" : "資料代理未設定");
+    setStatus(el.proxyBadge, state.proxyBase ? "ok" : "warn", state.proxyBase ? "盤中/殖利率代理已設定" : "盤中/殖利率需代理");
     await Promise.allSettled([loadEod(), loadYield10y(), loadFilings()]);
     await loadQuotes();
     renderAll();

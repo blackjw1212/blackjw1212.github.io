@@ -48,6 +48,66 @@ function response(data, headers = {}) {
   };
 }
 
+function createLocalStorage(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    getItem(key) {
+      return data.has(key) ? data.get(key) : null;
+    },
+    setItem(key, value) {
+      data.set(key, String(value));
+    },
+    removeItem(key) {
+      data.delete(key);
+    },
+    clear() {
+      data.clear();
+    },
+  };
+}
+
+const FILINGS_CACHE_KEY = "bjkw_stock_filings_v1:2330,2308,2317,2454,2412,2881,2891,2603";
+
+function twseFilingsRows(title = "台積電重大訊息") {
+  return [
+    {
+      "出表日期": "1150605",
+      "發言日期": "1150605",
+      "發言時間": "091500",
+      "公司代號": "2330",
+      "公司名稱": "台積電",
+      "主旨 ": title,
+      "符合條款": "第51款",
+      "事實發生日": "1150605",
+      "說明": "測試公告內容",
+    },
+    {
+      "出表日期": "1150605",
+      "發言日期": "1150605",
+      "發言時間": "101000",
+      "公司代號": "9999",
+      "公司名稱": "非持股",
+      "主旨 ": "不應顯示",
+      "符合條款": "第51款",
+      "事實發生日": "1150605",
+      "說明": "非持股公告",
+    },
+  ];
+}
+
+function tpexFilingsRows(title = "台達電上櫃格式測試") {
+  return [
+    {
+      Date: "1150605",
+      Time: "111500",
+      SecuritiesCompanyCode: "2308",
+      CompanyName: "台達電",
+      Subject: title,
+      Description: "上櫃英文字段格式測試",
+    },
+  ];
+}
+
 function createFetchMock() {
   return async function fetchMock(url) {
     const href = String(url);
@@ -73,11 +133,14 @@ function createFetchMock() {
         updatedAt: "2026-06-05T08:01:00.000Z",
       });
     }
+    if (href === "https://openapi.twse.com.tw/v1/opendata/t187ap04_L") {
+      return response(twseFilingsRows());
+    }
+    if (href === "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O") {
+      return response(tpexFilingsRows());
+    }
     if (href.includes("/filings?code=")) {
-      const code = new URL(href).searchParams.get("code");
-      return response([
-        { date: "2026-06-05", title: `重大訊息 ${code}`, url: `https://example.test/${code}` },
-      ]);
+      throw new Error(`Backend filings should not be used before direct OpenAPI: ${href}`);
     }
     throw new Error(`Unexpected fetch URL: ${href}`);
   };
@@ -91,6 +154,72 @@ function createDirectEodFetchMock() {
         { Code: "2330", Name: "TSMC", ClosingPrice: "1,000.00", Change: "+5.00" },
       ]);
     }
+    if (href === "https://openapi.twse.com.tw/v1/opendata/t187ap04_L") {
+      return response(twseFilingsRows("無代理重大訊息"));
+    }
+    if (href === "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O") {
+      return response(tpexFilingsRows("無代理上櫃格式"));
+    }
+    throw new Error(`Unexpected fetch URL: ${href}`);
+  };
+}
+
+function createFilingsFailureFetchMock() {
+  return async function fetchMock(url) {
+    const href = String(url);
+    if (href === "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL") {
+      return response([
+        { Code: "2330", Name: "TSMC", ClosingPrice: "1,000.00", Change: "+5.00" },
+      ]);
+    }
+    if (href === "https://openapi.twse.com.tw/v1/opendata/t187ap04_L" ||
+        href === "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O") {
+      throw new Error("direct filings unavailable");
+    }
+    throw new Error(`Unexpected fetch URL: ${href}`);
+  };
+}
+
+function createPartialFilingsFetchMock() {
+  return async function fetchMock(url) {
+    const href = String(url);
+    if (href === "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL") {
+      return response([
+        { Code: "2330", Name: "TSMC", ClosingPrice: "1,000.00", Change: "+5.00" },
+      ]);
+    }
+    if (href === "https://openapi.twse.com.tw/v1/opendata/t187ap04_L") {
+      return response(twseFilingsRows("部分來源重大訊息"));
+    }
+    if (href === "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O") {
+      throw new Error("tpex unavailable");
+    }
+    throw new Error(`Unexpected fetch URL: ${href}`);
+  };
+}
+
+function createProxyFallbackFetchMock(calls) {
+  return async function fetchMock(url) {
+    const href = String(url);
+    calls.push(href);
+    if (href.endsWith("/eod")) {
+      return response([
+        { code: "2330", name: "TSMC", close: 1000, change: 5 },
+      ]);
+    }
+    if (href.endsWith("/yield10y")) {
+      return response({ date: "2026-06-05", value: 4.123, updatedAt: "2026-06-05T08:00:00.000Z" });
+    }
+    if (href === "https://openapi.twse.com.tw/v1/opendata/t187ap04_L" ||
+        href === "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O") {
+      throw new Error("direct filings unavailable");
+    }
+    if (href.includes("/filings?code=")) {
+      const code = new URL(href).searchParams.get("code");
+      return response([
+        { date: "2026-06-05", title: `代理備援重大訊息 ${code}`, url: "https://mops.twse.com.tw/mops/web/t05st01" },
+      ]);
+    }
     throw new Error(`Unexpected fetch URL: ${href}`);
   };
 }
@@ -102,9 +231,11 @@ async function loadApp(fetchMock, windowOverrides = {}) {
   assert.ok(script, "inline script should be present");
 
   const document = createDocument();
+  const localStorage = windowOverrides.localStorage || createLocalStorage();
   const window = {
     __TW_RISK_SKIP_AUTO_INIT__: true,
-    location: { search: "" },
+    location: { href: "https://blackjw1212.github.io/", search: "" },
+    localStorage,
     ...windowOverrides,
   };
 
@@ -117,6 +248,7 @@ async function loadApp(fetchMock, windowOverrides = {}) {
     fetch: fetchMock,
     Headers,
     Intl,
+    localStorage: window.localStorage,
     setInterval: () => 1,
     setTimeout,
     URL,
@@ -135,12 +267,14 @@ test("index.html initializes and renders with mocked fetch", async () => {
   });
 
   assert.match(document.getElementById("stockRows").innerHTML, /2330/);
-  assert.match(document.getElementById("filingsFeed").innerHTML, /重大訊息/);
+  assert.match(document.getElementById("filingsFeed").innerHTML, /台積電重大訊息/);
+  assert.match(document.getElementById("filingsFeed").innerHTML, /台達電上櫃格式測試/);
+  assert.doesNotMatch(document.getElementById("filingsFeed").innerHTML, /不應顯示/);
   assert.equal(document.getElementById("macroStatus").textContent, "已載入");
   assert.equal(document.getElementById("macroStatus").className, "chip ok");
   assert.equal(document.getElementById("eodStatus").textContent, "已載入");
   assert.equal(document.getElementById("eodStatus").className, "chip ok");
-  assert.equal(document.getElementById("proxyBadge").textContent, "資料代理已設定");
+  assert.equal(document.getElementById("proxyBadge").textContent, "盤中/殖利率代理已設定");
   assert.equal(document.getElementById("proxyBadge").className, "chip ok");
   assert.equal(document.getElementById("filingsStatus").className, "chip ok");
 
@@ -161,7 +295,7 @@ test("index.html initializes and renders with mocked fetch", async () => {
 test("index.html supports no-backend direct EOD fallback", async () => {
   const { document } = await loadApp(createDirectEodFetchMock());
 
-  assert.equal(document.getElementById("proxyBadge").textContent, "資料代理未設定");
+  assert.equal(document.getElementById("proxyBadge").textContent, "盤中/殖利率需代理");
   assert.equal(document.getElementById("proxyBadge").className, "chip warn");
   assert.equal(document.getElementById("eodStatus").textContent, "已載入");
   assert.equal(document.getElementById("eodStatus").className, "chip ok");
@@ -170,7 +304,57 @@ test("index.html supports no-backend direct EOD fallback", async () => {
   assert.match(document.getElementById("tableSource").textContent, /證交所 OpenAPI 直連/);
   assert.equal(document.getElementById("macroStatus").textContent, "需代理");
   assert.equal(document.getElementById("macroStatus").className, "chip warn");
-  assert.equal(document.getElementById("filingsStatus").textContent, "需代理");
+  assert.equal(document.getElementById("filingsStatus").textContent, "已載入");
+  assert.equal(document.getElementById("filingsStatus").className, "chip ok");
+  assert.match(document.getElementById("filingsFeed").innerHTML, /無代理重大訊息/);
+  assert.match(document.getElementById("filingsFeed").innerHTML, /無代理上櫃格式/);
+});
+
+test("index.html shows cached filings when direct filings fail", async () => {
+  const storage = createLocalStorage({
+    [FILINGS_CACHE_KEY]: JSON.stringify({
+      savedAt: new Date().toISOString(),
+      source: "測試重大訊息快取",
+      delay: "測試暫存資料",
+      sourceUpdatedAt: "2026-06-04T10:00:00+08:00",
+      items: [
+        {
+          code: "2330",
+          name: "台積電",
+          date: "2026-06-04 10:00",
+          title: "暫存重大訊息",
+          source: "測試重大訊息快取",
+          sortKey: "2026-06-04T10:00:00+08:00",
+        },
+      ],
+    }),
+  });
+
+  const { document } = await loadApp(createFilingsFailureFetchMock(), { localStorage: storage });
+
+  assert.equal(document.getElementById("filingsStatus").textContent, "顯示暫存");
   assert.equal(document.getElementById("filingsStatus").className, "chip warn");
-  assert.match(document.getElementById("filingsFeed").innerHTML, /需設定資料代理才能載入重大訊息/);
+  assert.match(document.getElementById("filingsFeed").innerHTML, /暫存重大訊息/);
+  assert.match(document.getElementById("filingsFeed").innerHTML, /官方來源暫不可用/);
+});
+
+test("index.html marks partial filings when one OpenAPI source fails", async () => {
+  const { document } = await loadApp(createPartialFilingsFetchMock());
+
+  assert.equal(document.getElementById("filingsStatus").textContent, "部分載入");
+  assert.equal(document.getElementById("filingsStatus").className, "chip warn");
+  assert.match(document.getElementById("filingsFeed").innerHTML, /部分來源重大訊息/);
+  assert.match(document.getElementById("filingsFeed").innerHTML, /部分來源暫不可用/);
+});
+
+test("index.html uses backend filings only after direct failure without cache", async () => {
+  const calls = [];
+  const { document } = await loadApp(createProxyFallbackFetchMock(calls), {
+    PROXY_BASE: "https://proxy.test",
+  });
+
+  assert.equal(document.getElementById("filingsStatus").textContent, "代理備援");
+  assert.equal(document.getElementById("filingsStatus").className, "chip warn");
+  assert.match(document.getElementById("filingsFeed").innerHTML, /代理備援重大訊息 2330/);
+  assert.ok(calls.some((href) => href.includes("/filings?code=2330")));
 });
