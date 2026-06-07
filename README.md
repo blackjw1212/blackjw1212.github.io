@@ -24,6 +24,7 @@ This repository also includes a plain static Taiwan stock portfolio console at `
 
 - Today's automated entry / wait / exit-observation verdict
 - Auto-derived data, 10Y, breadth, core-health, and satellite-risk lights
+- Stock-code links to allowlisted TradingView technical-analysis pages
 - Core / satellite / cash allocation
 - Multi-dimension AI supply-chain scorecard
 - Browser-local observation log
@@ -108,7 +109,7 @@ Run the dependency-free tests from the repository root:
 node --test backend/test/*.test.js
 ```
 
-The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for Worker-backed EOD/yield, no-backend static fallback, proxy allowlist enforcement, manual 10Y override, localStorage cache fallback, observation-log interaction, malformed localStorage state, verdict/EOD/yield helper logic, and the conservative `RetailConsole` retail-glance helper contract.
+The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for Worker-backed EOD/yield, no-backend static fallback, proxy allowlist enforcement, manual 10Y override, localStorage cache fallback, observation-log interaction, malformed localStorage state, verdict/EOD/yield helper logic, allowlisted TradingView links, and the conservative `RetailConsole` retail-glance helper contract.
 
 ### Static Data Feed
 

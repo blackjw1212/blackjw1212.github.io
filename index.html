@@ -89,6 +89,11 @@
   td:first-child{text-align:left}
   tr:last-child td{border-bottom:0}
   .code{font-family:"Roboto Mono",monospace;color:var(--faint)}.nm{font-weight:700}
+  .stock-tv-link{display:inline-flex;align-items:center;gap:6px;color:var(--ink);text-decoration:none;border-radius:6px;min-height:32px;padding:2px 0}
+  .stock-tv-link:hover{text-decoration:none;color:var(--amber)}
+  .stock-tv-link:hover .code,.stock-tv-link:hover .nm{color:var(--amber)}
+  .stock-tv-link:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+  .tv-pill{font-family:"Roboto Mono",monospace;font-size:10px;line-height:1;border:1px solid var(--line2);border-radius:8px;padding:3px 6px;color:var(--teal);background:rgba(66,184,168,.08);white-space:nowrap}
   .px{font-family:"Roboto Mono",monospace;font-weight:600}
   .pos{color:var(--green)}.neg{color:var(--red)}.flat{color:var(--faint)}
   .sc{font-family:"Roboto Mono",monospace;font-size:12px;display:inline-block;min-width:32px;text-align:center;border-radius:8px;padding:1px 5px}
@@ -97,7 +102,7 @@
   .stale{color:var(--faint);font-size:11px}
   .stock-cards{display:none}
   .stock-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px}
-  .stock-card-head{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .stock-card-head{display:flex;align-items:center;gap:8px;justify-content:space-between;min-height:44px}
   .stock-main{font-weight:700}
   .stock-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:12px}
   .stock-meta b{display:block;color:var(--faint);font-weight:500}
@@ -221,7 +226,8 @@
 
   <footer>
     本頁是決策輔助，不是投資建議。資料標籤會區分 <b>Worker、TWSE 收盤資料、靜態備援、本機快取、10Y 自動來源</b>；
-    延遲、收盤、靜態或快取資料不會標為即時。後端沿用既有 Worker endpoints：/eod、/quote、/filings、/yield10y、/health。
+    延遲、收盤、靜態或快取資料不會標為即時。TradingView 為外部技術圖表，僅供觀察，不代表交易建議。
+    後端沿用既有 Worker endpoints：/eod、/quote、/filings、/yield10y、/health。
   </footer>
 </main>
 
@@ -268,6 +274,16 @@ const CONDS = [
 const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
 const TONE_WORD = {g:"綠燈",a:"黃燈",r:"紅燈"};
 const STOCK_CODES = STOCKS.map(function(stock){return stock.code;});
+const TRADINGVIEW_SYMBOLS = {
+  "2330":"TWSE-2330",
+  "2317":"TWSE-2317",
+  "6669":"TWSE-6669",
+  "3017":"TWSE-3017",
+  "3324":"TPEX-3324",
+  "2382":"TWSE-2382",
+  "1519":"TWSE-1519",
+  "2308":"TWSE-2308",
+};
 const EOD_CACHE_KEY = LS + ":eod:" + STOCK_CODES.join(",");
 const MAX_TRANCHE_TEXT = 120;
 
@@ -1043,6 +1059,20 @@ function mopsUrl(code){
   return "https://mops.twse.com.tw/mops/web/t05st01?step=1&colorChg=1&co_id=" + encodeURIComponent(String(code));
 }
 
+function tradingViewUrl(code){
+  const symbol = TRADINGVIEW_SYMBOLS[String(code)];
+  if (!symbol) return "";
+  return "https://tw.tradingview.com/symbols/" + symbol + "/technicals/";
+}
+
+function stockTradingViewLink(stock, card){
+  const href = tradingViewUrl(stock && stock.code);
+  const label = "在 TradingView 開啟 " + stock.code + " " + stock.name + "技術面觀察";
+  const body = '<span class="code">' + stock.code + '</span> <span class="' + (card ? "stock-main" : "nm") + '">' + escapeHtml(stock.name) + '</span><span class="tv-pill">技術面</span>';
+  if (!href) return '<span class="code">' + stock.code + '</span> <span class="' + (card ? "stock-main" : "nm") + '">' + escapeHtml(stock.name) + '</span>';
+  return '<a class="stock-tv-link" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer" aria-label="' + escapeHtml(label) + '">' + body + '</a>';
+}
+
 function scoreClass(value, index){
   return index === 4 ? RISK_SCLS[value] : SCLS[value];
 }
@@ -1067,7 +1097,7 @@ function renderScore(){
       return '<td><span class="sc ' + scoreClass(value, index) + '">' + STXT[value] + '</span></td>';
     }).join("");
     const tr = document.createElement("tr");
-    tr.innerHTML = '<td><span class="code">' + stock.code + '</span> <span class="nm">' + escapeHtml(stock.name) + '</span></td>'
+    tr.innerHTML = '<td>' + stockTradingViewLink(stock, false) + '</td>'
       + scoreCells
       + '<td style="color:var(--soft)">' + escapeHtml(stock.pe) + '</td>'
       + '<td class="px">' + (close != null ? fmt(close, 2) : '<span class="stale">收盤待更新</span>') + '<div class="data-line">' + escapeHtml(dataLabel()) + '</div></td>'
@@ -1079,7 +1109,7 @@ function renderScore(){
     const scoreStrip = stock.s.map(function(value, index){
       return '<span class="sc ' + scoreClass(value, index) + '">' + escapeHtml(SCORE_LABELS[index]) + ' ' + STXT[value] + '</span>';
     }).join("");
-    card.innerHTML = '<div class="stock-card-head"><div><span class="code">' + stock.code + '</span> <span class="stock-main">' + escapeHtml(stock.name) + '</span></div><span class="tier ' + TIERS[stock.tier].cls + '">' + stock.tier.toUpperCase() + '</span></div>'
+    card.innerHTML = '<div class="stock-card-head"><div>' + stockTradingViewLink(stock, true) + '</div><span class="tier ' + TIERS[stock.tier].cls + '">' + stock.tier.toUpperCase() + '</span></div>'
       + '<div class="stock-meta"><div><b>收盤</b>' + (close != null ? fmt(close, 2) : '待更新') + '</div><div><b>vs 個人參考基準</b>' + escapeHtml(vsText) + '</div><div><b>參考 PE</b>' + escapeHtml(stock.pe) + '</div><div><b>定位</b>' + escapeHtml(TIERS[stock.tier].name) + '</div></div>'
       + '<div class="score-strip">' + scoreStrip + '</div><div class="data-line">' + escapeHtml(stock.role) + '</div><div class="data-line">' + escapeHtml(dataLabel()) + '</div>';
     cards.appendChild(card);
@@ -1175,6 +1205,7 @@ const portfolioApp = {
     sanitizeState:sanitizeState,
     deriveAutoSignals:deriveAutoSignals,
     condColor:condColor,
+    tradingViewUrl:tradingViewUrl,
   },
 };
 ROOT.PortfolioConsoleApp = portfolioApp;
@@ -1190,6 +1221,7 @@ ROOT.RetailConsole = {
     normalizeEodRows:normalizeEodRows,
     normalizeYield:normalizeYield,
     mopsUrl:mopsUrl,
+    tradingViewUrl:tradingViewUrl,
   },
 };
 

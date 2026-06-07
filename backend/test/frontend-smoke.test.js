@@ -168,9 +168,15 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
     "sanitizeState",
     "deriveAutoSignals",
     "condColor",
+    "tradingViewUrl",
   ]) {
     assert.equal(typeof context.window.PortfolioConsoleApp.helpers[name], "function");
   }
+  const tvUrl = new URL(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330"));
+  assert.equal(tvUrl.protocol, "https:");
+  assert.equal(tvUrl.hostname, "tw.tradingview.com");
+  assert.equal(tvUrl.pathname, "/symbols/TWSE-2330/technicals/");
+  assert.equal(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330/../../evil"), "");
 });
 
 test("retail glance helper contract stays conservative", async () => {
@@ -183,6 +189,7 @@ test("retail glance helper contract stays conservative", async () => {
   });
   const retail = context.window.RetailConsole;
   const helpers = retail.helpers;
+  assert.equal(typeof helpers.tradingViewUrl, "function");
 
   assert.equal(helpers.holdingStatus(-12, 10, 30).tone, "r");
   assert.equal(helpers.holdingStatus(35, 10, 30).tone, "a");
@@ -224,6 +231,16 @@ test("retail glance helper contract stays conservative", async () => {
   assert.equal(url.protocol, "https:");
   assert.equal(url.hostname, "mops.twse.com.tw");
   assert.equal(url.searchParams.get("co_id"), "2330");
+
+  const twse = new URL(helpers.tradingViewUrl("2330"));
+  assert.equal(twse.protocol, "https:");
+  assert.equal(twse.hostname, "tw.tradingview.com");
+  assert.equal(twse.pathname, "/symbols/TWSE-2330/technicals/");
+  const tpex = new URL(helpers.tradingViewUrl("3324"));
+  assert.equal(tpex.pathname, "/symbols/TPEX-3324/technicals/");
+  for (const code of ["9999", "https://evil.example", "2330/../../evil", "2330?next=https://evil.example"]) {
+    assert.equal(helpers.tradingViewUrl(code), "");
+  }
 });
 
 test("verdict aggregation uses automated entry/wait/exit observation language", async () => {
@@ -324,6 +341,11 @@ test("page renders automated checklist, cards, and source labels from static fal
   assert.match(document.getElementById("scoreBody").innerHTML, /2330/);
   assert.match(document.getElementById("scoreBody").innerHTML, /2,400.25/);
   assert.match(document.getElementById("stockCards").innerHTML, /台積電/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /https:\/\/tw\.tradingview\.com\/symbols\/TWSE-2330\/technicals\//);
+  assert.match(document.getElementById("stockCards").innerHTML, /https:\/\/tw\.tradingview\.com\/symbols\/TWSE-2330\/technicals\//);
+  assert.match(document.getElementById("scoreBody").innerHTML, /target="_blank"/);
+  assert.match(document.getElementById("stockCards").innerHTML, /rel="noopener noreferrer"/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /aria-label="在 TradingView 開啟 2330 台積電技術面觀察"/);
   assert.match(document.getElementById("conds").innerHTML, /自動/);
   assert.match(document.getElementById("signalSummary").innerHTML, /資料可用性/);
   assert.match(document.getElementById("stamp").textContent, /靜態 feed/);

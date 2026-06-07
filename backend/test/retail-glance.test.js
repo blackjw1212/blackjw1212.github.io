@@ -101,3 +101,19 @@ test("retail glance mopsUrl points only to official MOPS over https", () => {
   assert.equal(url.hostname, "mops.twse.com.tw");
   assert.equal(url.searchParams.get("co_id"), "2330");
 });
+
+test("retail glance tradingViewUrl points only to allowlisted symbols", () => {
+  const { helpers } = loadRetailConsole();
+  const twse = new URL(helpers.tradingViewUrl("2330"));
+  const tpex = new URL(helpers.tradingViewUrl("3324"));
+
+  assert.equal(twse.protocol, "https:");
+  assert.equal(twse.hostname, "tw.tradingview.com");
+  assert.equal(twse.pathname, "/symbols/TWSE-2330/technicals/");
+  assert.equal(tpex.protocol, "https:");
+  assert.equal(tpex.hostname, "tw.tradingview.com");
+  assert.equal(tpex.pathname, "/symbols/TPEX-3324/technicals/");
+  for (const code of ["9999", "https://evil.example", "2330/../../evil", "2330?next=https://evil.example"]) {
+    assert.equal(helpers.tradingViewUrl(code), "");
+  }
+});
