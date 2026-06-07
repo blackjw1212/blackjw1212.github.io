@@ -1,5 +1,9 @@
 # Changes
 
+- Rebuilt the stock page again as a retail-friendly observation-threshold console: first-screen observation verdict, checklist-style red/yellow/green conditions, desktop score table, mobile stock cards, and browser-local observation logs.
+- Reworded the UI away from direct trading language, keeping the page framed as observation support rather than personalized investment advice.
+- Added per-row source/manual labels, 10Y source date display, explicit non-real-time wording, and proxy rejection messaging while preserving the allowlist and existing fallback order.
+- Expanded frontend smoke coverage to assert static DOM ids, helper exports, observation-threshold verdict copy, checklist/card rendering, manual 10Y override, localStorage EOD cache fallback, and observation-log interaction.
 - Replaced the stock page with the restructured long-hold staged-entry portfolio console: Entry Green-Light verdict, core/satellite/cash allocation, multi-dimension scorecard, and browser-local tranche tracker.
 - Ported the robust EOD data path into the new page: Worker `/eod` first, then direct TWSE `STOCK_DAY_ALL`, same-origin `data/stock-risk-feed.json`, and finally localStorage last-good cache. Per-source failures preserve the existing display instead of blanking the table.
 - Wired the 10Y Green-Light signal to Worker `/yield10y` with `{ value }`, `{ body: { value } }`, `{ data: { value } }`, and static-feed shapes, while preserving user manual override.

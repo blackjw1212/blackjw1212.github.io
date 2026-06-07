@@ -20,12 +20,12 @@ The site is published at <https://blackjw1212.github.io/>.
 
 ## Taiwan Stock Portfolio Console
 
-This repository also includes a plain static Taiwan stock portfolio console at `index.html` plus a Cloudflare Worker proxy in `backend/`. The current page is organized as a long-hold staged-entry console:
+This repository also includes a plain static Taiwan stock portfolio console at `index.html` plus a Cloudflare Worker proxy in `backend/`. The current page is organized as a retail-friendly observation-threshold console:
 
-- Entry Green-Light verdict
+- Today's observation verdict
 - Core / satellite / cash allocation
 - Multi-dimension AI supply-chain scorecard
-- Browser-local tranche tracker
+- Browser-local observation log
 
 The page reads the backend URL from either:
 
@@ -42,7 +42,7 @@ index.html?proxy=https://taiwan-risk-tracker-proxy.a0926043323.workers.dev
 
 Only allowlisted proxy URLs are honored. An unapproved URL such as `?proxy=https://evil.example` is ignored.
 
-If no backend is configured, the page enters fallback mode. The scorecard attempts the Worker `/eod` route first when available, then direct TWSE end-of-day OpenAPI, then same-origin `data/stock-risk-feed.json`, then the last usable localStorage cache. The 10Y yield attempts Worker `/yield10y` and then the same static feed. Manual green-light inputs remain manual unless an honest auto source is available; delayed/EOD/static/cache data is never labeled as real-time.
+If no backend is configured, the page enters fallback mode. The scorecard attempts the Worker `/eod` route first when available, then direct TWSE end-of-day OpenAPI, then same-origin `data/stock-risk-feed.json`, then the last usable localStorage cache. The 10Y yield attempts Worker `/yield10y` and then the same static feed. Manual observation inputs remain manual unless an honest auto source is available; delayed/EOD/static/cache data is never labeled as real-time.
 
 ### Backend Routes
 
@@ -107,7 +107,7 @@ Run the dependency-free tests from the repository root:
 node --test backend/test/*.test.js
 ```
 
-The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for Worker-backed EOD/yield, no-backend static fallback, proxy allowlist enforcement, malformed localStorage state, and verdict/EOD/yield helper logic.
+The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for Worker-backed EOD/yield, no-backend static fallback, proxy allowlist enforcement, manual 10Y override, localStorage cache fallback, observation-log interaction, malformed localStorage state, and verdict/EOD/yield helper logic.
 
 ### Static Data Feed
 

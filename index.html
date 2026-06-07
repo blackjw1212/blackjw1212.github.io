@@ -3,95 +3,123 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI 供應鏈 · 長抱分批建倉決策台</title>
-<meta name="description" content="台灣 AI 供應鏈長抱分批建倉決策台，整合進場綠燈、核心與衛星配置、多維度評分表與分批紀錄。" />
+<title>AI 供應鏈觀察台 · 散戶直觀版</title>
+<meta name="description" content="台灣 AI 供應鏈觀察台，以散戶直觀方式呈現觀察門檻、核心與衛星配置、收盤資料與本機分批觀察紀錄。" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#15140f; --panel:#1e1c16; --panel2:#26241c; --line:#34322a; --line2:#403d33;
-    --ink:#f3efe3; --soft:#b8b2a1; --faint:#827d6f;
-    --teal:#3fb8a6; --amber:#e0a13c; --amber-d:#8a5e12;
-    --red:#e0625a; --green:#7fc85f;
-    --red-bg:#2a1916; --green-bg:#1c2415; --amber-bg:#2a2113;
+    --bg:#101418; --panel:#172028; --panel2:#202b34; --line:#2e3a43; --line2:#3d4a53;
+    --ink:#f3f7f4; --soft:#b6c0bd; --faint:#87928f;
+    --teal:#42b8a8; --blue:#76a9dc; --amber:#d9a64c; --red:#e36962; --green:#79c96a;
+    --red-bg:#2b191a; --green-bg:#182719; --amber-bg:#2b2416; --blue-bg:#172535;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:"Noto Sans TC",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding:0 0 60px;-webkit-font-smoothing:antialiased}
+  body{font-family:"Noto Sans TC",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding:0 0 56px;-webkit-font-smoothing:antialiased}
   .mono{font-family:"Roboto Mono",monospace}
-  .wrap{max-width:1060px;margin:0 auto;padding:0 18px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 18px}
   a{color:var(--teal);text-decoration:none}a:hover{text-decoration:underline}
-
-  header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1a1812,#15140f);padding:26px 0 20px;position:relative;overflow:hidden}
-  header::after{content:"AI";position:absolute;right:18px;top:-26px;font-size:150px;opacity:.05;font-family:"Roboto Mono",monospace;font-weight:700}
-  .kick{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--teal);margin-bottom:8px}
-  h1{font-family:"Noto Serif TC",serif;font-weight:900;font-size:clamp(22px,3.4vw,31px);line-height:1.15}
+  header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#151b20,#101418);padding:24px 0 18px}
+  .kick{font-family:"Roboto Mono",monospace;font-size:11px;color:var(--teal);margin-bottom:8px}
+  h1{font-family:"Noto Serif TC",serif;font-weight:900;font-size:30px;line-height:1.18}
   h1 span{color:var(--amber)}
-  .profile{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-  .tagp{font-family:"Roboto Mono",monospace;font-size:11px;background:var(--panel2);border:1px solid var(--line2);border-radius:20px;padding:4px 12px;color:var(--soft)}
+  .profile{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+  .tagp{font-family:"Roboto Mono",monospace;font-size:11px;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;color:var(--soft)}
   .tagp b{color:var(--amber)}
-
-  h2{font-family:"Noto Serif TC",serif;font-weight:700;font-size:18px;margin:30px 0 4px;display:flex;align-items:baseline;gap:10px}
-  h2 em{font-family:"Roboto Mono",monospace;font-style:normal;font-size:11px;color:var(--amber);letter-spacing:.06em}
+  h2{font-family:"Noto Serif TC",serif;font-weight:700;font-size:18px;margin:28px 0 4px;display:flex;align-items:baseline;gap:10px}
+  h2 em{font-family:"Roboto Mono",monospace;font-style:normal;font-size:11px;color:var(--amber)}
   .hint{font-size:12px;color:var(--faint);margin-bottom:12px}
   .stamp{font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint)}
-  .btn{font-family:"Roboto Mono",monospace;font-size:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:7px 13px;cursor:pointer}
+  .btn{font-family:"Roboto Mono",monospace;font-size:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:8px 13px;cursor:pointer;min-height:36px}
   .btn:hover{border-color:var(--amber);color:var(--amber)}
-  input,select{font-family:"Roboto Mono",monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:7px;padding:6px 9px;font-size:13px}
+  input,select{font-family:"Roboto Mono",monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:7px 9px;font-size:13px}
   input:focus,select:focus{outline:none;border-color:var(--amber)}
 
-  .verdict{display:flex;align-items:center;gap:16px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:16px 18px;margin-top:6px}
+  .decision-card{background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:18px;margin-top:8px}
+  .decision-top{display:flex;align-items:center;gap:15px}
   .vlight{width:42px;height:42px;border-radius:50%;flex:none;background:var(--faint);box-shadow:0 0 0 4px rgba(255,255,255,.04)}
-  .vtext .vt{font-family:"Noto Serif TC",serif;font-weight:700;font-size:18px}
-  .vtext .vd{font-size:13px;color:var(--soft);margin-top:2px}
-  .cond{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-top:8px}
-  .cond .dot{width:11px;height:11px;border-radius:50%;flex:none;background:var(--faint)}
-  .cond .lbl{flex:1;min-width:0}
-  .cond .lbl .t{font-size:14px}.cond .lbl .d{font-size:12px;color:var(--faint)}
-  .auto{font-family:"Roboto Mono",monospace;font-size:10px;color:var(--teal);border:1px solid var(--line2);border-radius:5px;padding:1px 6px;white-space:nowrap}
+  .vtext{min-width:0;flex:1}
+  .vtext .vt{font-family:"Noto Serif TC",serif;font-weight:900;font-size:23px;line-height:1.2}
+  .vtext .vd{font-size:13px;color:var(--soft);margin-top:3px}
+  .decision-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .action-box{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.025);padding:10px}
+  .action-box b{display:block;font-size:12px;color:var(--faint);margin-bottom:4px}
+  .action-box span{display:block;font-size:14px}
+  .guard-note{font-size:12px;color:var(--faint);border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
+  .decision-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}
 
-  .bucket{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:10px}
+  .cond{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px;margin-top:8px}
+  .cond .dot{width:13px;height:13px;border-radius:50%;background:var(--faint)}
+  .cond .lbl{min-width:0}
+  .cond .t{font-size:14px;font-weight:700}
+  .cond .d{font-size:12px;color:var(--faint);margin-top:2px}
+  .source-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px}
+  .pill-label{font-family:"Roboto Mono",monospace;font-size:10px;border:1px solid var(--line2);border-radius:8px;padding:1px 6px;color:var(--soft)}
+  .pill-label.auto{color:var(--teal)}
+  .pill-label.manual{color:var(--amber)}
+  .state-word{font-size:12px;font-weight:700;border-radius:8px;padding:2px 8px}
+  .state-word.g{background:var(--green-bg);color:var(--green)}
+  .state-word.a{background:var(--amber-bg);color:var(--amber)}
+  .state-word.r{background:var(--red-bg);color:var(--red)}
+
+  .bucket{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:10px}
   .bucket .bh{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
-  .bucket .bh .name{font-family:"Noto Serif TC",serif;font-weight:700;font-size:16px}
-  .bucket .bh .role{font-size:12px;color:var(--faint)}
-  .bucket .bh .tier{margin-left:auto;font-family:"Roboto Mono",monospace;font-size:10px;padding:2px 9px;border-radius:20px}
+  .bucket .name{font-family:"Noto Serif TC",serif;font-weight:700;font-size:16px}
+  .bucket .role{font-size:12px;color:var(--faint)}
+  .bucket .tier{margin-left:auto;font-family:"Roboto Mono",monospace;font-size:10px;padding:2px 8px;border-radius:8px}
   .tier.core{background:var(--green-bg);color:var(--green)}
   .tier.sat{background:var(--amber-bg);color:var(--amber)}
   .tier.wait{background:var(--red-bg);color:var(--red)}
   .tier.cash{background:var(--panel2);color:var(--soft);border:1px solid var(--line2)}
 
-  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
   table{width:100%;border-collapse:collapse;margin-top:0;font-size:13px;min-width:860px}
-  th{font-family:"Roboto Mono",monospace;font-size:10px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:7px 5px;border-bottom:1px solid var(--line2)}
+  th{font-family:"Roboto Mono",monospace;font-size:10px;font-weight:600;color:var(--faint);text-align:center;padding:8px 5px;border-bottom:1px solid var(--line2)}
   th:first-child{text-align:left}
-  td{padding:8px 5px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}
+  td{padding:9px 5px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}
   td:first-child{text-align:left}
   tr:last-child td{border-bottom:0}
   .code{font-family:"Roboto Mono",monospace;color:var(--faint)}.nm{font-weight:700}
   .px{font-family:"Roboto Mono",monospace;font-weight:600}
   .pos{color:var(--green)}.neg{color:var(--red)}.flat{color:var(--faint)}
-  .sc{font-family:"Roboto Mono",monospace;font-size:12px;display:inline-block;min-width:30px;text-align:center;border-radius:5px;padding:1px 4px}
+  .sc{font-family:"Roboto Mono",monospace;font-size:12px;display:inline-block;min-width:32px;text-align:center;border-radius:8px;padding:1px 5px}
   .s-h{background:var(--green-bg);color:var(--green)}.s-m{background:var(--amber-bg);color:var(--amber)}.s-l{background:var(--red-bg);color:var(--red)}
+  .risk-h{background:var(--red-bg);color:var(--red)}.risk-m{background:var(--amber-bg);color:var(--amber)}.risk-l{background:var(--green-bg);color:var(--green)}
   .stale{color:var(--faint);font-size:11px}
+  .stock-cards{display:none}
+  .stock-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px}
+  .stock-card-head{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .stock-main{font-weight:700}
+  .stock-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:12px}
+  .stock-meta b{display:block;color:var(--faint);font-weight:500}
+  .score-strip{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
+  .data-line{font-size:11px;color:var(--faint);margin-top:8px}
 
-  .tranche{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:6px}
+  .tranche{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:6px}
   .tranche .prog{display:flex;gap:6px;margin:8px 0}
-  .pill{flex:1;height:8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line2)}
+  .pill{flex:1;height:8px;border-radius:8px;background:var(--panel2);border:1px solid var(--line2)}
   .pill.done{background:var(--teal);border-color:var(--teal)}
-  .logrow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-  .logitem{font-size:12px;color:var(--soft);border-bottom:1px dotted var(--line);padding:6px 0}
+  .logrow{display:grid;grid-template-columns:150px 80px minmax(150px,1fr) minmax(120px,1fr) minmax(150px,1fr) auto;gap:8px;margin-top:8px}
+  .logitem{font-size:12px;color:var(--soft);border-bottom:1px dotted var(--line);padding:7px 0}
   .logitem b{color:var(--ink)}
-
   footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
   footer b{color:var(--soft)}
-  @media (max-width:720px){
-    .verdict{align-items:flex-start;gap:12px}
-    .verdict .btn{margin-left:0!important;width:100%;margin-top:10px}
-    .vtext{flex:1}
-    .cond{align-items:flex-start;flex-wrap:wrap}
-    .cond .lbl{flex-basis:calc(100% - 28px)}
+
+  @media (max-width:760px){
+    .wrap{padding:0 14px}
+    h1{font-size:24px}
+    .decision-top{align-items:flex-start}
+    .decision-actions{grid-template-columns:1fr}
+    .decision-tools{align-items:stretch}
+    .decision-tools .btn{width:100%}
+    .cond{grid-template-columns:auto minmax(0,1fr);align-items:start}
+    .cond .ctrl{grid-column:2}
     .bucket .bh{flex-wrap:wrap}
-    .bucket .bh .tier{margin-left:0}
+    .bucket .tier{margin-left:0}
+    .table-scroll{display:none}
+    .stock-cards{display:block}
+    .logrow{grid-template-columns:1fr}
   }
 </style>
 </head>
@@ -99,66 +127,93 @@
 
 <header>
   <div class="wrap">
-    <div class="kick">Cross-Currents · Portfolio Console · v0.2</div>
-    <h1>AI 供應鏈 · <span>長抱分批建倉決策台</span></h1>
+    <div class="kick">Retail Observation Console · v0.3</div>
+    <h1>AI 供應鏈觀察台 · <span>散戶直觀版</span></h1>
     <div class="profile">
-      <span class="tagp">風格 <b>長抱分批</b></span>
-      <span class="tagp">節奏 <b>核心先行</b></span>
-      <span class="tagp">資料 <b>EOD/手動混合</b></span>
+      <span class="tagp">定位 <b>觀察門檻</b></span>
+      <span class="tagp">資料 <b>收盤/手動混合</b></span>
+      <span class="tagp">紀錄 <b>只存在本機</b></span>
     </div>
   </div>
 </header>
 
-<div class="wrap">
-
-  <h2>進場綠燈判讀 <em>ENTRY GREEN-LIGHT</em></h2>
-  <p class="hint">把宏觀、AI 族群、毛利率與降息機率拆成四個燈號。只有條件都轉綠才啟動第一筆；遇到紅燈堆疊就先保留現金。</p>
-  <div class="verdict">
-    <span class="vlight" id="verdictLight"></span>
-    <div class="vtext"><div class="vt" id="verdictTitle">等待判讀</div><div class="vd" id="verdictDesc">更新資料或調整手動條件後自動結論</div></div>
-    <button class="btn" id="refresh" style="margin-left:auto" type="button">更新行情/殖利率</button>
-  </div>
-  <div id="conds"></div>
-  <div class="stamp" id="stamp" style="margin-top:8px">尚未更新</div>
-
-  <h2>核心 / 衛星 / 現金配置 <em>ALLOCATION</em></h2>
-  <p class="hint">核心倉先吃結構成長與可預期現金流；衛星倉只在綠燈更完整時分批；現金是波動與估值重置時的選擇權。</p>
-  <div id="buckets"></div>
-
-  <h2>多維度評分表 <em>SCORECARD</em></h2>
-  <p class="hint">評分為既有定性判斷，保留不改；收盤價使用 Worker、TWSE 直接來源、同源靜態 feed 或本機快取，並誠實標示資料狀態。</p>
-  <div class="table-scroll">
-    <table id="scoreTable">
-      <thead><tr>
-        <th>股票</th><th>估值</th><th>獲利韌性</th><th>AI 槓桿</th><th>財務體質</th><th>週期風險</th><th>長抱適配</th>
-        <th>參考 PE</th><th>收盤</th><th>vs 基準</th>
-      </tr></thead>
-      <tbody id="scoreBody"></tbody>
-    </table>
-  </div>
-
-  <h2>分批建倉紀錄 <em>TRANCHES</em></h2>
-  <p class="hint">把「想買」拆成可以回頭檢查的分批紀錄。紀錄只存在瀏覽器 localStorage，不上傳、不含任何交易密碼或個資。</p>
-  <div class="tranche">
-    <div>計畫筆數
-      <select id="planN" style="width:70px"><option>3</option><option selected>4</option><option>5</option></select>
-      已完成 <b id="doneN" class="mono">0</b> 筆
+<main class="wrap">
+  <section aria-labelledby="decisionHeading">
+    <h2 id="decisionHeading">今日觀察結論 <em>DECISION</em></h2>
+    <p class="hint">先看結論，再看四個燈號。這裡是觀察門檻，不是個人化買賣建議。</p>
+    <div class="decision-card">
+      <div class="decision-top">
+        <span class="vlight" id="verdictLight"></span>
+        <div class="vtext">
+          <div class="vt" id="verdictTitle">等待判讀</div>
+          <div class="vd" id="verdictDesc">更新資料或調整手動條件後，這裡會用白話顯示目前偏暫停、觀察或條件較完整。</div>
+        </div>
+      </div>
+      <div class="decision-actions">
+        <div class="action-box"><b>下一步觀察</b><span id="actionNext">先更新資料，確認四個燈號。</span></div>
+        <div class="action-box"><b>先不要做</b><span id="actionAvoid">不要把收盤或快取資料當成即時訊號。</span></div>
+      </div>
+      <div class="guard-note">本頁不評估你的風險承受度、資金需求、稅務、交易成本或持股集中度。實際操作前請用自己的規則再確認一次。</div>
+      <div class="decision-tools">
+        <button class="btn" id="refresh" type="button">更新收盤資料 / 10Y</button>
+        <div class="stamp" id="stamp">尚未更新</div>
+      </div>
     </div>
-    <div class="prog" id="prog"></div>
-    <div class="logrow">
-      <input type="date" id="tDate" style="width:150px">
-      <input type="text" id="tTarget" placeholder="標的或組合，例如 2330 核心" style="flex:1;min-width:160px">
-      <input type="text" id="tNote" placeholder="備註，例如 價格/條件/原因" style="flex:1;min-width:160px">
-      <button class="btn" id="addT" type="button">加入</button>
+  </section>
+
+  <section aria-labelledby="lightsHeading">
+    <h2 id="lightsHeading">四個燈號檢查 <em>CHECKLIST</em></h2>
+    <p class="hint">紅燈代表風險偏高，黃燈代表還要等確認，綠燈代表該條件比較接近觀察門檻。</p>
+    <div id="conds"></div>
+  </section>
+
+  <section aria-labelledby="allocationHeading">
+    <h2 id="allocationHeading">核心 / 衛星 / 現金 <em>ALLOCATION</em></h2>
+    <p class="hint">先分清楚哪一些是核心觀察、哪一些只是衛星題材，避免一看到題材就把資金全部推上去。</p>
+    <div id="buckets"></div>
+  </section>
+
+  <section aria-labelledby="scoreHeading">
+    <h2 id="scoreHeading">股票觀察清單 <em>SCORECARD</em></h2>
+    <p class="hint">「vs 個人參考基準」不是目標價；它只用來幫你看現在離自己設定的參考點有多遠。</p>
+    <div class="table-scroll">
+      <table id="scoreTable">
+        <thead><tr>
+          <th>股票</th><th>估值</th><th>獲利韌性</th><th>AI 槓桿</th><th>財務體質</th><th>週期風險</th><th>長抱適配</th>
+          <th>參考 PE</th><th>收盤</th><th>vs 個人參考基準</th>
+        </tr></thead>
+        <tbody id="scoreBody"></tbody>
+      </table>
     </div>
-    <div id="tLog"></div>
-  </div>
+    <div id="stockCards" class="stock-cards"></div>
+  </section>
+
+  <section aria-labelledby="trancheHeading">
+    <h2 id="trancheHeading">分批觀察紀錄 <em>LOCAL LOG</em></h2>
+    <p class="hint">這是給自己回頭檢查用的本機紀錄，不會上傳。用「第幾筆」記錄觀察流程，避免事後忘記當時為什麼想動。</p>
+    <div class="tranche">
+      <div>計畫筆數
+        <select id="planN" style="width:70px"><option>3</option><option selected>4</option><option>5</option></select>
+        已記錄 <b id="doneN" class="mono">0</b> 筆
+      </div>
+      <div class="prog" id="prog"></div>
+      <div class="logrow">
+        <input type="date" id="tDate">
+        <select id="tStep"><option value="">第幾筆</option><option>第 1 筆</option><option>第 2 筆</option><option>第 3 筆</option><option>第 4 筆</option><option>第 5 筆</option></select>
+        <input type="text" id="tTarget" placeholder="標的或組合，例如 2330 核心">
+        <input type="text" id="tPrice" placeholder="觀察價格/比例">
+        <input type="text" id="tNote" placeholder="原因，例如 燈號/估值/風險">
+        <button class="btn" id="addT" type="button">記錄觀察</button>
+      </div>
+      <div id="tLog"></div>
+    </div>
+  </section>
 
   <footer>
-    本頁是決策輔助，不是投資建議。資料標籤會區分 <b>Worker、TWSE EOD、靜態備援、本機快取、手動覆寫</b>；
-    延遲或收盤資料不會標為即時。後端沿用既有 Worker endpoints：/eod、/quote、/filings、/yield10y、/health。
+    本頁是決策輔助，不是投資建議。資料標籤會區分 <b>Worker、TWSE 收盤資料、靜態備援、本機快取、手動覆寫</b>；
+    延遲、收盤、靜態或快取資料不會標為即時。後端沿用既有 Worker endpoints：/eod、/quote、/filings、/yield10y、/health。
   </footer>
-</div>
+</main>
 
 <script>
 (function(){
@@ -169,37 +224,40 @@ const STATIC_STOCK_FEED_URL = "data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
 
 const STOCKS = [
-  {code:"2330",name:"台積電",tier:"core",role:"核心製程與先進封裝，AI 供應鏈底座",pe:"~25",base:2385,s:["m","h","h","m","h","h"]},
-  {code:"2317",name:"鴻海",tier:"core",role:"AI 伺服器與整機平台，權重放在核心但分批",pe:"中",base:289,s:["m","mh","mh","m","m","h"]},
-  {code:"6669",name:"緯穎",tier:"sat",role:"高 beta AI 伺服器 ODM，估值與循環要控管",pe:"~18",base:5520,s:["h","m","h","h","m","m"]},
-  {code:"3017",name:"奇鋐",tier:"sat",role:"散熱主線，GB/AI 平台拉動但波動較高",pe:"~27",base:2640,s:["m","m","h","h","m","m"]},
-  {code:"3324",name:"雙鴻",tier:"sat",role:"散熱衛星，B300/高階平台題材但位置較敏感",pe:"~44",base:1280,s:["ml","m","m","h","m","m"]},
-  {code:"2382",name:"廣達",tier:"sat",role:"AI 伺服器 ODM 與雲端客戶，作為中段衛星",pe:"中",base:339,s:["m","m","mh","mh","m","mh"]},
-  {code:"1519",name:"華城",tier:"wait",role:"電力建設長線，但估值與籌碼需等冷卻",pe:"~64",base:935,s:["l","l","h","h","h","m"]},
-  {code:"2308",name:"台達電",tier:"wait",role:"電源/散熱/電動化品質高，等待估值回到可分批區",pe:"~85",base:2300,s:["l","l","h","h","mh","mh"]},
+  {code:"2330",name:"台積電",tier:"core",role:"先進製程與封裝，是 AI 供應鏈核心底座。",pe:"~25",base:2385,s:["m","h","h","m","h","h"]},
+  {code:"2317",name:"鴻海",tier:"core",role:"AI 伺服器與整機平台，適合作為核心觀察。",pe:"中",base:289,s:["m","mh","mh","m","m","h"]},
+  {code:"6669",name:"緯穎",tier:"sat",role:"高 beta AI 伺服器 ODM，估值與波動都要控管。",pe:"~18",base:5520,s:["h","m","h","h","m","m"]},
+  {code:"3017",name:"奇鋐",tier:"sat",role:"散熱主線，受 AI 平台拉動但波動較高。",pe:"~27",base:2640,s:["m","m","h","h","m","m"]},
+  {code:"3324",name:"雙鴻",tier:"sat",role:"散熱衛星，題材明確但觀察位置更敏感。",pe:"~44",base:1280,s:["ml","m","m","h","m","m"]},
+  {code:"2382",name:"廣達",tier:"sat",role:"AI 伺服器 ODM 與雲端客戶，中段衛星觀察。",pe:"中",base:339,s:["m","m","mh","mh","m","mh"]},
+  {code:"1519",name:"華城",tier:"wait",role:"電力建設長線，但估值與籌碼需等冷卻。",pe:"~64",base:935,s:["l","l","h","h","h","m"]},
+  {code:"2308",name:"台達電",tier:"wait",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。",pe:"~85",base:2300,s:["l","l","h","h","mh","mh"]},
 ];
 
 const TIERS = {
-  core:{name:"核心",role:"先建立、少量多次、只在紅燈時暫停",cls:"core"},
-  sat:{name:"衛星",role:"條件改善後才補，嚴控單筆權重",cls:"sat"},
-  wait:{name:"衛星 · 等估值或籌碼冷卻",role:"不是否定公司，是等待更好的風險報酬",cls:"wait"},
+  core:{name:"核心觀察",role:"條件不差時先看這一層，重點是穩定與長期結構。",cls:"core"},
+  sat:{name:"衛星觀察",role:"題材彈性大，但只適合在條件更完整時小比例觀察。",cls:"sat"},
+  wait:{name:"等待冷卻",role:"不是否定公司，是等估值、籌碼或風險報酬更清楚。",cls:"wait"},
 };
 
 const SCLS = {h:"s-h",mh:"s-h",m:"s-m",ml:"s-l",l:"s-l"};
+const RISK_SCLS = {h:"risk-h",mh:"risk-h",m:"risk-m",ml:"risk-l",l:"risk-l"};
 const STXT = {h:"高",mh:"中高",m:"中",ml:"中低",l:"低"};
+const SCORE_LABELS = ["估值","獲利韌性","AI 槓桿","財務體質","週期風險","長抱適配"];
 
 const CONDS = [
-  {id:"sox", t:"半導體 / AI 族群風險偏好", d:"手動：SOX、NVDA、AI 伺服器族群是否止跌或轉強。", kind:"sel",
+  {id:"sox", t:"半導體 / AI 族群氣氛", d:"手動：SOX、NVDA、AI 伺服器族群是否止跌或轉強。", kind:"sel",
    opts:[["g","轉強"],["a","震盪"],["r","轉弱"]], val:"r"},
-  {id:"margin", t:"台股融資與追價壓力", d:"手動：若融資快速升溫、熱門股追價失控，保守看待。", kind:"sel",
+  {id:"margin", t:"台股融資與追價壓力", d:"手動：若融資快速升溫、熱門股追價失控，先保守看待。", kind:"sel",
    opts:[["g","降溫"],["a","中性"],["r","過熱"]], val:"r"},
-  {id:"yield", t:"美債 10Y 殖利率不再惡化", d:"<4.5 綠 · 4.5-4.7 黃 · >4.7 紅；Worker 或靜態 feed 可自動帶入。", kind:"num", unit:"%", val:4.5,
+  {id:"yield", t:"美債 10Y 殖利率壓力", d:"<4.5 綠 · 4.5-4.7 黃 · >4.7 紅；可由 Worker 或靜態 feed 帶入，也可手動覆寫。", kind:"num", unit:"%", val:4.5,
    rule:function(v){return isNaN(v) ? "a" : (v > 4.7 ? "r" : (v >= 4.5 ? "a" : "g"));}, auto:true},
-  {id:"fed", t:"FedWatch 降息機率回升", d:"手動：<25 綠 · 25-50 黃 · >=50 紅，用來捕捉市場對緊縮的擔憂。", kind:"num", unit:"%", val:43,
+  {id:"fed", t:"降息預期是否反映市場壓力", d:"手動：<25 綠 · 25-50 黃 · >=50 紅。高機率可能代表市場正在交易壓力情境。", kind:"num", unit:"%", val:43,
    rule:function(v){return isNaN(v) ? "a" : (v >= 50 ? "r" : (v >= 25 ? "a" : "g"));}},
 ];
 
 const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
+const TONE_WORD = {g:"綠燈",a:"黃燈",r:"紅燈"};
 const STOCK_CODES = STOCKS.map(function(stock){return stock.code;});
 const EOD_CACHE_KEY = LS + ":eod:" + STOCK_CODES.join(",");
 const MAX_TRANCHE_TEXT = 120;
@@ -214,7 +272,7 @@ function storage(){
 }
 
 function defaultState(){
-  return {cond:{},condSource:{},base:{},today:{},tranches:[],planN:4,yieldManual:false};
+  return {cond:{},condSource:{},base:{},today:{},tranches:[],planN:4,yieldManual:false,eodMeta:null,yieldMeta:null};
 }
 
 function clampText(value, max){
@@ -235,7 +293,7 @@ function sanitizeState(raw){
 
   if (raw.condSource && typeof raw.condSource === "object") {
     for (const cond of CONDS) {
-      if (raw.condSource[cond.id]) next.condSource[cond.id] = clampText(raw.condSource[cond.id], 48);
+      if (raw.condSource[cond.id]) next.condSource[cond.id] = clampText(raw.condSource[cond.id], 80);
     }
   }
 
@@ -258,8 +316,11 @@ function sanitizeState(raw){
     next.tranches = raw.tranches.slice(0, 50).map(function(item){
       return {
         date: clampText(item && item.date, 16),
+        step: clampText(item && item.step, 24),
         target: clampText(item && item.target, MAX_TRANCHE_TEXT),
+        price: clampText(item && (item.price || item.amount), MAX_TRANCHE_TEXT),
         note: clampText(item && item.note, MAX_TRANCHE_TEXT),
+        verdict: clampText(item && item.verdict, MAX_TRANCHE_TEXT),
       };
     }).filter(function(item){return item.target;});
   }
@@ -267,7 +328,18 @@ function sanitizeState(raw){
   const planN = parseInt(raw.planN, 10);
   next.planN = [3,4,5].includes(planN) ? planN : 4;
   next.yieldManual = Boolean(raw.yieldManual);
+  if (raw.eodMeta && typeof raw.eodMeta === "object") next.eodMeta = sanitizeMeta(raw.eodMeta);
+  if (raw.yieldMeta && typeof raw.yieldMeta === "object") next.yieldMeta = sanitizeMeta(raw.yieldMeta);
   return next;
+}
+
+function sanitizeMeta(meta){
+  return {
+    source:clampText(meta && meta.source, 120),
+    delay:clampText(meta && meta.delay, 120),
+    updatedAt:clampText(meta && meta.updatedAt, 48),
+    cache:Boolean(meta && meta.cache),
+  };
 }
 
 function loadState(){
@@ -316,6 +388,13 @@ function fmt(n, digits){
   return Number(n).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:digits == null ? 2 : digits});
 }
 
+function formatDateTime(value){
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+  return date.toLocaleString("zh-TW", {hour12:false});
+}
+
 function field(row, keys){
   for (const key of keys) {
     if (row && row[key] != null && row[key] !== "") return row[key];
@@ -355,13 +434,18 @@ function normalizeYieldPayload(payload){
   };
 }
 
-function proxyBase(){
+function proxyDecision(){
   const params = new URLSearchParams(window.location.search || "");
   const defaultProxy = window.location.hostname === "blackjw1212.github.io" ? DEFAULT_PROXY_BASE : "";
   const raw = window.PROXY_BASE || window.TW_STOCK_PROXY_BASE || params.get("proxy") || "";
-  if (!raw) return defaultProxy;
+  if (!raw) return {base:defaultProxy,rejected:false};
   const normalized = String(raw).trim().replace(/\/+$/, "");
-  return ALLOWED_PROXIES.has(normalized) ? normalized : defaultProxy;
+  if (ALLOWED_PROXIES.has(normalized)) return {base:normalized,rejected:false};
+  return {base:defaultProxy,rejected:true};
+}
+
+function proxyBase(){
+  return proxyDecision().base;
 }
 
 async function fetchJson(url){
@@ -437,23 +521,24 @@ function applyEod(result){
   }
   if (!Object.keys(byCode).length) throw new Error("EOD result has no tracked stocks");
   state.today = Object.assign({}, state.today, byCode);
+  state.eodMeta = sanitizeMeta(result);
   saveState();
   if (!result.cache) saveEodCache(result);
   renderScore();
 }
 
 async function loadEod(){
-  const base = proxyBase();
+  const decision = proxyDecision();
   const attempts = [];
-  if (base) {
+  if (decision.base) {
     attempts.push(async function(){
-      const result = await fetchJson(base + "/eod");
+      const result = await fetchJson(decision.base + "/eod");
       const rows = normalizeEodPayload(result.data);
       if (!rows.length) throw new Error("Proxy EOD returned no rows");
       return {
         rows:rows,
         source:result.headers.get("X-Data-Source") || "Worker /eod",
-        delay:result.headers.get("X-Data-Delay") || "收盤行情資料",
+        delay:result.headers.get("X-Data-Delay") || "收盤資料",
         updatedAt:result.headers.get("X-Data-Updated-At") || new Date().toISOString(),
       };
     });
@@ -462,13 +547,13 @@ async function loadEod(){
     const result = await fetchJson(DIRECT_TWSE_EOD);
     const rows = normalizeEodPayload(result.data);
     if (!rows.length) throw new Error("TWSE EOD returned no rows");
-    return {rows:rows,source:"TWSE OpenAPI STOCK_DAY_ALL",delay:"官方收盤 EOD 資料",updatedAt:new Date().toISOString()};
+    return {rows:rows,source:"TWSE OpenAPI STOCK_DAY_ALL",delay:"官方收盤資料",updatedAt:new Date().toISOString()};
   });
   attempts.push(async function(){
     const feed = await loadStaticFeed();
     const rows = normalizeEodPayload(feed && (feed.eod || feed.eodRows || feed));
     if (!rows.length) throw new Error("Static feed has no EOD rows");
-    return {rows:rows,source:"GitHub Pages 靜態 stock-risk-feed.json",delay:"同源靜態備援 EOD",updatedAt:(feed && (feed.eodUpdatedAt || feed.updatedAt)) || ""};
+    return {rows:rows,source:"GitHub Pages 靜態 stock-risk-feed.json",delay:"同源靜態備援收盤資料",updatedAt:(feed && (feed.eodUpdatedAt || feed.updatedAt)) || ""};
   });
   attempts.push(async function(){return loadEodCache();});
 
@@ -477,13 +562,14 @@ async function loadEod(){
     try {
       const result = await attempt();
       applyEod(result);
-      return (result.cache ? "收盤價：本機快取" : "收盤價：" + result.source) + "（" + result.delay + "）";
+      const prefix = decision.rejected ? "未允許的 proxy 已忽略；" : "";
+      return prefix + (result.cache ? "收盤資料：本機快取" : "收盤資料：" + result.source) + "（" + result.delay + "）";
     } catch (error) {
       errors.push(error.message);
     }
   }
   renderScore();
-  return "收盤價未更新，保留既有畫面；失敗來源 " + errors.length + " 個";
+  return "收盤資料未更新，保留既有畫面；失敗來源 " + errors.length + " 個";
 }
 
 function setConditionSource(id, label){
@@ -503,30 +589,33 @@ async function loadYield10y(){
     attempts.push(async function(){
       const result = await fetchJson(base + "/yield10y");
       const normalized = normalizeYieldPayload(result.data);
-      return {value:normalized.value,label:"Worker /yield10y"};
+      return {value:normalized.value,label:"Worker /yield10y",meta:normalized};
     });
   }
   attempts.push(async function(){
     const feed = await loadStaticFeed();
     const normalized = normalizeYieldPayload(feed);
-    return {value:normalized.value,label:"靜態 feed"};
+    return {value:normalized.value,label:"靜態 feed",meta:normalized};
   });
 
-  const errors = [];
   for (const attempt of attempts) {
     try {
       const result = await attempt();
       state.cond.yield = result.value;
       state.yieldManual = false;
-      setConditionSource("yield", result.label);
+      state.yieldMeta = sanitizeMeta({
+        source:result.meta.source || result.label,
+        delay:result.meta.date ? "資料日 " + result.meta.date : result.label,
+        updatedAt:result.meta.updatedAt || result.meta.date || "",
+      });
+      const sourceLabel = result.label + (result.meta.date ? " / " + result.meta.date : "");
+      setConditionSource("yield", sourceLabel);
       saveState();
       const input = $("c_yield");
       if (input) input.value = result.value;
       paint();
-      return "10Y：" + fmt(result.value, 3) + "% " + result.label;
-    } catch (error) {
-      errors.push(error.message);
-    }
+      return "10Y：" + fmt(result.value, 3) + "% " + sourceLabel;
+    } catch (error) {}
   }
   setConditionSource("yield", "手動/未取得");
   saveState();
@@ -550,12 +639,30 @@ function aggregateVerdict(colors){
   const counts = {g:0,a:0,r:0};
   colors.forEach(function(color){if (counts[color] != null) counts[color] += 1;});
   if (counts.r >= 2 || (counts.r >= 1 && counts.g === 0)) {
-    return {tone:"r",title:"先守現金 · 暫停新倉",desc:"紅燈堆疊或沒有任何綠燈，代表風險報酬還不夠好。"};
+    return {
+      tone:"r",
+      title:"先暫停，保留現金",
+      desc:"紅燈堆疊或沒有任何綠燈，代表風險報酬還不夠清楚。",
+      next:"等紅燈降到 1 個以下，並至少出現 1 個綠燈再觀察。",
+      avoid:"不要追熱門衛星股，也不要把快取資料當成即時訊號。",
+    };
   }
   if (counts.g === colors.length) {
-    return {tone:"g",title:"可啟動第一筆",desc:"四項條件同時轉綠，適合小額啟動第一個 tranche。"};
+    return {
+      tone:"g",
+      title:"條件符合觀察門檻",
+      desc:"四項條件同時轉綠，代表環境相對完整，但仍不是個人化觀察點。",
+      next:"若你原本就採分批策略，可記錄第 1 筆核心觀察。",
+      avoid:"不要一次用完資金，也不要忽略個人風險承受度。",
+    };
   }
-  return {tone:"a",title:"小核心觀察",desc:"條件尚未完整，只適合低權重核心倉或等待下一次確認。"};
+  return {
+    tone:"a",
+    title:"只做核心小筆觀察",
+    desc:"條件還沒完整，適合先看核心名單與風險，不急著擴大衛星部位。",
+    next:"優先觀察核心股，等手動燈號或 10Y 壓力更明確。",
+      avoid:"不要把黃燈解讀成全面放大部位，也不要擴大高波動衛星。",
+  };
 }
 
 function renderConds(){
@@ -563,18 +670,20 @@ function renderConds(){
   box.innerHTML = "";
   CONDS.forEach(function(c){
     const cur = condValue(c);
+    const color = condColor(c);
     let ctrl = "";
     if (c.kind === "num") {
-      ctrl = '<input type="number" step="0.01" id="c_' + c.id + '" value="' + escapeHtml(cur) + '" style="width:84px"><span style="color:var(--soft);font-size:13px">' + c.unit + '</span>';
+      ctrl = '<input type="number" step="0.01" id="c_' + c.id + '" value="' + escapeHtml(cur) + '" style="width:92px"><span style="color:var(--soft);font-size:13px">' + c.unit + '</span>';
     } else {
       ctrl = '<select id="c_' + c.id + '">' + c.opts.map(function(o){
         return '<option value="' + o[0] + '" ' + (o[0] === cur ? "selected" : "") + '>' + escapeHtml(o[1]) + '</option>';
       }).join("") + '</select>';
     }
     const label = c.auto ? (state.condSource[c.id] || "可自動") : "手動";
+    const sourceClass = c.auto ? "auto" : "manual";
     const row = document.createElement("div");
     row.className = "cond";
-    row.innerHTML = '<span class="dot" id="cd_' + c.id + '"></span><div class="lbl"><div class="t">' + escapeHtml(c.t) + ' <span class="auto" id="src_' + c.id + '">' + escapeHtml(label) + '</span></div><div class="d">' + escapeHtml(c.d) + '</div></div>' + ctrl;
+    row.innerHTML = '<span class="dot" id="cd_' + c.id + '"></span><div class="lbl"><div class="t">' + escapeHtml(c.t) + ' <span class="state-word ' + color + '" id="cw_' + c.id + '">' + TONE_WORD[color] + '</span></div><div class="d">' + escapeHtml(c.d) + '</div><div class="source-row"><span class="pill-label ' + sourceClass + '" id="src_' + c.id + '">' + escapeHtml(label) + '</span></div></div><div class="ctrl">' + ctrl + '</div>';
     box.appendChild(row);
     const input = $("c_" + c.id);
     input.addEventListener(c.kind === "num" ? "input" : "change", function(){
@@ -594,12 +703,19 @@ function paint(){
   const colors = CONDS.map(condColor);
   CONDS.forEach(function(c, index){
     const dot = $("cd_" + c.id);
+    const word = $("cw_" + c.id);
     if (dot) dot.style.background = COLORS[colors[index]];
+    if (word) {
+      word.className = "state-word " + colors[index];
+      word.textContent = TONE_WORD[colors[index]];
+    }
   });
   const verdict = aggregateVerdict(colors);
   $("verdictLight").style.background = COLORS[verdict.tone];
   $("verdictTitle").textContent = verdict.title;
   $("verdictDesc").textContent = verdict.desc;
+  $("actionNext").textContent = verdict.next;
+  $("actionAvoid").textContent = verdict.avoid;
 }
 
 function renderBuckets(){
@@ -619,32 +735,57 @@ function renderBuckets(){
   const cash = document.createElement("div");
   cash.className = "bucket";
   cash.innerHTML = '<div class="bh"><span class="name">現金</span><span class="role">保留再平衡與估值重置時的彈性</span><span class="tier cash">CASH</span></div>'
-    + '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line);color:var(--soft)">建議把總資金拆成 3-5 筆，紅燈時停手，黃燈只做核心小筆，綠燈才進入完整分批。</div>';
+    + '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line);color:var(--soft)">若採分批策略，可考慮拆成 3-5 筆；紅燈偏暫停，黃燈偏觀察，綠燈再檢查自己的資金規則。</div>';
   box.appendChild(cash);
+}
+
+function dataLabel(){
+  const meta = state.eodMeta;
+  if (!meta) return "收盤資料待更新";
+  const when = formatDateTime(meta.updatedAt);
+  return (meta.cache ? "本機快取" : meta.source || "收盤資料") + (when ? " / " + when : "");
+}
+
+function scoreClass(value, index){
+  return index === 4 ? RISK_SCLS[value] : SCLS[value];
 }
 
 function renderScore(){
   const tbody = $("scoreBody");
+  const cards = $("stockCards");
   tbody.innerHTML = "";
+  cards.innerHTML = "";
   STOCKS.forEach(function(stock){
     const base = stock.code in state.base ? state.base[stock.code] : stock.base;
     const today = state.today[stock.code] || {};
     const close = today.close;
-    let vs = '<span class="stale">待更新</span>';
+    let vsText = "待更新";
+    let vsHtml = '<span class="stale">待更新</span>';
     if (close != null && base) {
       const pct = (close - base) / base * 100;
-      vs = '<span class="' + (pct > 0 ? "pos" : (pct < 0 ? "neg" : "flat")) + '">' + (pct > 0 ? "+" : "") + fmt(roundNumber(pct, 1), 1) + '%</span>';
+      vsText = (pct > 0 ? "+" : "") + fmt(roundNumber(pct, 1), 1) + "%";
+      vsHtml = '<span class="' + (pct > 0 ? "pos" : (pct < 0 ? "neg" : "flat")) + '">' + vsText + '</span>';
     }
-    const scoreCells = stock.s.map(function(value){
-      return '<td><span class="sc ' + SCLS[value] + '">' + STXT[value] + '</span></td>';
+    const scoreCells = stock.s.map(function(value, index){
+      return '<td><span class="sc ' + scoreClass(value, index) + '">' + STXT[value] + '</span></td>';
     }).join("");
     const tr = document.createElement("tr");
     tr.innerHTML = '<td><span class="code">' + stock.code + '</span> <span class="nm">' + escapeHtml(stock.name) + '</span></td>'
       + scoreCells
       + '<td style="color:var(--soft)">' + escapeHtml(stock.pe) + '</td>'
-      + '<td class="px">' + (close != null ? fmt(close, 2) : '<span class="stale">EOD 待更新</span>') + '</td>'
-      + '<td>' + vs + '</td>';
+      + '<td class="px">' + (close != null ? fmt(close, 2) : '<span class="stale">收盤待更新</span>') + '<div class="data-line">' + escapeHtml(dataLabel()) + '</div></td>'
+      + '<td>' + vsHtml + '</td>';
     tbody.appendChild(tr);
+
+    const card = document.createElement("div");
+    card.className = "stock-card";
+    const scoreStrip = stock.s.map(function(value, index){
+      return '<span class="sc ' + scoreClass(value, index) + '">' + escapeHtml(SCORE_LABELS[index]) + ' ' + STXT[value] + '</span>';
+    }).join("");
+    card.innerHTML = '<div class="stock-card-head"><div><span class="code">' + stock.code + '</span> <span class="stock-main">' + escapeHtml(stock.name) + '</span></div><span class="tier ' + TIERS[stock.tier].cls + '">' + stock.tier.toUpperCase() + '</span></div>'
+      + '<div class="stock-meta"><div><b>收盤</b>' + (close != null ? fmt(close, 2) : '待更新') + '</div><div><b>vs 個人參考基準</b>' + escapeHtml(vsText) + '</div><div><b>參考 PE</b>' + escapeHtml(stock.pe) + '</div><div><b>定位</b>' + escapeHtml(TIERS[stock.tier].name) + '</div></div>'
+      + '<div class="score-strip">' + scoreStrip + '</div><div class="data-line">' + escapeHtml(stock.role) + '</div><div class="data-line">' + escapeHtml(dataLabel()) + '</div>';
+    cards.appendChild(card);
   });
 }
 
@@ -663,9 +804,10 @@ function renderTranches(){
   const log = $("tLog");
   log.innerHTML = "";
   state.tranches.forEach(function(item, index){
+    const parts = [item.step, item.target, item.price, item.note, item.verdict].filter(Boolean).map(escapeHtml).join(" · ");
     const div = document.createElement("div");
     div.className = "logitem";
-    div.innerHTML = '<b>' + escapeHtml(item.date || "—") + '</b> · ' + escapeHtml(item.target || "—") + ' · <span style="color:var(--faint)">' + escapeHtml(item.note || "") + '</span> <a href="#" data-i="' + index + '" class="del" style="color:var(--red)">刪</a>';
+    div.innerHTML = '<b>' + escapeHtml(item.date || "—") + '</b> · ' + (parts || "—") + ' <a href="#" data-i="' + index + '" class="del" style="color:var(--red)">刪</a>';
     log.appendChild(div);
   });
   Array.prototype.forEach.call(log.querySelectorAll(".del"), function(link){
@@ -704,12 +846,18 @@ async function init(){
   $("addT").addEventListener("click", function(){
     const target = clampText($("tTarget").value.trim(), MAX_TRANCHE_TEXT);
     if (!target) return;
+    const colors = CONDS.map(condColor);
+    const verdict = aggregateVerdict(colors);
     state.tranches.push({
       date: clampText($("tDate").value, 16),
+      step: clampText($("tStep").value, 24),
       target: target,
+      price: clampText($("tPrice").value.trim(), MAX_TRANCHE_TEXT),
       note: clampText($("tNote").value.trim(), MAX_TRANCHE_TEXT),
+      verdict: verdict.title,
     });
     $("tTarget").value = "";
+    $("tPrice").value = "";
     $("tNote").value = "";
     saveState();
     renderTranches();
