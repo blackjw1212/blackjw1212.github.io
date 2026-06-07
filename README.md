@@ -27,11 +27,12 @@ The page reads the backend URL from either:
 - `window.PROXY_BASE`
 - `window.TW_STOCK_PROXY_BASE`
 - `?proxy=https://your-worker.example.workers.dev`
+- the production default `https://taiwan-risk-tracker-proxy.a0926043323.workers.dev` when opened on `https://blackjw1212.github.io/`
 
 Example:
 
 ```text
-index.html?proxy=https://taiwan-risk-tracker-proxy.<account>.workers.dev
+index.html?proxy=https://taiwan-risk-tracker-proxy.a0926043323.workers.dev
 ```
 
 If no backend is configured, the page enters static-data mode. The stock table still attempts the direct TWSE end-of-day OpenAPI fallback, material announcements first try TWSE/TPEx OpenAPI and then fall back to `data/stock-risk-feed.json`, and the 10Y yield uses the same same-origin static feed when the Worker is unavailable. Intraday quotes remain disabled without the backend proxy because they require a Worker-side TWSE MIS request.
@@ -41,15 +42,15 @@ If no backend is configured, the page enters static-data mode. The stock table s
 - `GET /eod` returns normalized TWSE end-of-day rows: `[{ code, name, close, change }]`.
 - `GET /quote?codes=2330,2308` returns TWSE MIS public quote rows plus source and delay metadata.
 - `GET /filings?code=2330` returns latest normalized MOPS material announcements as an optional legacy fallback: `[{ date, title, url }]`.
-- `GET /yield10y` returns the latest numeric FRED DGS10 observation.
+- `GET /yield10y` returns the latest numeric 10Y yield, using FRED DGS10 first when configured and the US Treasury Daily Treasury Yield Curve fallback otherwise.
 - `GET /health` returns a simple service health payload.
 
 ### Backend Environment
 
-- `FRED_API_KEY` is required for `/yield10y`.
+- `FRED_API_KEY` is optional for `/yield10y`. When it is present, the Worker uses FRED DGS10 first; otherwise it uses the US Treasury Daily Treasury Yield Curve fallback.
 - `ALLOWED_ORIGINS` is optional. It defaults to `https://blackjw1212.github.io` in `backend/wrangler.toml`; use `*` for a public demo, or a comma-separated allowlist such as `https://blackjw1212.github.io,https://your-preview.example`.
 
-Set the FRED key as a Worker secret:
+Optionally set the FRED key as a Worker secret:
 
 ```bash
 cd backend
@@ -58,7 +59,7 @@ npx wrangler secret put FRED_API_KEY
 npx wrangler deploy
 ```
 
-For production, set `ALLOWED_ORIGINS` in `backend/wrangler.toml` or with Cloudflare environment variables before deploying. Do not store `FRED_API_KEY` in `wrangler.toml`; keep it as a secret.
+For production, set `ALLOWED_ORIGINS` in `backend/wrangler.toml` or with Cloudflare environment variables before deploying. Do not store `FRED_API_KEY` in `wrangler.toml`; keep it as a secret if you choose to use FRED.
 
 ### GitHub Actions Worker Deploy
 
@@ -66,28 +67,29 @@ For production, set `ALLOWED_ORIGINS` in `backend/wrangler.toml` or with Cloudfl
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
-- `FRED_API_KEY`
+
+`FRED_API_KEY` is optional. If it is missing, the deployed Worker still serves `/yield10y` from the US Treasury fallback.
 
 After the Worker deploys, open the page with the Worker URL:
 
 ```text
-https://blackjw1212.github.io/?proxy=https://taiwan-risk-tracker-proxy.<account>.workers.dev
+https://blackjw1212.github.io/?proxy=https://taiwan-risk-tracker-proxy.a0926043323.workers.dev
 ```
 
-Or set `window.TW_STOCK_PROXY_BASE` before the tracker script if you want the page to use the Worker without a query string.
+The production page also uses this Worker automatically when opened at `https://blackjw1212.github.io/`. You can still use the query string or `window.TW_STOCK_PROXY_BASE` to override it for previews.
 
 ### Post-Deploy Check
 
 After deploy, verify the Worker and connect the static frontend:
 
 ```bash
-curl https://taiwan-risk-tracker-proxy.<account>.workers.dev/health
+curl https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/health
 ```
 
 Then open:
 
 ```text
-index.html?proxy=https://taiwan-risk-tracker-proxy.<account>.workers.dev
+index.html?proxy=https://taiwan-risk-tracker-proxy.a0926043323.workers.dev
 ```
 
 ### Stock Tracker Tests

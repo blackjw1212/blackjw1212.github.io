@@ -18,9 +18,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] && [ -n "$FRED_API_KEY" ]; then
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
@@ -40,8 +39,21 @@ jobs:
         run: |
           npx --yes wrangler@latest deploy
 
-      - name: Set FRED secret
+      - name: Check optional FRED secret
         if: steps.secrets.outputs.ready == 'true'
+        id: fred
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          if [ -n "$FRED_API_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::FRED_API_KEY is not configured; Worker will use the US Treasury 10Y fallback."
+          fi
+
+      - name: Set FRED secret
+        if: steps.secrets.outputs.ready == 'true' && steps.fred.outputs.configured == 'true'
         working-directory: backend
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -50,7 +62,7 @@ jobs:
         run: |
           printf '%s' "$FRED_API_KEY" | npx --yes wrangler@latest secret put FRED_API_KEY
 
-      - name: Deploy Worker with secret
+      - name: Deploy Worker final version
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
         env:

@@ -561,6 +561,7 @@ tbody tr:hover {
   const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
   const DIRECT_TWSE_FILINGS = "https://openapi.twse.com.tw/v1/opendata/t187ap04_L";
   const DIRECT_TPEX_FILINGS = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O";
+  const DEFAULT_PROXY_BASE = "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev";
   const STATIC_STOCK_FEED_URL = "data/stock-risk-feed.json";
   const FILINGS_CACHE_KEY = "bjkw_stock_filings_v1";
   const FILINGS_CACHE_SOFT_MS = 60 * 60 * 1000;
@@ -623,7 +624,8 @@ tbody tr:hover {
 
   function proxyBase() {
     const params = new URLSearchParams(window.location.search || "");
-    const raw = window.PROXY_BASE || window.TW_STOCK_PROXY_BASE || params.get("proxy") || "";
+    const defaultProxy = window.location.hostname === "blackjw1212.github.io" ? DEFAULT_PROXY_BASE : "";
+    const raw = window.PROXY_BASE || window.TW_STOCK_PROXY_BASE || params.get("proxy") || defaultProxy;
     return String(raw).trim().replace(/\/+$/, "");
   }
 

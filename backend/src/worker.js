@@ -10,6 +10,7 @@ const ENDPOINTS = {
   fred: "https://api.stlouisfed.org/fred/series/observations",
   mops: "https://mops.twse.com.tw/mops/web/ajax_t05st01",
   quote: "https://mis.twse.com.tw/stock/api/getStockInfo.jsp",
+  treasuryYieldCurve: "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml",
 };
 
 const CACHE_TTL = {
@@ -22,6 +23,7 @@ const CACHE_TTL = {
 const BODY_LIMITS = {
   json: 2_000_000,
   mopsHtml: 1_000_000,
+  xml: 1_000_000,
 };
 
 export default {
@@ -383,16 +385,20 @@ async function loadFilings(code) {
 }
 
 async function loadYield10y(env) {
-  if (!env.FRED_API_KEY) {
-    const error = new Error("FRED_API_KEY is not configured");
-    error.status = 500;
-    error.publicMessage = "Yield source is not configured";
-    throw error;
+  if (env.FRED_API_KEY) {
+    try {
+      return await loadFredYield10y(env.FRED_API_KEY);
+    } catch (error) {
+      console.warn("FRED DGS10 unavailable; falling back to US Treasury yield curve");
+    }
   }
+  return await loadTreasuryYield10y();
+}
 
+async function loadFredYield10y(apiKey) {
   const url = new URL(ENDPOINTS.fred);
   url.searchParams.set("series_id", "DGS10");
-  url.searchParams.set("api_key", env.FRED_API_KEY);
+  url.searchParams.set("api_key", apiKey);
   url.searchParams.set("file_type", "json");
   url.searchParams.set("sort_order", "desc");
   url.searchParams.set("limit", "10");
@@ -411,4 +417,69 @@ async function loadYield10y(env) {
       updatedAt,
     },
   };
+}
+
+function treasuryYieldCurveUrl(monthDate) {
+  const year = monthDate.getUTCFullYear();
+  const month = String(monthDate.getUTCMonth() + 1).padStart(2, "0");
+  const url = new URL(ENDPOINTS.treasuryYieldCurve);
+  url.searchParams.set("data", "daily_treasury_yield_curve");
+  url.searchParams.set("field_tdr_date_value_month", `${year}${month}`);
+  return url.href;
+}
+
+function parseTreasuryYield10y(xml) {
+  const entries = [...String(xml || "").matchAll(/<m:properties>([\s\S]*?)<\/m:properties>/g)];
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const body = entries[index][1];
+    const dateMatch = body.match(/<d:NEW_DATE[^>]*>([^<]+)<\/d:NEW_DATE>/);
+    const valueMatch = body.match(/<d:BC_10YEAR[^>]*>([^<]+)<\/d:BC_10YEAR>/);
+    if (!dateMatch || !valueMatch) continue;
+    const value = Number(valueMatch[1]);
+    if (Number.isFinite(value)) {
+      const date = dateMatch[1].slice(0, 10);
+      return {
+        date,
+        value: Math.round((value + Number.EPSILON) * 1000) / 1000,
+        units: "percent",
+      };
+    }
+  }
+  throw new Error("No numeric Treasury 10Y observation found");
+}
+
+async function loadTreasuryYield10y() {
+  const now = new Date();
+  const months = [
+    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)),
+  ];
+  let lastError;
+  for (const month of months) {
+    try {
+      const response = await fetchWithRetry(
+        treasuryYieldCurveUrl(month),
+        { headers: { Accept: "application/xml,text/xml,*/*" } },
+        { timeoutMs: 6500, retries: 1 }
+      );
+      if (!response.ok) throw new Error(`US Treasury yield curve returned HTTP ${response.status}`);
+      const xml = await readBodyText(response, "US Treasury yield curve", BODY_LIMITS.xml, 5000);
+      const updatedAt = new Date().toISOString();
+      return {
+        body: {
+          ...parseTreasuryYield10y(xml),
+          source: "US Treasury Daily Treasury Yield Curve",
+          updatedAt,
+        },
+        meta: {
+          source: "US Treasury Daily Treasury Yield Curve",
+          delay: "Daily US Treasury publication cadence",
+          updatedAt,
+        },
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("US Treasury yield curve unavailable");
 }

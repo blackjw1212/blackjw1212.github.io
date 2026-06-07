@@ -165,6 +165,14 @@ function createFetchMock() {
   };
 }
 
+function createTrackingFetchMock(calls) {
+  const baseFetch = createFetchMock();
+  return async function fetchMock(url) {
+    calls.push(String(url));
+    return await baseFetch(url);
+  };
+}
+
 function createDirectEodFetchMock() {
   return async function fetchMock(url) {
     const href = String(url);
@@ -271,7 +279,7 @@ async function loadApp(fetchMock, windowOverrides = {}) {
   const localStorage = windowOverrides.localStorage || createLocalStorage();
   const window = {
     __TW_RISK_SKIP_AUTO_INIT__: true,
-    location: { href: "https://blackjw1212.github.io/", search: "" },
+    location: { href: "https://local.test/", hostname: "local.test", search: "" },
     localStorage,
     ...windowOverrides,
   };
@@ -327,6 +335,45 @@ test("index.html initializes and renders with mocked fetch", async () => {
   assert.equal(context.window.RiskTrackerApp.getState().quotes.size, 0);
   assert.equal(document.getElementById("quoteStatus").className, "chip");
   assert.doesNotMatch(document.getElementById("stockRows").innerHTML, /1,100.00/);
+});
+
+test("index.html reads proxy from query string", async () => {
+  const calls = [];
+  const { context, document } = await loadApp(createTrackingFetchMock(calls), {
+    location: {
+      href: "https://blackjw1212.github.io/?proxy=https%3A%2F%2Fproxy.test%2F",
+      search: "?proxy=https%3A%2F%2Fproxy.test%2F",
+    },
+  });
+
+  assert.equal(context.window.RiskTrackerApp.getState().proxyBase, "https://proxy.test");
+  assert.equal(document.getElementById("proxyBadge").textContent, "盤中/殖利率代理已設定");
+  assert.ok(calls.includes("https://proxy.test/eod"));
+  assert.ok(calls.includes("https://proxy.test/yield10y"));
+
+  document.getElementById("quoteToggle").checked = true;
+  await context.window.RiskTrackerApp.refreshAll();
+  assert.ok(calls.some((href) => href.startsWith("https://proxy.test/quote?codes=")));
+  assert.equal(context.window.RiskTrackerApp.getState().quoteFresh, true);
+});
+
+test("index.html uses deployed Worker by default on GitHub Pages", async () => {
+  const calls = [];
+  const { context, document } = await loadApp(createTrackingFetchMock(calls), {
+    location: {
+      href: "https://blackjw1212.github.io/",
+      hostname: "blackjw1212.github.io",
+      search: "",
+    },
+  });
+
+  assert.equal(
+    context.window.RiskTrackerApp.getState().proxyBase,
+    "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev"
+  );
+  assert.equal(document.getElementById("proxyBadge").textContent, "盤中/殖利率代理已設定");
+  assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/eod"));
+  assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/yield10y"));
 });
 
 test("index.html supports no-backend direct EOD fallback", async () => {

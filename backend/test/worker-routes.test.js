@@ -117,10 +117,124 @@ test("filings route normalizes MOPS HTML", async (t) => {
   ]);
 });
 
-test("yield10y route reports missing secret without exposing internals", async () => {
+const TREASURY_XML = `
+  <feed>
+    <entry>
+      <content type="application/xml">
+        <m:properties>
+          <d:NEW_DATE m:type="Edm.DateTime">2026-06-04T00:00:00</d:NEW_DATE>
+          <d:BC_10YEAR m:type="Edm.Double">4.52</d:BC_10YEAR>
+        </m:properties>
+      </content>
+    </entry>
+    <entry>
+      <content type="application/xml">
+        <m:properties>
+          <d:NEW_DATE m:type="Edm.DateTime">2026-06-05T00:00:00</d:NEW_DATE>
+          <d:BC_10YEAR m:type="Edm.Double">4.55</d:BC_10YEAR>
+        </m:properties>
+      </content>
+    </entry>
+  </feed>
+`;
+
+test("yield10y route uses Treasury fallback when FRED secret is missing", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url) => {
+    assert.match(String(url), /daily_treasury_yield_curve/);
+    return textResponse(TREASURY_XML);
+  });
+
   const response = await handleRequest(new Request("https://worker.test/yield10y"), {});
-  assert.equal(response.status, 500);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("X-Data-Source"), "US Treasury Daily Treasury Yield Curve");
   assert.deepEqual(await readJson(response), {
-    error: "Yield source is not configured",
+    date: "2026-06-05",
+    value: 4.55,
+    units: "percent",
+    source: "US Treasury Daily Treasury Yield Curve",
+    updatedAt: response.headers.get("X-Data-Updated-At"),
+  });
+});
+
+test("yield10y route prefers FRED when configured", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url) => {
+    assert.match(String(url), /api\.stlouisfed\.org/);
+    return jsonResponse({
+      observations: [
+        { date: "2026-06-05", value: "4.123" },
+      ],
+    });
+  });
+
+  const response = await handleRequest(new Request("https://worker.test/yield10y"), {
+    FRED_API_KEY: "test-key",
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("X-Data-Source"), "FRED DGS10");
+  const body = await readJson(response);
+  assert.equal(body.value, 4.123);
+  assert.equal(body.source, "FRED DGS10");
+});
+
+test("yield10y route falls back to Treasury when FRED fails", async (t) => {
+  const urls = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    urls.push(String(url));
+    if (String(url).includes("api.stlouisfed.org")) {
+      return textResponse("unavailable", { status: 504 });
+    }
+    return textResponse(TREASURY_XML);
+  });
+
+  const response = await handleRequest(new Request("https://worker.test/yield10y"), {
+    FRED_API_KEY: "test-key",
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("X-Data-Source"), "US Treasury Daily Treasury Yield Curve");
+  assert.ok(urls.some((url) => url.includes("api.stlouisfed.org")));
+  assert.ok(urls.some((url) => url.includes("daily_treasury_yield_curve")));
+});
+
+test("yield10y route does not treat missing Treasury value as zero", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => textResponse(`
+    <feed>
+      <entry>
+        <content><m:properties>
+          <d:NEW_DATE m:type="Edm.DateTime">2026-06-05T00:00:00</d:NEW_DATE>
+        </m:properties></content>
+      </entry>
+    </feed>
+  `));
+
+  const response = await handleRequest(new Request("https://worker.test/yield10y"), {});
+  assert.equal(response.status, 502);
+  assert.deepEqual(await readJson(response), {
+    error: "Upstream unavailable",
+  });
+});
+
+test("yield10y route tries previous Treasury month when current month has no value", async (t) => {
+  const urls = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    urls.push(String(url));
+    if (urls.length === 1) {
+      return textResponse("<feed></feed>");
+    }
+    return textResponse(TREASURY_XML);
+  });
+
+  const response = await handleRequest(new Request("https://worker.test/yield10y"), {});
+  assert.equal(response.status, 200);
+  assert.equal((await readJson(response)).value, 4.55);
+  assert.equal(urls.length, 2);
+});
+
+test("yield10y route returns safe error when Treasury fallback fails", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => textResponse("unavailable", { status: 503 }));
+
+  const response = await handleRequest(new Request("https://worker.test/yield10y"), {});
+  assert.equal(response.status, 502);
+  assert.deepEqual(await readJson(response), {
+    error: "Upstream unavailable",
   });
 });
