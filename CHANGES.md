@@ -6,6 +6,7 @@
 - Added `backend/test/normalizers.test.js`, `backend/test/worker-routes.test.js`, and `backend/test/frontend-smoke.test.js`.
 - Added `backend/package.json` and `backend/wrangler.toml`.
 - Added `README.md` with backend URL placeholder, env vars, endpoint list, deploy notes, and test command.
+- Added `scripts/update-stock-risk-feed.mjs`, `data/stock-risk-feed.json`, and a GitHub Actions updater so the static site has same-origin material-announcement and 10Y-yield fallback data.
 - Hardened Worker CORS handling, quote-code validation/cache canonicalization, bounded upstream body reads, MOPS URL validation, and public error messages after multi-agent review.
 - Hardened frontend stale-data behavior so failed/disabled intraday quotes do not override EOD prices, proxy EOD failure falls back to direct TWSE, backend-dependent panels distinguish missing backend from empty data, and material announcements can fall back to local last-good cache.
 
@@ -15,7 +16,7 @@
 - TWSE MIS `getStockInfo.jsp` was used for `/quote` because it provides poll-friendly public quote snapshots for `tse_*.tw` and `otc_*.tw` channels. The response is labeled as delayed/availability-dependent.
 - TWSE OpenAPI `t187ap04_L` and TPEx OpenAPI `mopsfin_t187ap04_O` are attempted first for the material-announcement panel because they provide official daily JSON feeds for the static page path.
 - MOPS `ajax_t05st01` remains available through backend `/filings` as a compatibility fallback when direct OpenAPI is blocked or unavailable and no fresher browser cache is usable.
-- FRED `fred/series/observations` with `DGS10` was used for `/yield10y` because it is the official FRED API path for the US 10Y Treasury yield series.
+- FRED `fred/series/observations` with `DGS10` was used for Worker `/yield10y` because it is the official FRED API path for the US 10Y Treasury yield series. The static feed uses FRED CSV first and the US Treasury daily yield curve XML as a no-key fallback.
 
 ## Note
 

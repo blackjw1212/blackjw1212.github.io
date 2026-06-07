@@ -68,6 +68,25 @@ function createLocalStorage(initial = {}) {
 
 const FILINGS_CACHE_KEY = "bjkw_stock_filings_v1:2330,2308,2317,2454,2412,2881,2891,2603";
 
+function isStaticFeedUrl(href) {
+  return href.startsWith("data/stock-risk-feed.json");
+}
+
+function staticFeed(filings = []) {
+  return {
+    updatedAt: "2026-06-05T09:00:00.000Z",
+    filingsUpdatedAt: "2026-06-05T09:00:00.000Z",
+    filings,
+    yield10y: {
+      date: "2026-06-05",
+      value: 4.55,
+      updatedAt: "2026-06-05T22:00:00.000Z",
+      source: "US Treasury Daily Treasury Yield Curve",
+    },
+    errors: [],
+  };
+}
+
 function twseFilingsRows(title = "台積電重大訊息") {
   return [
     {
@@ -160,6 +179,9 @@ function createDirectEodFetchMock() {
     if (href === "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O") {
       return response(tpexFilingsRows("無代理上櫃格式"));
     }
+    if (isStaticFeedUrl(href)) {
+      return response(staticFeed());
+    }
     throw new Error(`Unexpected fetch URL: ${href}`);
   };
 }
@@ -175,6 +197,18 @@ function createFilingsFailureFetchMock() {
     if (href === "https://openapi.twse.com.tw/v1/opendata/t187ap04_L" ||
         href === "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O") {
       throw new Error("direct filings unavailable");
+    }
+    if (isStaticFeedUrl(href)) {
+      return response(staticFeed([
+        {
+          code: "2330",
+          name: "台積電",
+          date: "2026-06-05 09:00",
+          title: "同源靜態重大訊息",
+          source: "GitHub Pages 同源重大訊息備援",
+          sortKey: "2026-06-05T09:00:00+08:00",
+        },
+      ]));
     }
     throw new Error(`Unexpected fetch URL: ${href}`);
   };
@@ -193,6 +227,9 @@ function createPartialFilingsFetchMock() {
     }
     if (href === "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O") {
       throw new Error("tpex unavailable");
+    }
+    if (isStaticFeedUrl(href)) {
+      return response(staticFeed());
     }
     throw new Error(`Unexpected fetch URL: ${href}`);
   };
@@ -295,14 +332,14 @@ test("index.html initializes and renders with mocked fetch", async () => {
 test("index.html supports no-backend direct EOD fallback", async () => {
   const { document } = await loadApp(createDirectEodFetchMock());
 
-  assert.equal(document.getElementById("proxyBadge").textContent, "盤中/殖利率需代理");
+  assert.equal(document.getElementById("proxyBadge").textContent, "靜態資料模式");
   assert.equal(document.getElementById("proxyBadge").className, "chip warn");
   assert.equal(document.getElementById("eodStatus").textContent, "已載入");
   assert.equal(document.getElementById("eodStatus").className, "chip ok");
   assert.match(document.getElementById("stockRows").innerHTML, /2330/);
   assert.match(document.getElementById("stockRows").innerHTML, /1,000.00/);
   assert.match(document.getElementById("tableSource").textContent, /證交所 OpenAPI 直連/);
-  assert.equal(document.getElementById("macroStatus").textContent, "需代理");
+  assert.equal(document.getElementById("macroStatus").textContent, "靜態備援");
   assert.equal(document.getElementById("macroStatus").className, "chip warn");
   assert.equal(document.getElementById("filingsStatus").textContent, "已載入");
   assert.equal(document.getElementById("filingsStatus").className, "chip ok");
@@ -336,6 +373,27 @@ test("index.html shows cached filings when direct filings fail", async () => {
   assert.equal(document.getElementById("filingsStatus").className, "chip warn");
   assert.match(document.getElementById("filingsFeed").innerHTML, /暫存重大訊息/);
   assert.match(document.getElementById("filingsFeed").innerHTML, /官方來源暫不可用/);
+});
+
+test("index.html uses same-origin static filings when direct filings fail without proxy", async () => {
+  const { document } = await loadApp(createFilingsFailureFetchMock());
+
+  assert.equal(document.getElementById("filingsStatus").textContent, "靜態備援");
+  assert.equal(document.getElementById("filingsStatus").className, "chip warn");
+  assert.match(document.getElementById("filingsFeed").innerHTML, /同源靜態重大訊息/);
+  assert.match(document.getElementById("filingsSource").textContent, /GitHub Pages 同源重大訊息備援/);
+});
+
+test("index.html keeps EOD data when intraday quotes need proxy", async () => {
+  const { context, document } = await loadApp(createDirectEodFetchMock());
+
+  document.getElementById("quoteToggle").checked = true;
+  await context.window.RiskTrackerApp.refreshAll();
+
+  assert.equal(document.getElementById("quoteStatus").textContent, "需代理");
+  assert.equal(document.getElementById("quoteStatus").className, "chip warn");
+  assert.equal(context.window.RiskTrackerApp.getState().quoteFresh, false);
+  assert.match(document.getElementById("stockRows").innerHTML, /1,000.00/);
 });
 
 test("index.html marks partial filings when one OpenAPI source fails", async () => {

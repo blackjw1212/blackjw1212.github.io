@@ -561,6 +561,7 @@ tbody tr:hover {
   const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
   const DIRECT_TWSE_FILINGS = "https://openapi.twse.com.tw/v1/opendata/t187ap04_L";
   const DIRECT_TPEX_FILINGS = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O";
+  const STATIC_STOCK_FEED_URL = "data/stock-risk-feed.json";
   const FILINGS_CACHE_KEY = "bjkw_stock_filings_v1";
   const FILINGS_CACHE_SOFT_MS = 60 * 60 * 1000;
   const FILINGS_CACHE_HARD_MS = 24 * 60 * 60 * 1000;
@@ -598,6 +599,7 @@ tbody tr:hover {
     yieldSource: "empty",
     quoteTimer: null,
     proxyBase: "",
+    staticFeedPromise: null,
   };
 
   const ids = [
@@ -927,6 +929,52 @@ tbody tr:hover {
     return hours + " 小時前";
   }
 
+  function staticFeedUrl() {
+    return STATIC_STOCK_FEED_URL + "?v=" + Math.floor(Date.now() / 300000);
+  }
+
+  async function loadStaticFeed() {
+    if (!state.staticFeedPromise) {
+      state.staticFeedPromise = fetchJson(staticFeedUrl()).then(function (response) {
+        return response.data || {};
+      });
+    }
+    return state.staticFeedPromise;
+  }
+
+  function normalizeStaticFeedFilings(feed) {
+    const tracked = new Set(STOCKS.map(function (stock) { return stock.code; }));
+    const rows = Array.isArray(feed && feed.filings) ? feed.filings : null;
+    if (!rows) throw new Error("靜態重大訊息資料格式異常");
+    return sortedLimitedFilings(rows.map(sanitizeFilingItem).filter(function (item) {
+      return item && tracked.has(item.code);
+    }));
+  }
+
+  async function loadStaticFilings() {
+    const feed = await loadStaticFeed();
+    const updatedAt = feed.filingsUpdatedAt || feed.updatedAt || null;
+    return {
+      items: normalizeStaticFeedFilings(feed),
+      failedSources: [],
+      source: "GitHub Pages 同源重大訊息備援",
+      delay: "排程產生的靜態資料；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則",
+      sourceUpdatedAt: updatedAt,
+    };
+  }
+
+  async function loadStaticYield10y() {
+    const feed = await loadStaticFeed();
+    const row = feed && feed.yield10y ? feed.yield10y : null;
+    const value = parseNumber(row && row.value);
+    if (value == null) throw new Error("靜態殖利率資料暫不可用");
+    return {
+      value: value,
+      updatedAt: row.updatedAt || row.date || feed.updatedAt || new Date(),
+      source: row.source || "GitHub Pages 同源 FRED DGS10 備援",
+    };
+  }
+
   async function fetchJson(url) {
     const controller = new AbortController();
     const timer = setTimeout(function () { controller.abort(); }, 9000);
@@ -1011,6 +1059,8 @@ tbody tr:hover {
       el.macroPressureDetail.textContent = "等待殖利率";
     } else if (state.yieldSource === "fetched") {
       el.macroPressureDetail.textContent = "美國 10 年期 " + formatNumber(yield10y, 3) + "%";
+    } else if (state.yieldSource === "static") {
+      el.macroPressureDetail.textContent = "靜態備援 10 年期 " + formatNumber(yield10y, 3) + "%";
     } else {
       el.macroPressureDetail.textContent = "手動殖利率 " + formatNumber(yield10y, 3) + "%";
     }
@@ -1122,13 +1172,24 @@ tbody tr:hover {
 
   async function loadYield10y() {
     if (!state.proxyBase) {
-      if (!state.yieldTouched) {
-        el.yield10y.value = "";
-        state.yieldSource = "empty";
+      try {
+        const fallback = await loadStaticYield10y();
+        if (!state.yieldTouched) {
+          el.yield10y.value = formatNumber(fallback.value, 3);
+          state.yieldSource = "static";
+        }
+        setPanelTime(el.macroUpdated, "殖利率靜態備援更新於", fallback.updatedAt);
+        setStatus(el.macroStatus, "warn", "靜態備援");
+        return;
+      } catch (error) {
+        if (!state.yieldTouched) {
+          el.yield10y.value = "";
+          state.yieldSource = "empty";
+        }
+        setStatus(el.macroStatus, "warn", "需代理");
+        el.macroUpdated.textContent = "等待資料代理取得 FRED 殖利率";
+        return;
       }
-      setStatus(el.macroStatus, "warn", "需代理");
-      el.macroUpdated.textContent = "等待資料代理取得 FRED 殖利率";
-      return;
     }
     setStatus(el.macroStatus, "loading", "載入中");
     try {
@@ -1142,12 +1203,22 @@ tbody tr:hover {
       setPanelTime(el.macroUpdated, "殖利率更新於", response.data.updatedAt || new Date());
       setStatus(el.macroStatus, "ok", "已載入");
     } catch (error) {
-      if (!state.yieldTouched) {
-        el.yield10y.value = "";
-        state.yieldSource = "empty";
+      try {
+        const fallback = await loadStaticYield10y();
+        if (!state.yieldTouched) {
+          el.yield10y.value = formatNumber(fallback.value, 3);
+          state.yieldSource = "static";
+        }
+        setPanelTime(el.macroUpdated, "殖利率靜態備援更新於", fallback.updatedAt);
+        setStatus(el.macroStatus, "warn", "靜態備援");
+      } catch (fallbackError) {
+        if (!state.yieldTouched) {
+          el.yield10y.value = "";
+          state.yieldSource = "empty";
+        }
+        setStatus(el.macroStatus, "error", "殖利率失敗");
+        el.macroUpdated.textContent = error.message || "FRED 資料暫不可用";
       }
-      setStatus(el.macroStatus, "error", "殖利率失敗");
-      el.macroUpdated.textContent = error.message || "FRED 資料暫不可用";
     }
   }
 
@@ -1209,6 +1280,14 @@ tbody tr:hover {
 
   function applyFilingsResult(result, phase) {
     const effectivePhase = result.failedSources.length ? "partial" : phase;
+    const isFallback = phase === "fallback" || phase === "static";
+    const statusText = result.failedSources.length
+      ? "部分載入"
+      : phase === "fallback"
+        ? "代理備援"
+        : phase === "static"
+          ? "靜態備援"
+          : "已載入";
     state.filings = result.items.map(sanitizeFilingItem).filter(Boolean);
     state.filingsMessage = state.filings.length
       ? (result.failedSources.length ? "部分來源暫不可用：" + result.failedSources.join("、") : "")
@@ -1225,7 +1304,7 @@ tbody tr:hover {
     el.filingsDelay.textContent = result.delay;
     if (result.sourceUpdatedAt) setPanelTime(el.filingsUpdated, "重大訊息來源更新於", result.sourceUpdatedAt);
     else setPanelTime(el.filingsUpdated, "重大訊息查詢於", new Date());
-    setStatus(el.filingsStatus, result.failedSources.length ? "warn" : "ok", result.failedSources.length ? "部分載入" : "已載入");
+    setStatus(el.filingsStatus, result.failedSources.length || isFallback ? "warn" : "ok", statusText);
     saveFilingsCache({
       items: state.filings,
       source: result.source,
@@ -1276,30 +1355,46 @@ tbody tr:hover {
       applyFilingsResult(await loadDirectFilings(), "ok");
       return;
     } catch (directError) {
+      const cache = loadFilingsCache();
+      if (cache && !cache.stale) {
+        applyCachedFilings(cache);
+        return;
+      }
+      let proxyAttempted = false;
+      let proxyFailed = false;
       if (state.proxyBase) {
+        proxyAttempted = true;
         try {
           applyFilingsResult(await loadProxyFilings(), "fallback");
-          setStatus(el.filingsStatus, "warn", "代理備援");
           return;
-        } catch (proxyError) {}
+        } catch (proxyError) {
+          proxyFailed = true;
+        }
       }
-      const cache = loadFilingsCache();
+      try {
+        applyFilingsResult(await loadStaticFilings(), "static");
+        return;
+      } catch (staticError) {}
       if (cache) {
         applyCachedFilings(cache);
         return;
       }
       state.filings = [];
-      state.filingsMessage = "重大訊息暫不可用。官方來源可能未開放跨來源讀取，且沒有可顯示的本機暫存資料。";
+      state.filingsMessage = proxyAttempted && proxyFailed
+        ? "重大訊息暫不可用。官方來源、資料代理與同源靜態備援皆失敗，且沒有可顯示的本機暫存資料。"
+        : "重大訊息暫不可用。官方來源可能未開放跨來源讀取，且沒有可顯示的本機暫存資料。";
       state.filingsMeta = {
         phase: "error",
         source: "TWSE/TPEx OpenAPI",
-        delay: "官方來源請求失敗",
-        failedSources: ["證交所上市重大訊息 OpenAPI", "櫃買中心上櫃重大訊息 OpenAPI"],
+        delay: proxyAttempted && proxyFailed ? "官方來源、資料代理與同源靜態備援皆失敗" : "官方來源與同源靜態備援請求失敗",
+        failedSources: proxyAttempted && proxyFailed
+          ? ["證交所上市重大訊息 OpenAPI", "櫃買中心上櫃重大訊息 OpenAPI", "公開資訊觀測站代理備援", "GitHub Pages 同源重大訊息備援"]
+          : ["證交所上市重大訊息 OpenAPI", "櫃買中心上櫃重大訊息 OpenAPI", "GitHub Pages 同源重大訊息備援"],
         cacheTs: null,
         sourceUpdatedAt: null,
       };
       el.filingsSource.textContent = "TWSE/TPEx OpenAPI";
-      el.filingsDelay.textContent = "官方來源請求失敗；可設定資料代理作為備援";
+      el.filingsDelay.textContent = proxyAttempted && proxyFailed ? "官方來源、資料代理與同源靜態備援皆失敗" : "官方來源請求失敗；可設定資料代理作為備援";
       setPanelTime(el.filingsUpdated, "重大訊息查詢於", new Date());
       setStatus(el.filingsStatus, "error", "公告失敗");
     }
@@ -1348,7 +1443,8 @@ tbody tr:hover {
 
   async function refreshAll() {
     state.proxyBase = proxyBase();
-    setStatus(el.proxyBadge, state.proxyBase ? "ok" : "warn", state.proxyBase ? "盤中/殖利率代理已設定" : "盤中/殖利率需代理");
+    setStatus(el.proxyBadge, state.proxyBase ? "ok" : "warn", state.proxyBase ? "盤中/殖利率代理已設定" : "靜態資料模式");
+    state.staticFeedPromise = null;
     await Promise.allSettled([loadEod(), loadYield10y(), loadFilings()]);
     await loadQuotes();
     renderAll();

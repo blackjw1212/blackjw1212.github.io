@@ -1,0 +1,32 @@
+name: Update stock risk feed
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 0-10 * * 1-5"
+    - cron: "15 22 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  update-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate stock risk feed
+        run: node scripts/update-stock-risk-feed.mjs
+      - name: Commit feed update
+        run: |
+          if git diff --quiet -- data/stock-risk-feed.json; then
+            echo "No feed changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/stock-risk-feed.json
+          git commit -m "Update stock risk feed"
+          git push
