@@ -133,6 +133,7 @@
     .bucket .tier{margin-left:0}
     .table-scroll{display:none}
     .stock-cards{display:block}
+    .stock-card .stock-tv-link{min-height:44px}
     .logrow{grid-template-columns:1fr}
   }
 </style>
@@ -226,7 +227,7 @@
 
   <footer>
     本頁是決策輔助，不是投資建議。資料標籤會區分 <b>Worker、TWSE 收盤資料、靜態備援、本機快取、10Y 自動來源</b>；
-    延遲、收盤、靜態或快取資料不會標為即時。TradingView 為外部技術圖表，僅供觀察，不代表交易建議。
+    延遲、收盤、靜態或快取資料不會標為即時。TradingView 為外部完整圖表，僅供觀察，不代表交易建議。
     後端沿用既有 Worker endpoints：/eod、/quote、/filings、/yield10y、/health。
   </footer>
 </main>
@@ -275,14 +276,14 @@ const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
 const TONE_WORD = {g:"綠燈",a:"黃燈",r:"紅燈"};
 const STOCK_CODES = STOCKS.map(function(stock){return stock.code;});
 const TRADINGVIEW_SYMBOLS = {
-  "2330":"TWSE-2330",
-  "2317":"TWSE-2317",
-  "6669":"TWSE-6669",
-  "3017":"TWSE-3017",
-  "3324":"TPEX-3324",
-  "2382":"TWSE-2382",
-  "1519":"TWSE-1519",
-  "2308":"TWSE-2308",
+  "2330":"TWSE:2330",
+  "2317":"TWSE:2317",
+  "6669":"TWSE:6669",
+  "3017":"TWSE:3017",
+  "3324":"TPEX:3324",
+  "2382":"TWSE:2382",
+  "1519":"TWSE:1519",
+  "2308":"TWSE:2308",
 };
 const EOD_CACHE_KEY = LS + ":eod:" + STOCK_CODES.join(",");
 const MAX_TRANCHE_TEXT = 120;
@@ -1062,13 +1063,15 @@ function mopsUrl(code){
 function tradingViewUrl(code){
   const symbol = TRADINGVIEW_SYMBOLS[String(code)];
   if (!symbol) return "";
-  return "https://tw.tradingview.com/symbols/" + symbol + "/technicals/";
+  const url = new URL("https://tw.tradingview.com/chart/");
+  url.searchParams.set("symbol", symbol);
+  return url.toString();
 }
 
 function stockTradingViewLink(stock, card){
   const href = tradingViewUrl(stock && stock.code);
-  const label = "在 TradingView 開啟 " + stock.code + " " + stock.name + "技術面觀察";
-  const body = '<span class="code">' + stock.code + '</span> <span class="' + (card ? "stock-main" : "nm") + '">' + escapeHtml(stock.name) + '</span><span class="tv-pill">技術面</span>';
+  const label = "在 TradingView 開啟 " + stock.code + " " + stock.name + "完整圖表觀察（外部連結）";
+  const body = '<span class="code">' + stock.code + '</span> <span class="' + (card ? "stock-main" : "nm") + '">' + escapeHtml(stock.name) + '</span><span class="tv-pill">完整圖表</span>';
   if (!href) return '<span class="code">' + stock.code + '</span> <span class="' + (card ? "stock-main" : "nm") + '">' + escapeHtml(stock.name) + '</span>';
   return '<a class="stock-tv-link" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer" aria-label="' + escapeHtml(label) + '">' + body + '</a>';
 }

@@ -1,6 +1,7 @@
 # Changes
 
-- Added allowlisted TradingView technical-analysis links on stock codes/names in the desktop score table and mobile cards, using safe new-tab anchors and TWSE/TPEX symbol mapping.
+- Changed allowlisted TradingView links from technical-analysis summary pages to full chart URLs with encoded TWSE/TPEX symbols.
+- Added allowlisted TradingView chart links on stock codes/names in the desktop score table and mobile cards, using safe new-tab anchors and TWSE/TPEX symbol mapping.
 - Expanded tests for TradingView URL safety, malicious-code rejection, desktop/mobile anchor rendering, and `PortfolioConsoleApp` / `RetailConsole` helper exports.
 - Added a `RetailConsole` helper compatibility layer for the user-provided retail-glance checks, while keeping labels conservative (`觀察` / `風險線` / `暫不判讀`) instead of trading-command wording.
 - Expanded frontend smoke coverage with the retail-glance helper truth table, MOPS URL allowlist check, and guardrails against direct action-style helper labels.

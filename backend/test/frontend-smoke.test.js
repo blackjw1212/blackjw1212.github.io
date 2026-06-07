@@ -175,7 +175,9 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   const tvUrl = new URL(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330"));
   assert.equal(tvUrl.protocol, "https:");
   assert.equal(tvUrl.hostname, "tw.tradingview.com");
-  assert.equal(tvUrl.pathname, "/symbols/TWSE-2330/technicals/");
+  assert.equal(tvUrl.pathname, "/chart/");
+  assert.equal(tvUrl.searchParams.get("symbol"), "TWSE:2330");
+  assert.match(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330"), /symbol=TWSE%3A2330/);
   assert.equal(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330/../../evil"), "");
 });
 
@@ -235,9 +237,15 @@ test("retail glance helper contract stays conservative", async () => {
   const twse = new URL(helpers.tradingViewUrl("2330"));
   assert.equal(twse.protocol, "https:");
   assert.equal(twse.hostname, "tw.tradingview.com");
-  assert.equal(twse.pathname, "/symbols/TWSE-2330/technicals/");
+  assert.equal(twse.pathname, "/chart/");
+  assert.equal(twse.searchParams.get("symbol"), "TWSE:2330");
+  assert.match(helpers.tradingViewUrl("2330"), /symbol=TWSE%3A2330/);
   const tpex = new URL(helpers.tradingViewUrl("3324"));
-  assert.equal(tpex.pathname, "/symbols/TPEX-3324/technicals/");
+  assert.equal(tpex.protocol, "https:");
+  assert.equal(tpex.hostname, "tw.tradingview.com");
+  assert.equal(tpex.pathname, "/chart/");
+  assert.equal(tpex.searchParams.get("symbol"), "TPEX:3324");
+  assert.match(helpers.tradingViewUrl("3324"), /symbol=TPEX%3A3324/);
   for (const code of ["9999", "https://evil.example", "2330/../../evil", "2330?next=https://evil.example"]) {
     assert.equal(helpers.tradingViewUrl(code), "");
   }
@@ -341,11 +349,12 @@ test("page renders automated checklist, cards, and source labels from static fal
   assert.match(document.getElementById("scoreBody").innerHTML, /2330/);
   assert.match(document.getElementById("scoreBody").innerHTML, /2,400.25/);
   assert.match(document.getElementById("stockCards").innerHTML, /台積電/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /https:\/\/tw\.tradingview\.com\/symbols\/TWSE-2330\/technicals\//);
-  assert.match(document.getElementById("stockCards").innerHTML, /https:\/\/tw\.tradingview\.com\/symbols\/TWSE-2330\/technicals\//);
+  assert.match(document.getElementById("scoreBody").innerHTML, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
+  assert.match(document.getElementById("stockCards").innerHTML, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
+  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /\/technicals\//);
   assert.match(document.getElementById("scoreBody").innerHTML, /target="_blank"/);
   assert.match(document.getElementById("stockCards").innerHTML, /rel="noopener noreferrer"/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /aria-label="在 TradingView 開啟 2330 台積電技術面觀察"/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /aria-label="在 TradingView 開啟 2330 台積電完整圖表觀察（外部連結）"/);
   assert.match(document.getElementById("conds").innerHTML, /自動/);
   assert.match(document.getElementById("signalSummary").innerHTML, /資料可用性/);
   assert.match(document.getElementById("stamp").textContent, /靜態 feed/);

@@ -109,10 +109,14 @@ test("retail glance tradingViewUrl points only to allowlisted symbols", () => {
 
   assert.equal(twse.protocol, "https:");
   assert.equal(twse.hostname, "tw.tradingview.com");
-  assert.equal(twse.pathname, "/symbols/TWSE-2330/technicals/");
+  assert.equal(twse.pathname, "/chart/");
+  assert.equal(twse.searchParams.get("symbol"), "TWSE:2330");
+  assert.match(helpers.tradingViewUrl("2330"), /symbol=TWSE%3A2330/);
   assert.equal(tpex.protocol, "https:");
   assert.equal(tpex.hostname, "tw.tradingview.com");
-  assert.equal(tpex.pathname, "/symbols/TPEX-3324/technicals/");
+  assert.equal(tpex.pathname, "/chart/");
+  assert.equal(tpex.searchParams.get("symbol"), "TPEX:3324");
+  assert.match(helpers.tradingViewUrl("3324"), /symbol=TPEX%3A3324/);
   for (const code of ["9999", "https://evil.example", "2330/../../evil", "2330?next=https://evil.example"]) {
     assert.equal(helpers.tradingViewUrl(code), "");
   }
