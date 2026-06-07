@@ -1,5 +1,9 @@
 # Changes
 
+- Rebuilt the first-screen verdict as a fully automated observation console with three plain states: `偏進場觀察`, `等待`, and `偏退場降風險`.
+- Replaced manual SOX/margin/FedWatch controls with auto-derived signals from existing honest data: EOD source coverage, 10Y pressure, tracked-stock breadth, core-stock health, and satellite/WAIT-list pressure.
+- Added an in-card signal summary so the main verdict shows its reasons without requiring a scroll, while keeping non-personalized observation wording and non-real-time source labels.
+- Expanded frontend smoke coverage for the new automated helper contract, entry/wait/exit truth table, legacy manual 10Y migration, automated checklist rendering, and observation-log snapshots.
 - Rebuilt the stock page again as a retail-friendly observation-threshold console: first-screen observation verdict, checklist-style red/yellow/green conditions, desktop score table, mobile stock cards, and browser-local observation logs.
 - Reworded the UI away from direct trading language, keeping the page framed as observation support rather than personalized investment advice.
 - Added per-row source/manual labels, 10Y source date display, explicit non-real-time wording, and proxy rejection messaging while preserving the allowlist and existing fallback order.

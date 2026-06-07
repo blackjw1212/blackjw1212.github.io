@@ -20,9 +20,10 @@ The site is published at <https://blackjw1212.github.io/>.
 
 ## Taiwan Stock Portfolio Console
 
-This repository also includes a plain static Taiwan stock portfolio console at `index.html` plus a Cloudflare Worker proxy in `backend/`. The current page is organized as a retail-friendly observation-threshold console:
+This repository also includes a plain static Taiwan stock portfolio console at `index.html` plus a Cloudflare Worker proxy in `backend/`. The current page is organized as a retail-friendly automated observation console:
 
-- Today's observation verdict
+- Today's automated entry / wait / exit-observation verdict
+- Auto-derived data, 10Y, breadth, core-health, and satellite-risk lights
 - Core / satellite / cash allocation
 - Multi-dimension AI supply-chain scorecard
 - Browser-local observation log
@@ -42,7 +43,7 @@ index.html?proxy=https://taiwan-risk-tracker-proxy.a0926043323.workers.dev
 
 Only allowlisted proxy URLs are honored. An unapproved URL such as `?proxy=https://evil.example` is ignored.
 
-If no backend is configured, the page enters fallback mode. The scorecard attempts the Worker `/eod` route first when available, then direct TWSE end-of-day OpenAPI, then same-origin `data/stock-risk-feed.json`, then the last usable localStorage cache. The 10Y yield attempts Worker `/yield10y` and then the same static feed. Manual observation inputs remain manual unless an honest auto source is available; delayed/EOD/static/cache data is never labeled as real-time.
+If no backend is configured, the page enters fallback mode. The scorecard attempts the Worker `/eod` route first when available, then direct TWSE end-of-day OpenAPI, then same-origin `data/stock-risk-feed.json`, then the last usable localStorage cache. The 10Y yield attempts Worker `/yield10y` and then the same static feed. The first-screen verdict is computed automatically from existing data only: source coverage, 10Y pressure, tracked-stock breadth, core-stock health, and satellite/WAIT-list pressure. Delayed/EOD/static/cache data is never labeled as real-time, and missing or cache-only prices block an entry-observation verdict.
 
 ### Backend Routes
 

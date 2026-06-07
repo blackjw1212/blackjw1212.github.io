@@ -148,7 +148,7 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   const { context, html } = await loadApp(async () => response(staticFeed()));
   const requiredIds = [
     "verdictLight", "verdictTitle", "verdictDesc", "actionNext", "actionAvoid",
-    "refresh", "conds", "stamp", "buckets", "scoreTable", "scoreBody", "stockCards",
+    "signalSummary", "refresh", "conds", "stamp", "buckets", "scoreTable", "scoreBody", "stockCards",
     "planN", "doneN", "prog", "tDate", "tStep", "tTarget", "tPrice", "tNote", "addT", "tLog",
   ];
 
@@ -166,21 +166,64 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
     "parseNumber",
     "proxyBase",
     "sanitizeState",
+    "deriveAutoSignals",
+    "condColor",
   ]) {
     assert.equal(typeof context.window.PortfolioConsoleApp.helpers[name], "function");
   }
 });
 
-test("verdict aggregation uses observation-threshold language", async () => {
+test("verdict aggregation uses automated entry/wait/exit observation language", async () => {
   const { context } = await loadApp(async () => response(staticFeed()));
   const { aggregateVerdict } = context.window.PortfolioConsoleApp.helpers;
 
   assert.equal(aggregateVerdict(["r", "r", "g", "a"]).tone, "r");
-  assert.match(aggregateVerdict(["r", "r", "g", "a"]).title, /暫停/);
+  assert.match(aggregateVerdict(["r", "r", "g", "a"]).title, /退場/);
   assert.equal(aggregateVerdict(["r", "a", "a", "a"]).tone, "r");
   assert.equal(aggregateVerdict(["g", "g", "g", "g"]).tone, "g");
-  assert.match(aggregateVerdict(["g", "g", "g", "g"]).title, /觀察門檻/);
+  assert.match(aggregateVerdict(["g", "g", "g", "g"]).title, /進場觀察/);
   assert.equal(aggregateVerdict(["g", "a", "r", "a"]).tone, "a");
+});
+
+test("auto signal helper gates entry, waiting, and exit observation states", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const { deriveAutoSignals, aggregateVerdict } = context.window.PortfolioConsoleApp.helpers;
+  const fresh = new Date().toISOString();
+  const entryState = {
+    cond: { yield: 4.12 },
+    condSource: {},
+    base: {},
+    today: {
+      "2330": { close: 2400, change: 5 },
+      "2317": { close: 300, change: 3 },
+      "6669": { close: 5600, change: 20 },
+      "3017": { close: 2650, change: 10 },
+      "3324": { close: 1300, change: 5 },
+      "2382": { close: 350, change: 2 },
+      "1519": { close: 900, change: 5 },
+      "2308": { close: 2200, change: 4 },
+    },
+    eodMeta: { source: "Worker mock EOD", updatedAt: fresh },
+    yieldMeta: { source: "mock 10Y", updatedAt: fresh },
+  };
+  const exitState = {
+    ...entryState,
+    cond: { yield: 4.85 },
+    today: {
+      "2330": { close: 2300, change: -50 },
+      "2317": { close: 270, change: -8 },
+      "6669": { close: 6600, change: -150 },
+      "3017": { close: 3100, change: -70 },
+      "3324": { close: 1500, change: -60 },
+      "2382": { close: 410, change: -10 },
+      "1519": { close: 1050, change: -20 },
+      "2308": { close: 2600, change: -50 },
+    },
+  };
+
+  assert.match(aggregateVerdict(deriveAutoSignals(entryState)).title, /偏進場觀察/);
+  assert.match(aggregateVerdict(deriveAutoSignals({ cond: { yield: 4.12 }, today: {} })).title, /等待/);
+  assert.match(aggregateVerdict(deriveAutoSignals(exitState)).title, /偏退場降風險/);
 });
 
 test("frontend normalizers round EOD rows and support yield payload shapes", async () => {
@@ -214,7 +257,7 @@ test("proxy allowlist ignores unapproved query-string proxy", async () => {
   assert.equal(proxyBase(), "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev");
 });
 
-test("page renders checklist, cards, and source labels from static fallback", async () => {
+test("page renders automated checklist, cards, and source labels from static fallback", async () => {
   const calls = [];
   const { context, document, elements } = await loadApp(async (url) => {
     const href = String(url);
@@ -228,11 +271,12 @@ test("page renders checklist, cards, and source labels from static fallback", as
   assert.match(document.getElementById("scoreBody").innerHTML, /2330/);
   assert.match(document.getElementById("scoreBody").innerHTML, /2,400.25/);
   assert.match(document.getElementById("stockCards").innerHTML, /台積電/);
-  assert.match(document.getElementById("conds").innerHTML, /手動/);
+  assert.match(document.getElementById("conds").innerHTML, /自動/);
+  assert.match(document.getElementById("signalSummary").innerHTML, /資料可用性/);
   assert.match(document.getElementById("stamp").textContent, /靜態 feed/);
-  assert.match(document.getElementById("verdictTitle").textContent, /暫停|觀察/);
+  assert.match(document.getElementById("verdictTitle").textContent, /等待|退場|進場/);
   assert.match(document.getElementById("actionAvoid").textContent, /不要/);
-  for (const id of ["c_sox", "c_margin", "c_yield", "c_fed", "cd_sox", "src_yield"]) {
+  for (const id of ["c_data", "c_yield", "c_breadth", "c_core", "c_satellite", "cd_data", "src_yield"]) {
     assert.ok(elements.has(id), `${id} should be created during init`);
   }
   assert.ok(calls.includes("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"));
@@ -272,10 +316,10 @@ test("page uses Worker EOD and yield on GitHub Pages default proxy", async () =>
   assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/yield10y"));
   assert.match(document.getElementById("scoreBody").innerHTML, /2,410/);
   assert.equal(context.window.PortfolioConsoleApp.getState().cond.yield, 4.12);
-  assert.match(document.getElementById("src_yield").textContent, /2026-06-05/);
+  assert.match(document.getElementById("src_yield").textContent, /10Y.*2026/);
 });
 
-test("manual 10Y override is not overwritten by refresh", async () => {
+test("legacy manual 10Y override no longer blocks automated refresh", async () => {
   const calls = [];
   const { context, document } = await loadApp(async (url) => {
     const href = String(url);
@@ -296,9 +340,9 @@ test("manual 10Y override is not overwritten by refresh", async () => {
 
   await context.window.PortfolioConsoleApp.init();
 
-  assert.equal(context.window.PortfolioConsoleApp.getState().cond.yield, 5.12);
-  assert.match(document.getElementById("src_yield").textContent, /手動覆寫/);
-  assert.ok(!calls.some((href) => href.endsWith("/yield10y")));
+  assert.equal(context.window.PortfolioConsoleApp.getState().cond.yield, 4.12);
+  assert.match(document.getElementById("src_yield").textContent, /10Y/);
+  assert.ok(calls.some((href) => href.endsWith("/yield10y")));
 });
 
 test("empty static EOD can fall through to localStorage cache", async () => {

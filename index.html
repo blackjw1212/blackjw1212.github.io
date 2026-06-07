@@ -42,6 +42,13 @@
   .vtext{min-width:0;flex:1}
   .vtext .vt{font-family:"Noto Serif TC",serif;font-weight:900;font-size:23px;line-height:1.2}
   .vtext .vd{font-size:13px;color:var(--soft);margin-top:3px}
+  .signal-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
+  .signal-chip{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:rgba(255,255,255,.025);min-width:0}
+  .signal-chip b{display:block;font-size:12px;margin-bottom:2px}
+  .signal-chip span{display:block;font-size:12px;color:var(--soft)}
+  .signal-chip.g b{color:var(--green)}
+  .signal-chip.a b{color:var(--amber)}
+  .signal-chip.r b{color:var(--red)}
   .decision-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
   .action-box{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.025);padding:10px}
   .action-box b{display:block;font-size:12px;color:var(--faint);margin-bottom:4px}
@@ -54,6 +61,7 @@
   .cond .lbl{min-width:0}
   .cond .t{font-size:14px;font-weight:700}
   .cond .d{font-size:12px;color:var(--faint);margin-top:2px}
+  .cond .ctrl{font-family:"Roboto Mono",monospace;color:var(--soft);font-size:12px;text-align:right}
   .source-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px}
   .pill-label{font-family:"Roboto Mono",monospace;font-size:10px;border:1px solid var(--line2);border-radius:8px;padding:1px 6px;color:var(--soft)}
   .pill-label.auto{color:var(--teal)}
@@ -110,6 +118,7 @@
     .wrap{padding:0 14px}
     h1{font-size:24px}
     .decision-top{align-items:flex-start}
+    .signal-summary{grid-template-columns:1fr}
     .decision-actions{grid-template-columns:1fr}
     .decision-tools{align-items:stretch}
     .decision-tools .btn{width:100%}
@@ -127,11 +136,11 @@
 
 <header>
   <div class="wrap">
-    <div class="kick">Retail Observation Console · v0.3</div>
-    <h1>AI 供應鏈觀察台 · <span>散戶直觀版</span></h1>
+    <div class="kick">Retail Observation Console · v0.4</div>
+    <h1>AI 供應鏈觀察台 · <span>全自動觀察版</span></h1>
     <div class="profile">
       <span class="tagp">定位 <b>觀察門檻</b></span>
-      <span class="tagp">資料 <b>收盤/手動混合</b></span>
+      <span class="tagp">資料 <b>收盤/10Y 自動</b></span>
       <span class="tagp">紀錄 <b>只存在本機</b></span>
     </div>
   </div>
@@ -140,17 +149,18 @@
 <main class="wrap">
   <section aria-labelledby="decisionHeading">
     <h2 id="decisionHeading">今日觀察結論 <em>DECISION</em></h2>
-    <p class="hint">先看結論，再看四個燈號。這裡是觀察門檻，不是個人化買賣建議。</p>
+    <p class="hint">先看結論，再看自動燈號。這裡是觀察門檻，不是個人化買賣建議。</p>
     <div class="decision-card">
       <div class="decision-top">
         <span class="vlight" id="verdictLight"></span>
         <div class="vtext">
-          <div class="vt" id="verdictTitle">等待判讀</div>
-          <div class="vd" id="verdictDesc">更新資料或調整手動條件後，這裡會用白話顯示目前偏暫停、觀察或條件較完整。</div>
+          <div class="vt" id="verdictTitle">等待</div>
+          <div class="vd" id="verdictDesc">更新收盤資料與 10Y 後，這裡會自動顯示偏進場觀察、等待或偏退場降風險。</div>
         </div>
       </div>
+      <div class="signal-summary" id="signalSummary"></div>
       <div class="decision-actions">
-        <div class="action-box"><b>下一步觀察</b><span id="actionNext">先更新資料，確認四個燈號。</span></div>
+        <div class="action-box"><b>下一步觀察</b><span id="actionNext">先更新資料，確認自動燈號。</span></div>
         <div class="action-box"><b>先不要做</b><span id="actionAvoid">不要把收盤或快取資料當成即時訊號。</span></div>
       </div>
       <div class="guard-note">本頁不評估你的風險承受度、資金需求、稅務、交易成本或持股集中度。實際操作前請用自己的規則再確認一次。</div>
@@ -162,8 +172,8 @@
   </section>
 
   <section aria-labelledby="lightsHeading">
-    <h2 id="lightsHeading">四個燈號檢查 <em>CHECKLIST</em></h2>
-    <p class="hint">紅燈代表風險偏高，黃燈代表還要等確認，綠燈代表該條件比較接近觀察門檻。</p>
+    <h2 id="lightsHeading">自動燈號檢查 <em>CHECKLIST</em></h2>
+    <p class="hint">燈號由收盤價、10Y、核心/衛星分層與資料品質自動推導；資料不足時不產生進場觀察。</p>
     <div id="conds"></div>
   </section>
 
@@ -210,7 +220,7 @@
   </section>
 
   <footer>
-    本頁是決策輔助，不是投資建議。資料標籤會區分 <b>Worker、TWSE 收盤資料、靜態備援、本機快取、手動覆寫</b>；
+    本頁是決策輔助，不是投資建議。資料標籤會區分 <b>Worker、TWSE 收盤資料、靜態備援、本機快取、10Y 自動來源</b>；
     延遲、收盤、靜態或快取資料不會標為即時。後端沿用既有 Worker endpoints：/eod、/quote、/filings、/yield10y、/health。
   </footer>
 </main>
@@ -246,14 +256,11 @@ const STXT = {h:"高",mh:"中高",m:"中",ml:"中低",l:"低"};
 const SCORE_LABELS = ["估值","獲利韌性","AI 槓桿","財務體質","週期風險","長抱適配"];
 
 const CONDS = [
-  {id:"sox", t:"半導體 / AI 族群氣氛", d:"手動：SOX、NVDA、AI 伺服器族群是否止跌或轉強。", kind:"sel",
-   opts:[["g","轉強"],["a","震盪"],["r","轉弱"]], val:"r"},
-  {id:"margin", t:"台股融資與追價壓力", d:"手動：若融資快速升溫、熱門股追價失控，先保守看待。", kind:"sel",
-   opts:[["g","降溫"],["a","中性"],["r","過熱"]], val:"r"},
-  {id:"yield", t:"美債 10Y 殖利率壓力", d:"<4.5 綠 · 4.5-4.7 黃 · >4.7 紅；可由 Worker 或靜態 feed 帶入，也可手動覆寫。", kind:"num", unit:"%", val:4.5,
-   rule:function(v){return isNaN(v) ? "a" : (v > 4.7 ? "r" : (v >= 4.5 ? "a" : "g"));}, auto:true},
-  {id:"fed", t:"降息預期是否反映市場壓力", d:"手動：<25 綠 · 25-50 黃 · >=50 紅。高機率可能代表市場正在交易壓力情境。", kind:"num", unit:"%", val:43,
-   rule:function(v){return isNaN(v) ? "a" : (v >= 50 ? "r" : (v >= 25 ? "a" : "g"));}},
+  {id:"data", t:"資料可用性", d:"確認收盤價來源、覆蓋率與快取狀態；資料不足時不產生進場觀察。"},
+  {id:"yield", t:"美債 10Y 殖利率壓力", d:"<4.5 綠 · 4.5-4.7 黃 · >4.7 紅；由 Worker 或靜態 feed 自動帶入。"},
+  {id:"breadth", t:"AI 族群收盤廣度", d:"追蹤清單今日上漲比例，取代手動判斷半導體 / AI 族群氣氛。"},
+  {id:"core", t:"核心股健康度", d:"核心股是否守住個人參考基準，且沒有同步轉弱。"},
+  {id:"satellite", t:"衛星股退場壓力", d:"衛星與等待區若高於基準後轉弱，會提高退場觀察權重。"},
 ];
 
 const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
@@ -286,7 +293,7 @@ function sanitizeState(raw){
   if (raw.cond && typeof raw.cond === "object") {
     for (const cond of CONDS) {
       if (raw.cond[cond.id] == null) continue;
-      next.cond[cond.id] = cond.kind === "num" ? parseNumber(raw.cond[cond.id]) : String(raw.cond[cond.id]);
+      next.cond[cond.id] = cond.id === "yield" ? parseNumber(raw.cond[cond.id]) : String(raw.cond[cond.id]);
       if (next.cond[cond.id] == null) delete next.cond[cond.id];
     }
   }
@@ -579,10 +586,6 @@ function setConditionSource(id, label){
 }
 
 async function loadYield10y(){
-  if (state.yieldManual) {
-    setConditionSource("yield", "手動覆寫");
-    return "10Y：手動覆寫";
-  }
   const base = proxyBase();
   const attempts = [];
   if (base) {
@@ -611,8 +614,6 @@ async function loadYield10y(){
       const sourceLabel = result.label + (result.meta.date ? " / " + result.meta.date : "");
       setConditionSource("yield", sourceLabel);
       saveState();
-      const input = $("c_yield");
-      if (input) input.value = result.value;
       paint();
       return "10Y：" + fmt(result.value, 3) + "% " + sourceLabel;
     } catch (error) {}
@@ -624,93 +625,320 @@ async function loadYield10y(){
 }
 
 function condValue(c){
-  return c.id in state.cond ? state.cond[c.id] : c.val;
+  const signal = deriveAutoSignals(state).find(function(item){return item.id === c.id;});
+  return signal ? signal.value : "";
 }
 
-function condColor(c){
-  if (c.kind === "num") {
-    const value = parseNumber(condValue(c));
-    return c.rule(value);
+function sourceLabelFromMeta(meta, fallback){
+  if (!meta) return fallback || "自動待更新";
+  const when = formatDateTime(meta.updatedAt);
+  const source = meta.cache ? "本機快取" : (meta.source || fallback || "自動來源");
+  return source + (when ? " / " + when : "");
+}
+
+function ageDays(value){
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const ms = Date.now() - date.getTime();
+  if (ms < 0) return null;
+  return ms / 86400000;
+}
+
+function stockSnapshot(stock, rawState){
+  const current = rawState || state;
+  const bases = current.base || {};
+  const todayMap = current.today || {};
+  const base = stock.code in bases ? bases[stock.code] : stock.base;
+  const today = todayMap[stock.code] || {};
+  const close = parseNumber(today.close);
+  const change = parseNumber(today.change);
+  const previous = close != null && change != null ? close - change : null;
+  return {
+    code:stock.code,
+    name:stock.name,
+    tier:stock.tier,
+    base:base,
+    close:close,
+    change:change,
+    hasPrice:close != null,
+    pctFromBase:close != null && base ? roundNumber((close - base) / base * 100, 2) : null,
+    dayPct:previous && previous !== 0 ? roundNumber(change / previous * 100, 2) : null,
+  };
+}
+
+function average(values){
+  const clean = values.filter(function(value){return value != null && Number.isFinite(value);});
+  if (!clean.length) return null;
+  return clean.reduce(function(sum, value){return sum + value;}, 0) / clean.length;
+}
+
+function dataSignal(snapshots, rawState){
+  const current = rawState || state;
+  const priced = snapshots.filter(function(item){return item.hasPrice;});
+  const meta = current.eodMeta || null;
+  const coverage = priced.length / STOCKS.length;
+  let tone = "r";
+  let detail = "沒有取得追蹤股收盤價，不判讀進場觀察。";
+  if (priced.length) {
+    if (meta && meta.cache) {
+      tone = "r";
+      detail = "目前只剩本機快取，先視為資料風險。";
+    } else if (coverage >= 0.75) {
+      tone = "g";
+      detail = "追蹤股收盤價 " + priced.length + "/" + STOCKS.length + " 檔可用。";
+    } else if (coverage >= 0.4) {
+      tone = "a";
+      detail = "收盤價只取得 " + priced.length + "/" + STOCKS.length + " 檔，先等待確認。";
+    } else {
+      tone = "r";
+      detail = "收盤價只取得 " + priced.length + "/" + STOCKS.length + " 檔，資料不足。";
+    }
   }
-  return condValue(c);
+  const age = ageDays(meta && meta.updatedAt);
+  if (age != null && age > 7) {
+    tone = "r";
+    detail = "收盤資料超過 7 天，先視為資料風險。";
+  } else if (age != null && age > 3 && tone === "g") {
+    tone = "a";
+    detail = "收盤資料超過 3 天，先等待更新。";
+  }
+  if (meta && /static|GitHub Pages|靜態/i.test(meta.source || "") && tone === "g") {
+    tone = "a";
+    detail = detail + " 來源為靜態備援，不標成即時。";
+  }
+  return {
+    id:"data",
+    tone:tone,
+    value:priced.length + "/" + STOCKS.length,
+    detail:detail,
+    source:sourceLabelFromMeta(meta, "收盤資料待更新"),
+  };
 }
 
-function aggregateVerdict(colors){
+function yieldSignal(rawState){
+  const current = rawState || state;
+  const value = parseNumber(current.cond && current.cond.yield);
+  const tone = value == null ? "a" : (value > 4.7 ? "r" : (value >= 4.5 ? "a" : "g"));
+  let detail = "10Y 待更新，先不把環境視為完整。";
+  if (value != null) {
+    detail = value > 4.7 ? "10Y 高於 4.7%，風險折現壓力偏高。"
+      : value >= 4.5 ? "10Y 位於 4.5-4.7%，環境仍需等待確認。"
+      : "10Y 低於 4.5%，利率壓力相對低。";
+  }
+  return {
+    id:"yield",
+    tone:tone,
+    value:value == null ? "待更新" : fmt(value, 3) + "%",
+    detail:detail,
+    source:sourceLabelFromMeta(current.yieldMeta, current.condSource && current.condSource.yield || "10Y 自動待更新"),
+  };
+}
+
+function breadthSignal(snapshots, priceSource){
+  const known = snapshots.filter(function(item){return item.dayPct != null;});
+  if (!known.length) {
+    return {id:"breadth",tone:"r",value:"0 檔",detail:"缺少今日漲跌資料，AI 族群廣度無法判讀。",source:priceSource};
+  }
+  const advancing = known.filter(function(item){return item.dayPct > 0;}).length;
+  const ratio = advancing / known.length;
+  const tone = ratio >= 0.6 ? "g" : (ratio >= 0.35 ? "a" : "r");
+  return {
+    id:"breadth",
+    tone:tone,
+    value:advancing + "/" + known.length,
+    detail:"追蹤清單 " + advancing + "/" + known.length + " 檔今日收紅。",
+    source:priceSource,
+  };
+}
+
+function coreSignal(snapshots, priceSource){
+  const core = snapshots.filter(function(item){return item.tier === "core";});
+  const known = core.filter(function(item){return item.hasPrice;});
+  if (!known.length) {
+    return {id:"core",tone:"r",value:"待更新",detail:"核心股收盤價不足，先不判讀進場觀察。",source:priceSource};
+  }
+  const weak = known.filter(function(item){
+    return (item.pctFromBase != null && item.pctFromBase < -3) || (item.dayPct != null && item.dayPct <= -1.5);
+  }).length;
+  const tone = weak >= known.length ? "r" : (weak > 0 || known.length < core.length ? "a" : "g");
+  return {
+    id:"core",
+    tone:tone,
+    value:known.length + "/" + core.length,
+    detail:"核心股 " + known.length + "/" + core.length + " 檔有資料，" + weak + " 檔偏弱。",
+    source:priceSource,
+  };
+}
+
+function satelliteSignal(snapshots, priceSource){
+  const known = snapshots.filter(function(item){return item.tier !== "core" && item.hasPrice;});
+  if (!known.length) {
+    return {id:"satellite",tone:"a",value:"待更新",detail:"衛星股資料不足，先保留退場觀察。",source:priceSource};
+  }
+  const risky = known.filter(function(item){
+    const hotTurnWeak = item.pctFromBase != null && item.pctFromBase > 15 && item.dayPct != null && item.dayPct < 0;
+    const sharpWeak = item.dayPct != null && item.dayPct <= -2;
+    const waitHot = item.tier === "wait" && item.pctFromBase != null && item.pctFromBase > 10;
+    return hotTurnWeak || sharpWeak || waitHot;
+  }).length;
+  const avgDay = average(known.map(function(item){return item.dayPct;}));
+  const tone = risky >= Math.max(2, Math.ceil(known.length * 0.45)) || (avgDay != null && avgDay <= -1.5)
+    ? "r"
+    : (risky > 0 || (avgDay != null && avgDay < 0) ? "a" : "g");
+  return {
+    id:"satellite",
+    tone:tone,
+    value:risky + "/" + known.length,
+    detail:"衛星/等待區 " + risky + " 檔出現過熱轉弱或急跌壓力。",
+    source:priceSource,
+  };
+}
+
+function deriveAutoSignals(rawState){
+  const current = rawState || state;
+  const snapshots = STOCKS.map(function(stock){return stockSnapshot(stock, current);});
+  const priceSource = sourceLabelFromMeta(current.eodMeta, "收盤資料待更新");
+  const byId = {
+    data:dataSignal(snapshots, current),
+    yield:yieldSignal(current),
+    breadth:breadthSignal(snapshots, priceSource),
+    core:coreSignal(snapshots, priceSource),
+    satellite:satelliteSignal(snapshots, priceSource),
+  };
+  return CONDS.map(function(def){
+    return Object.assign({title:def.t,description:def.d}, byId[def.id] || {
+      id:def.id,
+      tone:"a",
+      value:"待更新",
+      detail:def.d,
+      source:"自動待更新",
+    });
+  });
+}
+
+function condColor(c, rawState){
+  const signal = deriveAutoSignals(rawState || state).find(function(item){return item.id === c.id;});
+  return signal ? signal.tone : "a";
+}
+
+function normalizeSignalItems(items){
+  return (items || []).map(function(item){
+    return typeof item === "string" ? {tone:item} : item;
+  }).filter(Boolean);
+}
+
+function signalById(signals, id){
+  return signals.find(function(signal){return signal.id === id;}) || null;
+}
+
+function aggregateVerdict(items){
+  const signals = normalizeSignalItems(items);
+  const colors = signals.map(function(signal){return signal.tone;});
   const counts = {g:0,a:0,r:0};
   colors.forEach(function(color){if (counts[color] != null) counts[color] += 1;});
-  if (counts.r >= 2 || (counts.r >= 1 && counts.g === 0)) {
+  const hasStructuredSignals = signals.some(function(signal){return signal.id;});
+  const data = signalById(signals, "data");
+  const yieldTone = signalById(signals, "yield");
+  const breadth = signalById(signals, "breadth");
+  const core = signalById(signals, "core");
+  const satellite = signalById(signals, "satellite");
+  const riskReds = signals.filter(function(signal){return signal.tone === "r" && signal.id !== "data";});
+
+  if (hasStructuredSignals && data && data.tone === "r") {
     return {
-      tone:"r",
-      title:"先暫停，保留現金",
-      desc:"紅燈堆疊或沒有任何綠燈，代表風險報酬還不夠清楚。",
-      next:"等紅燈降到 1 個以下，並至少出現 1 個綠燈再觀察。",
-      avoid:"不要追熱門衛星股，也不要把快取資料當成即時訊號。",
+      tone:"a",
+      title:"等待",
+      desc:"資料不足或只剩快取，不產生進場觀察；先更新收盤資料再判讀。",
+      next:"等資料可用性至少轉黃，並重新確認核心與 10Y。",
+      avoid:"不要把快取或缺資料畫面解讀成進場或退場訊號。",
     };
   }
-  if (counts.g === colors.length) {
+
+  const exitPressure = hasStructuredSignals
+    ? riskReds.length >= 2
+      || (yieldTone && yieldTone.tone === "r")
+      || (core && breadth && core.tone === "r" && breadth.tone === "r")
+      || (satellite && satellite.tone === "r" && (!yieldTone || yieldTone.tone !== "g" || (breadth && breadth.tone === "r")))
+    : counts.r >= 2 || (counts.r >= 1 && counts.g === 0);
+
+  if (exitPressure) {
+    return {
+      tone:"r",
+      title:"偏退場降風險",
+      desc:"退場觀察：風險訊號偏多，先停止新增觀察並回到風險檢查；這不是交易指令。",
+      next:"檢查紅燈來源與個人規則，等紅燈降溫再重新判讀。",
+      avoid:"不要把退場觀察解讀成交易執行，也不要用快取資料做決定。",
+    };
+  }
+
+  const entryReady = hasStructuredSignals
+    ? data && data.tone === "g" && counts.r === 0 && counts.g >= 3 && breadth && breadth.tone === "g" && core && core.tone !== "r"
+    : counts.g === colors.length;
+
+  if (entryReady) {
     return {
       tone:"g",
-      title:"條件符合觀察門檻",
-      desc:"四項條件同時轉綠，代表環境相對完整，但仍不是個人化觀察點。",
-      next:"若你原本就採分批策略，可記錄第 1 筆核心觀察。",
-      avoid:"不要一次用完資金，也不要忽略個人風險承受度。",
+      title:"偏進場觀察",
+      desc:"進場觀察：條件接近觀察門檻，請核對資料日、個人資金規則與風險限制。",
+      next:"若你原本就採分批策略，可在本機紀錄欄記錄第 1 筆觀察。",
+      avoid:"不要把進場觀察解讀成交易執行，也不要忽略個人風險承受度。",
     };
   }
   return {
     tone:"a",
-    title:"只做核心小筆觀察",
-    desc:"條件還沒完整，適合先看核心名單與風險，不急著擴大衛星部位。",
-    next:"優先觀察核心股，等手動燈號或 10Y 壓力更明確。",
-      avoid:"不要把黃燈解讀成全面放大部位，也不要擴大高波動衛星。",
+    title:"等待",
+    desc:"等待觀察：條件未完整，只追蹤，不解讀為新增部位或退場指令。",
+    next:"等資料可用性、核心健康或 10Y 轉明確後再觀察。",
+    avoid:"不要把黃燈當成全面進場或退場訊號。",
   };
 }
 
 function renderConds(){
   const box = $("conds");
   box.innerHTML = "";
-  CONDS.forEach(function(c){
-    const cur = condValue(c);
-    const color = condColor(c);
-    let ctrl = "";
-    if (c.kind === "num") {
-      ctrl = '<input type="number" step="0.01" id="c_' + c.id + '" value="' + escapeHtml(cur) + '" style="width:92px"><span style="color:var(--soft);font-size:13px">' + c.unit + '</span>';
-    } else {
-      ctrl = '<select id="c_' + c.id + '">' + c.opts.map(function(o){
-        return '<option value="' + o[0] + '" ' + (o[0] === cur ? "selected" : "") + '>' + escapeHtml(o[1]) + '</option>';
-      }).join("") + '</select>';
-    }
-    const label = c.auto ? (state.condSource[c.id] || "可自動") : "手動";
-    const sourceClass = c.auto ? "auto" : "manual";
+  const signals = deriveAutoSignals(state);
+  signals.forEach(function(signal){
     const row = document.createElement("div");
     row.className = "cond";
-    row.innerHTML = '<span class="dot" id="cd_' + c.id + '"></span><div class="lbl"><div class="t">' + escapeHtml(c.t) + ' <span class="state-word ' + color + '" id="cw_' + c.id + '">' + TONE_WORD[color] + '</span></div><div class="d">' + escapeHtml(c.d) + '</div><div class="source-row"><span class="pill-label ' + sourceClass + '" id="src_' + c.id + '">' + escapeHtml(label) + '</span></div></div><div class="ctrl">' + ctrl + '</div>';
+    row.innerHTML = '<span class="dot" id="cd_' + signal.id + '"></span><div class="lbl"><div class="t">' + escapeHtml(signal.title) + ' <span class="state-word ' + signal.tone + '" id="cw_' + signal.id + '">' + TONE_WORD[signal.tone] + '</span></div><div class="d" id="sd_' + signal.id + '">' + escapeHtml(signal.detail) + '</div><div class="source-row"><span class="pill-label auto" id="src_' + signal.id + '">自動 · ' + escapeHtml(signal.source) + '</span></div></div><div class="ctrl" id="c_' + signal.id + '">' + escapeHtml(signal.value) + '</div>';
     box.appendChild(row);
-    const input = $("c_" + c.id);
-    input.addEventListener(c.kind === "num" ? "input" : "change", function(){
-      state.cond[c.id] = c.kind === "num" ? parseNumber(input.value) : input.value;
-      if (c.id === "yield") {
-        state.yieldManual = true;
-        setConditionSource("yield", "手動覆寫");
-      }
-      saveState();
-      paint();
-    });
+    $("cd_" + signal.id);
+    $("cw_" + signal.id);
+    $("sd_" + signal.id);
+    $("src_" + signal.id);
+    $("c_" + signal.id);
   });
-  paint();
+  paint(signals);
 }
 
-function paint(){
-  const colors = CONDS.map(condColor);
-  CONDS.forEach(function(c, index){
-    const dot = $("cd_" + c.id);
-    const word = $("cw_" + c.id);
-    if (dot) dot.style.background = COLORS[colors[index]];
+function renderSignalSummary(signals){
+  const box = $("signalSummary");
+  if (!box) return;
+  box.innerHTML = signals.map(function(signal){
+    return '<div class="signal-chip ' + signal.tone + '" id="sum_' + signal.id + '"><b>' + TONE_WORD[signal.tone] + '：' + escapeHtml(signal.title) + '</b><span>' + escapeHtml(signal.detail) + '</span></div>';
+  }).join("");
+}
+
+function paint(signals){
+  signals = signals || deriveAutoSignals(state);
+  signals.forEach(function(signal){
+    const dot = $("cd_" + signal.id);
+    const word = $("cw_" + signal.id);
+    const detail = $("sd_" + signal.id);
+    const source = $("src_" + signal.id);
+    const value = $("c_" + signal.id);
+    if (dot) dot.style.background = COLORS[signal.tone];
     if (word) {
-      word.className = "state-word " + colors[index];
-      word.textContent = TONE_WORD[colors[index]];
+      word.className = "state-word " + signal.tone;
+      word.textContent = TONE_WORD[signal.tone];
     }
+    if (detail) detail.textContent = signal.detail;
+    if (source) source.textContent = "自動 · " + signal.source;
+    if (value) value.textContent = signal.value;
   });
-  const verdict = aggregateVerdict(colors);
+  renderSignalSummary(signals);
+  const verdict = aggregateVerdict(signals);
   $("verdictLight").style.background = COLORS[verdict.tone];
   $("verdictTitle").textContent = verdict.title;
   $("verdictDesc").textContent = verdict.desc;
@@ -735,7 +963,7 @@ function renderBuckets(){
   const cash = document.createElement("div");
   cash.className = "bucket";
   cash.innerHTML = '<div class="bh"><span class="name">現金</span><span class="role">保留再平衡與估值重置時的彈性</span><span class="tier cash">CASH</span></div>'
-    + '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line);color:var(--soft)">若採分批策略，可考慮拆成 3-5 筆；紅燈偏暫停，黃燈偏觀察，綠燈再檢查自己的資金規則。</div>';
+    + '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line);color:var(--soft)">若已有自己的分批規則，可用 3-5 格作為觀察紀錄欄位；紅燈偏退場觀察，黃燈等待，綠燈仍需核對自己的資金規則。</div>';
   box.appendChild(cash);
 }
 
@@ -827,7 +1055,7 @@ async function refresh(){
   const messages = [];
   messages.push(await loadEod());
   messages.push(await loadYield10y());
-  paint();
+  renderConds();
   $("stamp").textContent = messages.join(" · ") + " · " + new Date().toLocaleString("zh-TW");
 }
 
@@ -846,8 +1074,7 @@ async function init(){
   $("addT").addEventListener("click", function(){
     const target = clampText($("tTarget").value.trim(), MAX_TRANCHE_TEXT);
     if (!target) return;
-    const colors = CONDS.map(condColor);
-    const verdict = aggregateVerdict(colors);
+    const verdict = aggregateVerdict(deriveAutoSignals(state));
     state.tranches.push({
       date: clampText($("tDate").value, 16),
       step: clampText($("tStep").value, 24),
@@ -877,6 +1104,8 @@ window.PortfolioConsoleApp = {
     parseNumber:parseNumber,
     proxyBase:proxyBase,
     sanitizeState:sanitizeState,
+    deriveAutoSignals:deriveAutoSignals,
+    condColor:condColor,
   },
 };
 
