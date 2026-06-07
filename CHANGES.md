@@ -1,5 +1,6 @@
 # Changes
 
+- Added favicon, Apple touch icon, web manifest, and theme-color metadata for the stock observation console.
 - Removed the local tranche observation log section and its state/render/test surface from the current console.
 - Removed the extra page-title/header tagline so the console title stays concise.
 - Hardened the local tranche observation log with visible field labels, readable progress/status text, structured mobile-friendly rows, confirmed deletes, 50-row live caps, save-failure feedback, and deeper persistence/XSS/delete tests.

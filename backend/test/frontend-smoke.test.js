@@ -200,6 +200,11 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   for (const id of requiredIds) {
     assert.match(html, new RegExp(`id=["']${id}["']`), `${id} should exist in static HTML`);
   }
+  assert.match(html, /rel="icon" href="\/assets\/images\/favicon\.ico"/);
+  assert.match(html, /rel="icon" href="\/assets\/images\/favicon\.svg" type="image\/svg\+xml"/);
+  assert.match(html, /rel="apple-touch-icon" href="\/assets\/images\/apple-touch-icon\.png"/);
+  assert.match(html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/);
+  assert.match(html, /name="theme-color" content="#101418"/);
 
   assert.equal(typeof context.window.PortfolioConsoleApp.init, "function");
   assert.equal(typeof context.window.PortfolioConsoleApp.refresh, "function");
