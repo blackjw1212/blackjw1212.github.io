@@ -1,5 +1,6 @@
 # Changes
 
+- Removed the local tranche observation log section and its state/render/test surface from the current console.
 - Removed the extra page-title/header tagline so the console title stays concise.
 - Hardened the local tranche observation log with visible field labels, readable progress/status text, structured mobile-friendly rows, confirmed deletes, 50-row live caps, save-failure feedback, and deeper persistence/XSS/delete tests.
 - Changed allowlisted TradingView links from technical-analysis summary pages to full chart URLs with encoded TWSE/TPEX symbols.

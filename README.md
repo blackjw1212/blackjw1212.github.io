@@ -27,7 +27,6 @@ This repository also includes a plain static Taiwan stock portfolio console at `
 - Stock-code links to allowlisted TradingView full chart pages
 - Core / satellite / cash allocation
 - Multi-dimension AI supply-chain scorecard
-- Browser-local observation log
 
 The page reads the backend URL from either:
 
@@ -109,7 +108,7 @@ Run the dependency-free tests from the repository root:
 node --test backend/test/*.test.js
 ```
 
-The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for Worker-backed EOD/yield, no-backend static fallback, proxy allowlist enforcement, manual 10Y override, localStorage cache fallback, observation-log interaction, malformed localStorage state, verdict/EOD/yield helper logic, allowlisted TradingView full chart links, and the conservative `RetailConsole` retail-glance helper contract.
+The suite covers backend normalizers, Worker routes/CORS/error handling, and frontend smoke renders with mocked fetch for Worker-backed EOD/yield, no-backend static fallback, proxy allowlist enforcement, manual 10Y override, localStorage cache fallback, removed local-log UI guards, malformed/legacy localStorage state, verdict/EOD/yield helper logic, allowlisted TradingView full chart links, and the conservative `RetailConsole` retail-glance helper contract.
 
 ### Static Data Feed
 

@@ -195,7 +195,6 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   const requiredIds = [
     "verdictLight", "verdictTitle", "verdictDesc", "actionNext", "actionAvoid",
     "signalSummary", "refresh", "conds", "stamp", "buckets", "scoreTable", "scoreBody", "stockCards",
-    "planN", "doneN", "prog", "trancheStatus", "tDate", "tStep", "tTarget", "tPrice", "tNote", "addT", "tLog",
   ];
 
   for (const id of requiredIds) {
@@ -497,247 +496,43 @@ test("empty static EOD can fall through to localStorage cache", async () => {
   assert.match(document.getElementById("stamp").textContent, /本機快取/);
 });
 
-test("tranche observation form persists and reloads a local-only observation row", async () => {
-  const storage = createLocalStorage();
-  const { context, document } = await loadApp(async (url) => {
-    const href = String(url);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
-    throw new Error(`unavailable: ${href}`);
-  }, { localStorage: storage });
-
-  await context.window.PortfolioConsoleApp.init();
-
-  document.getElementById("tDate").value = "2026-06-07";
-  document.getElementById("tStep").value = "第 1 筆";
-  document.getElementById("tTarget").value = "2330 核心";
-  document.getElementById("tPrice").value = "觀察 2400";
-  document.getElementById("tNote").value = "燈號仍需確認";
-  document.getElementById("addT").listeners.get("click")();
-
-  assert.equal(context.window.PortfolioConsoleApp.getState().tranches.length, 1);
-  assert.equal(document.getElementById("doneN").textContent, "1/4");
-  assert.match(document.getElementById("tLog").innerHTML, /2330 核心/);
-  assert.match(document.getElementById("prog").innerHTML, /pill done/);
-
-  const saved = JSON.parse(storage.getItem(STATE_KEY));
-  assert.equal(saved.tranches[0].target, "2330 核心");
-  assert.equal(saved.tranches[0].price, "觀察 2400");
-  assert.match(saved.tranches[0].verdict, /等待|退場|進場/);
-
-  const reloaded = await loadApp(async (url) => {
-    const href = String(url);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
-    throw new Error(`unavailable: ${href}`);
-  }, { localStorage: storage });
-  await reloaded.context.window.PortfolioConsoleApp.init();
-
-  assert.equal(reloaded.context.window.PortfolioConsoleApp.getState().tranches.length, 1);
-  assert.match(reloaded.document.getElementById("tLog").innerHTML, /2330 核心/);
-  assert.equal(reloaded.document.getElementById("doneN").textContent, "1/4");
-});
-
-test("tranche log escapes user text and blocks raw html injection", async () => {
-  const { context, document } = await loadApp(async (url) => {
-    const href = String(url);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
-    throw new Error(`unavailable: ${href}`);
-  });
-
-  await context.window.PortfolioConsoleApp.init();
-
-  document.getElementById("tDate").value = "2026-06-07";
-  document.getElementById("tStep").value = "第 1 筆";
-  document.getElementById("tTarget").value = `<img src=x onerror=alert(1)> Tom & "O'Brien"`;
-  document.getElementById("tPrice").value = "<script>alert(1)</script>";
-  document.getElementById("tNote").value = `reason & "quote" 'apostrophe'`;
-  document.getElementById("addT").listeners.get("click")();
-
-  const html = document.getElementById("tLog").innerHTML;
-  assert.doesNotMatch(html, /<img\b|<script\b/i);
-  assert.match(html, /&lt;img/);
-  assert.match(html, /&lt;script&gt;/);
-  assert.match(html, /&amp;/);
-  assert.match(html, /&quot;quote&quot;/);
-  assert.match(html, /&#39;apostrophe&#39;/);
-});
-
-test("tranche delete confirms, updates state, and persists removal", async () => {
-  const storage = createLocalStorage();
-  const confirmations = [];
-  const { context, document } = await loadApp(async (url) => {
-    const href = String(url);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
-    throw new Error(`unavailable: ${href}`);
-  }, {
-    localStorage: storage,
-    confirm(message) {
-      confirmations.push(message);
-      return true;
-    },
-  });
-
-  await context.window.PortfolioConsoleApp.init();
-
-  document.getElementById("tTarget").value = "first row";
-  document.getElementById("addT").listeners.get("click")();
-  document.getElementById("tTarget").value = "second row";
-  document.getElementById("addT").listeners.get("click")();
-
-  const buttons = document.getElementById("tLog").querySelectorAll(".delete-tranche");
-  assert.equal(buttons.length, 2);
-  assert.match(buttons[0].ariaLabel, /first row/);
-
-  let prevented = false;
-  buttons[0].listeners.get("click")({
-    preventDefault() {
-      prevented = true;
-    },
-  });
-
-  assert.equal(prevented, true);
-  assert.match(confirmations[0], /first row/);
-  assert.equal(context.window.PortfolioConsoleApp.getState().tranches.length, 1);
-  assert.equal(context.window.PortfolioConsoleApp.getState().tranches[0].target, "second row");
-  assert.equal(JSON.parse(storage.getItem(STATE_KEY)).tranches[0].target, "second row");
-  assert.equal(document.getElementById("doneN").textContent, "1/4");
-  assert.doesNotMatch(document.getElementById("tLog").innerHTML, /first row/);
-});
-
-test("tranche delete cancel and save failures keep state visible", async () => {
-  const storage = createLocalStorage();
-  const { context, document } = await loadApp(async (url) => {
-    const href = String(url);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
-    throw new Error(`unavailable: ${href}`);
-  }, {
-    localStorage: storage,
-    confirm() {
-      return false;
-    },
-  });
-
-  await context.window.PortfolioConsoleApp.init();
-
-  document.getElementById("tTarget").value = "cancel row";
-  document.getElementById("addT").listeners.get("click")();
-  document.getElementById("tLog").querySelectorAll(".delete-tranche")[0].listeners.get("click")({ preventDefault() {} });
-  assert.equal(context.window.PortfolioConsoleApp.getState().tranches.length, 1);
-  assert.match(document.getElementById("tLog").innerHTML, /cancel row/);
-
-  const failingStorage = {
-    getItem() {
-      return null;
-    },
-    setItem() {
-      throw new Error("quota");
-    },
-  };
-  const failing = await loadApp(async (url) => {
-    const href = String(url);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
-    throw new Error(`unavailable: ${href}`);
-  }, { localStorage: failingStorage });
-  await failing.context.window.PortfolioConsoleApp.init();
-  failing.document.getElementById("tTarget").value = "not saved";
-  failing.document.getElementById("addT").listeners.get("click")();
-  assert.equal(failing.context.window.PortfolioConsoleApp.getState().tranches.length, 0);
-  assert.match(failing.document.getElementById("trancheStatus").textContent, /保存失敗/);
-  assert.equal(failing.document.getElementById("tTarget").value, "not saved");
-});
-
-test("tranche sanitize clamps dirty localStorage and keeps latest valid shape", async () => {
-  const dirtyTranches = [
-    { target: "", note: "empty target should drop" },
-    ...Array.from({ length: 60 }, (_, index) => ({
-      date: "2026-06-" + String(index + 1).padStart(2, "0"),
-      step: "第 1 筆",
-      target: "row-" + index,
-      amount: "legacy amount " + index,
-      note: "x".repeat(200),
-      verdict: "<script>alert(1)</script>",
-    })),
+test("local observation log UI is removed from the static page", async () => {
+  const { html } = await loadApp(async () => response(staticFeed()));
+  const removedIds = [
+    "trancheHeading",
+    "planN",
+    "doneN",
+    "prog",
+    "trancheStatus",
+    "tDate",
+    "tStep",
+    "tTarget",
+    "tPrice",
+    "tNote",
+    "addT",
+    "tLog",
   ];
+
+  for (const id of removedIds) {
+    assert.doesNotMatch(html, new RegExp(`id=["']${id}["']`), id + " should be removed from static HTML");
+  }
+  assert.doesNotMatch(html, /LOCAL LOG|trancheHeading|trancheStatus|delete-tranche/);
+});
+
+test("malformed or legacy localStorage state does not break app initialization", async () => {
   const { context, document } = await loadApp(async () => response(staticFeed()), {
     localStorage: createLocalStorage({
       [STATE_KEY]: JSON.stringify({
-        planN: 99,
-        tranches: dirtyTranches,
-        today: {
-          "2330": { close: "2,400", change: "+5" },
-          "9999": { close: "999" },
-        },
-        base: {
-          "2330": "2300",
-          "9999": "999",
-        },
+        planN: 5,
+        tranches: [{ target: "legacy row", note: "legacy note" }],
       }),
     }),
   });
 
   await context.window.PortfolioConsoleApp.init();
 
-  const state = context.window.PortfolioConsoleApp.getState();
-  assert.equal(state.planN, 4);
-  assert.equal(state.tranches.length, 50);
-  assert.equal(state.tranches[0].target, "row-0");
-  assert.equal(state.tranches[0].price, "legacy amount 0");
-  assert.equal(state.tranches[0].note.length, 120);
-  assert.equal(state.today["9999"], undefined);
-  assert.equal(state.base["9999"], undefined);
-  assert.doesNotMatch(document.getElementById("tLog").innerHTML, /<script\b/i);
-  assert.equal(document.getElementById("tLog").querySelectorAll(".delete-tranche").length, 50);
-});
-
-test("tranche plan progress and max cap stay readable", async () => {
-  const seed = Array.from({ length: 4 }, (_, index) => ({
-    date: "2026-06-07",
-    step: "第 " + Math.min(index + 1, 3) + " 筆",
-    target: "planned-" + index,
-  }));
-  const storage = createLocalStorage({
-    [STATE_KEY]: JSON.stringify({ planN: 3, tranches: seed }),
-  });
-  const { context, document } = await loadApp(async () => response(staticFeed()), { localStorage: storage });
-
-  await context.window.PortfolioConsoleApp.init();
-
-  assert.equal(document.getElementById("doneN").textContent, "4/3");
-  assert.equal(document.getElementById("prog").querySelectorAll(".pill").length, 3);
-  assert.equal(document.getElementById("prog").querySelectorAll(".pill.done").length, 3);
-  assert.match(document.getElementById("trancheStatus").textContent, /補充紀錄/);
-  assert.doesNotMatch(document.getElementById("tStep").innerHTML, /第 4 筆/);
-
-  document.getElementById("planN").value = "5";
-  document.getElementById("planN").listeners.get("change")();
-
-  assert.equal(document.getElementById("doneN").textContent, "4/5");
-  assert.equal(document.getElementById("prog").querySelectorAll(".pill").length, 5);
-  assert.equal(document.getElementById("prog").querySelectorAll(".pill.done").length, 4);
-  assert.match(document.getElementById("tStep").innerHTML, /第 5 筆/);
-
-  const maxRows = Array.from({ length: 50 }, (_, index) => ({ target: "max-" + index }));
-  const maxStorage = createLocalStorage({
-    [STATE_KEY]: JSON.stringify({ planN: 5, tranches: maxRows }),
-  });
-  const maxApp = await loadApp(async () => response(staticFeed()), { localStorage: maxStorage });
-  await maxApp.context.window.PortfolioConsoleApp.init();
-  maxApp.document.getElementById("tTarget").value = "extra row";
-  maxApp.document.getElementById("addT").listeners.get("click")();
-
-  assert.equal(maxApp.context.window.PortfolioConsoleApp.getState().tranches.length, 50);
-  assert.equal(maxApp.document.getElementById("tTarget").value, "extra row");
-  assert.match(maxApp.document.getElementById("trancheStatus").textContent, /50 筆/);
-});
-
-test("malformed localStorage state does not break tranche rendering", async () => {
-  const { context, document } = await loadApp(async () => response(staticFeed()), {
-    localStorage: createLocalStorage({
-      [STATE_KEY]: "{bad json",
-    }),
-  });
-
-  await context.window.PortfolioConsoleApp.init();
-
-  assert.equal(context.window.PortfolioConsoleApp.getState().tranches.length, 0);
-  assert.equal(document.getElementById("doneN").textContent, "0/4");
+  assert.equal(context.window.PortfolioConsoleApp.getState().tranches, undefined);
+  assert.equal(context.window.PortfolioConsoleApp.getState().planN, undefined);
+  assert.match(document.getElementById("scoreBody").innerHTML, /2330/);
+  assert.equal(document.getElementById("tLog").innerHTML, "");
 });
