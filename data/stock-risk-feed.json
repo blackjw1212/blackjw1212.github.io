@@ -1,38 +1,24 @@
 {
   "updatedAt": "2026-06-07T00:51:05.359Z",
+  "eodUpdatedAt": null,
   "filingsUpdatedAt": "2026-06-07T00:51:05.359Z",
   "holdings": [
     "2330",
-    "2308",
     "2317",
-    "2454",
-    "2412",
-    "2881",
-    "2891",
-    "2603"
+    "6669",
+    "3017",
+    "3324",
+    "2382",
+    "1519",
+    "2308"
   ],
-  "filings": [
-    {
-      "code": "2891",
-      "name": "中信金",
-      "date": "2026-06-06 21:18",
-      "title": "代子公司CTBC Bank Corp. (Canada)公告董事會推選董事長",
-      "description": "1.董事會決議日期或發生變動日期:115/06/06\n2.人員別（請輸入董事長或總經理）:董事長\n3.舊任者姓名:石家林(Chia-Lin Shih)\n4.舊任者簡歷:CTBC Bank Corp. (Canada) 董事長\n5.新任者姓名:石家林(Chia-Lin Shih)\n6.新任者簡歷:CTBC Bank Corp. (Canada) 董事長\n7.異動情形（請輸入「辭職」、「解任」、「任期屆滿」、「職務調整」、「資遣」、\n「退休」、「逝世」或「新任」）:任期屆滿\n8.異動原因:改選\n9.新任生效日期:115/06/06\n10.其他應敘明事項(若事件發生或決議之主體係屬公開發行以上公司，本則重大訊息同時\n   符合證券交易法施行細則第7條第6款所定對股東權益或證券價格有重大影響之事項):\n   因兩地時區差異，該選任於加拿大6月5日生效，為臺灣時間6月6日。",
-      "source": "證交所上市重大訊息 OpenAPI",
-      "url": "",
-      "sortKey": "2026-06-06T21:18:00+08:00"
-    }
-  ],
+  "eod": [],
+  "filings": [],
   "yield10y": {
     "date": "2026-06-05",
     "value": 4.55,
     "updatedAt": "2026-06-05T22:00:00.000Z",
     "source": "US Treasury Daily Treasury Yield Curve"
   },
-  "errors": [
-    {
-      "source": "FRED DGS10 CSV",
-      "message": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10 returned HTTP 504"
-    }
-  ]
+  "errors": []
 }

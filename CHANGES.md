@@ -1,5 +1,15 @@
 # Changes
 
+- Replaced the stock page with the restructured long-hold staged-entry portfolio console: Entry Green-Light verdict, core/satellite/cash allocation, multi-dimension scorecard, and browser-local tranche tracker.
+- Ported the robust EOD data path into the new page: Worker `/eod` first, then direct TWSE `STOCK_DAY_ALL`, same-origin `data/stock-risk-feed.json`, and finally localStorage last-good cache. Per-source failures preserve the existing display instead of blanking the table.
+- Wired the 10Y Green-Light signal to Worker `/yield10y` with `{ value }`, `{ body: { value } }`, `{ data: { value } }`, and static-feed shapes, while preserving user manual override.
+- Kept AI/SOX, margin-pressure, and FedWatch conditions manual because no cheap reliable same-origin source was added for them; the UI labels those controls as manual.
+- Preserved the conservative verdict rule: `2+ red` or `red with no green` means cash, `all green` means first tranche, and all other mixes mean small core only.
+- Hardened tranche localStorage loading, malformed JSON handling, plan-count changes, deletion, and HTML escaping for user-entered tranche notes.
+- Updated `scripts/update-stock-risk-feed.mjs` so the scheduled feed now attempts tracked-stock EOD closes in addition to material announcements and the 10Y yield.
+- Replaced the committed static feed with valid JSON for the new tracked-stock list. It keeps the known static 10Y fallback and leaves EOD empty until the scheduled Action refreshes it, avoiding fabricated prices.
+- Updated frontend smoke/unit tests for the new page helpers, verdict aggregation, EOD/yield normalizers, proxy allowlist behavior, static fallback rendering, Worker default behavior, and malformed localStorage state.
+- Updated `README.md` for the portfolio-console restructure, fallback order, manual-vs-auto labels, and static feed coverage.
 - Added `index.html`, a plain HTML/CSS/JS Taiwan stock risk tracker with macro dashboard, positioning stats, valuation table, TWSE/TPEx OpenAPI material-announcement feed, per-panel status messages, and optional intraday refresh.
 - Added `backend/src/worker.js`, a Cloudflare Worker proxy with `GET /eod`, `GET /quote`, optional fallback `GET /filings`, `GET /yield10y`, CORS, short edge cache, upstream timeouts, and retry.
 - Added `backend/src/normalizers.js` for TWSE EOD, TWSE MIS quote, MOPS filing, and FRED DGS10 payload parsing.

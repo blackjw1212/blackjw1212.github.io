@@ -1,9 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 
 const OUT_FILE = new URL("../data/stock-risk-feed.json", import.meta.url);
-const STOCK_CODES = new Set(["2330", "2308", "2317", "2454", "2412", "2881", "2891", "2603"]);
+const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "1519", "2308"]);
 
 const SOURCES = {
+  twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
   twseFilings: "https://openapi.twse.com.tw/v1/opendata/t187ap04_L",
   tpexFilings: "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O",
   fredCsv: "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10",
@@ -29,6 +30,36 @@ function field(row, names) {
     }
   }
   return "";
+}
+
+function parseNumber(value) {
+  if (value == null) return null;
+  const match = String(value).replace(/,/g, "").replace(/%/g, "").match(/[+-]?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function roundNumber(value, digits = 2) {
+  if (value == null || !Number.isFinite(value)) return null;
+  const factor = 10 ** digits;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+function normalizeEod(rows) {
+  if (!Array.isArray(rows)) throw new Error("TWSE EOD payload is not an array");
+  return rows.map((row) => {
+    const code = String(field(row, ["Code", "code", "SecuritiesCompanyCode"]) || "").trim();
+    if (!STOCK_CODES.has(code)) return null;
+    const close = parseNumber(field(row, ["ClosingPrice", "close", "Close", "Closing"]));
+    if (close == null) return null;
+    return {
+      code,
+      name: String(field(row, ["Name", "name", "CompanyName"]) || "").trim(),
+      close: roundNumber(close, 2),
+      change: roundNumber(parseNumber(field(row, ["Change", "change", "PriceChange"])), 2),
+    };
+  }).filter(Boolean);
 }
 
 function rocDate(value) {
@@ -172,6 +203,15 @@ async function main() {
   const now = new Date().toISOString();
   const errors = [];
   const filings = [];
+  let eod = [];
+  let eodUpdatedAt = null;
+
+  try {
+    eod = normalizeEod(await fetchJson(SOURCES.twseEod));
+    eodUpdatedAt = now;
+  } catch (error) {
+    errors.push({ source: "TWSE OpenAPI STOCK_DAY_ALL", message: error.message });
+  }
 
   for (const source of [
     { name: "證交所上市重大訊息 OpenAPI", url: SOURCES.twseFilings },
@@ -198,8 +238,10 @@ async function main() {
 
   const feed = {
     updatedAt: now,
+    eodUpdatedAt,
     filingsUpdatedAt: now,
     holdings: [...STOCK_CODES],
+    eod,
     filings: latestPerStock(filings),
     yield10y,
     errors,

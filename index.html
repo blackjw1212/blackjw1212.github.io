@@ -1,1508 +1,745 @@
 <!DOCTYPE html>
-<html lang="zh-Hant-TW">
+<html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>台股持股風險儀表板</title>
-<meta name="description" content="台股持股風險儀表板，整合收盤行情、盤中公開報價、重大訊息與美債 10 年期殖利率。">
-<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 供應鏈 · 長抱分批建倉決策台</title>
+<meta name="description" content="台灣 AI 供應鏈長抱分批建倉決策台，整合進場綠燈、核心與衛星配置、多維度評分表與分批紀錄。" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #f5f6f8;
-  --card: #ffffff;
-  --raised: #eef1f4;
-  --line: rgba(22, 31, 43, .11);
-  --line-strong: rgba(22, 31, 43, .18);
-  --text: #121a23;
-  --muted: #5a6875;
-  --soft: #82909c;
-  --blue: #286f9f;
-  --green: #19735a;
-  --red: #a83c3c;
-  --amber: #9a6827;
-  --violet: #62508f;
-  --shadow: 0 1px 3px rgba(18, 26, 35, .08), 0 8px 24px rgba(18, 26, 35, .06);
-  --radius: 8px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12161b;
-    --card: #1b222a;
-    --raised: #242d36;
-    --line: rgba(230, 236, 242, .09);
-    --line-strong: rgba(230, 236, 242, .16);
-    --text: #edf2f7;
-    --muted: #a4b0bd;
-    --soft: #71808e;
-    --blue: #72acd4;
-    --green: #79c6aa;
-    --red: #e18484;
-    --amber: #d5a45f;
-    --violet: #b6a6e0;
-    --shadow: 0 1px 4px rgba(0, 0, 0, .25), 0 8px 28px rgba(0, 0, 0, .22);
+  :root{
+    --bg:#15140f; --panel:#1e1c16; --panel2:#26241c; --line:#34322a; --line2:#403d33;
+    --ink:#f3efe3; --soft:#b8b2a1; --faint:#827d6f;
+    --teal:#3fb8a6; --amber:#e0a13c; --amber-d:#8a5e12;
+    --red:#e0625a; --green:#7fc85f;
+    --red-bg:#2a1916; --green-bg:#1c2415; --amber-bg:#2a2113;
   }
-}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Noto Sans TC",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding:0 0 60px;-webkit-font-smoothing:antialiased}
+  .mono{font-family:"Roboto Mono",monospace}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 18px}
+  a{color:var(--teal);text-decoration:none}a:hover{text-decoration:underline}
 
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
-  font: 15px/1.5 "Noto Sans TC", "Microsoft JhengHei", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
+  header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1a1812,#15140f);padding:26px 0 20px;position:relative;overflow:hidden}
+  header::after{content:"AI";position:absolute;right:18px;top:-26px;font-size:150px;opacity:.05;font-family:"Roboto Mono",monospace;font-weight:700}
+  .kick{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--teal);margin-bottom:8px}
+  h1{font-family:"Noto Serif TC",serif;font-weight:900;font-size:clamp(22px,3.4vw,31px);line-height:1.15}
+  h1 span{color:var(--amber)}
+  .profile{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .tagp{font-family:"Roboto Mono",monospace;font-size:11px;background:var(--panel2);border:1px solid var(--line2);border-radius:20px;padding:4px 12px;color:var(--soft)}
+  .tagp b{color:var(--amber)}
 
-button,
-input {
-  font: inherit;
-}
+  h2{font-family:"Noto Serif TC",serif;font-weight:700;font-size:18px;margin:30px 0 4px;display:flex;align-items:baseline;gap:10px}
+  h2 em{font-family:"Roboto Mono",monospace;font-style:normal;font-size:11px;color:var(--amber);letter-spacing:.06em}
+  .hint{font-size:12px;color:var(--faint);margin-bottom:12px}
+  .stamp{font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint)}
+  .btn{font-family:"Roboto Mono",monospace;font-size:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:7px 13px;cursor:pointer}
+  .btn:hover{border-color:var(--amber);color:var(--amber)}
+  input,select{font-family:"Roboto Mono",monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:7px;padding:6px 9px;font-size:13px}
+  input:focus,select:focus{outline:none;border-color:var(--amber)}
 
-.page {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 22px 18px 44px;
-}
+  .verdict{display:flex;align-items:center;gap:16px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:16px 18px;margin-top:6px}
+  .vlight{width:42px;height:42px;border-radius:50%;flex:none;background:var(--faint);box-shadow:0 0 0 4px rgba(255,255,255,.04)}
+  .vtext .vt{font-family:"Noto Serif TC",serif;font-weight:700;font-size:18px}
+  .vtext .vd{font-size:13px;color:var(--soft);margin-top:2px}
+  .cond{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-top:8px}
+  .cond .dot{width:11px;height:11px;border-radius:50%;flex:none;background:var(--faint)}
+  .cond .lbl{flex:1;min-width:0}
+  .cond .lbl .t{font-size:14px}.cond .lbl .d{font-size:12px;color:var(--faint)}
+  .auto{font-family:"Roboto Mono",monospace;font-size:10px;color:var(--teal);border:1px solid var(--line2);border-radius:5px;padding:1px 6px;white-space:nowrap}
 
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 18px;
-}
+  .bucket{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:10px}
+  .bucket .bh{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .bucket .bh .name{font-family:"Noto Serif TC",serif;font-weight:700;font-size:16px}
+  .bucket .bh .role{font-size:12px;color:var(--faint)}
+  .bucket .bh .tier{margin-left:auto;font-family:"Roboto Mono",monospace;font-size:10px;padding:2px 9px;border-radius:20px}
+  .tier.core{background:var(--green-bg);color:var(--green)}
+  .tier.sat{background:var(--amber-bg);color:var(--amber)}
+  .tier.wait{background:var(--red-bg);color:var(--red)}
+  .tier.cash{background:var(--panel2);color:var(--soft);border:1px solid var(--line2)}
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  table{width:100%;border-collapse:collapse;margin-top:0;font-size:13px;min-width:860px}
+  th{font-family:"Roboto Mono",monospace;font-size:10px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:7px 5px;border-bottom:1px solid var(--line2)}
+  th:first-child{text-align:left}
+  td{padding:8px 5px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}
+  td:first-child{text-align:left}
+  tr:last-child td{border-bottom:0}
+  .code{font-family:"Roboto Mono",monospace;color:var(--faint)}.nm{font-weight:700}
+  .px{font-family:"Roboto Mono",monospace;font-weight:600}
+  .pos{color:var(--green)}.neg{color:var(--red)}.flat{color:var(--faint)}
+  .sc{font-family:"Roboto Mono",monospace;font-size:12px;display:inline-block;min-width:30px;text-align:center;border-radius:5px;padding:1px 4px}
+  .s-h{background:var(--green-bg);color:var(--green)}.s-m{background:var(--amber-bg);color:var(--amber)}.s-l{background:var(--red-bg);color:var(--red)}
+  .stale{color:var(--faint);font-size:11px}
 
-.brand img {
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--card);
-}
+  .tranche{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:6px}
+  .tranche .prog{display:flex;gap:6px;margin:8px 0}
+  .pill{flex:1;height:8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line2)}
+  .pill.done{background:var(--teal);border-color:var(--teal)}
+  .logrow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .logitem{font-size:12px;color:var(--soft);border-bottom:1px dotted var(--line);padding:6px 0}
+  .logitem b{color:var(--ink)}
 
-h1 {
-  margin: 0;
-  font-size: 22px;
-  line-height: 1.15;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.subtitle {
-  margin-top: 3px;
-  color: var(--soft);
-  font-size: 12px;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.btn {
-  border: 1px solid var(--line-strong);
-  color: var(--text);
-  background: var(--card);
-  border-radius: var(--radius);
-  padding: 8px 11px;
-  cursor: pointer;
-  min-height: 38px;
-}
-
-.btn:hover {
-  border-color: var(--blue);
-}
-
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  padding: 8px 10px;
-  background: var(--card);
-  color: var(--muted);
-  min-height: 38px;
-}
-
-.toggle input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--blue);
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  border-radius: 999px;
-  padding: 2px 9px;
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--raised);
-  border: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-.chip.ok { color: var(--green); }
-.chip.warn { color: var(--amber); }
-.chip.error { color: var(--red); }
-.chip.loading { color: var(--blue); }
-
-.grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
-  gap: 14px;
-}
-
-.panel {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  min-width: 0;
-}
-
-.panel-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 15px 16px 11px;
-  border-bottom: 1px solid var(--line);
-}
-
-.panel-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.panel-meta {
-  color: var(--soft);
-  font-size: 12px;
-  margin-top: 2px;
-}
-
-.panel-body {
-  padding: 14px 16px 16px;
-}
-
-.macro-grid,
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.metric {
-  min-width: 0;
-  padding: 12px;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-.metric span {
-  display: block;
-  color: var(--soft);
-  font-size: 12px;
-  margin-bottom: 5px;
-}
-
-.metric strong {
-  display: block;
-  font-size: 22px;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-
-.metric small {
-  display: block;
-  color: var(--muted);
-  margin-top: 5px;
-  font-size: 12px;
-}
-
-.yield-row {
-  display: flex;
-  gap: 10px;
-  align-items: end;
-  margin-bottom: 12px;
-}
-
-.yield-field {
-  min-width: 170px;
-  flex: 0 0 auto;
-}
-
-.yield-field label {
-  display: block;
-  color: var(--soft);
-  font-size: 12px;
-  margin-bottom: 5px;
-}
-
-.yield-field input {
-  width: 100%;
-  min-height: 38px;
-  color: var(--text);
-  background: var(--raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  padding: 7px 9px;
-  font-variant-numeric: tabular-nums;
-}
-
-.risk-band {
-  flex: 1 1 auto;
-  min-height: 38px;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  padding: 8px 11px;
-  background: var(--raised);
-  color: var(--muted);
-}
-
-.risk-band.ok { color: var(--green); }
-.risk-band.warn { color: var(--amber); }
-.risk-band.error { color: var(--red); }
-
-.table-wrap {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 780px;
-}
-
-th,
-td {
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--line);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-th {
-  color: var(--soft);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-th:first-child,
-td:first-child,
-th:nth-child(2),
-td:nth-child(2) {
-  text-align: left;
-}
-
-tbody tr:hover {
-  background: color-mix(in srgb, var(--raised) 60%, transparent);
-}
-
-.ticker {
-  font-weight: 700;
-  color: var(--text);
-}
-
-.muted {
-  color: var(--soft);
-}
-
-.up { color: var(--green); }
-.down { color: var(--red); }
-.flat { color: var(--muted); }
-
-.feed {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.filing {
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr);
-  gap: 9px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--raised);
-}
-
-.filing-date {
-  color: var(--soft);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.filing a {
-  color: var(--text);
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.filing a:hover {
-  color: var(--blue);
-}
-
-.filing-title {
-  display: block;
-  color: var(--text);
-  font-weight: 600;
-}
-
-.empty {
-  color: var(--soft);
-  padding: 14px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--raised);
-}
-
-.foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 11px 16px;
-  border-top: 1px solid var(--line);
-  color: var(--soft);
-  font-size: 12px;
-}
-
-.full {
-  grid-column: 1 / -1;
-}
-
-.stack {
-  display: grid;
-  gap: 14px;
-}
-
-@media (max-width: 860px) {
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
+  footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
+  footer b{color:var(--soft)}
+  @media (max-width:720px){
+    .verdict{align-items:flex-start;gap:12px}
+    .verdict .btn{margin-left:0!important;width:100%;margin-top:10px}
+    .vtext{flex:1}
+    .cond{align-items:flex-start;flex-wrap:wrap}
+    .cond .lbl{flex-basis:calc(100% - 28px)}
+    .bucket .bh{flex-wrap:wrap}
+    .bucket .bh .tier{margin-left:0}
   }
-  .actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-  .grid {
-    grid-template-columns: 1fr;
-  }
-  .macro-grid,
-  .stat-grid {
-    grid-template-columns: 1fr;
-  }
-  .yield-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .yield-field {
-    min-width: 0;
-  }
-}
 </style>
 </head>
 <body>
-<main class="page">
-  <header class="topbar">
-    <div class="brand">
-      <img src="./favicon.svg" alt="">
-      <div>
-        <h1>台股持股風險儀表板</h1>
-        <div class="subtitle" id="appUpdated">等待資料</div>
-      </div>
-    </div>
-    <div class="actions">
-      <span class="chip" id="proxyBadge">資料代理未設定</span>
-      <label class="toggle"><input type="checkbox" id="quoteToggle"> 盤中報價</label>
-      <button class="btn" id="refreshBtn" type="button">重新整理</button>
-    </div>
-  </header>
 
-  <section class="grid">
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2 class="panel-title">總經風險儀表板</h2>
-          <div class="panel-meta" id="macroUpdated">等待殖利率</div>
-        </div>
-        <span class="chip" id="macroStatus">待命</span>
-      </div>
-      <div class="panel-body">
-        <div class="yield-row">
-          <div class="yield-field">
-            <label for="yield10y">美國 10 年期公債殖利率</label>
-            <input id="yield10y" inputmode="decimal" placeholder="4.25" aria-label="美國 10 年期公債殖利率">
-          </div>
-          <div class="risk-band" id="riskBand">等待風險評估</div>
-        </div>
-        <div class="macro-grid">
-          <div class="metric">
-            <span>持股上漲比</span>
-            <strong id="breadthMetric">--</strong>
-            <small id="breadthDetail">等待收盤資料</small>
-          </div>
-          <div class="metric">
-            <span>平均漲跌幅</span>
-            <strong id="avgMoveMetric">--</strong>
-            <small id="avgMoveDetail">等待收盤行情</small>
-          </div>
-          <div class="metric">
-            <span>利率壓力</span>
-            <strong id="macroPressureMetric">--</strong>
-            <small id="macroPressureDetail">等待殖利率輸入</small>
-          </div>
-        </div>
-      </div>
+<header>
+  <div class="wrap">
+    <div class="kick">Cross-Currents · Portfolio Console · v0.2</div>
+    <h1>AI 供應鏈 · <span>長抱分批建倉決策台</span></h1>
+    <div class="profile">
+      <span class="tagp">風格 <b>長抱分批</b></span>
+      <span class="tagp">節奏 <b>核心先行</b></span>
+      <span class="tagp">資料 <b>EOD/手動混合</b></span>
     </div>
+  </div>
+</header>
 
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2 class="panel-title">持股配置</h2>
-          <div class="panel-meta" id="positionUpdated">等待報價</div>
-        </div>
-        <span class="chip" id="quoteStatus">盤中關閉</span>
-      </div>
-      <div class="panel-body">
-        <div class="stat-grid">
-          <div class="metric">
-            <span>持倉市值</span>
-            <strong id="positionValue">--</strong>
-            <small id="positionPnl">等待成本基準</small>
-          </div>
-          <div class="metric">
-            <span>最大權重</span>
-            <strong id="largestWeight">--</strong>
-            <small id="largestName">等待持倉資料</small>
-          </div>
-          <div class="metric">
-            <span>現金緩衝</span>
-            <strong id="cashBuffer">--</strong>
-            <small id="cashDetail">靜態模型</small>
-          </div>
-        </div>
-      </div>
-    </div>
+<div class="wrap">
 
-    <div class="panel full">
-      <div class="panel-head">
-        <div>
-          <h2 class="panel-title">持股估值表</h2>
-          <div class="panel-meta" id="eodUpdated">等待收盤行情</div>
-        </div>
-        <span class="chip" id="eodStatus">待命</span>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>代號</th>
-              <th>名稱</th>
-              <th>股價</th>
-              <th>漲跌</th>
-              <th>本益比</th>
-              <th>合理價</th>
-              <th>距合理價</th>
-              <th>權重</th>
-            </tr>
-          </thead>
-          <tbody id="stockRows"></tbody>
-        </table>
-      </div>
-      <div class="foot">
-        <span id="tableSource">等待資料來源</span>
-        <span id="tableDelay">等待延遲說明</span>
-      </div>
-    </div>
+  <h2>進場綠燈判讀 <em>ENTRY GREEN-LIGHT</em></h2>
+  <p class="hint">把宏觀、AI 族群、毛利率與降息機率拆成四個燈號。只有條件都轉綠才啟動第一筆；遇到紅燈堆疊就先保留現金。</p>
+  <div class="verdict">
+    <span class="vlight" id="verdictLight"></span>
+    <div class="vtext"><div class="vt" id="verdictTitle">等待判讀</div><div class="vd" id="verdictDesc">更新資料或調整手動條件後自動結論</div></div>
+    <button class="btn" id="refresh" style="margin-left:auto" type="button">更新行情/殖利率</button>
+  </div>
+  <div id="conds"></div>
+  <div class="stamp" id="stamp" style="margin-top:8px">尚未更新</div>
 
-    <div class="panel full">
-      <div class="panel-head">
-        <div>
-          <h2 class="panel-title">重大訊息公告</h2>
-          <div class="panel-meta" id="filingsUpdated">等待公開資訊觀測站資料</div>
-        </div>
-        <span class="chip" id="filingsStatus">待命</span>
-      </div>
-      <div class="panel-body">
-        <div class="feed" id="filingsFeed"></div>
-      </div>
-      <div class="foot">
-        <span id="filingsSource">等待資料來源</span>
-        <span id="filingsDelay">等待延遲說明</span>
-      </div>
+  <h2>核心 / 衛星 / 現金配置 <em>ALLOCATION</em></h2>
+  <p class="hint">核心倉先吃結構成長與可預期現金流；衛星倉只在綠燈更完整時分批；現金是波動與估值重置時的選擇權。</p>
+  <div id="buckets"></div>
+
+  <h2>多維度評分表 <em>SCORECARD</em></h2>
+  <p class="hint">評分為既有定性判斷，保留不改；收盤價使用 Worker、TWSE 直接來源、同源靜態 feed 或本機快取，並誠實標示資料狀態。</p>
+  <div class="table-scroll">
+    <table id="scoreTable">
+      <thead><tr>
+        <th>股票</th><th>估值</th><th>獲利韌性</th><th>AI 槓桿</th><th>財務體質</th><th>週期風險</th><th>長抱適配</th>
+        <th>參考 PE</th><th>收盤</th><th>vs 基準</th>
+      </tr></thead>
+      <tbody id="scoreBody"></tbody>
+    </table>
+  </div>
+
+  <h2>分批建倉紀錄 <em>TRANCHES</em></h2>
+  <p class="hint">把「想買」拆成可以回頭檢查的分批紀錄。紀錄只存在瀏覽器 localStorage，不上傳、不含任何交易密碼或個資。</p>
+  <div class="tranche">
+    <div>計畫筆數
+      <select id="planN" style="width:70px"><option>3</option><option selected>4</option><option>5</option></select>
+      已完成 <b id="doneN" class="mono">0</b> 筆
     </div>
-  </section>
-</main>
+    <div class="prog" id="prog"></div>
+    <div class="logrow">
+      <input type="date" id="tDate" style="width:150px">
+      <input type="text" id="tTarget" placeholder="標的或組合，例如 2330 核心" style="flex:1;min-width:160px">
+      <input type="text" id="tNote" placeholder="備註，例如 價格/條件/原因" style="flex:1;min-width:160px">
+      <button class="btn" id="addT" type="button">加入</button>
+    </div>
+    <div id="tLog"></div>
+  </div>
+
+  <footer>
+    本頁是決策輔助，不是投資建議。資料標籤會區分 <b>Worker、TWSE EOD、靜態備援、本機快取、手動覆寫</b>；
+    延遲或收盤資料不會標為即時。後端沿用既有 Worker endpoints：/eod、/quote、/filings、/yield10y、/health。
+  </footer>
+</div>
 
 <script>
-(function () {
-  "use strict";
+(function(){
+const DEFAULT_PROXY_BASE = "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev";
+const ALLOWED_PROXIES = new Set([DEFAULT_PROXY_BASE]);
+const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
+const STATIC_STOCK_FEED_URL = "data/stock-risk-feed.json";
+const LS = "bjkw-portfolio-console-v2";
 
-  const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
-  const DIRECT_TWSE_FILINGS = "https://openapi.twse.com.tw/v1/opendata/t187ap04_L";
-  const DIRECT_TPEX_FILINGS = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O";
-  const DEFAULT_PROXY_BASE = "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev";
-  const STATIC_STOCK_FEED_URL = "data/stock-risk-feed.json";
-  const FILINGS_CACHE_KEY = "bjkw_stock_filings_v1";
-  const FILINGS_CACHE_SOFT_MS = 60 * 60 * 1000;
-  const FILINGS_CACHE_HARD_MS = 24 * 60 * 60 * 1000;
-  const FILINGS_PER_STOCK_LIMIT = 5;
-  const FILINGS_VISIBLE_LIMIT = 12;
-  const CASH = 250000;
-  const QUOTE_REFRESH_MS = 30000;
+const STOCKS = [
+  {code:"2330",name:"台積電",tier:"core",role:"核心製程與先進封裝，AI 供應鏈底座",pe:"~25",base:2385,s:["m","h","h","m","h","h"]},
+  {code:"2317",name:"鴻海",tier:"core",role:"AI 伺服器與整機平台，權重放在核心但分批",pe:"中",base:289,s:["m","mh","mh","m","m","h"]},
+  {code:"6669",name:"緯穎",tier:"sat",role:"高 beta AI 伺服器 ODM，估值與循環要控管",pe:"~18",base:5520,s:["h","m","h","h","m","m"]},
+  {code:"3017",name:"奇鋐",tier:"sat",role:"散熱主線，GB/AI 平台拉動但波動較高",pe:"~27",base:2640,s:["m","m","h","h","m","m"]},
+  {code:"3324",name:"雙鴻",tier:"sat",role:"散熱衛星，B300/高階平台題材但位置較敏感",pe:"~44",base:1280,s:["ml","m","m","h","m","m"]},
+  {code:"2382",name:"廣達",tier:"sat",role:"AI 伺服器 ODM 與雲端客戶，作為中段衛星",pe:"中",base:339,s:["m","m","mh","mh","m","mh"]},
+  {code:"1519",name:"華城",tier:"wait",role:"電力建設長線，但估值與籌碼需等冷卻",pe:"~64",base:935,s:["l","l","h","h","h","m"]},
+  {code:"2308",name:"台達電",tier:"wait",role:"電源/散熱/電動化品質高，等待估值回到可分批區",pe:"~85",base:2300,s:["l","l","h","h","mh","mh"]},
+];
 
-  const STOCKS = [
-    { code: "2330", name: "台積電", shares: 12, cost: 880, eps: 45.25, targetPe: 24 },
-    { code: "2308", name: "台達電", shares: 20, cost: 300, eps: 17.20, targetPe: 22 },
-    { code: "2317", name: "鴻海", shares: 25, cost: 160, eps: 12.00, targetPe: 15 },
-    { code: "2454", name: "聯發科", shares: 6, cost: 1180, eps: 66.50, targetPe: 18 },
-    { code: "2412", name: "中華電", shares: 30, cost: 118, eps: 4.60, targetPe: 22 },
-    { code: "2881", name: "富邦金", shares: 45, cost: 78, eps: 6.50, targetPe: 14 },
-    { code: "2891", name: "中信金", shares: 70, cost: 32, eps: 3.00, targetPe: 13 },
-    { code: "2603", name: "長榮", shares: 12, cost: 175, eps: 13.50, targetPe: 9 },
-  ];
+const TIERS = {
+  core:{name:"核心",role:"先建立、少量多次、只在紅燈時暫停",cls:"core"},
+  sat:{name:"衛星",role:"條件改善後才補，嚴控單筆權重",cls:"sat"},
+  wait:{name:"衛星 · 等估值或籌碼冷卻",role:"不是否定公司，是等待更好的風險報酬",cls:"wait"},
+};
 
-  const state = {
-    eod: new Map(),
-    quotes: new Map(),
-    filings: [],
-    filingsMessage: "尚未載入重大訊息。",
-    filingsMeta: {
-      phase: "idle",
-      source: "等待資料來源",
-      delay: "等待延遲說明",
-      failedSources: [],
-      cacheTs: null,
-      sourceUpdatedAt: null,
-    },
-    quoteFresh: false,
-    yieldTouched: false,
-    yieldSource: "empty",
-    quoteTimer: null,
-    proxyBase: "",
-    staticFeedPromise: null,
+const SCLS = {h:"s-h",mh:"s-h",m:"s-m",ml:"s-l",l:"s-l"};
+const STXT = {h:"高",mh:"中高",m:"中",ml:"中低",l:"低"};
+
+const CONDS = [
+  {id:"sox", t:"半導體 / AI 族群風險偏好", d:"手動：SOX、NVDA、AI 伺服器族群是否止跌或轉強。", kind:"sel",
+   opts:[["g","轉強"],["a","震盪"],["r","轉弱"]], val:"r"},
+  {id:"margin", t:"台股融資與追價壓力", d:"手動：若融資快速升溫、熱門股追價失控，保守看待。", kind:"sel",
+   opts:[["g","降溫"],["a","中性"],["r","過熱"]], val:"r"},
+  {id:"yield", t:"美債 10Y 殖利率不再惡化", d:"<4.5 綠 · 4.5-4.7 黃 · >4.7 紅；Worker 或靜態 feed 可自動帶入。", kind:"num", unit:"%", val:4.5,
+   rule:function(v){return isNaN(v) ? "a" : (v > 4.7 ? "r" : (v >= 4.5 ? "a" : "g"));}, auto:true},
+  {id:"fed", t:"FedWatch 降息機率回升", d:"手動：<25 綠 · 25-50 黃 · >=50 紅，用來捕捉市場對緊縮的擔憂。", kind:"num", unit:"%", val:43,
+   rule:function(v){return isNaN(v) ? "a" : (v >= 50 ? "r" : (v >= 25 ? "a" : "g"));}},
+];
+
+const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
+const STOCK_CODES = STOCKS.map(function(stock){return stock.code;});
+const EOD_CACHE_KEY = LS + ":eod:" + STOCK_CODES.join(",");
+const MAX_TRANCHE_TEXT = 120;
+
+let state = loadState();
+let staticFeedPromise = null;
+
+function $(id){return document.getElementById(id);}
+
+function storage(){
+  try { return window.localStorage || null; } catch (error) { return null; }
+}
+
+function defaultState(){
+  return {cond:{},condSource:{},base:{},today:{},tranches:[],planN:4,yieldManual:false};
+}
+
+function clampText(value, max){
+  return String(value == null ? "" : value).slice(0, max);
+}
+
+function sanitizeState(raw){
+  const next = defaultState();
+  if (!raw || typeof raw !== "object") return next;
+
+  if (raw.cond && typeof raw.cond === "object") {
+    for (const cond of CONDS) {
+      if (raw.cond[cond.id] == null) continue;
+      next.cond[cond.id] = cond.kind === "num" ? parseNumber(raw.cond[cond.id]) : String(raw.cond[cond.id]);
+      if (next.cond[cond.id] == null) delete next.cond[cond.id];
+    }
+  }
+
+  if (raw.condSource && typeof raw.condSource === "object") {
+    for (const cond of CONDS) {
+      if (raw.condSource[cond.id]) next.condSource[cond.id] = clampText(raw.condSource[cond.id], 48);
+    }
+  }
+
+  if (raw.base && typeof raw.base === "object") {
+    for (const code of STOCK_CODES) {
+      const value = parseNumber(raw.base[code]);
+      if (value != null) next.base[code] = value;
+    }
+  }
+
+  if (raw.today && typeof raw.today === "object") {
+    for (const code of STOCK_CODES) {
+      const close = parseNumber(raw.today[code] && raw.today[code].close);
+      const change = parseNumber(raw.today[code] && raw.today[code].change);
+      if (close != null) next.today[code] = {close:roundNumber(close,2),change:roundNumber(change,2)};
+    }
+  }
+
+  if (Array.isArray(raw.tranches)) {
+    next.tranches = raw.tranches.slice(0, 50).map(function(item){
+      return {
+        date: clampText(item && item.date, 16),
+        target: clampText(item && item.target, MAX_TRANCHE_TEXT),
+        note: clampText(item && item.note, MAX_TRANCHE_TEXT),
+      };
+    }).filter(function(item){return item.target;});
+  }
+
+  const planN = parseInt(raw.planN, 10);
+  next.planN = [3,4,5].includes(planN) ? planN : 4;
+  next.yieldManual = Boolean(raw.yieldManual);
+  return next;
+}
+
+function loadState(){
+  const store = storage();
+  if (!store) return defaultState();
+  try {
+    return sanitizeState(JSON.parse(store.getItem(LS) || "null"));
+  } catch (error) {
+    return defaultState();
+  }
+}
+
+function saveState(){
+  const store = storage();
+  if (!store) return;
+  try { store.setItem(LS, JSON.stringify(state)); } catch (error) {}
+}
+
+function escapeHtml(value){
+  return String(value == null ? "" : value).replace(/[&<>"']/g, function(char){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char];
+  });
+}
+
+function parseNumber(value){
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const normalized = String(value).replace(/[０-９．，％＋－]/g, function(char){
+    return {"０":"0","１":"1","２":"2","３":"3","４":"4","５":"5","６":"6","７":"7","８":"8","９":"9","．":".","，":",","％":"%","＋":"+","－":"-"}[char] || char;
+  });
+  const match = normalized.replace(/,/g, "").replace(/%/g, "").match(/[+-]?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function roundNumber(value, digits){
+  if (value == null || !Number.isFinite(value)) return null;
+  const places = digits == null ? 2 : digits;
+  const factor = Math.pow(10, places);
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+function fmt(n, digits){
+  if (n == null || Number.isNaN(n)) return "—";
+  return Number(n).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:digits == null ? 2 : digits});
+}
+
+function field(row, keys){
+  for (const key of keys) {
+    if (row && row[key] != null && row[key] !== "") return row[key];
+  }
+  return null;
+}
+
+function normalizeEodPayload(payload){
+  const rows = Array.isArray(payload) ? payload
+    : Array.isArray(payload && payload.data) ? payload.data
+    : Array.isArray(payload && payload.eod) ? payload.eod
+    : Array.isArray(payload && payload.rows) ? payload.rows
+    : [];
+
+  return rows.map(function(row){
+    const code = String(field(row, ["code","Code","SecuritiesCompanyCode"]) || "").trim();
+    const name = String(field(row, ["name","Name","CompanyName"]) || "").trim();
+    const close = parseNumber(field(row, ["close","ClosingPrice","Close","Closing"]));
+    const change = parseNumber(field(row, ["change","Change","PriceChange"]));
+    if (!/^\d{4,6}$/.test(code) || close == null) return null;
+    return {code:code,name:name,close:roundNumber(close,2),change:roundNumber(change,2)};
+  }).filter(Boolean);
+}
+
+function normalizeYieldPayload(payload){
+  const body = payload && typeof payload.body === "object" ? payload.body : null;
+  const data = payload && typeof payload.data === "object" ? payload.data : null;
+  const feed = payload && typeof payload.yield10y === "object" ? payload.yield10y : null;
+  const source = body || data || feed || payload || {};
+  const value = parseNumber(source.value);
+  if (value == null) throw new Error("10Y yield payload has no numeric value");
+  return {
+    value: roundNumber(value, 3),
+    date: String(source.date || ""),
+    updatedAt: source.updatedAt || source.asOf || "",
+    source: String(source.source || "10Y yield feed"),
   };
+}
 
-  const ids = [
-    "appUpdated", "proxyBadge", "quoteToggle", "refreshBtn", "macroUpdated", "macroStatus",
-    "yield10y", "riskBand", "breadthMetric", "breadthDetail", "avgMoveMetric", "avgMoveDetail",
-    "macroPressureMetric", "macroPressureDetail", "positionUpdated", "quoteStatus",
-    "positionValue", "positionPnl", "largestWeight", "largestName", "cashBuffer", "cashDetail",
-    "eodUpdated", "eodStatus", "stockRows", "tableSource", "tableDelay", "filingsUpdated",
-    "filingsStatus", "filingsFeed", "filingsSource", "filingsDelay",
-  ];
+function proxyBase(){
+  const params = new URLSearchParams(window.location.search || "");
+  const defaultProxy = window.location.hostname === "blackjw1212.github.io" ? DEFAULT_PROXY_BASE : "";
+  const raw = window.PROXY_BASE || window.TW_STOCK_PROXY_BASE || params.get("proxy") || "";
+  if (!raw) return defaultProxy;
+  const normalized = String(raw).trim().replace(/\/+$/, "");
+  return ALLOWED_PROXIES.has(normalized) ? normalized : defaultProxy;
+}
 
-  const el = {};
-
-  function byId(id) {
-    return document.getElementById(id);
+async function fetchJson(url){
+  const controller = new AbortController();
+  const timer = setTimeout(function(){controller.abort();}, 9000);
+  try {
+    const response = await fetch(url, {
+      cache:"no-store",
+      headers:{Accept:"application/json"},
+      signal:controller.signal,
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return {data:await response.json(),headers:response.headers};
+  } finally {
+    clearTimeout(timer);
   }
+}
 
-  function collectElements() {
-    for (const id of ids) el[id] = byId(id);
-  }
+function staticFeedUrl(){
+  return STATIC_STOCK_FEED_URL + "?v=" + encodeURIComponent(new Date().toISOString().slice(0,10));
+}
 
-  function proxyBase() {
-    const params = new URLSearchParams(window.location.search || "");
-    const defaultProxy = window.location.hostname === "blackjw1212.github.io" ? DEFAULT_PROXY_BASE : "";
-    const raw = window.PROXY_BASE || window.TW_STOCK_PROXY_BASE || params.get("proxy") || defaultProxy;
-    return String(raw).trim().replace(/\/+$/, "");
-  }
-
-  function setStatus(target, tone, text) {
-    if (!target) return;
-    target.className = "chip" + (tone ? " " + tone : "");
-    target.textContent = text;
-  }
-
-  function setPanelTime(target, label, date) {
-    if (!target) return;
-    target.textContent = date ? label + " " + formatDateTime(date) : label;
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, function (char) {
-      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[char];
+async function loadStaticFeed(){
+  if (!staticFeedPromise) {
+    staticFeedPromise = fetchJson(staticFeedUrl()).then(function(result){return result.data;}).catch(function(error){
+      staticFeedPromise = null;
+      throw error;
     });
   }
+  return staticFeedPromise;
+}
 
-  function parseNumber(value) {
-    if (value == null) return null;
-    if (typeof value === "number") return Number.isFinite(value) ? value : null;
-    const normalized = String(value).replace(/[０-９．，％＋－]/g, function (char) {
-      return {
-        "０": "0", "１": "1", "２": "2", "３": "3", "４": "4",
-        "５": "5", "６": "6", "７": "7", "８": "8", "９": "9",
-        "．": ".", "，": ",", "％": "%", "＋": "+", "－": "-",
-      }[char] || char;
-    });
-    const match = normalized.replace(/,/g, "").replace(/%/g, "").match(/[+-]?\d+(?:\.\d+)?/);
-    if (!match) return null;
-    const parsed = Number(match[0]);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  function roundNumber(value, digits) {
-    if (value == null || !Number.isFinite(value)) return null;
-    const factor = 10 ** digits;
-    return Math.round((value + Number.EPSILON) * factor) / factor;
-  }
-
-  function formatNumber(value, digits) {
-    if (value == null || !Number.isFinite(value)) return "--";
-    return value.toLocaleString("zh-TW", {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    });
-  }
-
-  function formatSigned(value, digits) {
-    if (value == null || !Number.isFinite(value)) return "--";
-    const sign = value > 0 ? "+" : "";
-    return sign + formatNumber(value, digits);
-  }
-
-  function formatPercent(value, digits) {
-    if (value == null || !Number.isFinite(value)) return "--";
-    return formatSigned(value, digits) + "%";
-  }
-
-  function formatCurrency(value) {
-    if (value == null || !Number.isFinite(value)) return "--";
-    return "NT$" + value.toLocaleString("zh-TW", { maximumFractionDigits: 0 });
-  }
-
-  function formatDateTime(value) {
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return "--";
-    return date.toLocaleString("zh-TW", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  }
-
-  function changeClass(value) {
-    if (value > 0) return "up";
-    if (value < 0) return "down";
-    return "flat";
-  }
-
-  function normalizeTwseEod(payload) {
-    const rows = Array.isArray(payload) ? payload : Array.isArray(payload && payload.data) ? payload.data : [];
-    return rows.map(function (row) {
-      const code = String(row.Code || row.code || "").trim();
-      const name = String(row.Name || row.name || "").trim();
-      const close = parseNumber(row.ClosingPrice || row.close || row.Close);
-      const change = parseNumber(row.Change || row.change || row.PriceChange);
-      if (!/^\d{4,6}$/.test(code) || !name || close == null) return null;
-      return { code: code, name: name, close: roundNumber(close, 2), change: roundNumber(change, 2) };
-    }).filter(Boolean);
-  }
-
-  function getRowField(row, label) {
-    if (!row || typeof row !== "object") return "";
-    for (const key of Object.keys(row)) {
-      if (String(key).trim() === label) return row[key];
-    }
-    return "";
-  }
-
-  function getAnyRowField(row, labels) {
-    for (const label of labels) {
-      const value = getRowField(row, label);
-      if (value != null && String(value).trim() !== "") return value;
-    }
-    return "";
-  }
-
-  function parseRocDate(value) {
-    const raw = String(value || "").trim();
-    const digits = raw.replace(/\D/g, "");
-    let year = "";
-    let month = "";
-    let day = "";
-    if (digits.length === 7) {
-      year = String(Number(digits.slice(0, 3)) + 1911);
-      month = digits.slice(3, 5);
-      day = digits.slice(5, 7);
-    } else if (digits.length === 8) {
-      year = digits.slice(0, 4);
-      month = digits.slice(4, 6);
-      day = digits.slice(6, 8);
-    } else {
-      const parts = raw.split(/[\/.-]/).map(function (part) { return part.trim(); });
-      if (parts.length === 3) {
-        const parsedYear = Number(parts[0]);
-        year = String(parsedYear < 1911 ? parsedYear + 1911 : parsedYear);
-        month = parts[1].padStart(2, "0");
-        day = parts[2].padStart(2, "0");
-      }
-    }
-    const date = new Date(year + "-" + month + "-" + day + "T00:00:00");
-    if (!year || Number.isNaN(date.getTime())) return "";
-    return year + "-" + month + "-" + day;
-  }
-
-  function parseRocTime(value) {
-    const digits = String(value || "").replace(/\D/g, "");
-    if (!digits) return "";
-    const normalized = digits.padStart(6, "0").slice(-6);
-    const hour = normalized.slice(0, 2);
-    const minute = normalized.slice(2, 4);
-    const second = normalized.slice(4, 6);
-    if (Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59) return "";
-    return hour + ":" + minute + ":" + second;
-  }
-
-  function sourceUpdatedAt(date, time) {
-    if (!date) return null;
-    return date + "T" + (time || "00:00:00") + "+08:00";
-  }
-
-  function safeFilingUrl(value) {
-    if (!value) return "";
-    try {
-      const url = new URL(String(value), window.location.href);
-      const allowedHosts = new Set(["mops.twse.com.tw", "openapi.twse.com.tw", "www.tpex.org.tw"]);
-      if (url.protocol !== "https:" || !allowedHosts.has(url.hostname)) return "";
-      return url.href;
-    } catch (error) {
-      return "";
-    }
-  }
-
-  function payloadRows(payload) {
-    if (Array.isArray(payload)) return payload;
-    if (Array.isArray(payload && payload.data)) return payload.data;
-    return null;
-  }
-
-  function normalizeOpenApiFilings(payload, source) {
-    const tracked = new Set(STOCKS.map(function (stock) { return stock.code; }));
-    const rows = payloadRows(payload);
-    if (!rows) throw new Error(source + " 資料格式異常");
-    return rows.map(function (row) {
-      const code = String(getAnyRowField(row, ["公司代號", "SecuritiesCompanyCode", "CompanyCode"]) || "").trim();
-      if (!tracked.has(code)) return null;
-      const name = String(getAnyRowField(row, ["公司名稱", "CompanyName"]) || "").trim();
-      const title = String(getAnyRowField(row, ["主旨", "Subject", "Title"]) || "").trim();
-      const description = String(getAnyRowField(row, ["說明", "Description", "Content"]) || "").trim();
-      const date = parseRocDate(getAnyRowField(row, ["發言日期", "出表日期", "Date", "AnnouncementDate"]));
-      const time = parseRocTime(getAnyRowField(row, ["發言時間", "Time", "AnnouncementTime"]));
-      const displayDate = date ? date + (time ? " " + time.slice(0, 5) : "") : String(getAnyRowField(row, ["發言日期", "Date"]) || "--");
-      return {
-        code: code,
-        name: name,
-        date: displayDate,
-        title: title || "未命名公告",
-        description: description,
-        source: source,
-        url: "",
-        sortKey: sourceUpdatedAt(date, time) || displayDate,
-      };
-    }).filter(Boolean);
-  }
-
-  function normalizeProxyFilings(rows, stock) {
-    if (!Array.isArray(rows)) return [];
-    return rows.slice(0, FILINGS_PER_STOCK_LIMIT).map(function (item) {
-      return {
-        code: stock.code,
-        name: stock.name,
-        date: String(item.date || "--"),
-        title: String(item.title || "未命名公告"),
-        description: "",
-        source: "公開資訊觀測站 t05st01（資料代理）",
-        url: safeFilingUrl(item.url || ""),
-        sortKey: String(item.date || ""),
-      };
-    });
-  }
-
-  function sortedLimitedFilings(items) {
-    const counts = new Map();
-    return items
-      .slice()
-      .sort(function (a, b) { return String(b.sortKey || b.date || "").localeCompare(String(a.sortKey || a.date || "")); })
-      .filter(function (item) {
-        const count = counts.get(item.code) || 0;
-        if (count >= FILINGS_PER_STOCK_LIMIT) return false;
-        counts.set(item.code, count + 1);
-        return true;
-      });
-  }
-
-  function sanitizeFilingItem(item) {
-    const code = String(item && item.code || "").trim();
-    const title = String(item && item.title || "").trim();
-    if (!/^\d{4,6}$/.test(code) || !title) return null;
-    return {
-      code: code,
-      name: String(item.name || ""),
-      date: String(item.date || "--"),
-      title: title,
-      description: String(item.description || ""),
-      source: String(item.source || ""),
-      url: safeFilingUrl(item.url || ""),
-      sortKey: String(item.sortKey || item.date || ""),
-    };
-  }
-
-  function storage() {
-    try {
-      return window.localStorage || null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function filingsCacheKey() {
-    return FILINGS_CACHE_KEY + ":" + STOCKS.map(function (stock) { return stock.code; }).join(",");
-  }
-
-  function saveFilingsCache(payload) {
-    const store = storage();
-    if (!store) return;
-    try {
-      store.setItem(filingsCacheKey(), JSON.stringify({
-        savedAt: new Date().toISOString(),
-        items: payload.items,
-        source: payload.source,
-        delay: payload.delay,
-        sourceUpdatedAt: payload.sourceUpdatedAt,
-      }));
-    } catch (error) {}
-  }
-
-  function loadFilingsCache() {
-    const store = storage();
-    if (!store) return null;
-    try {
-      const parsed = JSON.parse(store.getItem(filingsCacheKey()) || "null");
-      const savedAt = parsed && parsed.savedAt ? new Date(parsed.savedAt) : null;
-      if (!savedAt || Number.isNaN(savedAt.getTime())) return null;
-      const age = Date.now() - savedAt.getTime();
-      const items = Array.isArray(parsed.items) ? parsed.items.map(sanitizeFilingItem).filter(Boolean) : [];
-      if (!items.length) return null;
-      return {
-        age: age,
-        stale: age > FILINGS_CACHE_SOFT_MS,
-        expired: age > FILINGS_CACHE_HARD_MS,
-        savedAt: savedAt,
-        items: items,
-        source: String(parsed.source || "重大訊息本機暫存"),
-        delay: String(parsed.delay || "顯示上次成功取得的公告資料"),
-        sourceUpdatedAt: parsed.sourceUpdatedAt || null,
-      };
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function ageLabel(ms) {
-    if (!Number.isFinite(ms) || ms < 0) return "剛剛";
-    const minutes = Math.round(ms / 60000);
-    if (minutes < 60) return minutes + " 分鐘前";
-    const hours = Math.round(minutes / 60);
-    return hours + " 小時前";
-  }
-
-  function staticFeedUrl() {
-    return STATIC_STOCK_FEED_URL + "?v=" + Math.floor(Date.now() / 300000);
-  }
-
-  async function loadStaticFeed() {
-    if (!state.staticFeedPromise) {
-      state.staticFeedPromise = fetchJson(staticFeedUrl()).then(function (response) {
-        return response.data || {};
-      });
-    }
-    return state.staticFeedPromise;
-  }
-
-  function normalizeStaticFeedFilings(feed) {
-    const tracked = new Set(STOCKS.map(function (stock) { return stock.code; }));
-    const rows = Array.isArray(feed && feed.filings) ? feed.filings : null;
-    if (!rows) throw new Error("靜態重大訊息資料格式異常");
-    return sortedLimitedFilings(rows.map(sanitizeFilingItem).filter(function (item) {
-      return item && tracked.has(item.code);
+function saveEodCache(result){
+  const store = storage();
+  if (!store || !Array.isArray(result.rows) || !result.rows.length) return;
+  try {
+    store.setItem(EOD_CACHE_KEY, JSON.stringify({
+      savedAt:new Date().toISOString(),
+      rows:result.rows,
+      source:result.source,
+      delay:result.delay,
+      updatedAt:result.updatedAt,
     }));
+  } catch (error) {}
+}
+
+function loadEodCache(){
+  const store = storage();
+  if (!store) throw new Error("No localStorage cache");
+  let parsed;
+  try {
+    parsed = JSON.parse(store.getItem(EOD_CACHE_KEY) || "null");
+  } catch (error) {
+    throw new Error("Malformed EOD cache");
   }
-
-  async function loadStaticFilings() {
-    const feed = await loadStaticFeed();
-    const updatedAt = feed.filingsUpdatedAt || feed.updatedAt || null;
-    return {
-      items: normalizeStaticFeedFilings(feed),
-      failedSources: [],
-      source: "GitHub Pages 同源重大訊息備援",
-      delay: "排程產生的靜態資料；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則",
-      sourceUpdatedAt: updatedAt,
-    };
-  }
-
-  async function loadStaticYield10y() {
-    const feed = await loadStaticFeed();
-    const row = feed && feed.yield10y ? feed.yield10y : null;
-    const value = parseNumber(row && row.value);
-    if (value == null) throw new Error("靜態殖利率資料暫不可用");
-    return {
-      value: value,
-      updatedAt: row.updatedAt || row.date || feed.updatedAt || new Date(),
-      source: row.source || "GitHub Pages 同源 FRED DGS10 備援",
-    };
-  }
-
-  async function fetchJson(url) {
-    const controller = new AbortController();
-    const timer = setTimeout(function () { controller.abort(); }, 9000);
-    try {
-      const response = await fetch(url, {
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      return {
-        data: await response.json(),
-        headers: response.headers,
-      };
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  function stockSnapshot(stock) {
-    const quote = state.quoteFresh ? state.quotes.get(stock.code) : null;
-    const eod = state.eod.get(stock.code);
-    const price = quote && quote.price != null ? quote.price : eod && eod.close != null ? eod.close : null;
-    const change = quote && quote.change != null ? quote.change : eod && eod.change != null ? eod.change : null;
-    const previous = price != null && change != null ? price - change : null;
-    const pctChange = previous ? (change / previous) * 100 : null;
-    const fairValue = roundNumber(stock.eps * stock.targetPe, 2);
-    const gap = price ? ((fairValue - price) / price) * 100 : null;
-    const pe = price && stock.eps ? price / stock.eps : null;
-    const value = price != null ? price * stock.shares : null;
-    const costValue = stock.cost * stock.shares;
-    const pnl = value != null ? value - costValue : null;
-    return { stock, price, change, pctChange, fairValue, gap, pe, value, costValue, pnl };
-  }
-
-  function snapshots() {
-    return STOCKS.map(stockSnapshot);
-  }
-
-  function pricedSnapshots() {
-    return snapshots().filter(function (item) { return item.price != null; });
-  }
-
-  function renderTable() {
-    const priced = pricedSnapshots();
-    const total = priced.reduce(function (sum, item) { return sum + (item.value || 0); }, 0);
-
-    el.stockRows.innerHTML = snapshots().map(function (item) {
-      const weight = total && item.value != null ? (item.value / total) * 100 : null;
-      return "<tr>" +
-        "<td><span class=\"ticker\">" + escapeHtml(item.stock.code) + "</span></td>" +
-        "<td>" + escapeHtml(item.stock.name) + "</td>" +
-        "<td>" + formatNumber(item.price, 2) + "</td>" +
-        "<td class=\"" + changeClass(item.change) + "\">" + formatSigned(item.change, 2) + " (" + formatPercent(item.pctChange, 2) + ")</td>" +
-        "<td>" + formatNumber(item.pe, 1) + "</td>" +
-        "<td>" + formatNumber(item.fairValue, 2) + "</td>" +
-        "<td class=\"" + changeClass(item.gap) + "\">" + formatPercent(item.gap, 1) + "</td>" +
-        "<td>" + formatPercent(weight, 1) + "</td>" +
-      "</tr>";
-    }).join("");
-  }
-
-  function renderMacro() {
-    const priced = pricedSnapshots();
-    const changes = priced.filter(function (item) { return item.change != null; });
-    const advancers = changes.filter(function (item) { return item.change > 0; }).length;
-    const breadth = changes.length ? (advancers / changes.length) * 100 : null;
-    const avgMove = changes.length
-      ? changes.reduce(function (sum, item) { return sum + (item.pctChange || 0); }, 0) / changes.length
-      : null;
-    const yield10y = parseNumber(el.yield10y.value);
-    const pressure = yield10y == null ? null : yield10y >= 4.6 ? 3 : yield10y >= 4.2 ? 2 : yield10y >= 3.8 ? 1 : 0;
-    const breadthRisk = breadth == null ? 1 : breadth < 35 ? 2 : breadth < 50 ? 1 : 0;
-    const moveRisk = avgMove == null ? 1 : avgMove < -1 ? 2 : avgMove < 0 ? 1 : 0;
-    const score = pressure == null ? null : pressure + breadthRisk + moveRisk;
-
-    el.breadthMetric.textContent = breadth == null ? "--" : formatPercent(breadth, 0);
-    el.breadthDetail.textContent = changes.length ? advancers + " / " + changes.length + " 檔上漲" : "等待收盤行情";
-    el.avgMoveMetric.textContent = avgMove == null ? "--" : formatPercent(avgMove, 2);
-    el.avgMoveDetail.textContent = changes.length ? "自選股等權計算" : "等待收盤行情";
-    el.macroPressureMetric.textContent = pressure == null ? "--" : ["偏低", "偏緊", "偏高", "緊縮"][pressure];
-    if (yield10y == null) {
-      el.macroPressureDetail.textContent = "等待殖利率";
-    } else if (state.yieldSource === "fetched") {
-      el.macroPressureDetail.textContent = "美國 10 年期 " + formatNumber(yield10y, 3) + "%";
-    } else if (state.yieldSource === "static") {
-      el.macroPressureDetail.textContent = "靜態備援 10 年期 " + formatNumber(yield10y, 3) + "%";
-    } else {
-      el.macroPressureDetail.textContent = "手動殖利率 " + formatNumber(yield10y, 3) + "%";
-    }
-
-    el.riskBand.className = "risk-band";
-    if (score == null) {
-      el.riskBand.textContent = "等待風險評估";
-    } else if (score >= 5) {
-      el.riskBand.classList.add("error");
-      el.riskBand.textContent = "風險偏高";
-    } else if (score >= 3) {
-      el.riskBand.classList.add("warn");
-      el.riskBand.textContent = "提高警戒";
-    } else {
-      el.riskBand.classList.add("ok");
-      el.riskBand.textContent = "環境偏正向";
-    }
-  }
-
-  function renderPositions() {
-    const priced = pricedSnapshots();
-    const totalValue = priced.reduce(function (sum, item) { return sum + (item.value || 0); }, 0);
-    const totalCost = priced.reduce(function (sum, item) { return sum + (item.costValue || 0); }, 0);
-    const pnl = totalValue ? totalValue - totalCost : null;
-    const pnlPct = totalCost ? (pnl / totalCost) * 100 : null;
-    const largest = priced.reduce(function (best, item) {
-      if (!best || (item.value || 0) > (best.value || 0)) return item;
-      return best;
-    }, null);
-    const largestWeight = largest && totalValue ? (largest.value / totalValue) * 100 : null;
-    const buffer = totalValue ? (CASH / (CASH + totalValue)) * 100 : null;
-
-    el.positionValue.textContent = totalValue ? formatCurrency(totalValue) : "--";
-    el.positionPnl.textContent = pnl == null ? "等待成本基準" : formatCurrency(pnl) + " / " + formatPercent(pnlPct, 1);
-    el.largestWeight.textContent = largestWeight == null ? "--" : formatPercent(largestWeight, 1);
-    el.largestName.textContent = largest ? largest.stock.code + " " + largest.stock.name : "等待持倉資料";
-    el.cashBuffer.textContent = buffer == null ? "--" : formatPercent(buffer, 1);
-    el.cashDetail.textContent = "現金模型 " + formatCurrency(CASH);
-  }
-
-  function renderFilings() {
-    if (!state.filings.length) {
-      el.filingsFeed.innerHTML = "<div class=\"empty\">" + escapeHtml(state.filingsMessage || "尚未載入重大訊息。") + "</div>";
-      return;
-    }
-    const meta = state.filingsMeta || {};
-    const notice = meta.phase === "cache" || meta.phase === "stale" || meta.phase === "partial"
-      ? "<div class=\"empty\">" + escapeHtml(state.filingsMessage || "") + "</div>"
-      : "";
-    el.filingsFeed.innerHTML = notice + state.filings.slice(0, FILINGS_VISIBLE_LIMIT).map(function (item) {
-      const title = escapeHtml(item.title || "未命名公告");
-      const body = item.url
-        ? "<a href=\"" + escapeHtml(item.url) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + title + "</a>"
-        : "<span class=\"filing-title\">" + title + "</span>";
-      return "<div class=\"filing\">" +
-        "<div class=\"filing-date\">" + escapeHtml(item.date || "--") + "<br>" + escapeHtml(item.code || "") + "</div>" +
-        "<div>" + body + "</div>" +
-      "</div>";
-    }).join("");
-  }
-
-  function renderAll() {
-    renderTable();
-    renderMacro();
-    renderPositions();
-    renderFilings();
-    el.appUpdated.textContent = "更新時間 " + formatDateTime(new Date());
-  }
-
-  async function loadEod() {
-    setStatus(el.eodStatus, "loading", "載入中");
-    const usingProxy = Boolean(state.proxyBase);
-    let proxyError = null;
-    try {
-      let response;
-      let rows;
-      if (usingProxy) {
-        try {
-          response = await fetchJson(state.proxyBase + "/eod");
-          rows = response.data;
-        } catch (error) {
-          proxyError = error;
-        }
-      }
-      if (!usingProxy || proxyError) {
-        response = await fetchJson(DIRECT_TWSE_EOD);
-        rows = normalizeTwseEod(response.data);
-      }
-      if (!Array.isArray(rows)) throw new Error("收盤行情資料格式異常");
-      state.eod = new Map(rows.map(function (row) { return [row.code, row]; }));
-
-      const source = proxyError
-        ? "證交所 OpenAPI 直連備援"
-        : response.headers.get("X-Data-Source") || (usingProxy ? "收盤行情由資料代理提供" : "證交所 OpenAPI 直連");
-      const delay = response.headers.get("X-Data-Delay") || "收盤行情資料";
-      const updatedAt = response.headers.get("X-Data-Updated-At") || new Date().toISOString();
-      el.tableSource.textContent = source;
-      el.tableDelay.textContent = delay;
-      setPanelTime(el.eodUpdated, "收盤行情更新於", updatedAt);
-      setPanelTime(el.positionUpdated, "持股資料更新於", updatedAt);
-      setStatus(el.eodStatus, proxyError ? "warn" : "ok", proxyError ? "已改用備援" : "已載入");
-    } catch (error) {
-      state.eod = new Map();
-      setStatus(el.eodStatus, "error", "收盤失敗");
-      el.tableSource.textContent = "收盤行情暫不可用";
-      el.tableDelay.textContent = error.message || "請求失敗";
-    }
-  }
-
-  async function loadYield10y() {
-    if (!state.proxyBase) {
-      try {
-        const fallback = await loadStaticYield10y();
-        if (!state.yieldTouched) {
-          el.yield10y.value = formatNumber(fallback.value, 3);
-          state.yieldSource = "static";
-        }
-        setPanelTime(el.macroUpdated, "殖利率靜態備援更新於", fallback.updatedAt);
-        setStatus(el.macroStatus, "warn", "靜態備援");
-        return;
-      } catch (error) {
-        if (!state.yieldTouched) {
-          el.yield10y.value = "";
-          state.yieldSource = "empty";
-        }
-        setStatus(el.macroStatus, "warn", "需代理");
-        el.macroUpdated.textContent = "等待資料代理取得 FRED 殖利率";
-        return;
-      }
-    }
-    setStatus(el.macroStatus, "loading", "載入中");
-    try {
-      const response = await fetchJson(state.proxyBase + "/yield10y");
-      const value = parseNumber(response.data && response.data.value);
-      if (value == null) throw new Error("殖利率資料格式異常");
-      if (!state.yieldTouched) {
-        el.yield10y.value = formatNumber(value, 3);
-        state.yieldSource = "fetched";
-      }
-      setPanelTime(el.macroUpdated, "殖利率更新於", response.data.updatedAt || new Date());
-      setStatus(el.macroStatus, "ok", "已載入");
-    } catch (error) {
-      try {
-        const fallback = await loadStaticYield10y();
-        if (!state.yieldTouched) {
-          el.yield10y.value = formatNumber(fallback.value, 3);
-          state.yieldSource = "static";
-        }
-        setPanelTime(el.macroUpdated, "殖利率靜態備援更新於", fallback.updatedAt);
-        setStatus(el.macroStatus, "warn", "靜態備援");
-      } catch (fallbackError) {
-        if (!state.yieldTouched) {
-          el.yield10y.value = "";
-          state.yieldSource = "empty";
-        }
-        setStatus(el.macroStatus, "error", "殖利率失敗");
-        el.macroUpdated.textContent = error.message || "FRED 資料暫不可用";
-      }
-    }
-  }
-
-  async function loadDirectFilings() {
-    const sources = [
-      { name: "證交所上市重大訊息 OpenAPI", url: DIRECT_TWSE_FILINGS },
-      { name: "櫃買中心上櫃重大訊息 OpenAPI", url: DIRECT_TPEX_FILINGS },
-    ];
-    const results = await Promise.allSettled(sources.map(async function (source) {
-      const response = await fetchJson(source.url);
-      return {
-        source: source.name,
-        items: normalizeOpenApiFilings(response.data, source.name),
-      };
-    }));
-    const fulfilled = results.filter(function (result) { return result.status === "fulfilled"; });
-    if (!fulfilled.length) throw new Error("官方重大訊息來源暫不可用");
-    const failedSources = results.map(function (result, index) {
-      return result.status === "rejected" ? sources[index].name : "";
-    }).filter(Boolean);
-    const items = sortedLimitedFilings(fulfilled.flatMap(function (result) { return result.value.items; }));
-    const sourceUpdatedAt = items.reduce(function (latest, item) {
-      return String(item.sortKey || "").localeCompare(String(latest || "")) > 0 ? item.sortKey : latest;
-    }, null);
-    return {
-      items: items,
-      failedSources: failedSources,
-      source: fulfilled.map(function (result) { return result.value.source; }).join("、"),
-      delay: failedSources.length
-        ? "部分官方來源暫不可用；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則"
-        : "官方每日 OpenAPI；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則",
-      sourceUpdatedAt: sourceUpdatedAt,
-    };
-  }
-
-  async function loadProxyFilings() {
-    if (!state.proxyBase) throw new Error("資料代理未設定");
-    const results = await Promise.allSettled(STOCKS.map(async function (stock) {
-      const response = await fetchJson(state.proxyBase + "/filings?code=" + encodeURIComponent(stock.code));
-      if (!Array.isArray(response.data)) throw new Error("重大訊息資料格式異常");
-      return normalizeProxyFilings(response.data, stock);
-    }));
-    const fulfilled = results.filter(function (result) { return result.status === "fulfilled"; });
-    if (!fulfilled.length) throw new Error("資料代理重大訊息暫不可用");
-    const failedCodes = results.map(function (result, index) {
-      return result.status === "rejected" ? STOCKS[index].code : "";
-    }).filter(Boolean);
-    const items = sortedLimitedFilings(fulfilled.flatMap(function (result) { return result.value; }));
-    return {
-      items: items,
-      failedSources: failedCodes.map(function (code) { return code + " 代理查詢"; }),
-      source: "公開資訊觀測站 t05st01（資料代理備援）",
-      delay: failedCodes.length
-        ? "部分股票代理查詢失敗；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則"
-        : "代理備援公告資料；每檔最多擷取 5 筆，合併顯示最新 " + FILINGS_VISIBLE_LIMIT + " 則",
-      sourceUpdatedAt: null,
-    };
-  }
-
-  function applyFilingsResult(result, phase) {
-    const effectivePhase = result.failedSources.length ? "partial" : phase;
-    const isFallback = phase === "fallback" || phase === "static";
-    const statusText = result.failedSources.length
-      ? "部分載入"
-      : phase === "fallback"
-        ? "代理備援"
-        : phase === "static"
-          ? "靜態備援"
-          : "已載入";
-    state.filings = result.items.map(sanitizeFilingItem).filter(Boolean);
-    state.filingsMessage = state.filings.length
-      ? (result.failedSources.length ? "部分來源暫不可用：" + result.failedSources.join("、") : "")
-      : "目前沒有持股相關的每日重大訊息。";
-    state.filingsMeta = {
-      phase: effectivePhase,
-      source: result.source,
-      delay: result.delay,
-      failedSources: result.failedSources,
-      cacheTs: null,
-      sourceUpdatedAt: result.sourceUpdatedAt,
-    };
-    el.filingsSource.textContent = result.source;
-    el.filingsDelay.textContent = result.delay;
-    if (result.sourceUpdatedAt) setPanelTime(el.filingsUpdated, "重大訊息來源更新於", result.sourceUpdatedAt);
-    else setPanelTime(el.filingsUpdated, "重大訊息查詢於", new Date());
-    setStatus(el.filingsStatus, result.failedSources.length || isFallback ? "warn" : "ok", statusText);
-    saveFilingsCache({
-      items: state.filings,
-      source: result.source,
-      delay: result.delay,
-      sourceUpdatedAt: result.sourceUpdatedAt,
-    });
-  }
-
-  function applyCachedFilings(cache) {
-    state.filings = cache.items;
-    const cachePhase = cache.expired || cache.stale ? "stale" : "cache";
-    state.filingsMessage = cache.expired
-      ? "暫存已超過 24 小時，請勿視為最新公告。"
-      : cache.stale
-        ? "官方來源暫不可用，目前顯示 " + ageLabel(cache.age) + " 的較舊暫存資料。"
-        : "官方來源暫不可用，目前顯示 " + ageLabel(cache.age) + " 的暫存資料。";
-    state.filingsMeta = {
-      phase: cachePhase,
-      source: cache.source,
-      delay: cache.delay,
-      failedSources: [],
-      cacheTs: cache.savedAt.toISOString(),
-      sourceUpdatedAt: cache.sourceUpdatedAt,
-    };
-    el.filingsSource.textContent = cache.source;
-    el.filingsDelay.textContent = (cache.expired ? "資料過期；" : cache.stale ? "暫存偏舊；" : "顯示暫存；") + "本機暫存於 " + formatDateTime(cache.savedAt);
-    if (cache.sourceUpdatedAt) setPanelTime(el.filingsUpdated, "重大訊息來源更新於", cache.sourceUpdatedAt);
-    else setPanelTime(el.filingsUpdated, "本機暫存於", cache.savedAt);
-    setStatus(el.filingsStatus, cache.expired ? "error" : "warn", cache.expired ? "資料過期" : cache.stale ? "暫存偏舊" : "顯示暫存");
-  }
-
-  async function loadFilings() {
-    setStatus(el.filingsStatus, "loading", "載入中");
-    state.filingsMessage = "正在查詢證交所與櫃買中心重大訊息。";
-    state.filingsMeta = {
-      phase: "loading",
-      source: "TWSE/TPEx OpenAPI",
-      delay: "正在取得官方每日重大訊息",
-      failedSources: [],
-      cacheTs: null,
-      sourceUpdatedAt: null,
-    };
-    el.filingsSource.textContent = "TWSE/TPEx OpenAPI";
-    el.filingsDelay.textContent = "正在取得官方每日重大訊息";
-    renderFilings();
-
-    try {
-      applyFilingsResult(await loadDirectFilings(), "ok");
-      return;
-    } catch (directError) {
-      const cache = loadFilingsCache();
-      if (cache && !cache.stale) {
-        applyCachedFilings(cache);
-        return;
-      }
-      let proxyAttempted = false;
-      let proxyFailed = false;
-      if (state.proxyBase) {
-        proxyAttempted = true;
-        try {
-          applyFilingsResult(await loadProxyFilings(), "fallback");
-          return;
-        } catch (proxyError) {
-          proxyFailed = true;
-        }
-      }
-      try {
-        applyFilingsResult(await loadStaticFilings(), "static");
-        return;
-      } catch (staticError) {}
-      if (cache) {
-        applyCachedFilings(cache);
-        return;
-      }
-      state.filings = [];
-      state.filingsMessage = proxyAttempted && proxyFailed
-        ? "重大訊息暫不可用。官方來源、資料代理與同源靜態備援皆失敗，且沒有可顯示的本機暫存資料。"
-        : "重大訊息暫不可用。官方來源可能未開放跨來源讀取，且沒有可顯示的本機暫存資料。";
-      state.filingsMeta = {
-        phase: "error",
-        source: "TWSE/TPEx OpenAPI",
-        delay: proxyAttempted && proxyFailed ? "官方來源、資料代理與同源靜態備援皆失敗" : "官方來源與同源靜態備援請求失敗",
-        failedSources: proxyAttempted && proxyFailed
-          ? ["證交所上市重大訊息 OpenAPI", "櫃買中心上櫃重大訊息 OpenAPI", "公開資訊觀測站代理備援", "GitHub Pages 同源重大訊息備援"]
-          : ["證交所上市重大訊息 OpenAPI", "櫃買中心上櫃重大訊息 OpenAPI", "GitHub Pages 同源重大訊息備援"],
-        cacheTs: null,
-        sourceUpdatedAt: null,
-      };
-      el.filingsSource.textContent = "TWSE/TPEx OpenAPI";
-      el.filingsDelay.textContent = proxyAttempted && proxyFailed ? "官方來源、資料代理與同源靜態備援皆失敗" : "官方來源請求失敗；可設定資料代理作為備援";
-      setPanelTime(el.filingsUpdated, "重大訊息查詢於", new Date());
-      setStatus(el.filingsStatus, "error", "公告失敗");
-    }
-  }
-
-  async function loadQuotes() {
-    if (!el.quoteToggle.checked) {
-      state.quotes = new Map();
-      state.quoteFresh = false;
-      setStatus(el.quoteStatus, "", "盤中關閉");
-      return;
-    }
-    if (!state.proxyBase) {
-      state.quotes = new Map();
-      state.quoteFresh = false;
-      setStatus(el.quoteStatus, "warn", "需代理");
-      return;
-    }
-
-    setStatus(el.quoteStatus, "loading", "更新中");
-    try {
-      const codes = STOCKS.map(function (stock) { return stock.code; }).join(",");
-      const response = await fetchJson(state.proxyBase + "/quote?codes=" + encodeURIComponent(codes));
-      const quotes = Array.isArray(response.data && response.data.quotes) ? response.data.quotes : [];
-      state.quotes = new Map(quotes.map(function (quote) {
-        const price = parseNumber(quote.price);
-        const change = parseNumber(quote.change);
-        if (!/^\d{4,6}$/.test(String(quote.code || "")) || price == null) return null;
-        return [String(quote.code), {
-          code: String(quote.code),
-          name: String(quote.name || ""),
-          price: roundNumber(price, 2),
-          change: roundNumber(change, 2),
-        }];
-      }).filter(Boolean));
-      state.quoteFresh = true;
-      setStatus(el.quoteStatus, "ok", "盤中開啟");
-      setPanelTime(el.positionUpdated, "盤中報價更新於", response.data.updatedAt || new Date());
-      el.tableDelay.textContent = response.data.delay || "盤中公開報價延遲依來源而異";
-    } catch (error) {
-      state.quotes = new Map();
-      state.quoteFresh = false;
-      setStatus(el.quoteStatus, "error", "報價失敗");
-    }
-  }
-
-  async function refreshAll() {
-    state.proxyBase = proxyBase();
-    setStatus(el.proxyBadge, state.proxyBase ? "ok" : "warn", state.proxyBase ? "盤中/殖利率代理已設定" : "靜態資料模式");
-    state.staticFeedPromise = null;
-    await Promise.allSettled([loadEod(), loadYield10y(), loadFilings()]);
-    await loadQuotes();
-    renderAll();
-  }
-
-  function setQuoteTimer(enabled) {
-    if (state.quoteTimer) {
-      clearInterval(state.quoteTimer);
-      state.quoteTimer = null;
-    }
-    if (enabled) {
-      loadQuotes().then(renderAll).catch(function () {});
-      state.quoteTimer = setInterval(function () {
-        loadQuotes().then(renderAll).catch(function () {});
-      }, QUOTE_REFRESH_MS);
-    } else {
-      setStatus(el.quoteStatus, "", "盤中關閉");
-    }
-  }
-
-  async function init() {
-    collectElements();
-    el.yield10y.addEventListener("input", function () {
-      state.yieldTouched = true;
-      state.yieldSource = parseNumber(el.yield10y.value) == null ? "empty" : "manual";
-      renderMacro();
-    });
-    el.refreshBtn.addEventListener("click", function () {
-      refreshAll().catch(function () {});
-    });
-    el.quoteToggle.addEventListener("change", function () {
-      setQuoteTimer(el.quoteToggle.checked);
-      renderAll();
-    });
-    renderAll();
-    await refreshAll();
-  }
-
-  window.RiskTrackerApp = {
-    init: init,
-    refreshAll: refreshAll,
-    normalizeTwseEod: normalizeTwseEod,
-    parseNumber: parseNumber,
-    getState: function () { return state; },
+  const rows = normalizeEodPayload(parsed && parsed.rows);
+  if (!rows.length) throw new Error("Empty EOD cache");
+  return {
+    rows:rows,
+    source:parsed.source || "本機快取",
+    delay:"顯示本機快取，可能已過期",
+    updatedAt:parsed.updatedAt || parsed.savedAt || "",
+    cache:true,
   };
+}
 
-  if (!window.__TW_RISK_SKIP_AUTO_INIT__) {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", function () {
-        init().catch(function () {});
-      });
-    } else {
-      init().catch(function () {});
+function applyEod(result){
+  const wanted = new Set(STOCK_CODES);
+  const byCode = {};
+  for (const row of result.rows) {
+    if (!wanted.has(row.code)) continue;
+    byCode[row.code] = {close:row.close,change:row.change};
+  }
+  if (!Object.keys(byCode).length) throw new Error("EOD result has no tracked stocks");
+  state.today = Object.assign({}, state.today, byCode);
+  saveState();
+  if (!result.cache) saveEodCache(result);
+  renderScore();
+}
+
+async function loadEod(){
+  const base = proxyBase();
+  const attempts = [];
+  if (base) {
+    attempts.push(async function(){
+      const result = await fetchJson(base + "/eod");
+      const rows = normalizeEodPayload(result.data);
+      if (!rows.length) throw new Error("Proxy EOD returned no rows");
+      return {
+        rows:rows,
+        source:result.headers.get("X-Data-Source") || "Worker /eod",
+        delay:result.headers.get("X-Data-Delay") || "收盤行情資料",
+        updatedAt:result.headers.get("X-Data-Updated-At") || new Date().toISOString(),
+      };
+    });
+  }
+  attempts.push(async function(){
+    const result = await fetchJson(DIRECT_TWSE_EOD);
+    const rows = normalizeEodPayload(result.data);
+    if (!rows.length) throw new Error("TWSE EOD returned no rows");
+    return {rows:rows,source:"TWSE OpenAPI STOCK_DAY_ALL",delay:"官方收盤 EOD 資料",updatedAt:new Date().toISOString()};
+  });
+  attempts.push(async function(){
+    const feed = await loadStaticFeed();
+    const rows = normalizeEodPayload(feed && (feed.eod || feed.eodRows || feed));
+    if (!rows.length) throw new Error("Static feed has no EOD rows");
+    return {rows:rows,source:"GitHub Pages 靜態 stock-risk-feed.json",delay:"同源靜態備援 EOD",updatedAt:(feed && (feed.eodUpdatedAt || feed.updatedAt)) || ""};
+  });
+  attempts.push(async function(){return loadEodCache();});
+
+  const errors = [];
+  for (const attempt of attempts) {
+    try {
+      const result = await attempt();
+      applyEod(result);
+      return (result.cache ? "收盤價：本機快取" : "收盤價：" + result.source) + "（" + result.delay + "）";
+    } catch (error) {
+      errors.push(error.message);
     }
   }
-}());
+  renderScore();
+  return "收盤價未更新，保留既有畫面；失敗來源 " + errors.length + " 個";
+}
+
+function setConditionSource(id, label){
+  state.condSource[id] = label;
+  const node = $("src_" + id);
+  if (node) node.textContent = label;
+}
+
+async function loadYield10y(){
+  if (state.yieldManual) {
+    setConditionSource("yield", "手動覆寫");
+    return "10Y：手動覆寫";
+  }
+  const base = proxyBase();
+  const attempts = [];
+  if (base) {
+    attempts.push(async function(){
+      const result = await fetchJson(base + "/yield10y");
+      const normalized = normalizeYieldPayload(result.data);
+      return {value:normalized.value,label:"Worker /yield10y"};
+    });
+  }
+  attempts.push(async function(){
+    const feed = await loadStaticFeed();
+    const normalized = normalizeYieldPayload(feed);
+    return {value:normalized.value,label:"靜態 feed"};
+  });
+
+  const errors = [];
+  for (const attempt of attempts) {
+    try {
+      const result = await attempt();
+      state.cond.yield = result.value;
+      state.yieldManual = false;
+      setConditionSource("yield", result.label);
+      saveState();
+      const input = $("c_yield");
+      if (input) input.value = result.value;
+      paint();
+      return "10Y：" + fmt(result.value, 3) + "% " + result.label;
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  setConditionSource("yield", "手動/未取得");
+  saveState();
+  paint();
+  return "10Y 未自動更新，保留手動值";
+}
+
+function condValue(c){
+  return c.id in state.cond ? state.cond[c.id] : c.val;
+}
+
+function condColor(c){
+  if (c.kind === "num") {
+    const value = parseNumber(condValue(c));
+    return c.rule(value);
+  }
+  return condValue(c);
+}
+
+function aggregateVerdict(colors){
+  const counts = {g:0,a:0,r:0};
+  colors.forEach(function(color){if (counts[color] != null) counts[color] += 1;});
+  if (counts.r >= 2 || (counts.r >= 1 && counts.g === 0)) {
+    return {tone:"r",title:"先守現金 · 暫停新倉",desc:"紅燈堆疊或沒有任何綠燈，代表風險報酬還不夠好。"};
+  }
+  if (counts.g === colors.length) {
+    return {tone:"g",title:"可啟動第一筆",desc:"四項條件同時轉綠，適合小額啟動第一個 tranche。"};
+  }
+  return {tone:"a",title:"小核心觀察",desc:"條件尚未完整，只適合低權重核心倉或等待下一次確認。"};
+}
+
+function renderConds(){
+  const box = $("conds");
+  box.innerHTML = "";
+  CONDS.forEach(function(c){
+    const cur = condValue(c);
+    let ctrl = "";
+    if (c.kind === "num") {
+      ctrl = '<input type="number" step="0.01" id="c_' + c.id + '" value="' + escapeHtml(cur) + '" style="width:84px"><span style="color:var(--soft);font-size:13px">' + c.unit + '</span>';
+    } else {
+      ctrl = '<select id="c_' + c.id + '">' + c.opts.map(function(o){
+        return '<option value="' + o[0] + '" ' + (o[0] === cur ? "selected" : "") + '>' + escapeHtml(o[1]) + '</option>';
+      }).join("") + '</select>';
+    }
+    const label = c.auto ? (state.condSource[c.id] || "可自動") : "手動";
+    const row = document.createElement("div");
+    row.className = "cond";
+    row.innerHTML = '<span class="dot" id="cd_' + c.id + '"></span><div class="lbl"><div class="t">' + escapeHtml(c.t) + ' <span class="auto" id="src_' + c.id + '">' + escapeHtml(label) + '</span></div><div class="d">' + escapeHtml(c.d) + '</div></div>' + ctrl;
+    box.appendChild(row);
+    const input = $("c_" + c.id);
+    input.addEventListener(c.kind === "num" ? "input" : "change", function(){
+      state.cond[c.id] = c.kind === "num" ? parseNumber(input.value) : input.value;
+      if (c.id === "yield") {
+        state.yieldManual = true;
+        setConditionSource("yield", "手動覆寫");
+      }
+      saveState();
+      paint();
+    });
+  });
+  paint();
+}
+
+function paint(){
+  const colors = CONDS.map(condColor);
+  CONDS.forEach(function(c, index){
+    const dot = $("cd_" + c.id);
+    if (dot) dot.style.background = COLORS[colors[index]];
+  });
+  const verdict = aggregateVerdict(colors);
+  $("verdictLight").style.background = COLORS[verdict.tone];
+  $("verdictTitle").textContent = verdict.title;
+  $("verdictDesc").textContent = verdict.desc;
+}
+
+function renderBuckets(){
+  const box = $("buckets");
+  box.innerHTML = "";
+  Object.keys(TIERS).forEach(function(tierKey){
+    const tier = TIERS[tierKey];
+    const list = STOCKS.filter(function(stock){return stock.tier === tierKey;});
+    const div = document.createElement("div");
+    div.className = "bucket";
+    div.innerHTML = '<div class="bh"><span class="name">' + escapeHtml(tier.name) + '</span><span class="role">' + escapeHtml(tier.role) + '</span><span class="tier ' + tier.cls + '">' + tierKey.toUpperCase() + '</span></div>'
+      + list.map(function(stock){
+        return '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line)"><span class="code">' + stock.code + '</span> <span class="nm">' + escapeHtml(stock.name) + '</span> · <span style="color:var(--soft)">' + escapeHtml(stock.role) + '</span></div>';
+      }).join("");
+    box.appendChild(div);
+  });
+  const cash = document.createElement("div");
+  cash.className = "bucket";
+  cash.innerHTML = '<div class="bh"><span class="name">現金</span><span class="role">保留再平衡與估值重置時的彈性</span><span class="tier cash">CASH</span></div>'
+    + '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line);color:var(--soft)">建議把總資金拆成 3-5 筆，紅燈時停手，黃燈只做核心小筆，綠燈才進入完整分批。</div>';
+  box.appendChild(cash);
+}
+
+function renderScore(){
+  const tbody = $("scoreBody");
+  tbody.innerHTML = "";
+  STOCKS.forEach(function(stock){
+    const base = stock.code in state.base ? state.base[stock.code] : stock.base;
+    const today = state.today[stock.code] || {};
+    const close = today.close;
+    let vs = '<span class="stale">待更新</span>';
+    if (close != null && base) {
+      const pct = (close - base) / base * 100;
+      vs = '<span class="' + (pct > 0 ? "pos" : (pct < 0 ? "neg" : "flat")) + '">' + (pct > 0 ? "+" : "") + fmt(roundNumber(pct, 1), 1) + '%</span>';
+    }
+    const scoreCells = stock.s.map(function(value){
+      return '<td><span class="sc ' + SCLS[value] + '">' + STXT[value] + '</span></td>';
+    }).join("");
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td><span class="code">' + stock.code + '</span> <span class="nm">' + escapeHtml(stock.name) + '</span></td>'
+      + scoreCells
+      + '<td style="color:var(--soft)">' + escapeHtml(stock.pe) + '</td>'
+      + '<td class="px">' + (close != null ? fmt(close, 2) : '<span class="stale">EOD 待更新</span>') + '</td>'
+      + '<td>' + vs + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTranches(){
+  const plan = parseInt($("planN").value, 10);
+  state.planN = [3,4,5].includes(plan) ? plan : 4;
+  const done = Math.min(state.tranches.length, state.planN);
+  $("doneN").textContent = state.tranches.length;
+  const prog = $("prog");
+  prog.innerHTML = "";
+  for (let i = 0; i < state.planN; i += 1) {
+    const pill = document.createElement("div");
+    pill.className = "pill" + (i < done ? " done" : "");
+    prog.appendChild(pill);
+  }
+  const log = $("tLog");
+  log.innerHTML = "";
+  state.tranches.forEach(function(item, index){
+    const div = document.createElement("div");
+    div.className = "logitem";
+    div.innerHTML = '<b>' + escapeHtml(item.date || "—") + '</b> · ' + escapeHtml(item.target || "—") + ' · <span style="color:var(--faint)">' + escapeHtml(item.note || "") + '</span> <a href="#" data-i="' + index + '" class="del" style="color:var(--red)">刪</a>';
+    log.appendChild(div);
+  });
+  Array.prototype.forEach.call(log.querySelectorAll(".del"), function(link){
+    link.addEventListener("click", function(event){
+      event.preventDefault();
+      const index = parseInt(link.dataset.i, 10);
+      if (!Number.isNaN(index)) state.tranches.splice(index, 1);
+      saveState();
+      renderTranches();
+    });
+  });
+  saveState();
+}
+
+async function refresh(){
+  $("stamp").textContent = "更新中...";
+  const messages = [];
+  messages.push(await loadEod());
+  messages.push(await loadYield10y());
+  paint();
+  $("stamp").textContent = messages.join(" · ") + " · " + new Date().toLocaleString("zh-TW");
+}
+
+async function init(){
+  state = sanitizeState(state);
+  renderConds();
+  renderBuckets();
+  renderScore();
+  $("planN").value = String(state.planN);
+  renderTranches();
+
+  $("refresh").addEventListener("click", function(){refresh().catch(function(error){
+    $("stamp").textContent = "更新失敗，保留既有畫面：" + error.message;
+  });});
+  $("planN").addEventListener("change", renderTranches);
+  $("addT").addEventListener("click", function(){
+    const target = clampText($("tTarget").value.trim(), MAX_TRANCHE_TEXT);
+    if (!target) return;
+    state.tranches.push({
+      date: clampText($("tDate").value, 16),
+      target: target,
+      note: clampText($("tNote").value.trim(), MAX_TRANCHE_TEXT),
+    });
+    $("tTarget").value = "";
+    $("tNote").value = "";
+    saveState();
+    renderTranches();
+  });
+
+  await refresh();
+}
+
+window.PortfolioConsoleApp = {
+  init:init,
+  refresh:refresh,
+  getState:function(){return state;},
+  helpers:{
+    aggregateVerdict:aggregateVerdict,
+    normalizeEodPayload:normalizeEodPayload,
+    normalizeYieldPayload:normalizeYieldPayload,
+    parseNumber:parseNumber,
+    proxyBase:proxyBase,
+    sanitizeState:sanitizeState,
+  },
+};
+
+if (!window.__PORTFOLIO_CONSOLE_SKIP_AUTO_INIT__) {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){init().catch(function(error){$("stamp").textContent = "初始化失敗：" + error.message;});});
+  } else {
+    init().catch(function(error){$("stamp").textContent = "初始化失敗：" + error.message;});
+  }
+}
+})();
 </script>
 </body>
 </html>
