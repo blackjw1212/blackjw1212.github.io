@@ -478,8 +478,10 @@ function observationDistance(close, observationPrice){
 }
 
 function observationDistanceText(value){
-  if (value == null) return "目前待更新";
-  return "目前 " + (value > 0 ? "+" : "") + fmt(value, 1) + "%";
+  if (value == null) return "距離待更新";
+  if (value > 0) return "高出 " + fmt(value, 1) + "%";
+  if (value < 0) return "低於 " + fmt(Math.abs(value), 1) + "%";
+  return "貼近 0%";
 }
 
 function suggestObservationPrice(stock, quote, options){
@@ -1364,6 +1366,18 @@ function observationToneClass(observation){
   return "flat";
 }
 
+function observationStatusText(observation){
+  if (!observation || observation.mode === "missing" || observation.price == null) {
+    return observation && observation.note ? observation.note : "收盤/快照不足";
+  }
+  const distance = observation.distancePct;
+  if (distance == null) return "距離待更新";
+  if (distance <= 0) return "回到觀察價下方";
+  if (distance <= 2) return "貼近觀察價";
+  if (distance >= 8) return "離觀察價太遠";
+  return "高於觀察價，尚未貼近";
+}
+
 function observationMainText(observation){
   if (!observation || observation.mode === "missing" || observation.price == null) return "觀察價待更新";
   const prefix = observation.mode === "fallback" ? "預設觀察價 " : "觀察價 ";
@@ -1372,7 +1386,7 @@ function observationMainText(observation){
 
 function observationMetaText(observation){
   if (!observation || observation.mode === "missing") return observation && observation.note ? observation.note : "收盤/快照不足";
-  const parts = [observation.label];
+  const parts = [observationStatusText(observation), observation.label];
   if (observation.source === "預設值" || observation.mode === "fallback") parts.push("預設值");
   if (observation.defense) parts.push("防守模式");
   if (observation.note) parts.push(observation.note);

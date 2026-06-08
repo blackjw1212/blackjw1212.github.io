@@ -223,6 +223,19 @@ function staticFeed(overrides = {}) {
   };
 }
 
+function completeMisClosingQuotes() {
+  return [
+    { code: "2330", name: "TSMC", price: 2295, change: -70, previousClose: 2365, high: 2370, low: 2230, open: 2350, time: "2026-06-08T13:30:00+08:00" },
+    { code: "2317", name: "Foxconn", price: 269.5, change: -15, previousClose: 284.5, high: 285, low: 264, open: 280, time: "2026-06-08T13:30:00+08:00" },
+    { code: "6669", name: "Wiwynn", price: 5275, change: -385, previousClose: 5660, high: 5660, low: 5150, open: 5600, time: "2026-06-08T13:30:00+08:00" },
+    { code: "3017", name: "Asia Vital", price: 2570, change: -30, previousClose: 2600, high: 2650, low: 2450, open: 2600, time: "2026-06-08T13:30:00+08:00" },
+    { code: "3324", name: "Auras", price: 1095, change: -15, previousClose: 1110, high: 1130, low: 1050, open: 1105, time: "2026-06-08T13:30:00+08:00" },
+    { code: "2382", name: "Quanta", price: 376.5, change: -14, previousClose: 390.5, high: 395, low: 360, open: 390, time: "2026-06-08T13:30:00+08:00" },
+    { code: "1519", name: "Fortune", price: 815, change: -36, previousClose: 851, high: 860, low: 780, open: 850, time: "2026-06-08T13:30:00+08:00" },
+    { code: "2308", name: "Delta", price: 2255, change: -45, previousClose: 2300, high: 2305, low: 2090, open: 2260, time: "2026-06-08T13:30:00+08:00" },
+  ];
+}
+
 const EOD_CACHE_KEY = "bjkw-portfolio-console-v2:eod:2330,2317,6669,3017,3324,2382,1519,2308";
 const STATE_KEY = "bjkw-portfolio-console-v2";
 
@@ -510,7 +523,7 @@ test("system observation price helper stays conservative by tier and market risk
   assert.equal(core.mode, "auto");
   assert.equal(core.label, "系統觀察價");
   assert.equal(core.price, 2295);
-  assert.match(core.distanceText, /目前 \+3\.1%/);
+  assert.match(core.distanceText, /高出 3\.1%/);
 
   const satellite = suggestObservationPrice(
     { code: "3017", tier: "sat", base: 2640 },
@@ -622,19 +635,23 @@ test("page renders automated checklist, cards, and source labels from static fal
 
   await context.window.PortfolioConsoleApp.init();
 
-  assert.match(document.getElementById("scoreBody").innerHTML, /2330/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /2,400.25/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /預設觀察價/);
-  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /個人參考基準/);
-  assert.match(document.getElementById("stockCards").innerHTML, /台積電/);
-  assert.match(document.getElementById("stockCards").innerHTML, /距離系統觀察價/);
-  assert.match(document.getElementById("stockCards").innerHTML, /預設觀察價/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
-  assert.match(document.getElementById("stockCards").innerHTML, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
-  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /\/technicals\//);
-  assert.match(document.getElementById("scoreBody").innerHTML, /target="_blank"/);
-  assert.match(document.getElementById("stockCards").innerHTML, /rel="noopener noreferrer"/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /aria-label="在 TradingView 開啟 2330 台積電完整圖表觀察（外部連結）"/);
+  const scoreHtml = document.getElementById("scoreBody").innerHTML;
+  const cardHtml = document.getElementById("stockCards").innerHTML;
+  assert.match(scoreHtml, /2330/);
+  assert.match(scoreHtml, /2,400.25/);
+  assert.match(scoreHtml, /預設觀察價/);
+  assert.match(scoreHtml, /預設值/);
+  assert.doesNotMatch(scoreHtml, /系統觀察價|個人參考基準/);
+  assert.match(cardHtml, /台積電/);
+  assert.match(cardHtml, /距離系統觀察價/);
+  assert.match(cardHtml, /預設觀察價/);
+  assert.match(cardHtml, /預設值/);
+  assert.match(scoreHtml, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
+  assert.match(cardHtml, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
+  assert.doesNotMatch(scoreHtml, /\/technicals\//);
+  assert.match(scoreHtml, /target="_blank"/);
+  assert.match(cardHtml, /rel="noopener noreferrer"/);
+  assert.match(scoreHtml, /aria-label="在 TradingView 開啟 2330 台積電完整圖表觀察（外部連結）"/);
   assert.match(document.getElementById("conds").innerHTML, /自動/);
   assert.match(document.getElementById("signalSummary").innerHTML, /資料可用性/);
   assert.match(document.getElementById("stamp").textContent, /靜態 feed/);
@@ -654,9 +671,12 @@ test("page shows observation price pending when closing data is unavailable", as
 
   await context.window.PortfolioConsoleApp.init();
 
-  assert.match(document.getElementById("scoreBody").innerHTML, /觀察價待更新/);
-  assert.match(document.getElementById("stockCards").innerHTML, /觀察價待更新/);
-  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /系統觀察價|預設觀察價|個人參考基準/);
+  const scoreHtml = document.getElementById("scoreBody").innerHTML;
+  const cardHtml = document.getElementById("stockCards").innerHTML;
+  assert.match(scoreHtml, /觀察價待更新/);
+  assert.match(cardHtml, /觀察價待更新/);
+  assert.doesNotMatch(scoreHtml, /系統觀察價|預設觀察價|個人參考基準/);
+  assert.doesNotMatch(cardHtml, /系統觀察價 ·|· 系統觀察價|預設觀察價|個人參考基準/);
 });
 
 test("page uses Worker EOD and yield on GitHub Pages default proxy", async () => {
@@ -720,18 +740,7 @@ test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => 
     const href = String(url);
     calls.push(href);
     if (href.includes("/quote?codes=")) {
-      return response({
-        quotes: [
-          { code: "2330", name: "TSMC", price: 2295, change: -70, previousClose: 2365, high: 2370, low: 2230, open: 2350, time: "2026-06-08T13:30:00+08:00" },
-          { code: "2317", name: "Foxconn", price: 269.5, change: -15, previousClose: 284.5, high: 285, low: 264, open: 280, time: "2026-06-08T13:30:00+08:00" },
-          { code: "6669", name: "Wiwynn", price: 5275, change: -385, previousClose: 5660, high: 5660, low: 5150, open: 5600, time: "2026-06-08T13:30:00+08:00" },
-          { code: "3017", name: "Asia Vital", price: 2570, change: -30, previousClose: 2600, high: 2650, low: 2450, open: 2600, time: "2026-06-08T13:30:00+08:00" },
-          { code: "3324", name: "Auras", price: 1095, change: -15, previousClose: 1110, high: 1130, low: 1050, open: 1105, time: "2026-06-08T13:30:00+08:00" },
-          { code: "2382", name: "Quanta", price: 376.5, change: -14, previousClose: 390.5, high: 395, low: 360, open: 390, time: "2026-06-08T13:30:00+08:00" },
-          { code: "1519", name: "Fortune", price: 815, change: -36, previousClose: 851, high: 860, low: 780, open: 850, time: "2026-06-08T13:30:00+08:00" },
-          { code: "2308", name: "Delta", price: 2255, change: -45, previousClose: 2300, high: 2305, low: 2090, open: 2260, time: "2026-06-08T13:30:00+08:00" },
-        ],
-      });
+      return response({ quotes: completeMisClosingQuotes() });
     }
     if (href.endsWith("/yield10y")) return response({ value: 4.55 });
     if (href.includes("/quote?indices=taiex,tpex")) return response({ indices: [] }, {}, { status: 502 });
@@ -748,14 +757,50 @@ test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => 
 
   await context.window.PortfolioConsoleApp.init();
 
+  const scoreHtml = document.getElementById("scoreBody").innerHTML;
+  const cardHtml = document.getElementById("stockCards").innerHTML;
   assert.ok(calls.some((href) => href.includes("/quote?codes=")));
-  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /2,365/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /2,295/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /1,095/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /系統觀察價/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /觀察價 2,295/);
-  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /預設觀察價/);
-  assert.match(document.getElementById("scoreBody").innerHTML, /TWSE MIS closing quote/);
+  assert.doesNotMatch(scoreHtml, /2,365/);
+  assert.match(scoreHtml, /2,295/);
+  assert.match(scoreHtml, /1,095/);
+  assert.match(scoreHtml, /系統觀察價/);
+  assert.match(scoreHtml, /2330[\s\S]*?觀察價 2,295 \/ 貼近 0%[\s\S]*?回到觀察價下方 · 系統觀察價 · 低點站回確認[\s\S]*?2317/);
+  assert.match(cardHtml, /2330[\s\S]*?觀察價 2,295 \/ 貼近 0%[\s\S]*?回到觀察價下方 · 系統觀察價 · 低點站回確認[\s\S]*?2317/);
+  assert.doesNotMatch(scoreHtml, /預設觀察價/);
+  assert.match(scoreHtml, /TWSE MIS closing quote/);
+});
+
+test("weak market defense labels observation prices in table and mobile cards", async () => {
+  const { context, document } = await loadApp(async (url) => {
+    const href = String(url);
+    if (href.includes("/quote?codes=")) return response({ quotes: completeMisClosingQuotes() });
+    if (href.endsWith("/yield10y")) return response({ value: 4.55 });
+    if (href.includes("/quote?indices=taiex,tpex")) {
+      return response({
+        indices: [
+          { id: "taiex", name: "發行量加權股價指數", price: 42100, change: -1200, pctChange: -2.8, time: "2026-06-08T13:30:00+08:00" },
+          { id: "tpex", name: "櫃買指數", price: 381, change: -13, pctChange: -3.2, time: "2026-06-08T13:30:00+08:00" },
+        ],
+      });
+    }
+    if (href.endsWith("/eod")) return response([{ code: "2330", name: "TSMC", close: 2365, change: -20 }]);
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unexpected: ${href}`);
+  }, {
+    location: {
+      href: "https://blackjw1212.github.io/",
+      hostname: "blackjw1212.github.io",
+      search: "",
+    },
+  });
+
+  await context.window.PortfolioConsoleApp.init();
+
+  const scoreHtml = document.getElementById("scoreBody").innerHTML;
+  const cardHtml = document.getElementById("stockCards").innerHTML;
+  assert.match(scoreHtml, /2330[\s\S]*?觀察價 2,270 \/ 高出 1\.1%[\s\S]*?貼近觀察價 · 系統觀察價 · 防守模式 · 等待跌勢收斂後再看[\s\S]*?2317/);
+  assert.match(cardHtml, /2330[\s\S]*?觀察價 2,270 \/ 高出 1\.1%[\s\S]*?貼近觀察價 · 系統觀察價 · 防守模式 · 等待跌勢收斂後再看[\s\S]*?2317/);
+  assert.match(document.getElementById("signalSummary").innerHTML, /市場防守模式[\s\S]*等待跌勢收斂/);
 });
 
 test("incomplete MIS closing quotes fall through instead of mixing old rows", async () => {
