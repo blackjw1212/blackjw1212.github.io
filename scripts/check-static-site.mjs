@@ -61,8 +61,6 @@ for (const rel of [
   "weather/index.html",
   "bjkw_weather.html",
   "404.html",
-  "favicon.svg",
-  "favicon.png",
   "data/stock-risk-feed.json",
   "assets/images/favicon.ico",
   "assets/images/favicon.svg",
@@ -92,6 +90,8 @@ for (const rel of [
   "Gemfile",
   "Gemfile.lock",
   "profile-README.md",
+  "favicon.svg",
+  "favicon.png",
   "scripts/check_internal_links.rb",
 ]) {
   mustNotExist(rel);
@@ -133,6 +133,9 @@ if (has("ai/index.html")) {
 
 if (has("weather/index.html")) {
   const html = await read("weather/index.html");
+  assertMatch("weather/index.html", html, /rel="icon" href="\/assets\/images\/favicon\.ico"/, "asset favicon ico");
+  assertMatch("weather/index.html", html, /rel="icon" href="\/assets\/images\/favicon\.svg" type="image\/svg\+xml"/, "asset favicon svg");
+  assertMatch("weather/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "asset manifest");
   assertMatch("weather/index.html", html, /WEATHER_PROXY_BASE/, "weather proxy base");
   assertMatch("weather/index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev/, "weather proxy host");
   assertMatch("weather/index.html", html, /\/api\//, "weather datastore proxy route");

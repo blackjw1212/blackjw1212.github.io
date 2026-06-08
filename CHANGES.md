@@ -2,7 +2,7 @@
 
 ## Current Public Surface
 
-- Kept only the root entry page, `/ai/`, `/weather/`, the legacy weather redirect, required favicon assets, stock data fallback, and the two Worker projects.
+- Kept only the root entry page, `/ai/`, `/weather/`, the legacy weather redirect, shared `assets/images` favicon assets, stock data fallback, and the two Worker projects.
 - Moved the AI supply-chain console to `/ai/`.
 - Moved the weather console to `/weather/`.
 - Converted `bjkw_weather.html` into a query-preserving redirect to `/weather/`.
@@ -20,7 +20,7 @@
 
 - Uses the weather proxy for both datastore and file API requests.
 - Keeps weather credentials out of static HTML.
-- Keeps root favicon assets available to the weather page.
+- Uses the shared `assets/images` favicon assets instead of root-level duplicates.
 
 ## Verification
 

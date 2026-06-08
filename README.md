@@ -15,6 +15,7 @@ The root `/` is only a lightweight entry page for those two tools. No additional
 ├── ai/index.html           # AI supply-chain observation console
 ├── weather/index.html      # Weather console
 ├── bjkw_weather.html       # Legacy redirect to /weather/
+├── assets/images/          # Shared favicon and app icons
 ├── data/stock-risk-feed.json
 ├── backend/                # Taiwan market data Worker
 └── weather-proxy/          # CWA weather Worker proxy
@@ -87,7 +88,7 @@ cd ..
 node scripts/check-static-site.mjs
 ```
 
-`scripts/check-static-site.mjs` enforces the retained public contract and fails if old site files, old route names, old helper surfaces, or weather credentials reappear.
+`scripts/check-static-site.mjs` enforces the retained public contract and fails if old site files, root-level favicon duplicates, old route names, old helper surfaces, or weather credentials reappear.
 
 ## Deployment
 
