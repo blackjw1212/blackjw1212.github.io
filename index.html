@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>BJKW 控制台</title>
-<meta name="description" content="BJKW 公開控制台，只保留 AI 供應鏈觀察台與天氣觀察台。" />
+<title>BJKW 觀察控制台</title>
+<meta name="description" content="BJKW 公開觀察控制台，快速查看 AI 供應鏈與天氣觀察狀態。" />
+<link rel="canonical" href="/" />
+<meta property="og:title" content="BJKW 觀察控制台" />
+<meta property="og:description" content="快速進入 AI 供應鏈觀察台與 BJKW 天氣觀察台。" />
+<meta property="og:type" content="website" />
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
@@ -12,54 +16,251 @@
 <meta name="theme-color" content="#101418">
 <style>
   :root{
-    --bg:#101418; --panel:#172028; --line:#2e3a43;
-    --ink:#f3f7f4; --soft:#b6c0bd; --faint:#87928f; --teal:#42b8a8; --amber:#d9a64c;
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--panel-2:#202b34;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#82908c;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#ff766e;--shadow:0 18px 50px rgba(0,0,0,.25);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
-  main{max-width:920px;margin:0 auto;padding:44px 18px 56px}
-  .kick{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--teal);margin-bottom:10px}
-  h1{font-size:clamp(30px,5vw,48px);line-height:1.15;font-weight:900;letter-spacing:0}
-  .lead{max-width:640px;margin-top:12px;color:var(--soft);font-size:15px}
-  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:32px}
-  .entry{display:flex;min-height:218px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:20px;color:var(--ink);text-decoration:none}
-  .entry:hover{border-color:var(--amber);text-decoration:none}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:inherit}
+  .shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:28px 0 38px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .brand img{width:34px;height:34px;flex:0 0 auto}
+  .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  .route-note{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;text-align:right}
+  .hero{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(320px,.88fr);gap:18px;align-items:stretch}
+  .hero-copy{display:flex;min-height:310px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:26px}
+  .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
+  h1{max-width:760px;margin-top:10px;font-size:clamp(32px,5vw,56px);line-height:1.08;font-weight:900;letter-spacing:0}
+  .lead{max-width:700px;margin-top:16px;color:var(--soft);font-size:16px}
+  .hero-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:24px}
+  .metric{border-top:1px solid var(--line);padding-top:10px}
+  .metric strong{display:block;font-size:18px}
+  .metric span{display:block;margin-top:2px;color:var(--faint);font-size:12px}
+  .status-board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .status-card{min-height:150px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px}
+  .status-card h2{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;line-height:1.2;letter-spacing:0}
+  .status-card h2 span:first-child{color:var(--soft);font-weight:800}
+  .tag{border:1px solid rgba(103,199,229,.35);border-radius:999px;padding:2px 8px;color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
+  .status-value{margin-top:18px;font-size:24px;font-weight:900;line-height:1.1}
+  .status-meta{margin-top:8px;color:var(--faint);font-size:12px;word-break:break-word}
+  .ok{color:var(--green)} .warn{color:var(--amber)} .bad{color:var(--red)}
+  .entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+  .entry{display:flex;min-height:286px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:20px;text-decoration:none}
+  .entry:focus-visible,.entry-button:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
+  .entry:hover{border-color:rgba(217,166,76,.8)}
+  .entry-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+  .entry-title{min-width:0}
+  .entry img{width:40px;height:40px;flex:0 0 auto}
   .entry small{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:12px}
-  .entry h2{font-size:24px;line-height:1.2;margin-top:8px;letter-spacing:0}
-  .entry p{color:var(--soft);font-size:14px;margin-top:10px}
-  .go{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:13px;margin-top:22px}
-  footer{margin-top:30px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
-  @media (max-width:720px){
-    main{padding-top:28px}
-    .grid{grid-template-columns:1fr}
-    .entry{min-height:178px}
+  .entry h2{font-size:26px;line-height:1.2;margin-top:7px;letter-spacing:0}
+  .entry p{margin-top:12px;color:var(--soft);font-size:14px}
+  .entry ul{display:grid;gap:6px;margin:16px 0 0 18px;color:var(--soft);font-size:13px}
+  .entry li::marker{color:var(--amber)}
+  .entry-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
+  .entry-limit{color:var(--faint);font-size:12px}
+  .entry-button{display:inline-flex;align-items:center;justify-content:center;min-height:38px;border-radius:8px;background:#243340;border:1px solid #405263;color:var(--ink);font-weight:900;text-decoration:none;padding:0 14px;white-space:nowrap}
+  .ai-accent{box-shadow:inset 4px 0 0 rgba(66,184,168,.7)}
+  .weather-accent{box-shadow:inset 4px 0 0 rgba(103,199,229,.72)}
+  .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  @media (max-width:900px){
+    .hero{grid-template-columns:1fr}
+    .hero-copy{min-height:260px}
+  }
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1120px);padding-top:18px}
+    .topbar{align-items:flex-start}
+    .route-note{text-align:left}
+    .hero-copy{min-height:0;padding:20px}
+    .hero-meta,.status-board,.entries{grid-template-columns:1fr}
+    .status-card{min-height:120px}
+    .entry{min-height:246px;padding:18px}
+    .entry h2{font-size:22px}
+    .entry-foot{align-items:flex-start;flex-direction:column}
+    .entry-button{width:100%}
   }
 </style>
 </head>
 <body>
-<main>
-  <div class="kick">BJKW PUBLIC CONSOLE</div>
-  <h1>只保留正在使用的觀察台</h1>
-  <p class="lead">這裡是公開入口。舊站資料已清理，只留下 AI 供應鏈觀察台與天氣觀察台。</p>
-  <div class="grid" aria-label="保留入口">
-    <a class="entry" href="/ai/">
+<main class="shell">
+  <header class="topbar" aria-label="BJKW 觀察控制台">
+    <div class="brand">
+      <img src="/assets/images/favicon.svg" alt="" width="34" height="34">
       <div>
-        <small>AI SUPPLY CHAIN</small>
-        <h2>AI 供應鏈觀察台</h2>
-        <p>看台股 AI 供應鏈、加權與櫃買、10Y、收盤資料、系統觀察價與完整 TradingView 圖表。</p>
+        <div class="brand-kicker">BJKW PUBLIC CONSOLE</div>
+        <div class="brand-title">BJKW 觀察控制台</div>
       </div>
-      <span class="go">OPEN /ai/</span>
-    </a>
-    <a class="entry" href="/weather/">
+    </div>
+    <div class="route-note">Retained routes: /ai/ /weather/</div>
+  </header>
+
+  <section class="hero" aria-label="主頁狀態總覽">
+    <div class="hero-copy">
       <div>
-        <small>WEATHER</small>
-        <h2>BJKW 天氣觀察台</h2>
-        <p>保留天氣、潮汐、海象與相關安全資訊，透過 Worker proxy 讀取資料。</p>
+        <div class="eyebrow">STATUS OVERVIEW</div>
+        <h1>一眼確認兩個觀察台，再進入完整工具。</h1>
+        <p class="lead">首頁只做輕量狀態摘要與入口分流。AI 供應鏈觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
       </div>
-      <span class="go">OPEN /weather/</span>
-    </a>
-  </div>
-  <footer>Observation only. Retained routes: /ai/ and /weather/.</footer>
+      <div class="hero-meta" aria-label="服務範圍">
+        <div class="metric"><strong>2</strong><span>保留工具</span></div>
+        <div class="metric"><strong>0</strong><span>舊站入口</span></div>
+        <div class="metric"><strong>1 click</strong><span>進入完整頁</span></div>
+      </div>
+    </div>
+
+    <section class="status-board" aria-label="輕量資料狀態" aria-live="polite">
+      <article class="status-card">
+        <h2><span>AI Feed</span><span class="tag">DATA</span></h2>
+        <div id="aiFeedStatus" class="status-value warn">讀取中</div>
+        <div id="aiFeedMeta" class="status-meta">檢查靜態收盤資料</div>
+      </article>
+      <article class="status-card">
+        <h2><span>10Y</span><span class="tag">YIELD</span></h2>
+        <div id="yieldStatus" class="status-value warn">讀取中</div>
+        <div id="yieldMeta" class="status-meta">檢查利率壓力資料</div>
+      </article>
+      <article class="status-card">
+        <h2><span>Weather Proxy</span><span class="tag">CWA</span></h2>
+        <div id="weatherStatus" class="status-value warn">讀取中</div>
+        <div id="weatherMeta" class="status-meta">檢查天氣代理服務</div>
+      </article>
+      <article class="status-card">
+        <h2><span>Static Site</span><span class="tag">PAGES</span></h2>
+        <div id="deployStatus" class="status-value ok">可進入</div>
+        <div id="deployMeta" class="status-meta">GitHub Pages 靜態入口已載入</div>
+      </article>
+    </section>
+  </section>
+
+  <nav class="entries" aria-label="主要觀察台">
+    <article class="entry ai-accent">
+      <div>
+        <div class="entry-head">
+          <div class="entry-title">
+            <small>AI SUPPLY CHAIN</small>
+            <h2>AI 供應鏈觀察台</h2>
+          </div>
+          <img src="/assets/images/favicon.svg" alt="" width="40" height="40">
+        </div>
+        <p>查看台股 AI 供應鏈、加權與櫃買、10Y、收盤資料、系統觀察價與完整 TradingView 圖表。</p>
+        <ul>
+          <li>適合盤後快速判讀觀察環境。</li>
+          <li>顯示資料來源與待更新狀態。</li>
+          <li>保守觀察價只作等待基準。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">資料：Worker / TWSE / static fallback</div>
+        <a class="entry-button" data-primary-entry="ai" href="/ai/" aria-label="開啟 AI 供應鏈觀察台 /ai/">開啟 AI 觀察台 /ai/</a>
+      </div>
+    </article>
+
+    <article class="entry weather-accent">
+      <div>
+        <div class="entry-head">
+          <div class="entry-title">
+            <small>WEATHER</small>
+            <h2>BJKW 天氣觀察台</h2>
+          </div>
+          <img src="/favicon.svg" alt="" width="40" height="40">
+        </div>
+        <p>查看天氣、潮汐、海象與沿岸觀察資訊，透過 Worker proxy 讀取資料，不在靜態頁暴露 CWA key。</p>
+        <ul>
+          <li>適合出門前確認環境條件。</li>
+          <li>資料無法更新時會保留明確提示。</li>
+          <li>出行前仍應確認官方資料與現場狀況。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">資料：CWA through weather proxy</div>
+        <a class="entry-button" data-primary-entry="weather" href="/weather/" aria-label="開啟 BJKW 天氣觀察台 /weather/">開啟天氣觀察台 /weather/</a>
+      </div>
+    </article>
+  </nav>
+
+  <footer class="footnote">Observation only. The homepage summarizes availability; full interpretation lives inside each retained tool.</footer>
 </main>
+
+<script>
+const STOCK_FEED_URL = "/data/stock-risk-feed.json";
+const WEATHER_HEALTH_URL = "https://bjkw-weather-proxy.a0926043323.workers.dev/health";
+
+function setStatus(id, metaId, value, meta, tone = "warn") {
+  const valueEl = document.getElementById(id);
+  const metaEl = document.getElementById(metaId);
+  if (!valueEl || !metaEl) return;
+  valueEl.textContent = value;
+  valueEl.className = `status-value ${tone}`;
+  metaEl.textContent = meta;
+}
+
+function formatDate(value) {
+  if (!value) return "時間待更新";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "時間待更新";
+  return new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatYield(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number.toFixed(2)}%` : "待更新";
+}
+
+async function refreshAiSummary() {
+  try {
+    const response = await fetch(STOCK_FEED_URL, {
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    if (!response.ok) throw new Error(`stock feed ${response.status}`);
+    const feed = await response.json();
+    const eodRows = Array.isArray(feed.eod) ? feed.eod.length : 0;
+    const stamp = formatDate(feed.eodUpdatedAt || feed.updatedAt);
+    const yieldValue = feed.yield10y && feed.yield10y.value;
+    setStatus("aiFeedStatus", "aiFeedMeta", eodRows ? `${eodRows} 檔` : "待更新", `收盤資料 ${stamp}`, eodRows ? "ok" : "warn");
+    setStatus("yieldStatus", "yieldMeta", formatYield(yieldValue), feed.yield10y && feed.yield10y.source ? feed.yield10y.source : "來源待更新", Number.isFinite(Number(yieldValue)) ? "ok" : "warn");
+  } catch (error) {
+    setStatus("aiFeedStatus", "aiFeedMeta", "待更新", "靜態 feed 暫時無法讀取", "warn");
+    setStatus("yieldStatus", "yieldMeta", "待更新", "10Y 資料暫時無法讀取", "warn");
+  }
+}
+
+async function refreshWeatherSummary() {
+  try {
+    const response = await fetch(WEATHER_HEALTH_URL, {
+      cache: "no-store",
+      headers: { "Accept": "application/json" },
+    });
+    if (!response.ok) throw new Error(`weather health ${response.status}`);
+    const health = await response.json();
+    if (health && health.configured) {
+      setStatus("weatherStatus", "weatherMeta", "可查詢", "Proxy 已設定 CWA secret", "ok");
+    } else {
+      setStatus("weatherStatus", "weatherMeta", "待設定", "Proxy 尚未確認 CWA secret", "warn");
+    }
+  } catch (error) {
+    setStatus("weatherStatus", "weatherMeta", "待更新", "Proxy health 暫時無法讀取", "warn");
+  }
+}
+
+function initHome() {
+  refreshAiSummary();
+  refreshWeatherSummary();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initHome);
+} else {
+  initHome();
+}
+</script>
 </body>
 </html>

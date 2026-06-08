@@ -106,6 +106,19 @@ function createDocument() {
   return { document, elements };
 }
 
+function seedDocumentIds(document, html) {
+  const idPattern = /<([a-z0-9-]+)\b([^>]*)\bid="([^"]+)"([^>]*)>([\s\S]*?)<\/\1>/gi;
+  let match;
+  while ((match = idPattern.exec(html))) {
+    const attrs = `${match[2]} ${match[4]}`;
+    const element = document.getElementById(match[3]);
+    element.innerHTML = match[5];
+    element.textContent = match[5].replace(/<[^>]+>/g, "").trim();
+    const classMatch = attrs.match(/\bclass="([^"]*)"/i);
+    if (classMatch) element.className = classMatch[1];
+  }
+}
+
 function response(data, headers = {}, init = {}) {
   const status = init.status || 200;
   return {
@@ -171,6 +184,27 @@ async function loadApp(fetchMock, windowOverrides = {}) {
   return { context, document, elements, html };
 }
 
+async function loadHome(fetchMock) {
+  const htmlPath = fileURLToPath(new URL("../../index.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+  const script = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/)?.[1];
+  assert.ok(script, "root inline script should be present");
+
+  const { document, elements } = createDocument();
+  seedDocumentIds(document, html);
+  const context = vm.createContext({
+    console,
+    document,
+    fetch: fetchMock,
+    Headers,
+    Intl,
+    URL,
+  });
+
+  vm.runInContext(script, context, { filename: "root-index.html" });
+  return { context, document, elements, html };
+}
+
 function staticFeed(overrides = {}) {
   return {
     updatedAt: "2026-06-05T09:00:00.000Z",
@@ -192,15 +226,81 @@ function staticFeed(overrides = {}) {
 const EOD_CACHE_KEY = "bjkw-portfolio-console-v2:eod:2330,2317,6669,3017,3324,2382,1519,2308";
 const STATE_KEY = "bjkw-portfolio-console-v2";
 
-test("root index is a two-product entry page only", async () => {
+test("root index is a status overview entry console", async () => {
   const htmlPath = fileURLToPath(new URL("../../index.html", import.meta.url));
   const html = await readFile(htmlPath, "utf8");
+  const primaryLinks = [...html.matchAll(/<a\b[^>]*data-primary-entry="([^"]+)"[^>]*href="([^"]+)"/g)]
+    .map((match) => [match[1], match[2]]);
 
+  assert.match(html, /<html lang="zh-Hant">/);
+  assert.match(html, /<meta charset="UTF-8"/);
+  assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1.0"/);
+  assert.match(html, /<title>BJKW 觀察控制台<\/title>/);
+  assert.match(html, /<meta name="description" content="BJKW 公開觀察控制台/);
+  assert.match(html, /<link rel="canonical" href="\/"/);
+  assert.match(html, /property="og:title" content="BJKW 觀察控制台"/);
+  assert.match(html, /name="theme-color" content="#101418"/);
+  assert.match(html, /<main class="shell">/);
   assert.match(html, /href="\/ai\/"/);
   assert.match(html, /href="\/weather\/"/);
+  assert.deepEqual(primaryLinks, [["ai", "/ai/"], ["weather", "/weather/"]]);
   assert.match(html, /AI 供應鏈觀察台/);
   assert.match(html, /BJKW 天氣觀察台/);
+  for (const id of ["aiFeedStatus", "aiFeedMeta", "yieldStatus", "yieldMeta", "weatherStatus", "weatherMeta", "deployStatus", "deployMeta"]) {
+    assert.match(html, new RegExp(`id="${id}"`), `${id} should be present`);
+  }
+  assert.match(html, /aria-label="輕量資料狀態"/);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(html, /focus-visible/);
   assert.doesNotMatch(html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/);
+});
+
+test("root status overview renders mocked feed and weather health", async () => {
+  const calls = [];
+  const { document } = await loadHome(async (url) => {
+    const href = String(url);
+    calls.push(href);
+    if (href === "/data/stock-risk-feed.json") return response(staticFeed({
+      yield10y: {
+        date: "2026-06-05",
+        value: 4.56,
+        source: "Mock Treasury",
+      },
+    }));
+    if (href === "https://bjkw-weather-proxy.a0926043323.workers.dev/health") {
+      return response({ ok: true, configured: true });
+    }
+    throw new Error(`unexpected root fetch: ${href}`);
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(document.getElementById("aiFeedStatus").textContent, "2 檔");
+  assert.match(document.getElementById("aiFeedStatus").className, /ok/);
+  assert.equal(document.getElementById("yieldStatus").textContent, "4.56%");
+  assert.match(document.getElementById("yieldMeta").textContent, /Mock Treasury/);
+  assert.equal(document.getElementById("weatherStatus").textContent, "可查詢");
+  assert.match(document.getElementById("weatherStatus").className, /ok/);
+  assert.equal(document.getElementById("deployStatus").textContent, "可進入");
+  assert.deepEqual(calls, [
+    "/data/stock-risk-feed.json",
+    "https://bjkw-weather-proxy.a0926043323.workers.dev/health",
+  ]);
+});
+
+test("root status overview fails soft while keeping entries usable", async () => {
+  const { document, html } = await loadHome(async (url) => {
+    throw new Error(`unavailable: ${url}`);
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(document.getElementById("aiFeedStatus").textContent, "待更新");
+  assert.equal(document.getElementById("yieldStatus").textContent, "待更新");
+  assert.equal(document.getElementById("weatherStatus").textContent, "待更新");
+  assert.equal(document.getElementById("deployStatus").textContent, "可進入");
+  assert.match(html, /data-primary-entry="ai" href="\/ai\/"/);
+  assert.match(html, /data-primary-entry="weather" href="\/weather\/"/);
 });
 
 test("weather page uses the Worker proxy without exposing CWA credentials", async () => {
@@ -208,7 +308,7 @@ test("weather page uses the Worker proxy without exposing CWA credentials", asyn
   const html = await readFile(htmlPath, "utf8");
 
   assert.match(html, /WEATHER_PROXY_BASE/);
-  assert.match(html, /bjkw-weather-proxy\.blackjw1212\.workers\.dev/);
+  assert.match(html, /bjkw-weather-proxy\.a0926043323\.workers\.dev/);
   assert.match(html, /\/api\//);
   assert.match(html, /\/file\//);
   assert.doesNotMatch(html, /CWA-|Authorization:\s*API_KEY|opendata\.cwa\.gov\.tw\/api|opendata\.cwa\.gov\.tw\/fileapi/);
@@ -221,6 +321,28 @@ test("legacy weather page redirects to the retained weather route", async () => 
   assert.match(html, /url=\/weather\//);
   assert.match(html, /window\.location\.replace\(target\)/);
   assert.doesNotMatch(html, /CWA-|中央氣象署 API/);
+});
+
+test("legacy weather redirect preserves query string and hash", async () => {
+  const htmlPath = fileURLToPath(new URL("../../bjkw_weather.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  const redirects = [];
+
+  assert.ok(script, "legacy redirect script should be present");
+  vm.runInContext(script, vm.createContext({
+    window: {
+      location: {
+        search: "?from=home",
+        hash: "#coast",
+        replace(target) {
+          redirects.push(target);
+        },
+      },
+    },
+  }));
+
+  assert.deepEqual(redirects, ["/weather/?from=home#coast"]);
 });
 
 test("index.html keeps required static DOM ids and global helper contract", async () => {

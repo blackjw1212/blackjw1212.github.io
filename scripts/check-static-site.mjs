@@ -32,7 +32,7 @@ function assertMatch(rel, text, pattern, label = String(pattern)) {
 }
 
 function assertNoMatch(rel, text, pattern, label = String(pattern)) {
-  if (pattern.test(text)) fail(`${rel} still contains forbidden legacy content: ${label}`);
+  if (pattern.test(text)) fail(`${rel} still contains forbidden content: ${label}`);
 }
 
 function publicTargetExists(target) {
@@ -40,6 +40,19 @@ function publicTargetExists(target) {
   const clean = target.split(/[?#]/)[0].replace(/^\/+/, "");
   const rel = clean.endsWith("/") ? `${clean}index.html` : clean;
   return has(rel);
+}
+
+function checkPublicTarget(rel, target) {
+  if (!publicTargetExists(target)) {
+    fail(`${rel} links to missing public target: ${target}`);
+  }
+}
+
+function publicTargetsFromSrcset(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim().split(/\s+/)[0])
+    .filter((target) => target.startsWith("/"));
 }
 
 for (const rel of [
@@ -86,9 +99,30 @@ for (const rel of [
 
 if (has("index.html")) {
   const html = await read("index.html");
-  assertMatch("index.html", html, /href="\/ai\/"/, "AI route link");
-  assertMatch("index.html", html, /href="\/weather\/"/, "weather route link");
+  const primaryLinks = [...html.matchAll(/<a\b[^>]*data-primary-entry="([^"]+)"[^>]*href="([^"]+)"/g)]
+    .map((match) => `${match[1]}:${match[2]}`);
+  assertMatch("index.html", html, /<html lang="zh-Hant">/, "zh-Hant document language");
+  assertMatch("index.html", html, /<meta charset="UTF-8"/, "UTF-8 charset");
+  assertMatch("index.html", html, /<meta name="viewport" content="width=device-width, initial-scale=1.0"/, "responsive viewport");
+  assertMatch("index.html", html, /<title>BJKW 觀察控制台<\/title>/, "root title");
+  assertMatch("index.html", html, /<meta name="description" content="BJKW 公開觀察控制台/, "root description");
+  assertMatch("index.html", html, /<link rel="canonical" href="\/"/, "root canonical");
+  assertMatch("index.html", html, /property="og:title" content="BJKW 觀察控制台"/, "root og title");
+  assertMatch("index.html", html, /name="theme-color" content="#101418"/, "root theme color");
+  assertMatch("index.html", html, /<main class="shell">/, "root main shell");
+  assertMatch("index.html", html, /aria-label="輕量資料狀態"/, "status board label");
+  assertMatch("index.html", html, /aria-live="polite"/, "polite status live region");
+  assertMatch("index.html", html, /aria-label="主要觀察台"/, "primary nav label");
+  assertMatch("index.html", html, /id="aiFeedStatus"/, "AI status id");
+  assertMatch("index.html", html, /id="weatherStatus"/, "weather status id");
+  assertMatch("index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev\/health/, "root weather health endpoint");
+  if (primaryLinks.join("|") !== "ai:/ai/|weather:/weather/") {
+    fail(`index.html primary entries should be exactly ai:/ai/ and weather:/weather/, got ${primaryLinks.join(", ")}`);
+  }
+  assertMatch("index.html", html, /開啟 AI 觀察台 \/ai\//, "visible AI CTA");
+  assertMatch("index.html", html, /開啟天氣觀察台 \/weather\//, "visible weather CTA");
   assertNoMatch("index.html", html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/i);
+  assertNoMatch("index.html", html, /保證|可放心|買進|賣出|投資建議|安全資訊/);
 }
 
 if (has("ai/index.html")) {
@@ -100,6 +134,7 @@ if (has("ai/index.html")) {
 if (has("weather/index.html")) {
   const html = await read("weather/index.html");
   assertMatch("weather/index.html", html, /WEATHER_PROXY_BASE/, "weather proxy base");
+  assertMatch("weather/index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev/, "weather proxy host");
   assertMatch("weather/index.html", html, /\/api\//, "weather datastore proxy route");
   assertMatch("weather/index.html", html, /\/file\//, "weather file proxy route");
   assertNoMatch("weather/index.html", html, /CWA-[A-Za-z0-9-]+|Authorization:\s*API_KEY|opendata\.cwa\.gov\.tw\/api|opendata\.cwa\.gov\.tw\/fileapi/);
@@ -114,11 +149,25 @@ if (has("bjkw_weather.html")) {
 for (const rel of ["index.html", "ai/index.html", "weather/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
-  for (const match of html.matchAll(/\b(?:href|src)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {
-    const target = match[1];
-    if (!publicTargetExists(target)) {
-      fail(`${rel} links to missing public target: ${target}`);
+  for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {
+    checkPublicTarget(rel, match[1]);
+  }
+  for (const match of html.matchAll(/\bsrcset=["']([^"']+)["']/g)) {
+    for (const target of publicTargetsFromSrcset(match[1])) checkPublicTarget(rel, target);
+  }
+  for (const match of html.matchAll(/url\(\s*["']?(\/[^"')?#]+(?:#[^"')]+)?)["']?\s*\)/g)) {
+    checkPublicTarget(rel, match[1]);
+  }
+}
+
+if (has("assets/images/site.webmanifest")) {
+  try {
+    const manifest = JSON.parse(await read("assets/images/site.webmanifest"));
+    for (const icon of Array.isArray(manifest.icons) ? manifest.icons : []) {
+      if (icon && typeof icon.src === "string") checkPublicTarget("assets/images/site.webmanifest", icon.src);
     }
+  } catch (error) {
+    fail(`assets/images/site.webmanifest is not valid JSON: ${error.message}`);
   }
 }
 

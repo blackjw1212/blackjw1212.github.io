@@ -40,7 +40,7 @@ The weather page calls the weather proxy instead of exposing a Central Weather A
 Default proxy:
 
 ```text
-https://bjkw-weather-proxy.blackjw1212.workers.dev
+https://bjkw-weather-proxy.a0926043323.workers.dev
 ```
 
 The page uses:

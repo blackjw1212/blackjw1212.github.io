@@ -24,7 +24,7 @@ npx wrangler deploy
 Default public URL:
 
 ```text
-https://bjkw-weather-proxy.blackjw1212.workers.dev
+https://bjkw-weather-proxy.a0926043323.workers.dev
 ```
 
 If a different Worker URL is used, update `WEATHER_PROXY_BASE` in `../weather/index.html`.
