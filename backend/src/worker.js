@@ -1,6 +1,7 @@
 import {
   normalizeFredDgs10,
   normalizeMopsFilings,
+  normalizeQuoteIndexPayload,
   normalizeQuotePayload,
   normalizeTwseEod,
 } from "./normalizers.js";
@@ -19,6 +20,13 @@ const CACHE_TTL = {
   quote: 30,
   yield10y: 60,
 };
+
+const QUOTE_INDEX_CHANNELS = {
+  taiex: "tse_t00.tw",
+  tpex: "otc_o00.tw",
+};
+
+const QUOTE_INDEX_ORDER = ["taiex", "tpex"];
 
 const BODY_LIMITS = {
   json: 2_000_000,
@@ -58,6 +66,15 @@ export async function handleRequest(request, env = {}, ctx = {}) {
       return await cachedJson(request, env, ctx, "eod", CACHE_TTL.eod, () => loadEod());
     }
     if (url.pathname === "/quote") {
+      if (url.searchParams.has("indices")) {
+        if (url.searchParams.has("codes")) {
+          return jsonError("Use either codes or indices, not both", 400, request, env);
+        }
+        const indices = parseIndices(url.searchParams.get("indices"));
+        if (indices.error) return jsonError(indices.error, 400, request, env);
+        if (!indices.values.length) return jsonError("Query parameter indices is required", 400, request, env);
+        return await cachedJson(request, env, ctx, `quote-indices:${indices.values.join(",")}`, CACHE_TTL.quote, () => loadQuoteIndices(indices.values));
+      }
       const codes = parseCodes(url.searchParams.get("codes"));
       if (codes.error) return jsonError(codes.error, 400, request, env);
       if (!codes.values.length) return jsonError("Query parameter codes is required", 400, request, env);
@@ -191,6 +208,22 @@ function parseCodes(value) {
   };
 }
 
+function parseIndices(value) {
+  const tokens = String(value || "")
+    .split(",")
+    .map((index) => index.trim().toLowerCase())
+    .filter(Boolean);
+  const invalid = tokens.filter((index) => !Object.hasOwn(QUOTE_INDEX_CHANNELS, index));
+  if (invalid.length) {
+    return { values: [], error: "Query parameter indices contains unsupported market indexes" };
+  }
+  const wanted = new Set(tokens);
+  return {
+    values: QUOTE_INDEX_ORDER.filter((index) => wanted.has(index)),
+    error: "",
+  };
+}
+
 async function fetchWithRetry(url, init = {}, options = {}) {
   const timeoutMs = options.timeoutMs || 6500;
   const retries = options.retries ?? 1;
@@ -311,6 +344,10 @@ function quoteChannels(codes) {
   return codes.flatMap((code) => [`tse_${code}.tw`, `otc_${code}.tw`]).join("|");
 }
 
+function quoteIndexChannels(indices) {
+  return indices.map((index) => QUOTE_INDEX_CHANNELS[index]).join("|");
+}
+
 async function loadQuotes(codes) {
   const url = new URL(ENDPOINTS.quote);
   url.searchParams.set("ex_ch", quoteChannels(codes));
@@ -332,6 +369,40 @@ async function loadQuotes(codes) {
   return {
     body: {
       quotes: normalizeQuotePayload(payload, codes),
+      source: "TWSE MIS public quote feed",
+      delay: "Intraday public feed; delivery and delay depend on TWSE MIS availability and policy",
+      updatedAt,
+    },
+    meta: {
+      source: "TWSE MIS public quote feed",
+      delay: "Intraday public feed; delivery and delay depend on TWSE MIS availability and policy",
+      updatedAt,
+    },
+  };
+}
+
+async function loadQuoteIndices(indices) {
+  const url = new URL(ENDPOINTS.quote);
+  url.searchParams.set("ex_ch", quoteIndexChannels(indices));
+  url.searchParams.set("json", "1");
+  url.searchParams.set("delay", "0");
+  url.searchParams.set("_", String(Date.now()));
+
+  const payload = await loadJson(
+    url.href,
+    {
+      headers: {
+        Accept: "application/json",
+        Referer: "https://mis.twse.com.tw/stock/index.jsp",
+      },
+    },
+    "TWSE MIS index quote"
+  );
+  const updatedAt = new Date().toISOString();
+  return {
+    body: {
+      quotes: [],
+      indices: normalizeQuoteIndexPayload(payload, indices),
       source: "TWSE MIS public quote feed",
       delay: "Intraday public feed; delivery and delay depend on TWSE MIS availability and policy",
       updatedAt,

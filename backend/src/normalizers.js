@@ -72,6 +72,19 @@ function codeFromChannel(channel) {
   return match ? match[1] : "";
 }
 
+const MIS_INDEXES = {
+  "tse_t00.tw": { id: "taiex", name: "加權", exchange: "tse" },
+  "otc_o00.tw": { id: "tpex", name: "櫃買", exchange: "otc" },
+};
+
+function indexFromChannel(channel) {
+  const normalized = String(channel || "").toLowerCase();
+  for (const [suffix, index] of Object.entries(MIS_INDEXES)) {
+    if (normalized.endsWith(suffix)) return index;
+  }
+  return null;
+}
+
 function normalizeMisDateTime(dateValue, timeValue) {
   const date = String(dateValue || "").trim();
   const time = String(timeValue || "").trim();
@@ -114,6 +127,39 @@ export function normalizeQuotePayload(payload, requestedCodes = []) {
   }
 
   return [...byCode.values()];
+}
+
+export function normalizeQuoteIndexPayload(payload, requestedIds = ["taiex", "tpex"]) {
+  const wanted = new Set(requestedIds.map(String));
+  const rows = Array.isArray(payload?.msgArray) ? payload.msgArray : [];
+  const byId = new Map();
+
+  for (const row of rows) {
+    const index = indexFromChannel(row.ch);
+    if (!index || (wanted.size && !wanted.has(index.id))) continue;
+
+    const price = parseNumber(row.z);
+    const previousClose = parseNumber(row.y);
+    const change = price != null && previousClose != null ? price - previousClose : null;
+    const pctChange = change != null && previousClose ? (change / previousClose) * 100 : null;
+    const item = {
+      id: index.id,
+      name: String(row.n || index.name).trim(),
+      price: roundNumber(price, 2),
+      previousClose: roundNumber(previousClose, 2),
+      change: roundNumber(change, 2),
+      pctChange: roundNumber(pctChange, 2),
+      exchange: String(row.ex || index.exchange).trim() || index.exchange,
+      time: normalizeMisDateTime(row.d, row.t),
+    };
+
+    const existing = byId.get(index.id);
+    if (!existing || (existing.price == null && item.price != null)) {
+      byId.set(index.id, item);
+    }
+  }
+
+  return requestedIds.map((id) => byId.get(id)).filter(Boolean);
 }
 
 export function decodeHtml(value) {

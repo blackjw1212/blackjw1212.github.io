@@ -106,10 +106,11 @@ function createDocument() {
   return { document, elements };
 }
 
-function response(data, headers = {}) {
+function response(data, headers = {}, init = {}) {
+  const status = init.status || 200;
   return {
-    ok: true,
-    status: 200,
+    ok: init.ok ?? (status >= 200 && status < 300),
+    status,
     headers: new Headers(headers),
     json: async () => data,
   };
@@ -195,6 +196,9 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   const requiredIds = [
     "verdictLight", "verdictTitle", "verdictDesc", "actionNext", "actionAvoid",
     "signalSummary", "refresh", "conds", "stamp", "buckets", "scoreTable", "scoreBody", "stockCards",
+    "headerMarketQuotes", "headerQuoteTaiex", "headerQuoteTaiexValue", "headerQuoteTaiexChange",
+    "headerQuoteTaiexStatus", "headerQuoteTpex", "headerQuoteTpexValue", "headerQuoteTpexChange",
+    "headerQuoteTpexStatus", "headerQuoteStatus",
   ];
 
   for (const id of requiredIds) {
@@ -205,6 +209,12 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   assert.match(html, /rel="apple-touch-icon" href="\/assets\/images\/apple-touch-icon\.png"/);
   assert.match(html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/);
   assert.match(html, /name="theme-color" content="#101418"/);
+  assert.match(html, /\.header-shell\{display:flex/);
+  assert.match(html, /\.header-markets\{width:min\(360px,100%\)/);
+  assert.match(html, /\.market-card\{/);
+  assert.match(html, /@media \(max-width:760px\)[\s\S]*\.header-shell\{flex-direction:column/);
+  assert.match(html, /aria-label="市場指數"/);
+  assert.match(html, /aria-live="polite"/);
 
   assert.equal(typeof context.window.PortfolioConsoleApp.init, "function");
   assert.equal(typeof context.window.PortfolioConsoleApp.refresh, "function");
@@ -212,6 +222,7 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   for (const name of [
     "aggregateVerdict",
     "normalizeEodPayload",
+    "normalizeMarketIndexPayload",
     "normalizeYieldPayload",
     "parseNumber",
     "proxyBase",
@@ -356,7 +367,7 @@ test("auto signal helper gates entry, waiting, and exit observation states", asy
 
 test("frontend normalizers round EOD rows and support yield payload shapes", async () => {
   const { context } = await loadApp(async () => response(staticFeed()));
-  const { normalizeEodPayload, normalizeYieldPayload } = context.window.PortfolioConsoleApp.helpers;
+  const { normalizeEodPayload, normalizeMarketIndexPayload, normalizeYieldPayload } = context.window.PortfolioConsoleApp.helpers;
   const plain = (value) => JSON.parse(JSON.stringify(value));
 
   assert.deepEqual(plain(normalizeEodPayload([
@@ -370,6 +381,16 @@ test("frontend normalizers round EOD rows and support yield payload shapes", asy
   assert.equal(normalizeYieldPayload({ value: "4.1234" }).value, 4.123);
   assert.equal(normalizeYieldPayload({ body: { value: "4.5555" } }).value, 4.556);
   assert.equal(normalizeYieldPayload({ data: { value: "4.7777" } }).value, 4.778);
+  assert.deepEqual(plain(normalizeMarketIndexPayload({
+    indices: [
+      { id: "tpex", name: "櫃買指數", price: "397.81", change: "+33.26", pctChange: "+9.12", time: "2026-06-08T09:33:00+08:00" },
+      { id: "taiex", name: "發行量加權股價指數", price: "42,686.84", change: "2387.10", pctChange: "5.92", time: "2026-06-08T09:33:00+08:00" },
+      { id: "evil", price: "999" },
+    ],
+  })), [
+    { id: "taiex", label: "加權", price: 42686.84, change: 2387.1, pctChange: 5.92, time: "2026-06-08T09:33:00+08:00" },
+    { id: "tpex", label: "櫃買", price: 397.81, change: 33.26, pctChange: 9.12, time: "2026-06-08T09:33:00+08:00" },
+  ]);
 });
 
 test("proxy allowlist ignores unapproved query-string proxy", async () => {
@@ -434,6 +455,18 @@ test("page uses Worker EOD and yield on GitHub Pages default proxy", async () =>
     if (href.endsWith("/yield10y")) {
       return response({ body: { value: 4.12, date: "2026-06-05" } });
     }
+    if (href.includes("/quote?indices=taiex,tpex")) {
+      return response({
+        indices: [
+          { id: "taiex", name: "發行量加權股價指數", price: 42686.84, change: 2387.1, pctChange: 5.92, time: "2026-06-08T09:33:00+08:00" },
+          { id: "tpex", name: "櫃買指數", price: 397.81, change: -3.26, pctChange: -0.81, time: "2026-06-08T09:33:00+08:00" },
+        ],
+      }, {
+        "X-Data-Source": "TWSE MIS public quote feed",
+        "X-Data-Delay": "mock intraday",
+        "X-Data-Updated-At": "2026-06-08T09:33:05.000Z",
+      });
+    }
     if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unexpected: ${href}`);
   }, {
@@ -448,9 +481,48 @@ test("page uses Worker EOD and yield on GitHub Pages default proxy", async () =>
 
   assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/eod"));
   assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/yield10y"));
+  assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/quote?indices=taiex,tpex"));
   assert.match(document.getElementById("scoreBody").innerHTML, /2,410/);
+  assert.equal(document.getElementById("headerQuoteTaiexValue").textContent, "42,686.84");
+  assert.equal(document.getElementById("headerQuoteTaiexChange").textContent, "+2,387.10 / +5.92%");
+  assert.match(document.getElementById("headerQuoteTaiexChange").className, /pos/);
+  assert.equal(document.getElementById("headerQuoteTpexValue").textContent, "397.81");
+  assert.match(document.getElementById("headerQuoteTpexChange").className, /neg/);
+  assert.match(document.getElementById("headerQuoteTaiexStatus").textContent, /TWSE MIS/);
   assert.equal(context.window.PortfolioConsoleApp.getState().cond.yield, 4.12);
   assert.match(document.getElementById("src_yield").textContent, /10Y.*2026/);
+});
+
+test("market index quote failure does not block dashboard refresh", async () => {
+  const { context, document } = await loadApp(async (url) => {
+    const href = String(url);
+    if (href.endsWith("/eod")) {
+      return response([{ code: "2330", name: "TSMC", close: 2410, change: 10 }]);
+    }
+    if (href.endsWith("/yield10y")) {
+      return response({ value: 4.12 });
+    }
+    if (href.includes("/quote?indices=taiex,tpex")) {
+      return response({ error: "upstream unavailable" }, {}, { status: 502 });
+    }
+    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unexpected: ${href}`);
+  }, {
+    location: {
+      href: "https://blackjw1212.github.io/",
+      hostname: "blackjw1212.github.io",
+      search: "",
+    },
+  });
+
+  await context.window.PortfolioConsoleApp.init();
+
+  assert.match(document.getElementById("scoreBody").innerHTML, /2,410/);
+  assert.equal(document.getElementById("headerQuoteTaiexValue").textContent, "待更新");
+  assert.match(document.getElementById("headerQuoteTaiexStatus").textContent, /暫無法更新/);
+  assert.match(document.getElementById("headerQuoteTaiexStatus").className, /error/);
+  assert.doesNotMatch(document.getElementById("headerQuoteTaiexValue").textContent, /NaN|undefined/);
+  assert.doesNotMatch(document.getElementById("stamp").textContent, /NaN|undefined/);
 });
 
 test("legacy manual 10Y override no longer blocks automated refresh", async () => {

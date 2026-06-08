@@ -1,5 +1,7 @@
 # Changes
 
+- Added right-side header market-index cards for 加權 and 櫃買, wired through the Worker quote allowlist with clear intraday/availability-dependent status text.
+- Added `/quote?indices=taiex,tpex` support with fixed TWSE MIS channels, separate index normalization, and tests that keep stock-code validation strict.
 - Added favicon, Apple touch icon, web manifest, and theme-color metadata for the stock observation console.
 - Removed the local tranche observation log section and its state/render/test surface from the current console.
 - Removed the extra page-title/header tagline so the console title stays concise.

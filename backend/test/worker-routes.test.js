@@ -94,6 +94,50 @@ test("quote route canonicalizes code order before upstream fetch", async (t) => 
   assert.deepEqual(body.quotes.map((quote) => quote.code), ["2308", "2330"]);
 });
 
+test("quote route serves allowlisted market indices without widening stock codes", async (t) => {
+  let requestedUrl = "";
+  let requestedHeaders = {};
+  t.mock.method(globalThis, "fetch", async (url, init = {}) => {
+    requestedUrl = String(url);
+    requestedHeaders = init.headers || {};
+    return jsonResponse({
+      msgArray: [
+        { ch: "otc_o00.tw", n: "櫃買指數", z: "397.81", y: "364.55", ex: "otc", d: "20260608", t: "09:33:00" },
+        { ch: "tse_t00.tw", n: "發行量加權股價指數", z: "42686.84", y: "40299.74", ex: "tse", d: "20260608", t: "09:33:00" },
+        { ch: "tse_2330.tw", c: "2330", n: "TSMC", z: "1000", y: "995", d: "20260608", t: "09:33:00" },
+      ],
+    });
+  });
+
+  const response = await handleRequest(new Request("https://worker.test/quote?indices=tpex,taiex"), {});
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "public, max-age=30");
+  assert.equal(response.headers.get("X-Data-Source"), "TWSE MIS public quote feed");
+  assert.match(decodeURIComponent(requestedUrl), /ex_ch=tse_t00\.tw\|otc_o00\.tw/);
+  assert.match(requestedUrl, /json=1/);
+  assert.match(requestedUrl, /delay=0/);
+  assert.equal(requestedHeaders.Referer, "https://mis.twse.com.tw/stock/index.jsp");
+
+  const body = await readJson(response);
+  assert.deepEqual(body.quotes, []);
+  assert.deepEqual(body.indices.map((index) => index.id), ["taiex", "tpex"]);
+  assert.deepEqual(body.indices.map((index) => index.price), [42686.84, 397.81]);
+});
+
+test("quote route rejects unsupported index requests", async () => {
+  for (const path of [
+    "/quote?indices=foo",
+    "/quote?indices=",
+    "/quote?codes=2330&indices=taiex",
+    "/quote?codes=t00",
+    "/quote?codes=TAIEX",
+    "/quote?codes=2330%7Cotc_o00.tw",
+  ]) {
+    const response = await handleRequest(new Request(`https://worker.test${path}`), {});
+    assert.equal(response.status, 400, path);
+  }
+});
+
 test("filings route normalizes MOPS HTML", async (t) => {
   t.mock.method(globalThis, "fetch", async () => textResponse(`
     <table>

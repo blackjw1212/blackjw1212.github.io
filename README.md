@@ -23,6 +23,7 @@ The site is published at <https://blackjw1212.github.io/>.
 This repository also includes a plain static Taiwan stock portfolio console at `index.html` plus a Cloudflare Worker proxy in `backend/`. The current page is organized as a retail-friendly automated observation console:
 
 - Today's automated entry / wait / exit-observation verdict
+- Header market-index cards for TAIEX and TPEx, sourced through the Worker quote allowlist
 - Auto-derived data, 10Y, breadth, core-health, and satellite-risk lights
 - Stock-code links to allowlisted TradingView full chart pages
 - Core / satellite / cash allocation
@@ -48,7 +49,8 @@ If no backend is configured, the page enters fallback mode. The scorecard attemp
 ### Backend Routes
 
 - `GET /eod` returns normalized TWSE end-of-day rows: `[{ code, name, close, change }]`.
-- `GET /quote?codes=2330,2308` returns TWSE MIS public quote rows plus source and delay metadata.
+- `GET /quote?codes=2330,2308` returns TWSE MIS public stock quote rows plus source and delay metadata.
+- `GET /quote?indices=taiex,tpex` returns allowlisted TWSE MIS public market-index rows for 加權 and 櫃買. The frontend treats them as intraday public-feed snapshots, not guaranteed tick-level real-time data.
 - `GET /filings?code=2330` returns latest normalized MOPS material announcements as an optional legacy fallback: `[{ date, title, url }]`.
 - `GET /yield10y` returns the latest numeric 10Y yield, using FRED DGS10 first when configured and the US Treasury Daily Treasury Yield Curve fallback otherwise.
 - `GET /health` returns a simple service health payload.

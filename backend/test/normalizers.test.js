@@ -5,6 +5,7 @@ import {
   normalizeFredDgs10,
   normalizeMopsDate,
   normalizeMopsFilings,
+  normalizeQuoteIndexPayload,
   normalizeQuotePayload,
   normalizeTwseEod,
   parseNumber,
@@ -59,6 +60,82 @@ test("normalizeQuotePayload computes change and percent change from MIS payload"
       time: "2026-06-05T13:30:00+08:00",
     },
   ]);
+});
+
+test("normalizeQuoteIndexPayload normalizes allowlisted TWSE and TPEX index channels", () => {
+  const indices = normalizeQuoteIndexPayload({
+    msgArray: [
+      {
+        ch: "tse_t00.tw",
+        n: "發行量加權股價指數",
+        z: "42686.84",
+        y: "40299.74",
+        ex: "tse",
+        d: "20260608",
+        t: "09:33:00",
+      },
+      {
+        ch: "otc_o00.tw",
+        n: "櫃買指數",
+        z: "397.81",
+        y: "364.55",
+        ex: "otc",
+        d: "20260608",
+        t: "09:33:00",
+      },
+      {
+        ch: "tse_bad.tw",
+        n: "ignored",
+        z: "999",
+      },
+    ],
+  }, ["taiex", "tpex"]);
+
+  assert.deepEqual(indices, [
+    {
+      id: "taiex",
+      name: "發行量加權股價指數",
+      price: 42686.84,
+      previousClose: 40299.74,
+      change: 2387.1,
+      pctChange: 5.92,
+      exchange: "tse",
+      time: "2026-06-08T09:33:00+08:00",
+    },
+    {
+      id: "tpex",
+      name: "櫃買指數",
+      price: 397.81,
+      previousClose: 364.55,
+      change: 33.26,
+      pctChange: 9.12,
+      exchange: "otc",
+      time: "2026-06-08T09:33:00+08:00",
+    },
+  ]);
+});
+
+test("normalizeQuoteIndexPayload preserves requested order and avoids NaN values", () => {
+  const indices = normalizeQuoteIndexPayload({
+    msgArray: [
+      { ch: "tse_t00.tw", n: "發行量加權股價指數", z: "-", y: "0", d: "20260608", t: "09:33:00" },
+      { ch: "otc_o00.tw", n: "櫃買指數", z: "397.81", y: "364.55", d: "20260608", t: "09:33:00" },
+    ],
+  }, ["tpex"]);
+
+  assert.deepEqual(indices.map((index) => index.id), ["tpex"]);
+  assert.equal(indices[0].price, 397.81);
+  assert.equal(indices[0].change, 33.26);
+  assert.equal(indices[0].pctChange, 9.12);
+
+  const missing = normalizeQuoteIndexPayload({
+    msgArray: [
+      { ch: "tse_t00.tw", n: "發行量加權股價指數", z: "-", y: "0", d: "20260608", t: "09:33:00" },
+    ],
+  }, ["taiex"]);
+  assert.equal(missing[0].price, null);
+  assert.equal(missing[0].change, null);
+  assert.equal(missing[0].pctChange, null);
 });
 
 test("normalizeMopsDate converts ROC and Gregorian dates", () => {

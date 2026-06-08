@@ -34,6 +34,15 @@
   .profile{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
   .tagp{font-family:"Roboto Mono",monospace;font-size:11px;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;color:var(--soft)}
   .tagp b{color:var(--amber)}
+  .header-shell{display:flex;align-items:flex-end;justify-content:space-between;gap:18px}
+  .header-main{min-width:0;flex:1}
+  .header-markets{width:min(360px,100%);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .market-card{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.025);padding:9px 10px;min-height:76px}
+  .market-label{font-family:"Roboto Mono",monospace;font-size:11px;color:var(--soft);display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .market-value{font-family:"Roboto Mono",monospace;font-size:19px;font-weight:700;line-height:1.25;margin-top:3px;color:var(--ink)}
+  .market-change{font-family:"Roboto Mono",monospace;font-size:11px;line-height:1.25;margin-top:2px;white-space:nowrap}
+  .market-status{font-family:"Roboto Mono",monospace;font-size:10px;color:var(--faint);line-height:1.3;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .market-status.error{color:var(--amber)}
   h2{font-family:"Noto Serif TC",serif;font-weight:700;font-size:18px;margin:28px 0 4px;display:flex;align-items:baseline;gap:10px}
   h2 em{font-family:"Roboto Mono",monospace;font-style:normal;font-size:11px;color:var(--amber)}
   .hint{font-size:12px;color:var(--faint);margin-bottom:12px}
@@ -122,6 +131,9 @@
   @media (max-width:760px){
     .wrap{padding:0 14px}
     h1{font-size:24px}
+    .header-shell{flex-direction:column;align-items:stretch}
+    .header-markets{width:100%;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+    .market-card{min-height:72px}
     .decision-top{align-items:flex-start}
     .signal-summary{grid-template-columns:1fr}
     .decision-actions{grid-template-columns:1fr}
@@ -141,14 +153,31 @@
 <body>
 
 <header>
-  <div class="wrap">
-    <div class="kick">Retail Observation Console · v0.5</div>
-    <h1>AI 供應鏈觀察台</h1>
-    <div class="profile">
-      <span class="tagp">定位 <b>觀察門檻</b></span>
-      <span class="tagp">資料 <b>收盤/10Y 自動</b></span>
-      <span class="tagp">圖表 <b>TradingView</b></span>
+  <div class="wrap header-shell">
+    <div class="header-main">
+      <div class="kick">Retail Observation Console · v0.5</div>
+      <h1>AI 供應鏈觀察台</h1>
+      <div class="profile">
+        <span class="tagp">定位 <b>觀察門檻</b></span>
+        <span class="tagp">資料 <b>收盤/10Y 自動</b></span>
+        <span class="tagp">圖表 <b>TradingView</b></span>
+      </div>
     </div>
+    <aside id="headerMarketQuotes" class="header-markets" aria-label="市場指數" aria-live="polite">
+      <div class="market-card" id="headerQuoteTaiex">
+        <div class="market-label"><span>加權</span><span>TAIEX</span></div>
+        <div class="market-value" id="headerQuoteTaiexValue">待更新</div>
+        <div class="market-change flat" id="headerQuoteTaiexChange">-- / --%</div>
+        <div class="market-status" id="headerQuoteTaiexStatus">TWSE MIS 盤中</div>
+      </div>
+      <div class="market-card" id="headerQuoteTpex">
+        <div class="market-label"><span>櫃買</span><span>TPEX</span></div>
+        <div class="market-value" id="headerQuoteTpexValue">待更新</div>
+        <div class="market-change flat" id="headerQuoteTpexChange">-- / --%</div>
+        <div class="market-status" id="headerQuoteTpexStatus">TWSE MIS 盤中</div>
+      </div>
+      <span id="headerQuoteStatus" hidden>市場指數待更新</span>
+    </aside>
   </div>
 </header>
 
@@ -265,9 +294,15 @@ const TRADINGVIEW_SYMBOLS = {
   "2308":"TWSE:2308",
 };
 const EOD_CACHE_KEY = LS + ":eod:" + STOCK_CODES.join(",");
+const MARKET_INDEXES = [
+  {id:"taiex",label:"加權",dom:"Taiex"},
+  {id:"tpex",label:"櫃買",dom:"Tpex"},
+];
 
 let state = loadState();
 let staticFeedPromise = null;
+let marketIndexRows = [];
+let marketIndexMeta = null;
 
 function $(id){return DOC ? DOC.getElementById(id) : null;}
 
@@ -426,6 +461,41 @@ function normalizeYieldPayload(payload){
     updatedAt: source.updatedAt || source.asOf || "",
     source: String(source.source || "10Y yield feed"),
   };
+}
+
+function normalizeMarketIndexPayload(payload){
+  const rows = Array.isArray(payload && payload.indices) ? payload.indices
+    : Array.isArray(payload && payload.marketIndices) ? payload.marketIndices
+    : Array.isArray(payload && payload.data && payload.data.indices) ? payload.data.indices
+    : [];
+  const byId = {};
+
+  rows.forEach(function(row){
+    const rawId = String(field(row, ["id","code","symbol","name","label"]) || "").trim().toLowerCase();
+    const rawName = String(field(row, ["name","label"]) || "");
+    let id = "";
+    if (rawId === "taiex" || rawId === "weighted" || rawName.indexOf("加權") >= 0) id = "taiex";
+    if (rawId === "tpex" || rawId === "otc" || rawName.indexOf("櫃買") >= 0) id = "tpex";
+    if (!id) return;
+
+    const price = parseNumber(field(row, ["price","value","close","z"]));
+    const previousClose = parseNumber(field(row, ["previousClose","y"]));
+    let change = parseNumber(field(row, ["change","pointChange"]));
+    let pctChange = parseNumber(field(row, ["pctChange","percentChange","percent"]));
+    if (change == null && price != null && previousClose != null) change = price - previousClose;
+    if (pctChange == null && change != null && previousClose) pctChange = change / previousClose * 100;
+    if (price == null) return;
+    byId[id] = {
+      id:id,
+      label:id === "taiex" ? "加權" : "櫃買",
+      price:roundNumber(price,2),
+      change:roundNumber(change,2),
+      pctChange:roundNumber(pctChange,2),
+      time:String(field(row, ["time","updatedAt"]) || ""),
+    };
+  });
+
+  return MARKET_INDEXES.map(function(index){return byId[index.id];}).filter(Boolean);
 }
 
 function proxyDecision(){
@@ -610,6 +680,80 @@ async function loadYield10y(){
   saveState();
   paint();
   return "10Y 未自動更新，保留手動值";
+}
+
+function signedFixed(value, digits){
+  const number = parseNumber(value);
+  if (number == null) return "--";
+  const places = digits == null ? 2 : digits;
+  const text = Number(number).toLocaleString("en-US", {
+    minimumFractionDigits:places,
+    maximumFractionDigits:places,
+  });
+  return number > 0 ? "+" + text : text;
+}
+
+function changeTone(value){
+  const number = parseNumber(value);
+  if (number == null || number === 0) return "flat";
+  return number > 0 ? "pos" : "neg";
+}
+
+function renderMarketIndexes(rows, meta, message, isError){
+  const byId = {};
+  (Array.isArray(rows) ? rows : []).forEach(function(row){byId[row.id] = row;});
+  const metaText = meta && meta.source ? "TWSE MIS" : "";
+
+  MARKET_INDEXES.forEach(function(index){
+    const row = byId[index.id];
+    const valueNode = $("headerQuote" + index.dom + "Value");
+    const changeNode = $("headerQuote" + index.dom + "Change");
+    const statusNode = $("headerQuote" + index.dom + "Status");
+    if (!valueNode || !changeNode || !statusNode) return;
+
+    if (row) {
+      valueNode.textContent = fmt(row.price, 2);
+      changeNode.textContent = signedFixed(row.change, 2) + " / " + signedFixed(row.pctChange, 2) + "%";
+      changeNode.className = "market-change " + changeTone(row.change);
+      const when = formatDateTime(row.time || (meta && meta.updatedAt));
+      statusNode.textContent = (metaText || "盤中資料") + (when ? " / " + when : "");
+      statusNode.className = "market-status" + (isError ? " error" : "");
+    } else {
+      valueNode.textContent = "待更新";
+      changeNode.textContent = "-- / --%";
+      changeNode.className = "market-change flat";
+      statusNode.textContent = message || "市場指數待更新";
+      statusNode.className = "market-status" + (isError ? " error" : "");
+    }
+  });
+
+  const status = $("headerQuoteStatus");
+  if (status) status.textContent = message || (rows && rows.length ? "市場指數已更新" : "市場指數待更新");
+}
+
+async function loadMarketIndices(){
+  const base = proxyBase();
+  if (!base) {
+    renderMarketIndexes(marketIndexRows, marketIndexMeta, marketIndexRows.length ? "保留上次指數資料" : "Worker 未連線", !marketIndexRows.length);
+    return marketIndexRows.length ? "市場指數：保留上次資料" : "市場指數：Worker 未連線";
+  }
+
+  try {
+    const result = await fetchJson(base + "/quote?indices=taiex,tpex");
+    const indices = normalizeMarketIndexPayload(result.data);
+    if (!indices.length) throw new Error("Market index payload has no usable rows");
+    marketIndexRows = indices;
+    marketIndexMeta = sanitizeMeta({
+      source:result.headers.get("X-Data-Source") || (result.data && result.data.source) || "TWSE MIS public quote feed",
+      delay:result.headers.get("X-Data-Delay") || (result.data && result.data.delay) || "盤中資料",
+      updatedAt:result.headers.get("X-Data-Updated-At") || (result.data && result.data.updatedAt) || new Date().toISOString(),
+    });
+    renderMarketIndexes(marketIndexRows, marketIndexMeta, "市場指數已更新", false);
+    return "市場指數：" + marketIndexRows.map(function(row){return row.label + " " + fmt(row.price, 2);}).join(" / ");
+  } catch (error) {
+    renderMarketIndexes(marketIndexRows, marketIndexMeta, marketIndexRows.length ? "保留上次指數資料" : "即時指數暫無法更新", true);
+    return marketIndexRows.length ? "市場指數：保留上次資料" : "市場指數：暫無法更新";
+  }
 }
 
 function condValue(c){
@@ -1092,6 +1236,7 @@ async function refresh(){
   const messages = [];
   messages.push(await loadEod());
   messages.push(await loadYield10y());
+  messages.push(await loadMarketIndices());
   renderConds();
   $("stamp").textContent = messages.join(" · ") + " · " + new Date().toLocaleString("zh-TW");
 }
@@ -1101,6 +1246,7 @@ async function init(){
   renderConds();
   renderBuckets();
   renderScore();
+  renderMarketIndexes(marketIndexRows, marketIndexMeta, "市場指數待更新", false);
 
   $("refresh").addEventListener("click", function(){refresh().catch(function(error){
     $("stamp").textContent = "更新失敗，保留既有畫面：" + error.message;
@@ -1116,6 +1262,7 @@ const portfolioApp = {
   helpers:{
     aggregateVerdict:aggregateVerdict,
     normalizeEodPayload:normalizeEodPayload,
+    normalizeMarketIndexPayload:normalizeMarketIndexPayload,
     normalizeYieldPayload:normalizeYieldPayload,
     parseNumber:parseNumber,
     proxyBase:proxyBase,
