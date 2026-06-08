@@ -102,8 +102,8 @@ test("quote route serves allowlisted market indices without widening stock codes
     requestedHeaders = init.headers || {};
     return jsonResponse({
       msgArray: [
-        { ch: "otc_o00.tw", n: "櫃買指數", z: "397.81", y: "364.55", ex: "otc", d: "20260608", t: "09:33:00" },
-        { ch: "tse_t00.tw", n: "發行量加權股價指數", z: "42686.84", y: "40299.74", ex: "tse", d: "20260608", t: "09:33:00" },
+        { key: "otc_o00.tw_20260608", ch: "o00.tw", c: "o00", n: "櫃買指數", z: "397.81", y: "364.55", ex: "otc", d: "20260608", t: "09:33:00" },
+        { key: "tse_t00.tw_20260608", ch: "t00.tw", c: "t00", n: "發行量加權股價指數", z: "42686.84", y: "40299.74", ex: "tse", d: "20260608", t: "09:33:00" },
         { ch: "tse_2330.tw", c: "2330", n: "TSMC", z: "1000", y: "995", d: "20260608", t: "09:33:00" },
       ],
     });

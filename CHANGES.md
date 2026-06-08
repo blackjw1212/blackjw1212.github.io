@@ -1,5 +1,6 @@
 # Changes
 
+- Fixed market-index quote normalization for the live TWSE MIS index payload, which reports `ch` as `t00.tw` / `o00.tw` and keeps the full market channel in `key`.
 - Added right-side header market-index cards for 加權 and 櫃買, wired through the Worker quote allowlist with clear intraday/availability-dependent status text.
 - Added `/quote?indices=taiex,tpex` support with fixed TWSE MIS channels, separate index normalization, and tests that keep stock-code validation strict.
 - Added favicon, Apple touch icon, web manifest, and theme-color metadata for the stock observation console.

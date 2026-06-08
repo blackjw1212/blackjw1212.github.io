@@ -77,10 +77,26 @@ const MIS_INDEXES = {
   "otc_o00.tw": { id: "tpex", name: "櫃買", exchange: "otc" },
 };
 
-function indexFromChannel(channel) {
-  const normalized = String(channel || "").toLowerCase();
+function channelMatches(value, suffix) {
+  const normalized = String(value || "").toLowerCase();
+  if (!normalized) return false;
+  if (normalized === suffix) return true;
+  if (normalized.startsWith(`${suffix}_`)) return true;
+  return normalized.endsWith(`_${suffix}`) || normalized.endsWith(`|${suffix}`);
+}
+
+function indexFromRow(row) {
+  if (channelMatches(row?.key, "tse_t00.tw")) return MIS_INDEXES["tse_t00.tw"];
+  if (channelMatches(row?.key, "otc_o00.tw")) return MIS_INDEXES["otc_o00.tw"];
+
+  const ch = String(row?.ch || row?.["@"] || "").toLowerCase();
+  const code = String(row?.c || "").toLowerCase();
+  const exchange = String(row?.ex || "").toLowerCase();
+  if (exchange === "tse" && (ch === "t00.tw" || code === "t00")) return MIS_INDEXES["tse_t00.tw"];
+  if (exchange === "otc" && (ch === "o00.tw" || code === "o00")) return MIS_INDEXES["otc_o00.tw"];
+
   for (const [suffix, index] of Object.entries(MIS_INDEXES)) {
-    if (normalized.endsWith(suffix)) return index;
+    if (channelMatches(row?.ch, suffix) || channelMatches(row?.["@"], suffix)) return index;
   }
   return null;
 }
@@ -135,7 +151,7 @@ export function normalizeQuoteIndexPayload(payload, requestedIds = ["taiex", "tp
   const byId = new Map();
 
   for (const row of rows) {
-    const index = indexFromChannel(row.ch);
+    const index = indexFromRow(row);
     if (!index || (wanted.size && !wanted.has(index.id))) continue;
 
     const price = parseNumber(row.z);

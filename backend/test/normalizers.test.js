@@ -66,7 +66,10 @@ test("normalizeQuoteIndexPayload normalizes allowlisted TWSE and TPEX index chan
   const indices = normalizeQuoteIndexPayload({
     msgArray: [
       {
-        ch: "tse_t00.tw",
+        "@": "t00.tw",
+        key: "tse_t00.tw_20260608",
+        ch: "t00.tw",
+        c: "t00",
         n: "發行量加權股價指數",
         z: "42686.84",
         y: "40299.74",
@@ -75,7 +78,10 @@ test("normalizeQuoteIndexPayload normalizes allowlisted TWSE and TPEX index chan
         t: "09:33:00",
       },
       {
-        ch: "otc_o00.tw",
+        "@": "o00.tw",
+        key: "otc_o00.tw_20260608",
+        ch: "o00.tw",
+        c: "o00",
         n: "櫃買指數",
         z: "397.81",
         y: "364.55",
