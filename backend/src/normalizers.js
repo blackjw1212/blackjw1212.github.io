@@ -121,6 +121,9 @@ export function normalizeQuotePayload(payload, requestedCodes = []) {
 
     const price = parseNumber(row.z);
     const previousClose = parseNumber(row.y);
+    const high = parseNumber(row.h);
+    const low = parseNumber(row.l);
+    const open = parseNumber(row.o);
     const change = price != null && previousClose != null ? price - previousClose : null;
     const pctChange = change != null && previousClose ? (change / previousClose) * 100 : null;
     const volume = parseNumber(row.v);
@@ -128,7 +131,11 @@ export function normalizeQuotePayload(payload, requestedCodes = []) {
       code,
       name: String(row.n || "").trim(),
       price: roundNumber(price, 2),
+      close: roundNumber(price, 2),
       previousClose: roundNumber(previousClose, 2),
+      high: roundNumber(high, 2),
+      low: roundNumber(low, 2),
+      open: roundNumber(open, 2),
       change: roundNumber(change, 2),
       pctChange: roundNumber(pctChange, 2),
       volume: volume == null ? null : Math.round(volume),

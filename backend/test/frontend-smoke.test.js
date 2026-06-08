@@ -215,6 +215,8 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   assert.match(html, /@media \(max-width:760px\)[\s\S]*\.header-shell\{flex-direction:column/);
   assert.match(html, /aria-label="市場指數"/);
   assert.match(html, /aria-live="polite"/);
+  assert.match(html, /距離系統觀察價/);
+  assert.doesNotMatch(html, /vs 個人參考基準|個人參考基準/);
 
   assert.equal(typeof context.window.PortfolioConsoleApp.init, "function");
   assert.equal(typeof context.window.PortfolioConsoleApp.refresh, "function");
@@ -231,6 +233,9 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
     "deriveAutoSignals",
     "condColor",
     "tradingViewUrl",
+    "suggestObservationPrice",
+    "roundObservationPrice",
+    "marketDefenseMode",
   ]) {
     assert.equal(typeof context.window.PortfolioConsoleApp.helpers[name], "function");
   }
@@ -334,14 +339,14 @@ test("auto signal helper gates entry, waiting, and exit observation states", asy
     condSource: {},
     base: {},
     today: {
-      "2330": { close: 2400, change: 5 },
-      "2317": { close: 300, change: 3 },
-      "6669": { close: 5600, change: 20 },
-      "3017": { close: 2650, change: 10 },
-      "3324": { close: 1300, change: 5 },
-      "2382": { close: 350, change: 2 },
-      "1519": { close: 900, change: 5 },
-      "2308": { close: 2200, change: 4 },
+      "2330": { close: 2400, change: 5, high: 2420, low: 2350 },
+      "2317": { close: 300, change: 3, high: 305, low: 292 },
+      "6669": { close: 5600, change: 20, high: 5660, low: 5450 },
+      "3017": { close: 2650, change: 10, high: 2700, low: 2580 },
+      "3324": { close: 1300, change: 5, high: 1325, low: 1240 },
+      "2382": { close: 350, change: 2, high: 355, low: 342 },
+      "1519": { close: 900, change: 5, high: 918, low: 872 },
+      "2308": { close: 2200, change: 4, high: 2230, low: 2140 },
     },
     eodMeta: { source: "Worker mock EOD", updatedAt: fresh },
     yieldMeta: { source: "mock 10Y", updatedAt: fresh },
@@ -360,10 +365,113 @@ test("auto signal helper gates entry, waiting, and exit observation states", asy
       "2308": { close: 2600, change: -50 },
     },
   };
+  const fallbackOnlyState = {
+    ...entryState,
+    today: Object.fromEntries(Object.entries(entryState.today).map(([code, row]) => [code, { close: row.close, change: row.change }])),
+  };
 
   assert.match(aggregateVerdict(deriveAutoSignals(entryState)).title, /偏進場觀察/);
+  assert.equal(deriveAutoSignals(fallbackOnlyState).find((signal) => signal.id === "data").tone, "a");
+  assert.match(aggregateVerdict(deriveAutoSignals(fallbackOnlyState)).title, /等待/);
   assert.match(aggregateVerdict(deriveAutoSignals({ cond: { yield: 4.12 }, today: {} })).title, /等待/);
   assert.match(aggregateVerdict(deriveAutoSignals(exitState)).title, /偏退場降風險/);
+});
+
+test("weak market defense blocks automated entry observation", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const { deriveAutoSignals, aggregateVerdict, marketDefenseMode } = context.window.PortfolioConsoleApp.helpers;
+  const fresh = new Date().toISOString();
+  const weakMarketState = {
+    cond: { yield: 4.12 },
+    condSource: {},
+    today: {
+      "2330": { close: 2400, change: 5, high: 2420, low: 2350 },
+      "2317": { close: 300, change: 3, high: 305, low: 292 },
+      "6669": { close: 5600, change: 20, high: 5660, low: 5450 },
+      "3017": { close: 2650, change: 10, high: 2700, low: 2580 },
+      "3324": { close: 1300, change: 5, high: 1325, low: 1240 },
+      "2382": { close: 350, change: 2, high: 355, low: 342 },
+      "1519": { close: 900, change: 5, high: 918, low: 872 },
+      "2308": { close: 2200, change: 4, high: 2230, low: 2140 },
+    },
+    eodMeta: { source: "Worker mock EOD", updatedAt: fresh },
+    yieldMeta: { source: "mock 10Y", updatedAt: fresh },
+    marketIndexRows: [
+      { id: "taiex", label: "加權", price: 42000, pctChange: -2.8 },
+      { id: "tpex", label: "櫃買", price: 390, pctChange: -3.2 },
+    ],
+  };
+
+  const signals = deriveAutoSignals(weakMarketState);
+  assert.equal(marketDefenseMode(weakMarketState), true);
+  assert.equal(signals.find((signal) => signal.id === "market").tone, "r");
+  assert.match(signals.find((signal) => signal.id === "market").detail, /等待跌勢收斂/);
+  assert.doesNotMatch(aggregateVerdict(signals).title, /偏進場觀察/);
+  assert.match(aggregateVerdict(signals).title, /等待/);
+});
+
+test("system observation price helper stays conservative by tier and market risk", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const { suggestObservationPrice, roundObservationPrice } = context.window.PortfolioConsoleApp.helpers;
+
+  assert.equal(roundObservationPrice(2296.9), 2295);
+  assert.equal(roundObservationPrice(284.9), 284.5);
+
+  const core = suggestObservationPrice(
+    { code: "2330", tier: "core", base: 2385 },
+    { close: 2365, low: 2230, change: -70 },
+    {}
+  );
+  assert.equal(core.mode, "auto");
+  assert.equal(core.label, "系統觀察價");
+  assert.equal(core.price, 2295);
+  assert.match(core.distanceText, /目前 \+3\.1%/);
+
+  const satellite = suggestObservationPrice(
+    { code: "3017", tier: "sat", base: 2640 },
+    { close: 2570, low: 2340, change: -130, previousClose: 2700 },
+    {}
+  );
+  assert.equal(satellite.mode, "auto");
+  assert.equal(satellite.price, 2395);
+  assert.ok(satellite.price < core.price + 120, "satellite price should stay near the lower range");
+  assert.ok(satellite.price < 2570);
+
+  const wait = suggestObservationPrice(
+    { code: "2308", tier: "wait", base: 2300 },
+    { close: 2255, low: 2090, change: -45 },
+    {}
+  );
+  assert.equal(wait.mode, "auto");
+  assert.equal(wait.price, 2110);
+  assert.ok(wait.price < 2255);
+
+  const missing = suggestObservationPrice(
+    { code: "2330", tier: "core", base: 2385 },
+    { change: -20 },
+    {}
+  );
+  assert.equal(missing.mode, "missing");
+  assert.equal(missing.label, "觀察價待更新");
+
+  const fallback = suggestObservationPrice(
+    { code: "2330", tier: "core", base: 2385 },
+    { close: 2365, change: -20 },
+    {}
+  );
+  assert.equal(fallback.mode, "fallback");
+  assert.equal(fallback.label, "預設觀察價");
+  assert.equal(fallback.source, "預設值");
+
+  const defense = suggestObservationPrice(
+    { code: "2330", tier: "core", base: 2385 },
+    { close: 2365, low: 2230, change: -70 },
+    { defense: true }
+  );
+  assert.equal(defense.defense, true);
+  assert.equal(defense.price, 2270);
+  assert.match(defense.note, /等待跌勢收斂後再看/);
+  assert.ok(defense.price < core.price);
 });
 
 test("frontend normalizers round EOD rows and support yield payload shapes", async () => {
@@ -372,11 +480,11 @@ test("frontend normalizers round EOD rows and support yield payload shapes", asy
   const plain = (value) => JSON.parse(JSON.stringify(value));
 
   assert.deepEqual(plain(normalizeEodPayload([
-    { Code: "2330", Name: "TSMC", ClosingPrice: "1,010.123", Change: "+5.257" },
+    { Code: "2330", Name: "TSMC", ClosingPrice: "1,010.123", Change: "+5.257", HighestPrice: "1,020.25", LowestPrice: "998.75", OpeningPrice: "1,005.50" },
     { Code: "bad", Name: "Bad", ClosingPrice: "1" },
     { Code: "2308", Name: "Delta", ClosingPrice: "--" },
   ])), [
-    { code: "2330", name: "TSMC", close: 1010.12, change: 5.26 },
+    { code: "2330", name: "TSMC", close: 1010.12, change: 5.26, high: 1020.25, low: 998.75, open: 1005.5 },
   ]);
 
   assert.equal(normalizeYieldPayload({ value: "4.1234" }).value, 4.123);
@@ -394,14 +502,14 @@ test("frontend normalizers round EOD rows and support yield payload shapes", asy
   ]);
   assert.deepEqual(plain(normalizeClosingQuoteRows({
     quotes: [
-      { code: "2330", name: "TSMC", price: "2,295.00", change: "-70.00", time: "2026-06-08T13:30:00+08:00" },
-      { code: "3324", name: "Auras", price: "1,095.00", change: "-15.00", time: "2026-06-08T13:30:00+08:00" },
+      { code: "2330", name: "TSMC", price: "2,295.00", previousClose: "2,365.00", high: "2,370.00", low: "2,230.00", open: "2,350.00", time: "2026-06-08T13:30:00+08:00" },
+      { code: "3324", name: "Auras", price: "1,095.00", change: "-15.00", high: "1,130.00", low: "1,050.00", open: "1,105.00", time: "2026-06-08T13:30:00+08:00" },
       { code: "2317", name: "Foxconn", price: "269.50", change: "-15.00", time: "2026-06-08T10:15:00+08:00" },
       { code: "9999", name: "Ignored", price: "1", change: "0", time: "2026-06-08T13:30:00+08:00" },
     ],
   })), [
-    { code: "2330", name: "TSMC", close: 2295, change: -70, time: "2026-06-08T13:30:00+08:00" },
-    { code: "3324", name: "Auras", close: 1095, change: -15, time: "2026-06-08T13:30:00+08:00" },
+    { code: "2330", name: "TSMC", close: 2295, change: -70, time: "2026-06-08T13:30:00+08:00", previousClose: 2365, high: 2370, low: 2230, open: 2350 },
+    { code: "3324", name: "Auras", close: 1095, change: -15, time: "2026-06-08T13:30:00+08:00", high: 1130, low: 1050, open: 1105 },
   ]);
 });
 
@@ -431,7 +539,11 @@ test("page renders automated checklist, cards, and source labels from static fal
 
   assert.match(document.getElementById("scoreBody").innerHTML, /2330/);
   assert.match(document.getElementById("scoreBody").innerHTML, /2,400.25/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /預設觀察價/);
+  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /個人參考基準/);
   assert.match(document.getElementById("stockCards").innerHTML, /台積電/);
+  assert.match(document.getElementById("stockCards").innerHTML, /距離系統觀察價/);
+  assert.match(document.getElementById("stockCards").innerHTML, /預設觀察價/);
   assert.match(document.getElementById("scoreBody").innerHTML, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
   assert.match(document.getElementById("stockCards").innerHTML, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
   assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /\/technicals\//);
@@ -448,6 +560,18 @@ test("page renders automated checklist, cards, and source labels from static fal
   }
   assert.ok(calls.includes("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"));
   assert.ok(calls.some((href) => href.startsWith("data/stock-risk-feed.json")));
+});
+
+test("page shows observation price pending when closing data is unavailable", async () => {
+  const { context, document } = await loadApp(async (url) => {
+    throw new Error(`unavailable: ${url}`);
+  });
+
+  await context.window.PortfolioConsoleApp.init();
+
+  assert.match(document.getElementById("scoreBody").innerHTML, /觀察價待更新/);
+  assert.match(document.getElementById("stockCards").innerHTML, /觀察價待更新/);
+  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /系統觀察價|預設觀察價|個人參考基準/);
 });
 
 test("page uses Worker EOD and yield on GitHub Pages default proxy", async () => {
@@ -513,14 +637,14 @@ test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => 
     if (href.includes("/quote?codes=")) {
       return response({
         quotes: [
-          { code: "2330", name: "TSMC", price: 2295, change: -70, time: "2026-06-08T13:30:00+08:00" },
-          { code: "2317", name: "Foxconn", price: 269.5, change: -15, time: "2026-06-08T13:30:00+08:00" },
-          { code: "6669", name: "Wiwynn", price: 5275, change: -385, time: "2026-06-08T13:30:00+08:00" },
-          { code: "3017", name: "Asia Vital", price: 2570, change: -30, time: "2026-06-08T13:30:00+08:00" },
-          { code: "3324", name: "Auras", price: 1095, change: -15, time: "2026-06-08T13:30:00+08:00" },
-          { code: "2382", name: "Quanta", price: 376.5, change: -14, time: "2026-06-08T13:30:00+08:00" },
-          { code: "1519", name: "Fortune", price: 815, change: -36, time: "2026-06-08T13:30:00+08:00" },
-          { code: "2308", name: "Delta", price: 2255, change: -45, time: "2026-06-08T13:30:00+08:00" },
+          { code: "2330", name: "TSMC", price: 2295, change: -70, previousClose: 2365, high: 2370, low: 2230, open: 2350, time: "2026-06-08T13:30:00+08:00" },
+          { code: "2317", name: "Foxconn", price: 269.5, change: -15, previousClose: 284.5, high: 285, low: 264, open: 280, time: "2026-06-08T13:30:00+08:00" },
+          { code: "6669", name: "Wiwynn", price: 5275, change: -385, previousClose: 5660, high: 5660, low: 5150, open: 5600, time: "2026-06-08T13:30:00+08:00" },
+          { code: "3017", name: "Asia Vital", price: 2570, change: -30, previousClose: 2600, high: 2650, low: 2450, open: 2600, time: "2026-06-08T13:30:00+08:00" },
+          { code: "3324", name: "Auras", price: 1095, change: -15, previousClose: 1110, high: 1130, low: 1050, open: 1105, time: "2026-06-08T13:30:00+08:00" },
+          { code: "2382", name: "Quanta", price: 376.5, change: -14, previousClose: 390.5, high: 395, low: 360, open: 390, time: "2026-06-08T13:30:00+08:00" },
+          { code: "1519", name: "Fortune", price: 815, change: -36, previousClose: 851, high: 860, low: 780, open: 850, time: "2026-06-08T13:30:00+08:00" },
+          { code: "2308", name: "Delta", price: 2255, change: -45, previousClose: 2300, high: 2305, low: 2090, open: 2260, time: "2026-06-08T13:30:00+08:00" },
         ],
       });
     }
@@ -543,6 +667,9 @@ test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => 
   assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /2,365/);
   assert.match(document.getElementById("scoreBody").innerHTML, /2,295/);
   assert.match(document.getElementById("scoreBody").innerHTML, /1,095/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /系統觀察價/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /觀察價 2,295/);
+  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /預設觀察價/);
   assert.match(document.getElementById("scoreBody").innerHTML, /TWSE MIS closing quote/);
 });
 

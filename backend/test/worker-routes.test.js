@@ -81,8 +81,8 @@ test("quote route canonicalizes code order before upstream fetch", async (t) => 
     requestedUrl = String(url);
     return jsonResponse({
       msgArray: [
-        { ch: "tse_2308.tw", c: "2308", n: "Delta", z: "390", y: "392", d: "20260605", t: "13:30:00" },
-        { ch: "tse_2330.tw", c: "2330", n: "TSMC", z: "1000", y: "995", d: "20260605", t: "13:30:00" },
+        { ch: "tse_2308.tw", c: "2308", n: "Delta", z: "390", y: "392", h: "395", l: "388", o: "392", d: "20260605", t: "13:30:00" },
+        { ch: "tse_2330.tw", c: "2330", n: "TSMC", z: "1000", y: "995", h: "1005", l: "990", o: "997", d: "20260605", t: "13:30:00" },
       ],
     });
   });
@@ -92,6 +92,7 @@ test("quote route canonicalizes code order before upstream fetch", async (t) => 
   assert.match(decodeURIComponent(requestedUrl), /ex_ch=tse_2308\.tw\|otc_2308\.tw\|tse_2330\.tw\|otc_2330\.tw/);
   const body = await readJson(response);
   assert.deepEqual(body.quotes.map((quote) => quote.code), ["2308", "2330"]);
+  assert.deepEqual(body.quotes.map((quote) => quote.low), [388, 990]);
 });
 
 test("quote route serves allowlisted market indices without widening stock codes", async (t) => {
