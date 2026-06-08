@@ -3,8 +3,6 @@ import test from "node:test";
 
 import {
   normalizeFredDgs10,
-  normalizeMopsDate,
-  normalizeMopsFilings,
   normalizeQuoteIndexPayload,
   normalizeQuotePayload,
   normalizeTwseEod,
@@ -149,50 +147,6 @@ test("normalizeQuoteIndexPayload preserves requested order and avoids NaN values
   assert.equal(missing[0].price, null);
   assert.equal(missing[0].change, null);
   assert.equal(missing[0].pctChange, null);
-});
-
-test("normalizeMopsDate converts ROC and Gregorian dates", () => {
-  assert.equal(normalizeMopsDate("115/06/05"), "2026-06-05");
-  assert.equal(normalizeMopsDate("2026/06/05"), "2026-06-05");
-  assert.equal(normalizeMopsDate("1150605"), "2026-06-05");
-});
-
-test("normalizeMopsFilings extracts date, title, and detail URL", () => {
-  const html = `
-    <table>
-      <tr><th>Date</th><th>Time</th><th>Code</th><th>Title</th></tr>
-      <tr>
-        <td>115/06/05</td>
-        <td>18:21:10</td>
-        <td>2330</td>
-        <td><a href="javascript:openWindow('co_id','2330','spoke_date','20260605','spoke_time','182110','seq_no','1')">Board approves capital budget</a></td>
-      </tr>
-    </table>
-  `;
-
-  const filings = normalizeMopsFilings(html, "2330");
-  assert.equal(filings.length, 1);
-  assert.equal(filings[0].date, "2026-06-05");
-  assert.equal(filings[0].title, "Board approves capital budget");
-  assert.match(filings[0].url, /co_id=2330/);
-  assert.match(filings[0].url, /spoke_date=20260605/);
-});
-
-test("normalizeMopsFilings rejects off-site links and survives malformed entities", () => {
-  const html = `
-    <table>
-      <tr>
-        <td>115/06/05</td>
-        <td>2330</td>
-        <td><a href="https://evil.example/phish">Dividend update &#99999999;</a></td>
-      </tr>
-    </table>
-  `;
-
-  const filings = normalizeMopsFilings(html, "2330");
-  assert.equal(filings.length, 1);
-  assert.equal(filings[0].title, "Dividend update &#99999999;");
-  assert.match(filings[0].url, /^https:\/\/mops\.twse\.com\.tw\/mops\/web\/t05st01\?/);
 });
 
 test("normalizeFredDgs10 skips missing observations", () => {

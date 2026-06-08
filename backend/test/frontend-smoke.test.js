@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -135,7 +135,8 @@ function createLocalStorage(initial = {}) {
 }
 
 async function loadApp(fetchMock, windowOverrides = {}) {
-  const htmlPath = fileURLToPath(new URL("../../index.html", import.meta.url));
+  const htmlFile = windowOverrides.htmlFile || "../../ai/index.html";
+  const htmlPath = fileURLToPath(new URL(htmlFile, import.meta.url));
   const html = await readFile(htmlPath, "utf8");
   const script = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/)?.[1];
   assert.ok(script, "inline script should be present");
@@ -190,6 +191,37 @@ function staticFeed(overrides = {}) {
 
 const EOD_CACHE_KEY = "bjkw-portfolio-console-v2:eod:2330,2317,6669,3017,3324,2382,1519,2308";
 const STATE_KEY = "bjkw-portfolio-console-v2";
+
+test("root index is a two-product entry page only", async () => {
+  const htmlPath = fileURLToPath(new URL("../../index.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+
+  assert.match(html, /href="\/ai\/"/);
+  assert.match(html, /href="\/weather\/"/);
+  assert.match(html, /AI 供應鏈觀察台/);
+  assert.match(html, /BJKW 天氣觀察台/);
+  assert.doesNotMatch(html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/);
+});
+
+test("weather page uses the Worker proxy without exposing CWA credentials", async () => {
+  const htmlPath = fileURLToPath(new URL("../../weather/index.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+
+  assert.match(html, /WEATHER_PROXY_BASE/);
+  assert.match(html, /bjkw-weather-proxy\.blackjw1212\.workers\.dev/);
+  assert.match(html, /\/api\//);
+  assert.match(html, /\/file\//);
+  assert.doesNotMatch(html, /CWA-|Authorization:\s*API_KEY|opendata\.cwa\.gov\.tw\/api|opendata\.cwa\.gov\.tw\/fileapi/);
+});
+
+test("legacy weather page redirects to the retained weather route", async () => {
+  const htmlPath = fileURLToPath(new URL("../../bjkw_weather.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+
+  assert.match(html, /url=\/weather\//);
+  assert.match(html, /window\.location\.replace\(target\)/);
+  assert.doesNotMatch(html, /CWA-|中央氣象署 API/);
+});
 
 test("index.html keeps required static DOM ids and global helper contract", async () => {
   const { context, html } = await loadApp(async () => response(staticFeed()));
@@ -248,75 +280,6 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   assert.equal(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330/../../evil"), "");
 });
 
-test("retail glance helper contract stays conservative", async () => {
-  const { context } = await loadApp(async () => response(staticFeed()), {
-    location: {
-      href: "https://blackjw1212.github.io/?proxy=https%3A%2F%2Fevil.example",
-      hostname: "blackjw1212.github.io",
-      search: "?proxy=https%3A%2F%2Fevil.example",
-    },
-  });
-  const retail = context.window.RetailConsole;
-  const helpers = retail.helpers;
-  assert.equal(typeof helpers.tradingViewUrl, "function");
-
-  assert.equal(helpers.holdingStatus(-12, 10, 30).tone, "r");
-  assert.equal(helpers.holdingStatus(35, 10, 30).tone, "a");
-  assert.equal(helpers.holdingStatus(5, 10, 30).tone, "g");
-  assert.equal(helpers.holdingStatus(null, 10, 30).tone, "n");
-  assert.equal(helpers.holdingStatus(-10, 10, 30).tone, "r");
-  const unsafeTerms = ["停" + "損", "停" + "利", "減" + "碼", "買" + "進", "賣" + "出", "加" + "碼"];
-  const unsafePattern = new RegExp(unsafeTerms.join("|"));
-  assert.doesNotMatch(helpers.holdingStatus(-12, 10, 30).label, unsafePattern);
-  assert.doesNotMatch(helpers.holdingStatus(35, 10, 30).label, unsafePattern);
-
-  assert.equal(helpers.plPct(2100, 2385), 13.6);
-  assert.equal(helpers.plPct(0, 2385), null);
-  assert.equal(helpers.plPct(2500, null), null);
-
-  assert.equal(helpers.marketTone(0, NaN, false).tone, "n");
-  assert.equal(helpers.marketTone(0.625, 4.4, true).tone, "g");
-  assert.equal(helpers.marketTone(0.125, 4.8, true).tone, "r");
-  assert.equal(helpers.marketTone(0.5, 4.55, true).tone, "a");
-  assert.match(helpers.marketTone(0, NaN, false).reason, /暫不判讀/);
-
-  assert.equal(helpers.bodyStars(["m", "h", "h", "m", "h", "h"]), 4);
-  assert.equal(helpers.bodyStars(["l", "l", "h", "h", "mh", "mh"]), 3);
-  assert.ok(helpers.bodyStars(["l", "l", "l", "l", "l", "l"]) >= 1);
-  assert.equal(helpers.valTag("h").cls, "cheap");
-  assert.equal(helpers.valTag("m").cls, "fair");
-  assert.equal(helpers.valTag("l").cls, "rich");
-
-  const eod = helpers.normalizeEodRows([{Code: "2330", ClosingPrice: "1,234.5", Change: "+5.0"}]);
-  assert.equal(eod["2330"].close, 1234.5);
-  assert.equal(eod["2330"].change, 5);
-  assert.equal(helpers.normalizeYield({value: "4.55"}), 4.55);
-  assert.equal(helpers.normalizeYield({body: {value: "4.6"}}), 4.6);
-  assert.equal(helpers.normalizeYield({data: {value: 4.7}}), 4.7);
-  assert.equal(helpers.normalizeYield({}), null);
-
-  assert.equal(retail.proxyBase(), "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev");
-  const url = new URL(helpers.mopsUrl("2330"));
-  assert.equal(url.protocol, "https:");
-  assert.equal(url.hostname, "mops.twse.com.tw");
-  assert.equal(url.searchParams.get("co_id"), "2330");
-
-  const twse = new URL(helpers.tradingViewUrl("2330"));
-  assert.equal(twse.protocol, "https:");
-  assert.equal(twse.hostname, "tw.tradingview.com");
-  assert.equal(twse.pathname, "/chart/");
-  assert.equal(twse.searchParams.get("symbol"), "TWSE:2330");
-  assert.match(helpers.tradingViewUrl("2330"), /symbol=TWSE%3A2330/);
-  const tpex = new URL(helpers.tradingViewUrl("3324"));
-  assert.equal(tpex.protocol, "https:");
-  assert.equal(tpex.hostname, "tw.tradingview.com");
-  assert.equal(tpex.pathname, "/chart/");
-  assert.equal(tpex.searchParams.get("symbol"), "TPEX:3324");
-  assert.match(helpers.tradingViewUrl("3324"), /symbol=TPEX%3A3324/);
-  for (const code of ["9999", "https://evil.example", "2330/../../evil", "2330?next=https://evil.example"]) {
-    assert.equal(helpers.tradingViewUrl(code), "");
-  }
-});
 
 test("verdict aggregation uses automated entry/wait/exit observation language", async () => {
   const { context } = await loadApp(async () => response(staticFeed()));
@@ -531,7 +494,7 @@ test("page renders automated checklist, cards, and source labels from static fal
   const { context, document, elements } = await loadApp(async (url) => {
     const href = String(url);
     calls.push(href);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unavailable: ${href}`);
   });
 
@@ -559,7 +522,7 @@ test("page renders automated checklist, cards, and source labels from static fal
     assert.ok(elements.has(id), `${id} should be created during init`);
   }
   assert.ok(calls.includes("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"));
-  assert.ok(calls.some((href) => href.startsWith("data/stock-risk-feed.json")));
+  assert.ok(calls.some((href) => href.startsWith("/data/stock-risk-feed.json")));
 });
 
 test("page shows observation price pending when closing data is unavailable", async () => {
@@ -603,7 +566,7 @@ test("page uses Worker EOD and yield on GitHub Pages default proxy", async () =>
         "X-Data-Updated-At": "2026-06-08T09:33:05.000Z",
       });
     }
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unexpected: ${href}`);
   }, {
     location: {
@@ -651,7 +614,7 @@ test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => 
     if (href.endsWith("/yield10y")) return response({ value: 4.55 });
     if (href.includes("/quote?indices=taiex,tpex")) return response({ indices: [] }, {}, { status: 502 });
     if (href.endsWith("/eod")) return response([{ code: "2330", name: "TSMC", close: 2365, change: -20 }]);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unexpected: ${href}`);
   }, {
     location: {
@@ -687,7 +650,7 @@ test("incomplete MIS closing quotes fall through instead of mixing old rows", as
     if (href.endsWith("/eod")) return response([{ code: "2330", name: "TSMC", close: 2365, change: -20 }]);
     if (href.endsWith("/yield10y")) return response({ value: 4.55 });
     if (href.includes("/quote?indices=taiex,tpex")) return response({ indices: [] }, {}, { status: 502 });
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unexpected: ${href}`);
   }, {
     location: {
@@ -715,7 +678,7 @@ test("market index quote failure does not block dashboard refresh", async () => 
     if (href.includes("/quote?indices=taiex,tpex")) {
       return response({ error: "upstream unavailable" }, {}, { status: 502 });
     }
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unexpected: ${href}`);
   }, {
     location: {
@@ -742,7 +705,7 @@ test("legacy manual 10Y override no longer blocks automated refresh", async () =
     calls.push(href);
     if (href.endsWith("/eod")) return response([{ code: "2330", name: "台積電", close: 2410 }]);
     if (href.endsWith("/yield10y")) return response({ value: 4.12 });
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unexpected: ${href}`);
   }, {
     PROXY_BASE: "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev",
@@ -773,7 +736,7 @@ test("empty static EOD can fall through to localStorage cache", async () => {
   });
   const { context, document } = await loadApp(async (url) => {
     const href = String(url);
-    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed({ eod: [] }));
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed({ eod: [] }));
     throw new Error(`unavailable: ${href}`);
   }, { localStorage: storage });
 

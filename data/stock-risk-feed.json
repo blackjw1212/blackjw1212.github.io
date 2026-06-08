@@ -1,7 +1,6 @@
 {
   "updatedAt": "2026-06-08T07:23:20.887Z",
   "eodUpdatedAt": null,
-  "filingsUpdatedAt": "2026-06-08T07:23:20.887Z",
   "holdings": [
     "2330",
     "2317",
@@ -13,7 +12,6 @@
     "2308"
   ],
   "eod": [],
-  "filings": [],
   "yield10y": {
     "date": "2026-06-05",
     "value": 4.55,

@@ -1,18 +1,18 @@
 # BJKW Weather Proxy
 
-Cloudflare Worker proxy for `bjkw_weather.html`.
+Cloudflare Worker proxy for the `/weather/` page.
 
-The browser calls this Worker without a CWA API key. The Worker reads `CWA_API_KEY` from Cloudflare secrets, adds it to the upstream Central Weather Administration Open Data request, and returns JSON to the GitHub Pages weather dashboard.
+The browser calls this Worker without a weather API key. The Worker reads `CWA_API_KEY` from Cloudflare secrets, adds it to the upstream Central Weather Administration request, and returns JSON to the GitHub Pages weather console.
 
-## Why
+## Routes
 
-- No API key in GitHub Pages HTML.
-- No need to type the key on every device.
-- CORS is limited to `https://blackjw1212.github.io`.
-- The proxy only allows the weather endpoints used by the page.
-- Successful upstream responses are cached at the Worker for 60 seconds.
+- `GET /health`
+- `GET /api/:endpoint`
+- `GET /file/:endpoint`
 
-## Local setup
+The allowlist is intentionally narrow and only covers the endpoints used by the weather page.
+
+## Local Setup
 
 ```bash
 cd weather-proxy
@@ -21,20 +21,18 @@ npx wrangler secret put CWA_API_KEY
 npx wrangler deploy
 ```
 
-The public URL should be:
+Default public URL:
 
 ```text
 https://bjkw-weather-proxy.blackjw1212.workers.dev
 ```
 
-If a different Worker URL is used, update `WEATHER_PROXY_BASE` in `../bjkw_weather.html`.
+If a different Worker URL is used, update `WEATHER_PROXY_BASE` in `../weather/index.html`.
 
-## Required GitHub Actions secrets
-
-To deploy from GitHub Actions, add these repository secrets:
+## Required GitHub Actions Secrets
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CWA_API_KEY`
 
-The workflow intentionally skips deployment if those secrets are absent.
+The deploy workflow intentionally skips deployment if those secrets are absent.

@@ -139,27 +139,10 @@ test("quote route rejects unsupported index requests", async () => {
   }
 });
 
-test("filings route normalizes MOPS HTML", async (t) => {
-  t.mock.method(globalThis, "fetch", async () => textResponse(`
-    <table>
-      <tr>
-        <td>115/06/05</td>
-        <td>18:21:10</td>
-        <td>2330</td>
-        <td><a href="javascript:openWindow('co_id','2330','spoke_date','20260605','spoke_time','182110','seq_no','1')">Board update</a></td>
-      </tr>
-    </table>
-  `));
-
+test("filings route is removed from the public Worker surface", async () => {
   const response = await handleRequest(new Request("https://worker.test/filings?code=2330"), {});
-  assert.equal(response.status, 200);
-  assert.deepEqual(await readJson(response), [
-    {
-      date: "2026-06-05",
-      title: "Board update",
-      url: "https://mops.twse.com.tw/mops/web/t05st01?step=2&off=1&firstin=1&co_id=2330&spoke_date=20260605&spoke_time=182110&seq_no=1",
-    },
-  ]);
+  assert.equal(response.status, 404);
+  assert.deepEqual(await readJson(response), { error: "Not found" });
 });
 
 const TREASURY_XML = `

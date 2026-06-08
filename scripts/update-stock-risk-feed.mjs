@@ -5,8 +5,6 @@ const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "15
 
 const SOURCES = {
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
-  twseFilings: "https://openapi.twse.com.tw/v1/opendata/t187ap04_L",
-  tpexFilings: "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O",
   fredCsv: "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10",
 };
 
@@ -60,83 +58,6 @@ function normalizeEod(rows) {
       change: roundNumber(parseNumber(field(row, ["Change", "change", "PriceChange"])), 2),
     };
   }).filter(Boolean);
-}
-
-function rocDate(value) {
-  const raw = String(value || "").trim();
-  const digits = raw.replace(/\D/g, "");
-  let year = "";
-  let month = "";
-  let day = "";
-  if (digits.length === 7) {
-    year = String(Number(digits.slice(0, 3)) + 1911);
-    month = digits.slice(3, 5);
-    day = digits.slice(5, 7);
-  } else if (digits.length === 8) {
-    year = digits.slice(0, 4);
-    month = digits.slice(4, 6);
-    day = digits.slice(6, 8);
-  } else {
-    const parts = raw.split(/[\/.-]/).map((part) => part.trim());
-    if (parts.length === 3) {
-      const parsedYear = Number(parts[0]);
-      year = String(parsedYear < 1911 ? parsedYear + 1911 : parsedYear);
-      month = parts[1].padStart(2, "0");
-      day = parts[2].padStart(2, "0");
-    }
-  }
-  const parsed = new Date(`${year}-${month}-${day}T00:00:00`);
-  return year && !Number.isNaN(parsed.getTime()) ? `${year}-${month}-${day}` : "";
-}
-
-function rocTime(value) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (!digits) return "";
-  const normalized = digits.padStart(6, "0").slice(-6);
-  const hour = normalized.slice(0, 2);
-  const minute = normalized.slice(2, 4);
-  const second = normalized.slice(4, 6);
-  if (Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59) return "";
-  return `${hour}:${minute}:${second}`;
-}
-
-function sourceUpdatedAt(date, time) {
-  return date ? `${date}T${time || "00:00:00"}+08:00` : "";
-}
-
-function normalizeFilings(rows, source) {
-  if (!Array.isArray(rows)) throw new Error(`${source} payload is not an array`);
-  return rows.map((row) => {
-    const code = String(field(row, ["公司代號", "SecuritiesCompanyCode", "CompanyCode"]) || "").trim();
-    if (!STOCK_CODES.has(code)) return null;
-    const date = rocDate(field(row, ["發言日期", "出表日期", "Date", "AnnouncementDate"]));
-    const time = rocTime(field(row, ["發言時間", "Time", "AnnouncementTime"]));
-    const title = String(field(row, ["主旨", "Subject", "Title"]) || "").trim();
-    if (!title) return null;
-    return {
-      code,
-      name: String(field(row, ["公司名稱", "CompanyName"]) || "").trim(),
-      date: date ? `${date}${time ? ` ${time.slice(0, 5)}` : ""}` : "--",
-      title,
-      description: String(field(row, ["說明", "Description", "Content"]) || "").trim(),
-      source,
-      url: "",
-      sortKey: sourceUpdatedAt(date, time) || date || "",
-    };
-  }).filter(Boolean);
-}
-
-function latestPerStock(rows) {
-  const counts = new Map();
-  return rows
-    .slice()
-    .sort((a, b) => String(b.sortKey || b.date || "").localeCompare(String(a.sortKey || a.date || "")))
-    .filter((row) => {
-      const count = counts.get(row.code) || 0;
-      if (count >= 5) return false;
-      counts.set(row.code, count + 1);
-      return true;
-    });
 }
 
 function parseFredDgs10(csv) {
@@ -202,7 +123,6 @@ async function fetchTreasury10Year() {
 async function main() {
   const now = new Date().toISOString();
   const errors = [];
-  const filings = [];
   let eod = [];
   let eodUpdatedAt = null;
 
@@ -211,17 +131,6 @@ async function main() {
     eodUpdatedAt = now;
   } catch (error) {
     errors.push({ source: "TWSE OpenAPI STOCK_DAY_ALL", message: error.message });
-  }
-
-  for (const source of [
-    { name: "證交所上市重大訊息 OpenAPI", url: SOURCES.twseFilings },
-    { name: "櫃買中心上櫃重大訊息 OpenAPI", url: SOURCES.tpexFilings },
-  ]) {
-    try {
-      filings.push(...normalizeFilings(await fetchJson(source.url), source.name));
-    } catch (error) {
-      errors.push({ source: source.name, message: error.message });
-    }
   }
 
   let yield10y = null;
@@ -239,10 +148,8 @@ async function main() {
   const feed = {
     updatedAt: now,
     eodUpdatedAt,
-    filingsUpdatedAt: now,
     holdings: [...STOCK_CODES],
     eod,
-    filings: latestPerStock(filings),
     yield10y,
     errors,
   };

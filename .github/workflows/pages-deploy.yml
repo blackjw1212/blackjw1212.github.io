@@ -22,32 +22,30 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.3'
-
-      - name: Install dependencies
-        run: |
-          gem install bundler -v 2.6.9
-          bundle _2.6.9_ install --jobs 4 --retry 3
-
       - name: Set up Pages
         id: pages
         uses: actions/configure-pages@v5
 
-      - name: Build Jekyll site
-        env:
-          JEKYLL_ENV: production
-        run: bundle exec jekyll build --trace
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
 
-      - name: Check internal links
-        run: ruby scripts/check_internal_links.rb
+      - name: Build static site artifact
+        shell: bash
+        run: |
+          rm -rf dist
+          mkdir -p dist
+          cp -R index.html bjkw_weather.html 404.html favicon.svg favicon.png ai weather data assets dist/
+          touch dist/.nojekyll
+
+      - name: Check static site
+        run: node scripts/check-static-site.mjs dist
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: _site
+          path: dist
 
   deploy:
     runs-on: ubuntu-latest

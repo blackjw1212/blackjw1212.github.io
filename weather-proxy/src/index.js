@@ -1,9 +1,33 @@
-const ALLOWED_ENDPOINTS = new Set([
+const ALLOWED_DATASTORE_ENDPOINTS = new Set([
   "O-A0001-001",
-  "F-D0047-057",
-  "F-D0047-029",
   "F-A0021-001",
   "A-B0062-001",
+  "F-D0047-001",
+  "F-D0047-005",
+  "F-D0047-009",
+  "F-D0047-013",
+  "F-D0047-017",
+  "F-D0047-021",
+  "F-D0047-025",
+  "F-D0047-029",
+  "F-D0047-033",
+  "F-D0047-037",
+  "F-D0047-041",
+  "F-D0047-045",
+  "F-D0047-049",
+  "F-D0047-053",
+  "F-D0047-057",
+  "F-D0047-061",
+  "F-D0047-065",
+  "F-D0047-069",
+  "F-D0047-073",
+  "F-D0047-077",
+  "F-D0047-081",
+  "F-D0047-085",
+]);
+
+const ALLOWED_FILE_ENDPOINTS = new Set([
+  "F-D0047-095",
 ]);
 
 function corsHeaders(env, request) {
@@ -35,8 +59,7 @@ function jsonResponse(body, status, env, request, extraHeaders = {}) {
   });
 }
 
-function getEndpoint(pathname) {
-  const prefix = "/api/";
+function getEndpoint(pathname, prefix) {
   if (!pathname.startsWith(prefix)) return "";
   return decodeURIComponent(pathname.slice(prefix.length)).replace(/^\/+|\/+$/g, "");
 }
@@ -57,8 +80,12 @@ export default {
       return jsonResponse({ ok: true, configured: Boolean(env.CWA_API_KEY) }, 200, env, request);
     }
 
-    const endpoint = getEndpoint(url.pathname);
-    if (!ALLOWED_ENDPOINTS.has(endpoint)) {
+    const fileEndpoint = getEndpoint(url.pathname, "/file/");
+    const apiEndpoint = getEndpoint(url.pathname, "/api/");
+    const endpoint = fileEndpoint || apiEndpoint;
+    const isFileApi = Boolean(fileEndpoint);
+    const allowed = isFileApi ? ALLOWED_FILE_ENDPOINTS : ALLOWED_DATASTORE_ENDPOINTS;
+    if (!endpoint || !allowed.has(endpoint)) {
       return jsonResponse({ error: "not_found" }, 404, env, request);
     }
 
@@ -66,7 +93,9 @@ export default {
       return jsonResponse({ error: "proxy_not_configured" }, 503, env, request);
     }
 
-    const upstreamBase = env.CWA_BASE_URL || "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
+    const upstreamBase = isFileApi
+      ? env.CWA_FILE_BASE_URL || "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi"
+      : env.CWA_BASE_URL || "https://opendata.cwa.gov.tw/api/v1/rest/datastore";
     const upstream = new URL(`${upstreamBase.replace(/\/+$/, "")}/${endpoint}`);
 
     for (const [key, value] of url.searchParams) {
@@ -77,7 +106,7 @@ export default {
     upstream.searchParams.set("format", "JSON");
 
     const cacheUrl = new URL(request.url);
-    cacheUrl.pathname = `/__cache/${endpoint}`;
+    cacheUrl.pathname = `/__cache/${isFileApi ? "file" : "api"}/${endpoint}`;
     cacheUrl.search = upstream.search;
     cacheUrl.searchParams.delete("Authorization");
     const cacheKey = new Request(cacheUrl.toString(), {

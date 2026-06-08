@@ -1,6 +1,5 @@
 import {
   normalizeFredDgs10,
-  normalizeMopsFilings,
   normalizeQuoteIndexPayload,
   normalizeQuotePayload,
   normalizeTwseEod,
@@ -9,14 +8,12 @@ import {
 const ENDPOINTS = {
   eod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
   fred: "https://api.stlouisfed.org/fred/series/observations",
-  mops: "https://mops.twse.com.tw/mops/web/ajax_t05st01",
   quote: "https://mis.twse.com.tw/stock/api/getStockInfo.jsp",
   treasuryYieldCurve: "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml",
 };
 
 const CACHE_TTL = {
   eod: 60,
-  filings: 60,
   quote: 30,
   yield10y: 60,
 };
@@ -30,7 +27,6 @@ const QUOTE_INDEX_ORDER = ["taiex", "tpex"];
 
 const BODY_LIMITS = {
   json: 2_000_000,
-  mopsHtml: 1_000_000,
   xml: 1_000_000,
 };
 
@@ -79,11 +75,6 @@ export async function handleRequest(request, env = {}, ctx = {}) {
       if (codes.error) return jsonError(codes.error, 400, request, env);
       if (!codes.values.length) return jsonError("Query parameter codes is required", 400, request, env);
       return await cachedJson(request, env, ctx, `quote:${codes.values.join(",")}`, CACHE_TTL.quote, () => loadQuotes(codes.values));
-    }
-    if (url.pathname === "/filings") {
-      const code = parseSingleCode(url.searchParams.get("code"));
-      if (!code) return jsonError("Query parameter code must be a Taiwan stock code", 400, request, env);
-      return await cachedJson(request, env, ctx, `filings:${code}`, CACHE_TTL.filings, () => loadFilings(code));
     }
     if (url.pathname === "/yield10y") {
       return await cachedJson(request, env, ctx, "yield10y", CACHE_TTL.yield10y, () => loadYield10y(env));
@@ -186,11 +177,6 @@ async function cachedJson(request, env, ctx, key, ttl, loader) {
   }
 
   return response;
-}
-
-function parseSingleCode(value) {
-  const code = String(value || "").trim();
-  return /^\d{4,6}$/.test(code) ? code : "";
 }
 
 function parseCodes(value) {
@@ -410,46 +396,6 @@ async function loadQuoteIndices(indices) {
     meta: {
       source: "TWSE MIS public quote feed",
       delay: "Intraday public feed; delivery and delay depend on TWSE MIS availability and policy",
-      updatedAt,
-    },
-  };
-}
-
-async function loadFilings(code) {
-  const form = new URLSearchParams({
-    encodeURIComponent: "1",
-    step: "1",
-    firstin: "1",
-    off: "1",
-    keyword4: "",
-    code1: "",
-    TYPEK2: "",
-    checkbtn: "",
-    queryName: "co_id",
-    inpuType: "co_id",
-    TYPEK: "all",
-    co_id: code,
-  });
-
-  const response = await fetchWithRetry(ENDPOINTS.mops, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-      Origin: "https://mops.twse.com.tw",
-      Referer: "https://mops.twse.com.tw/mops/web/t05st01",
-      "User-Agent": "taiwan-risk-tracker-worker",
-    },
-    body: form.toString(),
-  }, { timeoutMs: 7500, retries: 1 });
-
-  if (!response.ok) throw new Error(`MOPS filings returned HTTP ${response.status}`);
-  const html = await readBodyText(response, "MOPS filings", BODY_LIMITS.mopsHtml, 5000);
-  const updatedAt = new Date().toISOString();
-  return {
-    body: normalizeMopsFilings(html, code),
-    meta: {
-      source: "MOPS t05st01 material information",
-      delay: "Latest available MOPS disclosure data",
       updatedAt,
     },
   };

@@ -15,18 +15,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Set up Node
+        uses: actions/setup-node@v5
         with:
-          ruby-version: '3.3'
+          node-version: '24'
 
-      - name: Install dependencies
-        run: |
-          gem install bundler -v 2.6.9
-          bundle _2.6.9_ install --jobs 4 --retry 3
+      - name: Run backend and frontend smoke tests
+        working-directory: backend
+        run: npm test
 
-      - name: Build Jekyll site
-        run: bundle exec jekyll build
-
-      - name: Check internal links
-        run: ruby scripts/check_internal_links.rb
+      - name: Check static site contract
+        run: node scripts/check-static-site.mjs

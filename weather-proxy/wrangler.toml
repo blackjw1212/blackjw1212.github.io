@@ -6,6 +6,7 @@ workers_dev = true
 [vars]
 ALLOWED_ORIGIN = "https://blackjw1212.github.io"
 CWA_BASE_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore"
+CWA_FILE_BASE_URL = "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi"
 
 # Required secret:
 # CWA_API_KEY

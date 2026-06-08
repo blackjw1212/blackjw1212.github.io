@@ -1,19 +1,19 @@
 {
-    "name": "AI 供應鏈觀察台",
-    "short_name": "AI 觀察台",
-    "icons": [
-        {
-            "src": "/assets/images/android-chrome-192x192.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "/assets/images/android-chrome-512x512.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        }
-    ],
-    "theme_color": "#101418",
-    "background_color": "#101418",
-    "display": "standalone"
+  "name": "BJKW Public Console",
+  "short_name": "BJKW",
+  "icons": [
+    {
+      "src": "/assets/images/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#101418",
+  "background_color": "#101418",
+  "display": "standalone"
 }
