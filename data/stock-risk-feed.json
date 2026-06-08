@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-06-07T00:51:05.359Z",
-  "eodUpdatedAt": null,
-  "filingsUpdatedAt": "2026-06-07T00:51:05.359Z",
+  "updatedAt": "2026-06-08T02:38:26.088Z",
+  "eodUpdatedAt": "2026-06-08T02:38:26.088Z",
+  "filingsUpdatedAt": "2026-06-08T02:38:26.088Z",
   "holdings": [
     "2330",
     "2317",
@@ -12,7 +12,50 @@
     "1519",
     "2308"
   ],
-  "eod": [],
+  "eod": [
+    {
+      "code": "1519",
+      "name": "華城",
+      "close": 851,
+      "change": -59
+    },
+    {
+      "code": "2308",
+      "name": "台達電",
+      "close": 2300,
+      "change": -125
+    },
+    {
+      "code": "2317",
+      "name": "鴻海",
+      "close": 284.5,
+      "change": -8.5
+    },
+    {
+      "code": "2330",
+      "name": "台積電",
+      "close": 2365,
+      "change": -20
+    },
+    {
+      "code": "2382",
+      "name": "廣達",
+      "close": 390.5,
+      "change": -13.5
+    },
+    {
+      "code": "3017",
+      "name": "奇鋐",
+      "close": 2600,
+      "change": -110
+    },
+    {
+      "code": "6669",
+      "name": "緯穎",
+      "close": 5660,
+      "change": 90
+    }
+  ],
   "filings": [],
   "yield10y": {
     "date": "2026-06-05",
@@ -20,5 +63,10 @@
     "updatedAt": "2026-06-05T22:00:00.000Z",
     "source": "US Treasury Daily Treasury Yield Curve"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "FRED DGS10 CSV",
+      "message": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10 returned HTTP 504"
+    }
+  ]
 }
