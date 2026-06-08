@@ -221,6 +221,7 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   assert.equal(typeof context.window.PortfolioConsoleApp.getState, "function");
   for (const name of [
     "aggregateVerdict",
+    "normalizeClosingQuoteRows",
     "normalizeEodPayload",
     "normalizeMarketIndexPayload",
     "normalizeYieldPayload",
@@ -367,7 +368,7 @@ test("auto signal helper gates entry, waiting, and exit observation states", asy
 
 test("frontend normalizers round EOD rows and support yield payload shapes", async () => {
   const { context } = await loadApp(async () => response(staticFeed()));
-  const { normalizeEodPayload, normalizeMarketIndexPayload, normalizeYieldPayload } = context.window.PortfolioConsoleApp.helpers;
+  const { normalizeClosingQuoteRows, normalizeEodPayload, normalizeMarketIndexPayload, normalizeYieldPayload } = context.window.PortfolioConsoleApp.helpers;
   const plain = (value) => JSON.parse(JSON.stringify(value));
 
   assert.deepEqual(plain(normalizeEodPayload([
@@ -390,6 +391,17 @@ test("frontend normalizers round EOD rows and support yield payload shapes", asy
   })), [
     { id: "taiex", label: "加權", price: 42686.84, change: 2387.1, pctChange: 5.92, time: "2026-06-08T09:33:00+08:00" },
     { id: "tpex", label: "櫃買", price: 397.81, change: 33.26, pctChange: 9.12, time: "2026-06-08T09:33:00+08:00" },
+  ]);
+  assert.deepEqual(plain(normalizeClosingQuoteRows({
+    quotes: [
+      { code: "2330", name: "TSMC", price: "2,295.00", change: "-70.00", time: "2026-06-08T13:30:00+08:00" },
+      { code: "3324", name: "Auras", price: "1,095.00", change: "-15.00", time: "2026-06-08T13:30:00+08:00" },
+      { code: "2317", name: "Foxconn", price: "269.50", change: "-15.00", time: "2026-06-08T10:15:00+08:00" },
+      { code: "9999", name: "Ignored", price: "1", change: "0", time: "2026-06-08T13:30:00+08:00" },
+    ],
+  })), [
+    { code: "2330", name: "TSMC", close: 2295, change: -70, time: "2026-06-08T13:30:00+08:00" },
+    { code: "3324", name: "Auras", close: 1095, change: -15, time: "2026-06-08T13:30:00+08:00" },
   ]);
 });
 
@@ -491,6 +503,77 @@ test("page uses Worker EOD and yield on GitHub Pages default proxy", async () =>
   assert.match(document.getElementById("headerQuoteTaiexStatus").textContent, /TWSE MIS/);
   assert.equal(context.window.PortfolioConsoleApp.getState().cond.yield, 4.12);
   assert.match(document.getElementById("src_yield").textContent, /10Y.*2026/);
+});
+
+test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => {
+  const calls = [];
+  const { context, document } = await loadApp(async (url) => {
+    const href = String(url);
+    calls.push(href);
+    if (href.includes("/quote?codes=")) {
+      return response({
+        quotes: [
+          { code: "2330", name: "TSMC", price: 2295, change: -70, time: "2026-06-08T13:30:00+08:00" },
+          { code: "2317", name: "Foxconn", price: 269.5, change: -15, time: "2026-06-08T13:30:00+08:00" },
+          { code: "6669", name: "Wiwynn", price: 5275, change: -385, time: "2026-06-08T13:30:00+08:00" },
+          { code: "3017", name: "Asia Vital", price: 2570, change: -30, time: "2026-06-08T13:30:00+08:00" },
+          { code: "3324", name: "Auras", price: 1095, change: -15, time: "2026-06-08T13:30:00+08:00" },
+          { code: "2382", name: "Quanta", price: 376.5, change: -14, time: "2026-06-08T13:30:00+08:00" },
+          { code: "1519", name: "Fortune", price: 815, change: -36, time: "2026-06-08T13:30:00+08:00" },
+          { code: "2308", name: "Delta", price: 2255, change: -45, time: "2026-06-08T13:30:00+08:00" },
+        ],
+      });
+    }
+    if (href.endsWith("/yield10y")) return response({ value: 4.55 });
+    if (href.includes("/quote?indices=taiex,tpex")) return response({ indices: [] }, {}, { status: 502 });
+    if (href.endsWith("/eod")) return response([{ code: "2330", name: "TSMC", close: 2365, change: -20 }]);
+    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unexpected: ${href}`);
+  }, {
+    location: {
+      href: "https://blackjw1212.github.io/",
+      hostname: "blackjw1212.github.io",
+      search: "",
+    },
+  });
+
+  await context.window.PortfolioConsoleApp.init();
+
+  assert.ok(calls.some((href) => href.includes("/quote?codes=")));
+  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /2,365/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /2,295/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /1,095/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /TWSE MIS closing quote/);
+});
+
+test("incomplete MIS closing quotes fall through instead of mixing old rows", async () => {
+  const { context, document } = await loadApp(async (url) => {
+    const href = String(url);
+    if (href.includes("/quote?codes=")) {
+      return response({
+        quotes: [
+          { code: "2330", name: "TSMC", price: 2295, change: -70, time: "2026-06-08T13:30:00+08:00" },
+          { code: "3324", name: "Auras", price: 1095, change: -15, time: "2026-06-08T13:30:00+08:00" },
+        ],
+      });
+    }
+    if (href.endsWith("/eod")) return response([{ code: "2330", name: "TSMC", close: 2365, change: -20 }]);
+    if (href.endsWith("/yield10y")) return response({ value: 4.55 });
+    if (href.includes("/quote?indices=taiex,tpex")) return response({ indices: [] }, {}, { status: 502 });
+    if (href.startsWith("data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unexpected: ${href}`);
+  }, {
+    location: {
+      href: "https://blackjw1212.github.io/",
+      hostname: "blackjw1212.github.io",
+      search: "",
+    },
+  });
+
+  await context.window.PortfolioConsoleApp.init();
+
+  assert.match(document.getElementById("scoreBody").innerHTML, /2,365/);
+  assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /2,295/);
 });
 
 test("market index quote failure does not block dashboard refresh", async () => {

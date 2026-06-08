@@ -1,5 +1,6 @@
 # Changes
 
+- Updated the scorecard data path to prefer 13:30 TWSE MIS closing snapshots before lagging EOD OpenAPI rows, including TPEx-tracked names such as 3324.
 - Fixed market-index quote normalization for the live TWSE MIS index payload, which reports `ch` as `t00.tw` / `o00.tw` and keeps the full market channel in `key`.
 - Added right-side header market-index cards for 加權 and 櫃買, wired through the Worker quote allowlist with clear intraday/availability-dependent status text.
 - Added `/quote?indices=taiex,tpex` support with fixed TWSE MIS channels, separate index normalization, and tests that keep stock-code validation strict.

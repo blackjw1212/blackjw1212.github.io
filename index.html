@@ -592,9 +592,44 @@ function applyEod(result){
   renderScore();
 }
 
+function normalizeClosingQuoteRows(payload){
+  const quotes = Array.isArray(payload && payload.quotes) ? payload.quotes : [];
+  return quotes.map(function(row){
+    const code = String(field(row, ["code","c"]) || "").trim();
+    const time = String(field(row, ["time","updatedAt"]) || "");
+    const close = parseNumber(field(row, ["price","z","close"]));
+    const change = parseNumber(field(row, ["change"]));
+    if (!STOCK_CODES.includes(code) || close == null || !/T13:30:00\+08:00$/.test(time)) return null;
+    return {
+      code:code,
+      name:String(field(row, ["name","n"]) || "").trim(),
+      close:roundNumber(close,2),
+      change:roundNumber(change,2),
+      time:time,
+    };
+  }).filter(Boolean);
+}
+
+async function loadClosingQuotes(){
+  const base = proxyBase();
+  if (!base) throw new Error("Worker quote backend is not configured");
+  const result = await fetchJson(base + "/quote?codes=" + encodeURIComponent(STOCK_CODES.join(",")));
+  const rows = normalizeClosingQuoteRows(result.data);
+  if (!rows.length) throw new Error("MIS quote has no 13:30 closing rows");
+  if (rows.length < STOCK_CODES.length) throw new Error("MIS quote has incomplete 13:30 closing rows");
+  const latest = rows.map(function(row){return row.time;}).filter(Boolean).sort().pop() || "";
+  return {
+    rows:rows,
+    source:"TWSE MIS closing quote",
+    delay:"13:30 closing snapshot; final EOD OpenAPI may lag",
+    updatedAt:latest || result.headers.get("X-Data-Updated-At") || new Date().toISOString(),
+  };
+}
+
 async function loadEod(){
   const decision = proxyDecision();
   const attempts = [];
+  attempts.push(loadClosingQuotes);
   if (decision.base) {
     attempts.push(async function(){
       const result = await fetchJson(decision.base + "/eod");
@@ -1262,6 +1297,7 @@ const portfolioApp = {
   helpers:{
     aggregateVerdict:aggregateVerdict,
     normalizeEodPayload:normalizeEodPayload,
+    normalizeClosingQuoteRows:normalizeClosingQuoteRows,
     normalizeMarketIndexPayload:normalizeMarketIndexPayload,
     normalizeYieldPayload:normalizeYieldPayload,
     parseNumber:parseNumber,

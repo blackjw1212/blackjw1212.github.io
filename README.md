@@ -44,7 +44,7 @@ index.html?proxy=https://taiwan-risk-tracker-proxy.a0926043323.workers.dev
 
 Only allowlisted proxy URLs are honored. An unapproved URL such as `?proxy=https://evil.example` is ignored.
 
-If no backend is configured, the page enters fallback mode. The scorecard attempts the Worker `/eod` route first when available, then direct TWSE end-of-day OpenAPI, then same-origin `data/stock-risk-feed.json`, then the last usable localStorage cache. The 10Y yield attempts Worker `/yield10y` and then the same static feed. The first-screen verdict is computed automatically from existing data only: source coverage, 10Y pressure, tracked-stock breadth, core-stock health, and satellite/WAIT-list pressure. Delayed/EOD/static/cache data is never labeled as real-time, and missing or cache-only prices block an entry-observation verdict.
+If no backend is configured, the page enters fallback mode. The scorecard attempts the Worker `/quote?codes=...` route first and only accepts 13:30 MIS closing snapshots, then the Worker `/eod` route, then direct TWSE end-of-day OpenAPI, then same-origin `data/stock-risk-feed.json`, then the last usable localStorage cache. The 10Y yield attempts Worker `/yield10y` and then the same static feed. The first-screen verdict is computed automatically from existing data only: source coverage, 10Y pressure, tracked-stock breadth, core-stock health, and satellite/WAIT-list pressure. Delayed/EOD/static/cache data is never labeled as real-time, and missing or cache-only prices block an entry-observation verdict.
 
 ### Backend Routes
 
