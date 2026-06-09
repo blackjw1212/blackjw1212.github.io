@@ -190,7 +190,7 @@
         <span class="vlight" id="verdictLight"></span>
         <div class="vtext">
           <div class="vt" id="verdictTitle">等待</div>
-          <div class="vd" id="verdictDesc">更新收盤資料與 10Y 後，這裡會自動顯示偏進場觀察、等待或偏退場降風險。</div>
+          <div class="vd" id="verdictDesc">更新收盤資料與 10Y 後，這裡會自動顯示條件接近觀察、等待或風險升高觀察。</div>
         </div>
       </div>
       <div class="signal-summary" id="signalSummary"></div>
@@ -208,7 +208,7 @@
 
   <section aria-labelledby="lightsHeading">
     <h2 id="lightsHeading">自動燈號檢查 <em>CHECKLIST</em></h2>
-    <p class="hint">燈號由收盤價、10Y、核心/衛星分層與資料品質自動推導；資料不足時不產生進場觀察。</p>
+    <p class="hint">燈號由收盤價、10Y、核心/衛星分層與資料品質自動推導；資料不足時不產生條件接近觀察。</p>
     <div id="conds"></div>
   </section>
 
@@ -225,7 +225,7 @@
       <table id="scoreTable">
         <thead><tr>
           <th>股票</th><th>估值</th><th>獲利韌性</th><th>AI 槓桿</th><th>財務體質</th><th>週期風險</th><th>長抱適配</th>
-          <th>參考 PE</th><th>收盤</th><th>距離系統觀察價</th>
+          <th>參考 PE</th><th>收盤</th><th>距離觀察基準</th>
         </tr></thead>
         <tbody id="scoreBody"></tbody>
       </table>
@@ -273,11 +273,11 @@ const STXT = {h:"高",mh:"中高",m:"中",ml:"中低",l:"低"};
 const SCORE_LABELS = ["估值","獲利韌性","AI 槓桿","財務體質","週期風險","長抱適配"];
 
 const CONDS = [
-  {id:"data", t:"資料可用性", d:"確認收盤價來源、覆蓋率與快取狀態；資料不足時不產生進場觀察。"},
+  {id:"data", t:"資料可用性", d:"確認收盤價來源、覆蓋率與快取狀態；資料不足時不產生條件接近觀察。"},
   {id:"yield", t:"美債 10Y 殖利率壓力", d:"<4.5 綠 · 4.5-4.7 黃 · >4.7 紅；由 Worker 或靜態 feed 自動帶入。"},
   {id:"breadth", t:"AI 族群收盤廣度", d:"追蹤清單今日上漲比例，取代手動判斷半導體 / AI 族群氣氛。"},
   {id:"core", t:"核心股健康度", d:"核心股是否守住系統觀察價，且沒有同步轉弱。"},
-  {id:"satellite", t:"衛星股退場壓力", d:"衛星與等待區若遠高於觀察價後轉弱，會提高退場觀察權重。"},
+  {id:"satellite", t:"衛星股風險壓力", d:"衛星與等待區若遠高於觀察價後轉弱，會提高風險觀察權重。"},
 ];
 
 const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
@@ -478,10 +478,10 @@ function observationDistance(close, observationPrice){
 }
 
 function observationDistanceText(value){
-  if (value == null) return "距離待更新";
-  if (value > 0) return "高出 " + fmt(value, 1) + "%";
-  if (value < 0) return "低於 " + fmt(Math.abs(value), 1) + "%";
-  return "貼近 0%";
+  if (value == null) return "收盤距離待更新";
+  if (value > 0) return "收盤高出 " + fmt(value, 1) + "%";
+  if (value < 0) return "收盤低於 " + fmt(Math.abs(value), 1) + "%";
+  return "收盤貼近 0%";
 }
 
 function suggestObservationPrice(stock, quote, options){
@@ -518,13 +518,13 @@ function suggestObservationPrice(stock, quote, options){
     const fallbackDistance = observationDistance(close, fallback);
     return {
       mode:"fallback",
-      label:"預設觀察價",
+      label:"預設參考值",
       price:roundObservationPrice(fallback),
       distancePct:fallbackDistance,
       distanceText:observationDistanceText(fallbackDistance),
       defense:defense,
       source:"預設值",
-      note:defense ? "等待跌勢收斂後再看" : "缺少今日低點，先看預設值",
+      note:defense ? "等待跌勢收斂後再看" : "今日低點不足，未產生系統觀察價",
     };
   }
 
@@ -1021,7 +1021,7 @@ function dataSignal(snapshots, rawState){
   const meta = current.eodMeta || null;
   const coverage = priced.length / STOCKS.length;
   let tone = "r";
-  let detail = "沒有取得追蹤股收盤價，不判讀進場觀察。";
+  let detail = "沒有取得追蹤股收盤價，不判讀條件接近觀察。";
   if (priced.length) {
     if (meta && meta.cache) {
       tone = "r";
@@ -1039,7 +1039,7 @@ function dataSignal(snapshots, rawState){
   }
   if (priced.length && tone === "g" && autoObserved < priced.length) {
     tone = "a";
-    detail = "收盤價 " + priced.length + "/" + STOCKS.length + " 檔可用，但只有 " + autoObserved + " 檔有低點可自動估觀察價；其餘只顯示預設觀察價。";
+    detail = "收盤價 " + priced.length + "/" + STOCKS.length + " 檔可用，但只有 " + autoObserved + " 檔有低點可自動估觀察價；其餘只顯示預設參考值。";
   }
   const age = ageDays(meta && meta.updatedAt);
   if (age != null && age > 7) {
@@ -1102,7 +1102,7 @@ function coreSignal(snapshots, priceSource){
   const core = snapshots.filter(function(item){return item.tier === "core";});
   const known = core.filter(function(item){return item.hasPrice;});
   if (!known.length) {
-    return {id:"core",tone:"r",value:"待更新",detail:"核心股收盤價不足，先不判讀進場觀察。",source:priceSource};
+    return {id:"core",tone:"r",value:"待更新",detail:"核心股收盤價不足，先不判讀條件接近觀察。",source:priceSource};
   }
   const weak = known.filter(function(item){
     return (item.pctFromObservation != null && item.pctFromObservation < -3) || (item.dayPct != null && item.dayPct <= -1.5);
@@ -1120,7 +1120,7 @@ function coreSignal(snapshots, priceSource){
 function satelliteSignal(snapshots, priceSource){
   const known = snapshots.filter(function(item){return item.tier !== "core" && item.hasPrice;});
   if (!known.length) {
-    return {id:"satellite",tone:"a",value:"待更新",detail:"衛星股資料不足，先保留退場觀察。",source:priceSource};
+    return {id:"satellite",tone:"a",value:"待更新",detail:"衛星股資料不足，先保留風險觀察。",source:priceSource};
   }
   const risky = known.filter(function(item){
     const hotTurnWeak = item.pctFromObservation != null && item.pctFromObservation > 15 && item.dayPct != null && item.dayPct < 0;
@@ -1144,7 +1144,7 @@ function satelliteSignal(snapshots, priceSource){
 function marketSignal(rawState){
   const rows = Array.isArray(rawState && rawState.marketIndexRows) ? rawState.marketIndexRows : marketIndexRows;
   if (!Array.isArray(rows) || !rows.length) {
-    return {id:"market",tone:"a",value:"待更新",detail:"加權與櫃買待更新，先不放大進場觀察。",source:"市場指數待更新"};
+    return {id:"market",tone:"a",value:"待更新",detail:"加權與櫃買待更新，未判讀防守模式。",source:"市場指數待更新"};
   }
   const defense = marketDefenseMode({marketIndexRows:rows});
   return {
@@ -1214,9 +1214,9 @@ function aggregateVerdict(items){
     return {
       tone:"a",
       title:"等待",
-      desc:"資料不足或只剩快取，不產生進場觀察；先更新收盤資料再判讀。",
+      desc:"資料不足或只剩快取，不產生條件接近觀察；先更新收盤資料再判讀。",
       next:"等資料可用性至少轉黃，並重新確認核心與 10Y。",
-      avoid:"不要把快取或缺資料畫面解讀成進場或退場訊號。",
+      avoid:"不要把快取或缺資料畫面解讀成交易訊號。",
     };
   }
 
@@ -1230,10 +1230,10 @@ function aggregateVerdict(items){
   if (exitPressure) {
     return {
       tone:"r",
-      title:"偏退場降風險",
-      desc:"退場觀察：風險訊號偏多，先停止新增觀察並回到風險檢查；這不是交易指令。",
+      title:"風險升高觀察",
+      desc:"風險觀察：風險訊號偏多，先停止新增觀察並回到風險檢查；這不是交易指令。",
       next:"檢查紅燈來源與個人規則，等紅燈降溫再重新判讀。",
-      avoid:"不要把退場觀察解讀成交易執行，也不要用快取資料做決定。",
+      avoid:"不要把風險觀察解讀成交易執行，也不要用快取資料做決定。",
     };
   }
 
@@ -1244,18 +1244,18 @@ function aggregateVerdict(items){
   if (entryReady) {
     return {
       tone:"g",
-      title:"偏進場觀察",
-      desc:"進場觀察：條件接近觀察門檻，請核對資料日、個人資金規則與風險限制。",
+      title:"條件接近觀察",
+      desc:"條件接近觀察門檻，請核對資料日、個人資金規則與風險限制。",
       next:"若你原本就採分批策略，請先核對自己的資金規則、資料日與風險限制。",
-      avoid:"不要把進場觀察解讀成交易執行，也不要忽略個人風險承受度。",
+      avoid:"不要把條件接近觀察解讀成交易執行，也不要忽略個人風險承受度。",
     };
   }
   return {
     tone:"a",
     title:"等待",
-    desc:"等待觀察：條件未完整，只追蹤，不解讀為新增部位或退場指令。",
+    desc:"等待觀察：條件未完整，只追蹤，不解讀為新增部位或交易指令。",
     next:"等資料可用性、核心健康或 10Y 轉明確後再觀察。",
-    avoid:"不要把黃燈當成全面進場或退場訊號。",
+    avoid:"不要把黃燈當成交易訊號。",
   };
 }
 
@@ -1328,7 +1328,7 @@ function renderBuckets(){
   const cash = document.createElement("div");
   cash.className = "bucket";
   cash.innerHTML = '<div class="bh"><span class="name">現金</span><span class="role">保留再平衡與估值重置時的彈性</span><span class="tier cash">CASH</span></div>'
-    + '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line);color:var(--soft)">紅燈偏退場觀察，黃燈等待，綠燈仍需核對自己的資金規則、資料日與風險限制。</div>';
+    + '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line);color:var(--soft)">紅燈風險升高觀察，黃燈等待，綠燈仍需核對自己的資金規則、資料日與風險限制。</div>';
   box.appendChild(cash);
 }
 
@@ -1361,9 +1361,14 @@ function scoreClass(value, index){
 
 function observationToneClass(observation){
   if (!observation || observation.distancePct == null) return "flat";
+  if (observation.mode === "fallback") return "flat";
   if (observation.distancePct <= 0) return "pos";
   if (observation.distancePct >= 8) return "neg";
   return "flat";
+}
+
+function marketIndexDefenseUnknown(){
+  return !Array.isArray(marketIndexRows) || marketIndexRows.length === 0;
 }
 
 function observationStatusText(observation){
@@ -1372,15 +1377,21 @@ function observationStatusText(observation){
   }
   const distance = observation.distancePct;
   if (distance == null) return "距離待更新";
-  if (distance <= 0) return "回到觀察價下方";
-  if (distance <= 2) return "貼近觀察價";
-  if (distance >= 8) return "離觀察價太遠";
-  return "高於觀察價，尚未貼近";
+  if (observation.mode === "fallback") {
+    if (distance <= 0) return "低於預設值，資料仍不足";
+    if (distance <= 2) return "貼近預設值，資料仍不足";
+    if (distance >= 8) return "高於預設值，資料仍不足";
+    return "高於預設值，資料仍不足";
+  }
+  if (distance <= 0) return "低於觀察基準";
+  if (distance <= 2) return "貼近觀察基準";
+  if (distance >= 8) return "離觀察基準太遠";
+  return "高於觀察基準，尚未貼近";
 }
 
 function observationMainText(observation){
   if (!observation || observation.mode === "missing" || observation.price == null) return "觀察價待更新";
-  const prefix = observation.mode === "fallback" ? "預設觀察價 " : "觀察價 ";
+  const prefix = observation.mode === "fallback" ? "預設參考值 " : "系統觀察價 ";
   return prefix + fmt(observation.price, 2) + " / " + observation.distanceText;
 }
 
@@ -1389,6 +1400,7 @@ function observationMetaText(observation){
   const parts = [observationStatusText(observation), observation.label];
   if (observation.source === "預設值" || observation.mode === "fallback") parts.push("預設值");
   if (observation.defense) parts.push("防守模式");
+  if (!observation.defense && marketIndexDefenseUnknown()) parts.push("市場指數待更新，未判讀防守模式");
   if (observation.note) parts.push(observation.note);
   return parts.join(" · ");
 }
@@ -1429,7 +1441,7 @@ function renderScore(){
       return '<span class="sc ' + scoreClass(value, index) + '">' + escapeHtml(SCORE_LABELS[index]) + ' ' + STXT[value] + '</span>';
     }).join("");
     card.innerHTML = '<div class="stock-card-head"><div>' + stockTradingViewLink(stock, true) + '</div><span class="tier ' + TIERS[stock.tier].cls + '">' + stock.tier.toUpperCase() + '</span></div>'
-      + '<div class="stock-meta"><div><b>收盤</b>' + (close != null ? fmt(close, 2) : '待更新') + '</div><div><b>距離系統觀察價</b>' + escapeHtml(observationText) + '</div><div><b>參考 PE</b>' + escapeHtml(stock.pe) + '</div><div><b>定位</b>' + escapeHtml(TIERS[stock.tier].name) + '</div></div>'
+      + '<div class="stock-meta"><div><b>收盤</b>' + (close != null ? fmt(close, 2) : '待更新') + '</div><div><b>距離觀察基準</b>' + escapeHtml(observationText) + '</div><div><b>參考 PE</b>' + escapeHtml(stock.pe) + '</div><div><b>定位</b>' + escapeHtml(TIERS[stock.tier].name) + '</div></div>'
       + '<div class="score-strip">' + scoreStrip + '</div><div class="data-line">' + escapeHtml(observationMeta) + '</div><div class="data-line">' + escapeHtml(stock.role) + '</div><div class="data-line">' + escapeHtml(dataLabel()) + '</div>';
     cards.appendChild(card);
   });

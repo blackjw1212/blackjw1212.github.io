@@ -383,7 +383,7 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   assert.match(html, /@media \(max-width:760px\)[\s\S]*\.header-shell\{flex-direction:column/);
   assert.match(html, /aria-label="市場指數"/);
   assert.match(html, /aria-live="polite"/);
-  assert.match(html, /距離系統觀察價/);
+  assert.match(html, /距離觀察基準/);
   assert.doesNotMatch(html, /vs 個人參考基準|個人參考基準/);
 
   assert.equal(typeof context.window.PortfolioConsoleApp.init, "function");
@@ -417,15 +417,15 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
 });
 
 
-test("verdict aggregation uses automated entry/wait/exit observation language", async () => {
+test("verdict aggregation uses automated observation and risk language", async () => {
   const { context } = await loadApp(async () => response(staticFeed()));
   const { aggregateVerdict } = context.window.PortfolioConsoleApp.helpers;
 
   assert.equal(aggregateVerdict(["r", "r", "g", "a"]).tone, "r");
-  assert.match(aggregateVerdict(["r", "r", "g", "a"]).title, /退場/);
+  assert.match(aggregateVerdict(["r", "r", "g", "a"]).title, /風險升高觀察/);
   assert.equal(aggregateVerdict(["r", "a", "a", "a"]).tone, "r");
   assert.equal(aggregateVerdict(["g", "g", "g", "g"]).tone, "g");
-  assert.match(aggregateVerdict(["g", "g", "g", "g"]).title, /進場觀察/);
+  assert.match(aggregateVerdict(["g", "g", "g", "g"]).title, /條件接近觀察/);
   assert.equal(aggregateVerdict(["g", "a", "r", "a"]).tone, "a");
 });
 
@@ -469,11 +469,11 @@ test("auto signal helper gates entry, waiting, and exit observation states", asy
     today: Object.fromEntries(Object.entries(entryState.today).map(([code, row]) => [code, { close: row.close, change: row.change }])),
   };
 
-  assert.match(aggregateVerdict(deriveAutoSignals(entryState)).title, /偏進場觀察/);
+  assert.match(aggregateVerdict(deriveAutoSignals(entryState)).title, /條件接近觀察/);
   assert.equal(deriveAutoSignals(fallbackOnlyState).find((signal) => signal.id === "data").tone, "a");
   assert.match(aggregateVerdict(deriveAutoSignals(fallbackOnlyState)).title, /等待/);
   assert.match(aggregateVerdict(deriveAutoSignals({ cond: { yield: 4.12 }, today: {} })).title, /等待/);
-  assert.match(aggregateVerdict(deriveAutoSignals(exitState)).title, /偏退場降風險/);
+  assert.match(aggregateVerdict(deriveAutoSignals(exitState)).title, /風險升高觀察/);
 });
 
 test("weak market defense blocks automated entry observation", async () => {
@@ -505,7 +505,7 @@ test("weak market defense blocks automated entry observation", async () => {
   assert.equal(marketDefenseMode(weakMarketState), true);
   assert.equal(signals.find((signal) => signal.id === "market").tone, "r");
   assert.match(signals.find((signal) => signal.id === "market").detail, /等待跌勢收斂/);
-  assert.doesNotMatch(aggregateVerdict(signals).title, /偏進場觀察/);
+  assert.doesNotMatch(aggregateVerdict(signals).title, /條件接近觀察/);
   assert.match(aggregateVerdict(signals).title, /等待/);
 });
 
@@ -524,7 +524,7 @@ test("system observation price helper stays conservative by tier and market risk
   assert.equal(core.mode, "auto");
   assert.equal(core.label, "系統觀察價");
   assert.equal(core.price, 2295);
-  assert.match(core.distanceText, /高出 3\.1%/);
+  assert.match(core.distanceText, /收盤高出 3\.1%/);
 
   const satellite = suggestObservationPrice(
     { code: "3017", tier: "sat", base: 2640 },
@@ -559,7 +559,7 @@ test("system observation price helper stays conservative by tier and market risk
     {}
   );
   assert.equal(fallback.mode, "fallback");
-  assert.equal(fallback.label, "預設觀察價");
+  assert.equal(fallback.label, "預設參考值");
   assert.equal(fallback.source, "預設值");
 
   const defense = suggestObservationPrice(
@@ -640,13 +640,19 @@ test("page renders automated checklist, cards, and source labels from static fal
   const cardHtml = document.getElementById("stockCards").innerHTML;
   assert.match(scoreHtml, /2330/);
   assert.match(scoreHtml, /2,400.25/);
-  assert.match(scoreHtml, /預設觀察價/);
+  assert.match(scoreHtml, /預設參考值/);
   assert.match(scoreHtml, /預設值/);
-  assert.doesNotMatch(scoreHtml, /系統觀察價|個人參考基準/);
+  assert.doesNotMatch(scoreHtml, /系統觀察價 \d|· 系統觀察價|個人參考基準/);
+  assert.doesNotMatch(scoreHtml, /class="(?:pos|neg)">預設參考值/);
+  assert.match(scoreHtml, /今日低點不足，未產生系統觀察價/);
+  assert.match(scoreHtml, /市場指數待更新，未判讀防守模式/);
   assert.match(cardHtml, /台積電/);
-  assert.match(cardHtml, /距離系統觀察價/);
-  assert.match(cardHtml, /預設觀察價/);
+  assert.match(cardHtml, /距離觀察基準/);
+  assert.match(cardHtml, /預設參考值/);
   assert.match(cardHtml, /預設值/);
+  assert.doesNotMatch(cardHtml, /class="(?:pos|neg)">預設參考值/);
+  assert.match(cardHtml, /今日低點不足，未產生系統觀察價/);
+  assert.match(cardHtml, /市場指數待更新，未判讀防守模式/);
   assert.match(scoreHtml, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
   assert.match(cardHtml, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
   assert.doesNotMatch(scoreHtml, /\/technicals\//);
@@ -656,7 +662,7 @@ test("page renders automated checklist, cards, and source labels from static fal
   assert.match(document.getElementById("conds").innerHTML, /自動/);
   assert.match(document.getElementById("signalSummary").innerHTML, /資料可用性/);
   assert.match(document.getElementById("stamp").textContent, /靜態 feed/);
-  assert.match(document.getElementById("verdictTitle").textContent, /等待|退場|進場/);
+  assert.match(document.getElementById("verdictTitle").textContent, /等待|風險升高|條件接近/);
   assert.match(document.getElementById("actionAvoid").textContent, /不要/);
   for (const id of ["c_data", "c_yield", "c_breadth", "c_core", "c_satellite", "cd_data", "src_yield"]) {
     assert.ok(elements.has(id), `${id} should be created during init`);
@@ -676,8 +682,8 @@ test("page shows observation price pending when closing data is unavailable", as
   const cardHtml = document.getElementById("stockCards").innerHTML;
   assert.match(scoreHtml, /觀察價待更新/);
   assert.match(cardHtml, /觀察價待更新/);
-  assert.doesNotMatch(scoreHtml, /系統觀察價|預設觀察價|個人參考基準/);
-  assert.doesNotMatch(cardHtml, /系統觀察價 ·|· 系統觀察價|預設觀察價|個人參考基準/);
+  assert.doesNotMatch(scoreHtml, /系統觀察價 \d|· 系統觀察價|預設參考值|個人參考基準/);
+  assert.doesNotMatch(cardHtml, /系統觀察價 ·|· 系統觀察價|預設參考值|個人參考基準/);
 });
 
 test("page uses Worker EOD and yield on GitHub Pages default proxy", async () => {
@@ -765,9 +771,9 @@ test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => 
   assert.match(scoreHtml, /2,295/);
   assert.match(scoreHtml, /1,095/);
   assert.match(scoreHtml, /系統觀察價/);
-  assert.match(scoreHtml, /2330[\s\S]*?觀察價 2,295 \/ 貼近 0%[\s\S]*?回到觀察價下方 · 系統觀察價 · 低點站回確認[\s\S]*?2317/);
-  assert.match(cardHtml, /2330[\s\S]*?觀察價 2,295 \/ 貼近 0%[\s\S]*?回到觀察價下方 · 系統觀察價 · 低點站回確認[\s\S]*?2317/);
-  assert.doesNotMatch(scoreHtml, /預設觀察價/);
+  assert.match(scoreHtml, /2330[\s\S]*?系統觀察價 2,295 \/ 收盤貼近 0%[\s\S]*?低於觀察基準 · 系統觀察價 · 市場指數待更新，未判讀防守模式 · 低點站回確認[\s\S]*?2317/);
+  assert.match(cardHtml, /2330[\s\S]*?系統觀察價 2,295 \/ 收盤貼近 0%[\s\S]*?低於觀察基準 · 系統觀察價 · 市場指數待更新，未判讀防守模式 · 低點站回確認[\s\S]*?2317/);
+  assert.doesNotMatch(scoreHtml, /預設參考值/);
   assert.match(scoreHtml, /TWSE MIS closing quote/);
 });
 
@@ -799,8 +805,8 @@ test("weak market defense labels observation prices in table and mobile cards", 
 
   const scoreHtml = document.getElementById("scoreBody").innerHTML;
   const cardHtml = document.getElementById("stockCards").innerHTML;
-  assert.match(scoreHtml, /2330[\s\S]*?觀察價 2,270 \/ 高出 1\.1%[\s\S]*?貼近觀察價 · 系統觀察價 · 防守模式 · 等待跌勢收斂後再看[\s\S]*?2317/);
-  assert.match(cardHtml, /2330[\s\S]*?觀察價 2,270 \/ 高出 1\.1%[\s\S]*?貼近觀察價 · 系統觀察價 · 防守模式 · 等待跌勢收斂後再看[\s\S]*?2317/);
+  assert.match(scoreHtml, /2330[\s\S]*?系統觀察價 2,270 \/ 收盤高出 1\.1%[\s\S]*?貼近觀察基準 · 系統觀察價 · 防守模式 · 等待跌勢收斂後再看[\s\S]*?2317/);
+  assert.match(cardHtml, /2330[\s\S]*?系統觀察價 2,270 \/ 收盤高出 1\.1%[\s\S]*?貼近觀察基準 · 系統觀察價 · 防守模式 · 等待跌勢收斂後再看[\s\S]*?2317/);
   assert.match(document.getElementById("signalSummary").innerHTML, /市場防守模式[\s\S]*等待跌勢收斂/);
 });
 
