@@ -57,7 +57,7 @@ function publicTargetsFromSrcset(value) {
 
 for (const rel of [
   "index.html",
-  "ai/index.html",
+  "stocks/index.html",
   "weather/index.html",
   "bjkw_weather.html",
   "404.html",
@@ -92,6 +92,8 @@ for (const rel of [
   "profile-README.md",
   "favicon.svg",
   "favicon.png",
+  "ai",
+  "ai/index.html",
   "scripts/check_internal_links.rb",
 ]) {
   mustNotExist(rel);
@@ -113,22 +115,25 @@ if (has("index.html")) {
   assertMatch("index.html", html, /aria-label="輕量資料狀態"/, "status board label");
   assertMatch("index.html", html, /aria-live="polite"/, "polite status live region");
   assertMatch("index.html", html, /aria-label="主要觀察台"/, "primary nav label");
-  assertMatch("index.html", html, /id="aiFeedStatus"/, "AI status id");
+  assertMatch("index.html", html, /id="stockFeedStatus"/, "stock status id");
   assertMatch("index.html", html, /id="weatherStatus"/, "weather status id");
   assertMatch("index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev\/health/, "root weather health endpoint");
-  if (primaryLinks.join("|") !== "ai:/ai/|weather:/weather/") {
-    fail(`index.html primary entries should be exactly ai:/ai/ and weather:/weather/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/ and weather:/weather/, got ${primaryLinks.join(", ")}`);
   }
-  assertMatch("index.html", html, /開啟 AI 觀察台 \/ai\//, "visible AI CTA");
+  assertMatch("index.html", html, /開啟股票投資觀察台 \/stocks\//, "visible stocks CTA");
   assertMatch("index.html", html, /開啟天氣觀察台 \/weather\//, "visible weather CTA");
+  assertNoMatch("index.html", html, /\/ai\/|AI 供應鏈觀察台|開啟 AI 觀察台|AI Feed/);
   assertNoMatch("index.html", html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/i);
   assertNoMatch("index.html", html, /保證|可放心|買進|賣出|投資建議|安全資訊/);
 }
 
-if (has("ai/index.html")) {
-  const html = await read("ai/index.html");
-  assertMatch("ai/index.html", html, /STATIC_STOCK_FEED_URL\s*=\s*"\/data\/stock-risk-feed\.json"/, "absolute stock feed path");
-  assertNoMatch("ai/index.html", html, /RetailConsole|個人參考基準|\/filings\b|MOPS/i);
+if (has("stocks/index.html")) {
+  const html = await read("stocks/index.html");
+  assertMatch("stocks/index.html", html, /<title>股票投資觀察台｜AI 供應鏈<\/title>/, "stocks title");
+  assertMatch("stocks/index.html", html, /<h1>股票投資觀察台<\/h1>/, "stocks h1");
+  assertMatch("stocks/index.html", html, /STATIC_STOCK_FEED_URL\s*=\s*"\/data\/stock-risk-feed\.json"/, "absolute stock feed path");
+  assertNoMatch("stocks/index.html", html, /RetailConsole|個人參考基準|\/filings\b|MOPS/i);
 }
 
 if (has("weather/index.html")) {
@@ -149,7 +154,7 @@ if (has("bjkw_weather.html")) {
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "ai/index.html", "weather/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

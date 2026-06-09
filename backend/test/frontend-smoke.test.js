@@ -148,7 +148,7 @@ function createLocalStorage(initial = {}) {
 }
 
 async function loadApp(fetchMock, windowOverrides = {}) {
-  const htmlFile = windowOverrides.htmlFile || "../../ai/index.html";
+  const htmlFile = windowOverrides.htmlFile || "../../stocks/index.html";
   const htmlPath = fileURLToPath(new URL(htmlFile, import.meta.url));
   const html = await readFile(htmlPath, "utf8");
   const script = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/)?.[1];
@@ -254,12 +254,13 @@ test("root index is a status overview entry console", async () => {
   assert.match(html, /property="og:title" content="BJKW 觀察控制台"/);
   assert.match(html, /name="theme-color" content="#101418"/);
   assert.match(html, /<main class="shell">/);
-  assert.match(html, /href="\/ai\/"/);
+  assert.match(html, /href="\/stocks\/"/);
   assert.match(html, /href="\/weather\/"/);
-  assert.deepEqual(primaryLinks, [["ai", "/ai/"], ["weather", "/weather/"]]);
-  assert.match(html, /AI 供應鏈觀察台/);
+  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"]]);
+  assert.match(html, /股票投資觀察台/);
+  assert.doesNotMatch(html, /href="\/ai\/"|data-primary-entry="ai"|AI Feed/);
   assert.match(html, /BJKW 天氣觀察台/);
-  for (const id of ["aiFeedStatus", "aiFeedMeta", "yieldStatus", "yieldMeta", "weatherStatus", "weatherMeta", "deployStatus", "deployMeta"]) {
+  for (const id of ["stockFeedStatus", "stockFeedMeta", "yieldStatus", "yieldMeta", "weatherStatus", "weatherMeta", "deployStatus", "deployMeta"]) {
     assert.match(html, new RegExp(`id="${id}"`), `${id} should be present`);
   }
   assert.match(html, /aria-label="輕量資料狀態"/);
@@ -288,8 +289,8 @@ test("root status overview renders mocked feed and weather health", async () => 
 
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.equal(document.getElementById("aiFeedStatus").textContent, "2 檔");
-  assert.match(document.getElementById("aiFeedStatus").className, /ok/);
+  assert.equal(document.getElementById("stockFeedStatus").textContent, "2 檔");
+  assert.match(document.getElementById("stockFeedStatus").className, /ok/);
   assert.equal(document.getElementById("yieldStatus").textContent, "4.56%");
   assert.match(document.getElementById("yieldMeta").textContent, /Mock Treasury/);
   assert.equal(document.getElementById("weatherStatus").textContent, "可查詢");
@@ -308,11 +309,11 @@ test("root status overview fails soft while keeping entries usable", async () =>
 
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.equal(document.getElementById("aiFeedStatus").textContent, "待更新");
+  assert.equal(document.getElementById("stockFeedStatus").textContent, "待更新");
   assert.equal(document.getElementById("yieldStatus").textContent, "待更新");
   assert.equal(document.getElementById("weatherStatus").textContent, "待更新");
   assert.equal(document.getElementById("deployStatus").textContent, "可進入");
-  assert.match(html, /data-primary-entry="ai" href="\/ai\/"/);
+  assert.match(html, /data-primary-entry="stocks" href="\/stocks\/"/);
   assert.match(html, /data-primary-entry="weather" href="\/weather\/"/);
 });
 

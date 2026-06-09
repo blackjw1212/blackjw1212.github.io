@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BJKW 觀察控制台</title>
-<meta name="description" content="BJKW 公開觀察控制台，快速查看 AI 供應鏈與天氣觀察狀態。" />
+<meta name="description" content="BJKW 公開觀察控制台，快速查看股票投資與天氣觀察狀態。" />
 <link rel="canonical" href="/" />
 <meta property="og:title" content="BJKW 觀察控制台" />
-<meta property="og:description" content="快速進入 AI 供應鏈觀察台與 BJKW 天氣觀察台。" />
+<meta property="og:description" content="快速進入股票投資觀察台與 BJKW 天氣觀察台。" />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -93,7 +93,7 @@
         <div class="brand-title">BJKW 觀察控制台</div>
       </div>
     </div>
-    <div class="route-note">Retained routes: /ai/ /weather/</div>
+    <div class="route-note">Retained routes: /stocks/ /weather/</div>
   </header>
 
   <section class="hero" aria-label="主頁狀態總覽">
@@ -101,7 +101,7 @@
       <div>
         <div class="eyebrow">STATUS OVERVIEW</div>
         <h1>一眼確認兩個觀察台，再進入完整工具。</h1>
-        <p class="lead">首頁只做輕量狀態摘要與入口分流。AI 供應鏈觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
+        <p class="lead">首頁只做輕量狀態摘要與入口分流。股票投資觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
       </div>
       <div class="hero-meta" aria-label="服務範圍">
         <div class="metric"><strong>2</strong><span>保留工具</span></div>
@@ -112,9 +112,9 @@
 
     <section class="status-board" aria-label="輕量資料狀態" aria-live="polite">
       <article class="status-card">
-        <h2><span>AI Feed</span><span class="tag">DATA</span></h2>
-        <div id="aiFeedStatus" class="status-value warn">讀取中</div>
-        <div id="aiFeedMeta" class="status-meta">檢查靜態收盤資料</div>
+        <h2><span>Stock Feed</span><span class="tag">DATA</span></h2>
+        <div id="stockFeedStatus" class="status-value warn">讀取中</div>
+        <div id="stockFeedMeta" class="status-meta">檢查靜態收盤資料</div>
       </article>
       <article class="status-card">
         <h2><span>10Y</span><span class="tag">YIELD</span></h2>
@@ -139,12 +139,12 @@
       <div>
         <div class="entry-head">
           <div class="entry-title">
-            <small>AI SUPPLY CHAIN</small>
-            <h2>AI 供應鏈觀察台</h2>
+            <small>STOCK OBSERVATION</small>
+            <h2>股票投資觀察台</h2>
           </div>
           <img src="/assets/images/favicon.svg" alt="" width="40" height="40">
         </div>
-        <p>查看台股 AI 供應鏈、加權與櫃買、10Y、收盤資料、系統觀察價與完整 TradingView 圖表。</p>
+        <p>查看台股股票投資觀察清單、AI 供應鏈主題、加權與櫃買、10Y、收盤資料、系統觀察價與完整 TradingView 圖表。</p>
         <ul>
           <li>適合盤後快速判讀觀察環境。</li>
           <li>顯示資料來源與待更新狀態。</li>
@@ -153,7 +153,7 @@
       </div>
       <div class="entry-foot">
         <div class="entry-limit">資料：Worker / TWSE / static fallback</div>
-        <a class="entry-button" data-primary-entry="ai" href="/ai/" aria-label="開啟 AI 供應鏈觀察台 /ai/">開啟 AI 觀察台 /ai/</a>
+        <a class="entry-button" data-primary-entry="stocks" href="/stocks/" aria-label="開啟股票投資觀察台 /stocks/">開啟股票投資觀察台 /stocks/</a>
       </div>
     </article>
 
@@ -225,10 +225,10 @@ async function refreshAiSummary() {
     const eodRows = Array.isArray(feed.eod) ? feed.eod.length : 0;
     const stamp = formatDate(feed.eodUpdatedAt || feed.updatedAt);
     const yieldValue = feed.yield10y && feed.yield10y.value;
-    setStatus("aiFeedStatus", "aiFeedMeta", eodRows ? `${eodRows} 檔` : "待更新", `收盤資料 ${stamp}`, eodRows ? "ok" : "warn");
+    setStatus("stockFeedStatus", "stockFeedMeta", eodRows ? `${eodRows} 檔` : "待更新", `收盤資料 ${stamp}`, eodRows ? "ok" : "warn");
     setStatus("yieldStatus", "yieldMeta", formatYield(yieldValue), feed.yield10y && feed.yield10y.source ? feed.yield10y.source : "來源待更新", Number.isFinite(Number(yieldValue)) ? "ok" : "warn");
   } catch (error) {
-    setStatus("aiFeedStatus", "aiFeedMeta", "待更新", "靜態 feed 暫時無法讀取", "warn");
+    setStatus("stockFeedStatus", "stockFeedMeta", "待更新", "靜態 feed 暫時無法讀取", "warn");
     setStatus("yieldStatus", "yieldMeta", "待更新", "10Y 資料暫時無法讀取", "warn");
   }
 }

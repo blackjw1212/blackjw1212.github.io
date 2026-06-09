@@ -2,7 +2,7 @@
 
 This repository publishes two retained static products on GitHub Pages:
 
-- `/ai/` - AI 供應鏈觀察台
+- `/stocks/` - 股票投資觀察台
 - `/weather/` - BJKW 天氣觀察台
 
 The root `/` is only a lightweight entry page for those two tools. No additional public surfaces are retained.
@@ -12,7 +12,7 @@ The root `/` is only a lightweight entry page for those two tools. No additional
 ```text
 /
 ├── index.html              # Two-product entry page
-├── ai/index.html           # AI supply-chain observation console
+├── stocks/index.html       # Stock investment observation console
 ├── weather/index.html      # Weather console
 ├── bjkw_weather.html       # Legacy redirect to /weather/
 ├── assets/images/          # Shared favicon and app icons
@@ -21,9 +21,9 @@ The root `/` is only a lightweight entry page for those two tools. No additional
 └── weather-proxy/          # CWA weather Worker proxy
 ```
 
-## AI Supply-Chain Console
+## Stock Investment Console
 
-The AI console is a static HTML app that observes selected Taiwan AI supply-chain stocks. It displays automated market status, market index quotes, closing data, 10Y yield context, TradingView chart links, and conservative system observation prices.
+The stocks console is a static HTML app that observes selected Taiwan AI supply-chain stocks under the public stock-investment category. It displays automated market status, market index quotes, closing data, 10Y yield context, TradingView chart links, and conservative system observation prices.
 
 Data order:
 
