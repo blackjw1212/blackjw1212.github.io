@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-10T02:28:51.194Z",
-  "eodUpdatedAt": null,
+  "updatedAt": "2026-06-10T06:48:47.916Z",
+  "eodUpdatedAt": "2026-06-10T06:48:47.916Z",
   "holdings": [
     "2330",
     "2317",
@@ -11,7 +11,50 @@
     "1519",
     "2308"
   ],
-  "eod": [],
+  "eod": [
+    {
+      "code": "1519",
+      "name": "華城",
+      "close": 843,
+      "change": 28
+    },
+    {
+      "code": "2308",
+      "name": "台達電",
+      "close": 2415,
+      "change": 160
+    },
+    {
+      "code": "2317",
+      "name": "鴻海",
+      "close": 277.5,
+      "change": 8
+    },
+    {
+      "code": "2330",
+      "name": "台積電",
+      "close": 2305,
+      "change": 10
+    },
+    {
+      "code": "2382",
+      "name": "廣達",
+      "close": 375,
+      "change": -1.5
+    },
+    {
+      "code": "3017",
+      "name": "奇鋐",
+      "close": 2545,
+      "change": -25
+    },
+    {
+      "code": "6669",
+      "name": "緯穎",
+      "close": 5300,
+      "change": 25
+    }
+  ],
   "yield10y": {
     "date": "2026-06-09",
     "value": 4.53,
@@ -19,10 +62,6 @@
     "source": "US Treasury Daily Treasury Yield Curve"
   },
   "errors": [
-    {
-      "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
     {
       "source": "FRED DGS10 CSV",
       "message": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10 returned HTTP 504"
