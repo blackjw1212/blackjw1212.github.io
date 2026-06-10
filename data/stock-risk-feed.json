@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-10T10:48:24.500Z",
-  "eodUpdatedAt": "2026-06-10T10:48:24.500Z",
+  "updatedAt": "2026-06-10T23:50:21.856Z",
+  "eodUpdatedAt": "2026-06-10T23:50:21.856Z",
   "holdings": [
     "2330",
     "2317",
@@ -15,50 +15,50 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 843,
-      "change": 28
+      "close": 791,
+      "change": -52
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 2415,
-      "change": 160
+      "close": 2200,
+      "change": -215
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 277.5,
-      "change": 8
+      "close": 263,
+      "change": -14.5
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2305,
-      "change": 10
+      "close": 2255,
+      "change": -50
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 375,
-      "change": -1.5
+      "close": 380.5,
+      "change": 5.5
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2545,
-      "change": -25
+      "close": 2360,
+      "change": -185
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 5300,
-      "change": 25
+      "close": 5065,
+      "change": -235
     }
   ],
   "yield10y": {
-    "date": "2026-06-09",
-    "value": 4.53,
-    "updatedAt": "2026-06-09T22:00:00.000Z",
+    "date": "2026-06-10",
+    "value": 4.55,
+    "updatedAt": "2026-06-10T22:00:00.000Z",
     "source": "US Treasury Daily Treasury Yield Curve"
   },
   "errors": [
