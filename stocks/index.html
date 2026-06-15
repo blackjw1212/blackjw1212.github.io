@@ -251,14 +251,16 @@ const STATIC_STOCK_FEED_URL = "/data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
 
 const STOCKS = [
-  {code:"2330",name:"台積電",tier:"core",role:"先進製程與封裝，是 AI 供應鏈核心底座。",pe:"~25",base:2385,s:["m","h","h","m","h","h"]},
-  {code:"2317",name:"鴻海",tier:"core",role:"AI 伺服器與整機平台，適合作為核心觀察。",pe:"中",base:289,s:["m","mh","mh","m","m","h"]},
-  {code:"6669",name:"緯穎",tier:"sat",role:"高 beta AI 伺服器 ODM，估值與波動都要控管。",pe:"~18",base:5520,s:["h","m","h","h","m","m"]},
-  {code:"3017",name:"奇鋐",tier:"sat",role:"散熱主線，受 AI 平台拉動但波動較高。",pe:"~27",base:2640,s:["m","m","h","h","m","m"]},
-  {code:"3324",name:"雙鴻",tier:"sat",role:"散熱衛星，題材明確但觀察位置更敏感。",pe:"~44",base:1280,s:["ml","m","m","h","m","m"]},
-  {code:"2382",name:"廣達",tier:"sat",role:"AI 伺服器 ODM 與雲端客戶，中段衛星觀察。",pe:"中",base:339,s:["m","m","mh","mh","m","mh"]},
-  {code:"1519",name:"華城",tier:"wait",role:"電力建設長線，但估值與籌碼需等冷卻。",pe:"~64",base:935,s:["l","l","h","h","h","m"]},
-  {code:"2308",name:"台達電",tier:"wait",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。",pe:"~85",base:2300,s:["l","l","h","h","mh","mh"]},
+  {code:"2330",name:"台積電",tier:"core",theme:"foundry",role:"先進製程與封裝，是 AI 供應鏈核心底座。",pe:"~28",base:2310,s:["m","h","h","m","h","h"]},
+  {code:"2317",name:"鴻海",tier:"core",theme:"server",role:"AI 伺服器與整機平台，估值仍偏低，適合作為核心觀察。",pe:"~18",base:260.5,s:["mh","mh","mh","m","m","h"]},
+  {code:"2382",name:"廣達",tier:"sat",theme:"server",role:"AI 伺服器 ODM 與雲端大客戶，2026 老 AI 強弱排名升至前段。",pe:"中",base:372,s:["m","mh","h","mh","m","h"]},
+  {code:"3231",name:"緯創",tier:"sat",theme:"server",role:"AI 伺服器 ODM，估值偏低、營收動能強，與廣達並列前段衛星。",pe:"~16",base:156,s:["mh","mh","mh","m","m","mh"]},
+  {code:"6669",name:"緯穎",tier:"sat",theme:"server",role:"高 beta AI 伺服器 ODM，估值便宜但 2026 相對排名後移，波動要控管。",pe:"~16",base:4850,s:["h","m","h","h","m","m"]},
+  {code:"3017",name:"奇鋐",tier:"sat",theme:"cooling",role:"散熱主線，受 AI 平台與液冷升級拉動但波動較高。",pe:"~27",base:2405,s:["m","m","h","h","m","m"]},
+  {code:"3324",name:"雙鴻",tier:"sat",theme:"cooling",role:"液冷散熱衛星，題材明確但觀察位置敏感、波動大。",pe:"~29",base:1055,s:["ml","m","h","h","m","m"]},
+  {code:"3661",name:"世芯-KY",tier:"sat",theme:"asic",role:"ASIC／客製晶片設計，對應 GPU+ASIC 雙主流，但估值偏高、波動大。",pe:"~48",base:4105,s:["l","m","h","mh","m","m"]},
+  {code:"1519",name:"華城",tier:"wait",theme:"power",role:"電力建設長線，但估值與籌碼需等冷卻。",pe:"~59",base:915,s:["l","l","h","h","h","m"]},
+  {code:"2308",name:"台達電",tier:"wait",theme:"power",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。",pe:"~85",base:2215,s:["l","l","h","h","mh","mh"]},
 ];
 
 const TIERS = {
@@ -278,7 +280,10 @@ const CONDS = [
   {id:"breadth", t:"AI 族群收盤廣度", d:"追蹤清單今日上漲比例，取代手動判斷半導體 / AI 族群氣氛。"},
   {id:"core", t:"核心股健康度", d:"核心股是否守住系統觀察價，且沒有同步轉弱。"},
   {id:"satellite", t:"衛星股風險壓力", d:"衛星與等待區若遠高於觀察價後轉弱，會提高風險觀察權重。"},
+  {id:"concentration", t:"題材集中度", d:"清單同一子題材占比過高時提醒分散風險；由清單組成自動計算，不影響今日結論燈號。"},
 ];
+
+const THEME_NAMES = {foundry:"晶圓代工",server:"伺服器 ODM／系統",cooling:"散熱",asic:"ASIC",power:"電源／重電",other:"其他"};
 
 const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
 const TONE_WORD = {g:"綠燈",a:"黃燈",r:"紅燈"};
@@ -290,6 +295,8 @@ const TRADINGVIEW_SYMBOLS = {
   "3017":"TWSE:3017",
   "3324":"TPEX:3324",
   "2382":"TWSE:2382",
+  "3231":"TWSE:3231",
+  "3661":"TWSE:3661",
   "1519":"TWSE:1519",
   "2308":"TWSE:2308",
 };
@@ -1141,6 +1148,32 @@ function satelliteSignal(snapshots, priceSource){
   };
 }
 
+function concentrationSignal(){
+  const counts = {};
+  STOCKS.forEach(function(stock){
+    const key = stock.theme || "other";
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const themes = Object.keys(counts);
+  const total = STOCKS.length || 1;
+  let topKey = themes[0];
+  themes.forEach(function(key){ if (counts[key] > counts[topKey]) topKey = key; });
+  const topShare = counts[topKey] / total;
+  const tone = (themes.length >= 5 && topShare <= 0.35) ? "g"
+    : (themes.length < 3 || topShare > 0.5) ? "r" : "a";
+  const pct = Math.round(topShare * 100);
+  const detail = "清單共 " + themes.length + " 個子題材，最大集中於「" + (THEME_NAMES[topKey] || topKey) + "」"
+    + counts[topKey] + "/" + total + " 檔（" + pct + "%）。"
+    + (tone === "g" ? "分散度尚可。" : tone === "a" ? "單一題材偏重，留意同向回檔。" : "高度集中於單一題材，分散明顯不足。");
+  return {
+    id:"concentration",
+    tone:tone,
+    value:pct + "%",
+    detail:detail,
+    source:"清單組成自動計算",
+  };
+}
+
 function marketSignal(rawState){
   const rows = Array.isArray(rawState && rawState.marketIndexRows) ? rawState.marketIndexRows : marketIndexRows;
   if (!Array.isArray(rows) || !rows.length) {
@@ -1166,6 +1199,7 @@ function deriveAutoSignals(rawState){
     breadth:breadthSignal(snapshots, priceSource),
     core:coreSignal(snapshots, priceSource),
     satellite:satelliteSignal(snapshots, priceSource),
+    concentration:concentrationSignal(),
     market:marketSignal(current),
   };
   const visible = CONDS.map(function(def){
@@ -1197,7 +1231,8 @@ function signalById(signals, id){
 }
 
 function aggregateVerdict(items){
-  const signals = normalizeSignalItems(items);
+  // 題材集中度為結構性提示，不納入今日結論燈號（避免結構訊號被當成進出場指令）。
+  const signals = normalizeSignalItems(items).filter(function(signal){return signal.id !== "concentration";});
   const colors = signals.map(function(signal){return signal.tone;});
   const counts = {g:0,a:0,r:0};
   colors.forEach(function(color){if (counts[color] != null) counts[color] += 1;});

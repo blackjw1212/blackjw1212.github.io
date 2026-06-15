@@ -1,10 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 
 const OUT_FILE = new URL("../data/stock-risk-feed.json", import.meta.url);
-const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "1519", "2308"]);
+const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "1519", "2308", "3231", "3661"]);
 
 const SOURCES = {
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+  tpexEod: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
   fredCsv: "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10",
 };
 
@@ -132,6 +133,24 @@ async function main() {
   } catch (error) {
     errors.push({ source: "TWSE OpenAPI STOCK_DAY_ALL", message: error.message });
   }
+
+  // TWSE STOCK_DAY_ALL only covers listed (上市) stocks; OTC (上櫃) tracked codes
+  // such as 3324 雙鴻 come from the TPEX daily close OpenAPI instead.
+  try {
+    const have = new Set(eod.map((row) => row.code));
+    const tpexRows = normalizeEod(await fetchJson(SOURCES.tpexEod));
+    for (const row of tpexRows) {
+      if (!have.has(row.code)) {
+        eod.push(row);
+        have.add(row.code);
+      }
+    }
+    if (tpexRows.length && eodUpdatedAt == null) eodUpdatedAt = now;
+  } catch (error) {
+    errors.push({ source: "TPEX OpenAPI daily close quotes", message: error.message });
+  }
+
+  eod.sort((a, b) => a.code.localeCompare(b.code));
 
   let yield10y = null;
   try {
