@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-16T00:02:03.207Z",
-  "eodUpdatedAt": "2026-06-16T00:02:03.207Z",
+  "updatedAt": "2026-06-16T02:45:10.602Z",
+  "eodUpdatedAt": "2026-06-16T02:45:10.602Z",
   "holdings": [
     "2330",
     "2317",
@@ -57,12 +57,6 @@
       "change": 5.5
     },
     {
-      "code": "3324",
-      "name": "雙鴻",
-      "close": 1055,
-      "change": 0
-    },
-    {
       "code": "3661",
       "name": "世芯-KY",
       "close": 4250,
@@ -82,6 +76,10 @@
     "source": "US Treasury Daily Treasury Yield Curve"
   },
   "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    },
     {
       "source": "FRED DGS10 CSV",
       "message": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10 returned HTTP 504"
