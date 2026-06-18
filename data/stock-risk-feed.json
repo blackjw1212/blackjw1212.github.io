@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-18T02:38:43.203Z",
-  "eodUpdatedAt": "2026-06-18T02:38:43.203Z",
+  "updatedAt": "2026-06-18T07:27:20.279Z",
+  "eodUpdatedAt": "2026-06-18T07:27:20.279Z",
   "holdings": [
     "2330",
     "2317",
@@ -57,6 +57,12 @@
       "change": 4.5
     },
     {
+      "code": "3324",
+      "name": "雙鴻",
+      "close": 1050,
+      "change": null
+    },
+    {
       "code": "3661",
       "name": "世芯-KY",
       "close": 4320,
@@ -75,10 +81,5 @@
     "updatedAt": "2026-06-16T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    }
-  ]
+  "errors": []
 }
