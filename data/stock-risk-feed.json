@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-18T07:27:20.279Z",
-  "eodUpdatedAt": "2026-06-18T07:27:20.279Z",
+  "updatedAt": "2026-06-18T11:34:59.107Z",
+  "eodUpdatedAt": "2026-06-18T11:34:59.107Z",
   "holdings": [
     "2330",
     "2317",
@@ -59,8 +59,8 @@
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 1050,
-      "change": null
+      "close": 1070,
+      "change": 20
     },
     {
       "code": "3661",
