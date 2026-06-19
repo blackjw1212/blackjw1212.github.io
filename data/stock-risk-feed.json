@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-18T11:34:59.107Z",
-  "eodUpdatedAt": "2026-06-18T11:34:59.107Z",
+  "updatedAt": "2026-06-19T00:00:17.631Z",
+  "eodUpdatedAt": "2026-06-19T00:00:17.631Z",
   "holdings": [
     "2330",
     "2317",
@@ -17,69 +17,68 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 803,
-      "change": 22
+      "close": 833,
+      "change": 30
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 2155,
-      "change": 0
+      "close": 2150,
+      "change": -5
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 272,
-      "change": 3
+      "close": 268.5,
+      "change": -3.5
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2385,
-      "change": -15
+      "close": 2410,
+      "change": 25
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 374,
-      "change": 11.5
+      "close": 376,
+      "change": 2
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2365,
-      "change": -5
+      "close": 2400,
+      "change": 35
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 162.5,
-      "change": 4.5
-    },
-    {
-      "code": "3324",
-      "name": "雙鴻",
-      "close": 1070,
-      "change": 20
+      "close": 161.5,
+      "change": -1
     },
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 4320,
-      "change": 5
+      "close": 4380,
+      "change": 60
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 5080,
-      "change": 200
+      "close": 5130,
+      "change": 50
     }
   ],
   "yield10y": {
-    "date": "2026-06-16",
-    "value": 4.43,
-    "updatedAt": "2026-06-16T22:00:00.000Z",
+    "date": "2026-06-17",
+    "value": 4.49,
+    "updatedAt": "2026-06-17T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
+    }
+  ]
 }
