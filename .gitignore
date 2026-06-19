@@ -5,3 +5,9 @@ _site
 vendor
 .DS_Store
 ._*
+
+# Regenerable build/dependency output (cleanup 2026-06-19)
+target/
+node_modules/
+Library/
+.gocache/
