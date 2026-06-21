@@ -36,7 +36,7 @@ jobs:
         run: |
           rm -rf dist
           mkdir -p dist
-          cp -R index.html bjkw_weather.html 404.html stocks weather data assets dist/
+          cp -R index.html bjkw_weather.html 404.html sw.js stocks weather data assets dist/
           touch dist/.nojekyll
 
       - name: Check static site
