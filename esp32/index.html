@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ESP32 韌體觀察台｜BJKW</title>
+<meta name="description" content="BJKW 的 ESP32 韌體與硬體專案總覽，涵蓋智慧家庭配件、車輛電子與顯示介面，靜態展示、不讀取即時裝置狀態。" />
+<link rel="canonical" href="/esp32/" />
+<meta property="og:title" content="ESP32 韌體觀察台｜BJKW" />
+<meta property="og:description" content="ESP32 韌體與硬體專案總覽，靜態展示。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="ESP32">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#82908c;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--shadow:0 18px 50px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:inherit}
+  .shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:28px 0 38px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .brand img{width:34px;height:34px;flex:0 0 auto}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
+  .back{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;text-decoration:none}
+  .back:hover{color:var(--cyan)}
+  .hero{border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:26px;margin-bottom:18px}
+  .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
+  h1{max-width:760px;margin-top:10px;font-size:clamp(28px,4.5vw,46px);line-height:1.1;font-weight:900}
+  .lead{max-width:720px;margin-top:14px;color:var(--soft);font-size:15px}
+  .hero-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:22px}
+  .metric{border-top:1px solid var(--line);padding-top:10px}
+  .metric strong{display:block;font-size:18px}
+  .metric span{display:block;margin-top:2px;color:var(--faint);font-size:12px}
+  .group{margin-top:26px}
+  .group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px}
+  .group-head h2{font-size:18px;letter-spacing:0}
+  .group-head span{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--faint);font-size:12px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px}
+  .card h3{font-size:16px;line-height:1.25}
+  .card code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px}
+  .card p{margin-top:8px;color:var(--soft);font-size:13px;flex:1 1 auto}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .chip{border:1px solid rgba(103,199,229,.32);border-radius:999px;padding:2px 9px;color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
+  .chip.mcu{border-color:rgba(217,166,76,.4);color:var(--amber)}
+  .footnote{margin-top:24px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1120px);padding-top:18px}
+    .hero{padding:20px}
+    .hero-meta{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar" aria-label="ESP32 韌體觀察台">
+    <div class="brand">
+      <img src="/assets/images/favicon.svg" alt="" width="34" height="34">
+      <div>
+        <div class="brand-kicker">BJKW PUBLIC CONSOLE</div>
+        <div class="brand-title">ESP32 韌體觀察台</div>
+      </div>
+    </div>
+    <a class="back" href="/" aria-label="回到 BJKW 觀察控制台">&larr; 回控制台 /</a>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">ESP32 FIRMWARE</div>
+    <h1>ESP32 韌體與硬體專案總覽</h1>
+    <p class="lead">收錄自製的 ESP32 / ESP32-S3 韌體專案，涵蓋智慧家庭配件、車輛電子與顯示介面。本頁為靜態總覽，不讀取即時裝置狀態；裝置實際部署位置與連線細節不公開。</p>
+    <div class="hero-meta" aria-label="專案概況">
+      <div class="metric"><strong>17</strong><span>韌體專案</span></div>
+      <div class="metric"><strong>3</strong><span>主題分類</span></div>
+      <div class="metric"><strong>ESP32 / S3</strong><span>主要平台</span></div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="智慧家庭配件">
+    <div class="group-head"><h2>智慧家庭配件</h2><span>HomeKit · 13</span></div>
+    <div class="cards">
+      <article class="card"><h3>智慧空氣清淨機 V3</h3><code>AirPurifierFan</code><p>風扇與淨化整合控制，含轉速與運轉模式管理。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">HomeKit</span><span class="chip">風扇</span></div></article>
+      <article class="card"><h3>空氣清淨機控制</h3><code>AirPurifier</code><p>清淨機開關與狀態回報的 HomeKit 配件。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">HomeKit</span></div></article>
+      <article class="card"><h3>冷氣 / 送風控制</h3><code>AC_Fan_HomeKit_Final</code><p>冷氣與送風的整合控制配件。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">HomeKit</span></div></article>
+      <article class="card"><h3>自動空氣品質控制</h3><code>Auto_Air_Control</code><p>以 PMS9103M 讀取 PM2.5，依空氣品質自動聯動運轉。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">PMS9103M</span><span class="chip">PM2.5</span></div></article>
+      <article class="card"><h3>溫濕度環境感測</h3><code>EnvironmentSensor</code><p>回報溫度與濕度的環境感測配件。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">HomeKit</span><span class="chip">溫濕度</span></div></article>
+      <article class="card"><h3>WiFi 氣象時鐘</h3><code>WiFiWeatherClock</code><p>透過 OpenWeather 取得天氣並結合時鐘顯示。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">OpenWeather</span><span class="chip">顯示</span></div></article>
+      <article class="card"><h3>可定址 RGB 燈光</h3><code>ARGB</code><p>可定址 LED 燈條的色彩與效果控制。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">WS2812</span><span class="chip">HomeKit</span></div></article>
+      <article class="card"><h3>風扇控制</h3><code>fan</code><p>風扇開關與轉速的 HomeKit 配件。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">HomeKit</span></div></article>
+      <article class="card"><h3>通用開關配件</h3><code>Switch</code><p>可重用的通用開關 HomeKit 配件範本。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">HomeKit</span></div></article>
+      <article class="card"><h3>用電量監控</h3><code>PowerMonitor</code><p>量測並回報用電狀態的監控配件。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">電流感測</span></div></article>
+      <article class="card"><h3>門窗開關感測</h3><code>DoorSensor</code><p>以乾簧開關偵測開 / 關狀態的接觸感測器。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">reed switch</span></div></article>
+      <article class="card"><h3>捲門 / 車庫門開關</h3><code>GarageDoorSwitch</code><p>捲門類裝置的開關控制配件。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">HomeKit</span></div></article>
+      <article class="card"><h3>氣門控制系統</h3><code>AMS</code><p>以光耦（EL357N-C）整合訊號，搭配馬達驅動控制氣門開閉。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">光耦</span><span class="chip">馬達驅動</span></div></article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="車輛電子">
+    <div class="group-head"><h2>車輛電子</h2><span>Vehicle · 1</span></div>
+    <div class="cards">
+      <article class="card"><h3>車輛電子控制系統</h3><code>ElectronicControl</code><p>方向燈 / 大燈 / 喇叭等繼電器控制，整合 TinyGPS++ 定位、INA219 電流監控與 BLE 雙模連線。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">TinyGPS++</span><span class="chip">INA219</span><span class="chip">BLE</span></div></article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="控制 顯示 介面">
+    <div class="group-head"><h2>控制 · 顯示 · 介面</h2><span>HID / Display · 3</span></div>
+    <div class="cards">
+      <article class="card"><h3>觸控 AMOLED 顯示介面</h3><code>Waveshare ESP32-S3-Touch-AMOLED-1.75</code><p>1.75 吋觸控 AMOLED 的顯示與連線測試介面。</p><div class="chips"><span class="chip mcu">ESP32-S3</span><span class="chip">AMOLED</span><span class="chip">觸控</span></div></article>
+      <article class="card"><h3>紅外線收發控制</h3><code>IR05T_ESP32</code><p>以 IR05T 模組收送紅外線訊號的遙控專案。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">IR05T</span><span class="chip">紅外線</span></div></article>
+      <article class="card"><h3>遊戲手把鍵位對映</h3><code>esp32_gamepad_keymap_full</code><p>將實體輸入對映為手把鍵位的 BLE HID 專案。</p><div class="chips"><span class="chip mcu">ESP32</span><span class="chip">BLE HID</span><span class="chip">Gamepad</span></div></article>
+    </div>
+  </section>
+
+  <footer class="footnote">Showcase only. 靜態專案總覽，不代表即時裝置狀態；部署細節與位置不公開。</footer>
+</main>
+</body>
+</html>

@@ -151,7 +151,7 @@ async function loadApp(fetchMock, windowOverrides = {}) {
   const htmlFile = windowOverrides.htmlFile || "../../stocks/index.html";
   const htmlPath = fileURLToPath(new URL(htmlFile, import.meta.url));
   const html = await readFile(htmlPath, "utf8");
-  const script = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/)?.[1];
+  const script = html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)?.[1];
   assert.ok(script, "inline script should be present");
 
   const { document, elements } = createDocument();
@@ -187,7 +187,7 @@ async function loadApp(fetchMock, windowOverrides = {}) {
 async function loadHome(fetchMock) {
   const htmlPath = fileURLToPath(new URL("../../index.html", import.meta.url));
   const html = await readFile(htmlPath, "utf8");
-  const script = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/)?.[1];
+  const script = html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)?.[1];
   assert.ok(script, "root inline script should be present");
 
   const { document, elements } = createDocument();
@@ -258,7 +258,8 @@ test("root index is a status overview entry console", async () => {
   assert.match(html, /<main class="shell">/);
   assert.match(html, /href="\/stocks\/"/);
   assert.match(html, /href="\/weather\/"/);
-  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"]]);
+  assert.match(html, /href="\/esp32\/"/);
+  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"], ["esp32", "/esp32/"]]);
   assert.match(html, /股票投資觀察台/);
   assert.doesNotMatch(html, /href="\/ai\/"|data-primary-entry="ai"|AI Feed/);
   assert.match(html, /BJKW 天氣觀察台/);

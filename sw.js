@@ -7,6 +7,7 @@ const PRECACHE = [
   "/",
   "/stocks/",
   "/weather/",
+  "/esp32/",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",

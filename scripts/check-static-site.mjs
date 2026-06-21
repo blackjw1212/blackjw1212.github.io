@@ -59,6 +59,7 @@ for (const rel of [
   "index.html",
   "stocks/index.html",
   "weather/index.html",
+  "esp32/index.html",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -118,11 +119,12 @@ if (has("index.html")) {
   assertMatch("index.html", html, /id="stockFeedStatus"/, "stock status id");
   assertMatch("index.html", html, /id="weatherStatus"/, "weather status id");
   assertMatch("index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev\/health/, "root weather health endpoint");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/ and weather:/weather/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/ and esp32:/esp32/, got ${primaryLinks.join(", ")}`);
   }
   assertMatch("index.html", html, /開啟股票投資觀察台 \/stocks\//, "visible stocks CTA");
   assertMatch("index.html", html, /開啟天氣觀察台 \/weather\//, "visible weather CTA");
+  assertMatch("index.html", html, /開啟 ESP32 觀察台 \/esp32\//, "visible esp32 CTA");
   assertNoMatch("index.html", html, /\/ai\/|AI 供應鏈觀察台|開啟 AI 觀察台|AI Feed/);
   assertNoMatch("index.html", html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/i);
   assertNoMatch("index.html", html, /保證|可放心|買進|賣出|投資建議|安全資訊/);
@@ -154,7 +156,7 @@ if (has("bjkw_weather.html")) {
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "esp32/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {
