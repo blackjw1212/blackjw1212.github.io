@@ -150,6 +150,22 @@ if (has("weather/index.html")) {
   assertNoMatch("weather/index.html", html, /CWA-[A-Za-z0-9-]+|Authorization:\s*API_KEY|opendata\.cwa\.gov\.tw\/api|opendata\.cwa\.gov\.tw\/fileapi/);
 }
 
+if (has("esp32/index.html")) {
+  const html = await read("esp32/index.html");
+  assertMatch("esp32/index.html", html, /<html lang="zh-Hant">/, "esp32 document language");
+  assertMatch("esp32/index.html", html, /<title>ESP32 韌體觀察台｜BJKW<\/title>/, "esp32 title");
+  assertMatch("esp32/index.html", html, /rel="canonical" href="\/esp32\/"/, "esp32 canonical");
+  assertMatch("esp32/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "esp32 manifest");
+  assertMatch("esp32/index.html", html, /name="theme-color" content="#101418"/, "esp32 dark theme color");
+  assertMatch("esp32/index.html", html, /apple-mobile-web-app-status-bar-style" content="black"/, "esp32 ios status bar");
+  assertMatch("esp32/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "esp32 service worker registration");
+  assertMatch("esp32/index.html", html, /<h2>智慧家庭配件<\/h2>/, "esp32 home group");
+  assertMatch("esp32/index.html", html, /<h2>車輛電子<\/h2>/, "esp32 vehicle group");
+  assertMatch("esp32/index.html", html, /控制 · 顯示 · 介面/, "esp32 interface group");
+  assertMatch("esp32/index.html", html, /部署細節與位置不公開/, "esp32 de-identification notice");
+  assertMatch("esp32/index.html", html, /不讀取即時裝置狀態/, "esp32 static-only notice");
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
