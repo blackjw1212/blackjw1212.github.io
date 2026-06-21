@@ -1,6 +1,9 @@
 {
   "name": "BJKW Public Console",
   "short_name": "BJKW",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "/assets/images/android-chrome-192x192.png",

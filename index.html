@@ -14,6 +14,16 @@
 <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
 <link rel="manifest" href="/assets/images/site.webmanifest">
 <meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="BJKW">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
 <style>
   :root{
     --bg:#101418;--surface:#151c23;--panel:#19232c;--panel-2:#202b34;--line:#31404b;
