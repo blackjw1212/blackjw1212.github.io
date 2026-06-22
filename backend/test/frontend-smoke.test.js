@@ -674,6 +674,35 @@ test("page renders automated checklist, cards, and source labels from static fal
   assert.ok(calls.some((href) => href.startsWith("/data/stock-risk-feed.json")));
 });
 
+test("scorecard PE prefers feed valuation and falls back to built-in", async () => {
+  // (1) feed carries valuation → PE comes from feed, not the built-in static label
+  const withVal = await loadApp(async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/stock-risk-feed.json")) {
+      return response(staticFeed({ valuation: {
+        "2330": { code: "2330", pe: 25.3 },
+        "2382": { code: "2382", pe: 18.9 },
+      } }));
+    }
+    throw new Error(`unavailable: ${href}`);
+  });
+  await withVal.context.window.PortfolioConsoleApp.init();
+  const valHtml = withVal.document.getElementById("scoreBody").innerHTML;
+  assert.match(valHtml, /~25/);            // 2330 feed pe 25.3 -> ~25 (overrides static ~32)
+  assert.doesNotMatch(valHtml, /~32/);     // built-in 2330 label must not appear
+  assert.match(valHtml, /~19/);            // 2382 feed pe 18.9 -> ~19
+
+  // (2) feed without valuation → built-in fallback retained
+  const noVal = await loadApp(async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unavailable: ${href}`);
+  });
+  await noVal.context.window.PortfolioConsoleApp.init();
+  const baseHtml = noVal.document.getElementById("scoreBody").innerHTML;
+  assert.match(baseHtml, /~32/);           // 2330 built-in fallback label
+});
+
 test("page shows observation price pending when closing data is unavailable", async () => {
   const { context, document } = await loadApp(async (url) => {
     throw new Error(`unavailable: ${url}`);

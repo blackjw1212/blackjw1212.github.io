@@ -6,6 +6,8 @@ const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "15
 const SOURCES = {
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
   tpexEod: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
+  twseValuation: "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
+  tpexValuation: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis",
   fredCsv: "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10",
 };
 
@@ -59,6 +61,24 @@ function normalizeEod(rows) {
       change: roundNumber(parseNumber(field(row, ["Change", "change", "PriceChange"])), 2),
     };
   }).filter(Boolean);
+}
+
+function normalizeValuation(rows) {
+  if (!Array.isArray(rows)) throw new Error("Valuation payload is not an array");
+  const out = {};
+  for (const row of rows) {
+    const code = String(field(row, ["Code", "code", "SecuritiesCompanyCode"]) || "").trim();
+    if (!STOCK_CODES.has(code) || out[code]) continue;
+    const pe = parseNumber(field(row, ["PEratio", "PriceEarningRatio", "PERatio", "PER"]));
+    if (pe == null) continue;
+    const entry = { code, pe: roundNumber(pe, 2) };
+    const dividendYield = parseNumber(field(row, ["DividendYield", "YieldRatio"]));
+    const pbRatio = parseNumber(field(row, ["PBratio", "PriceBookRatio", "PBRatio"]));
+    if (dividendYield != null) entry.dividendYield = roundNumber(dividendYield, 2);
+    if (pbRatio != null) entry.pbRatio = roundNumber(pbRatio, 2);
+    out[code] = entry;
+  }
+  return out;
 }
 
 function parseFredDgs10(csv) {
@@ -152,6 +172,22 @@ async function main() {
 
   eod.sort((a, b) => a.code.localeCompare(b.code));
 
+  // PE / 殖利率 / 股價淨值比 — 上市走 TWSE BWIBBU_ALL，上櫃(雙鴻 3324)走 TPEX peratio。
+  let valuation = {};
+  try {
+    valuation = normalizeValuation(await fetchJson(SOURCES.twseValuation));
+  } catch (error) {
+    errors.push({ source: "TWSE OpenAPI BWIBBU_ALL", message: error.message });
+  }
+  try {
+    const tpexValuation = normalizeValuation(await fetchJson(SOURCES.tpexValuation));
+    for (const [code, entry] of Object.entries(tpexValuation)) {
+      if (!valuation[code]) valuation[code] = entry;
+    }
+  } catch (error) {
+    errors.push({ source: "TPEX OpenAPI peratio analysis", message: error.message });
+  }
+
   let yield10y = null;
   try {
     yield10y = parseFredDgs10(await fetchText(SOURCES.fredCsv));
@@ -169,6 +205,7 @@ async function main() {
     eodUpdatedAt,
     holdings: [...STOCK_CODES],
     eod,
+    valuation,
     yield10y,
     errors,
   };

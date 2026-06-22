@@ -261,16 +261,16 @@ const STATIC_STOCK_FEED_URL = "/data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
 
 const STOCKS = [
-  {code:"2330",name:"台積電",tier:"core",theme:"foundry",role:"先進製程與封裝，是 AI 供應鏈核心底座。",pe:"~28",base:2310,s:["m","h","h","m","h","h"]},
-  {code:"2317",name:"鴻海",tier:"core",theme:"server",role:"AI 伺服器與整機平台，估值仍偏低，適合作為核心觀察。",pe:"~18",base:260.5,s:["mh","mh","mh","m","m","h"]},
-  {code:"2382",name:"廣達",tier:"sat",theme:"server",role:"AI 伺服器 ODM 與雲端大客戶，2026 老 AI 強弱排名升至前段。",pe:"中",base:372,s:["m","mh","h","mh","m","h"]},
-  {code:"3231",name:"緯創",tier:"sat",theme:"server",role:"AI 伺服器 ODM，估值偏低、營收動能強，與廣達並列前段衛星。",pe:"~16",base:156,s:["mh","mh","mh","m","m","mh"]},
-  {code:"6669",name:"緯穎",tier:"sat",theme:"server",role:"高 beta AI 伺服器 ODM，估值便宜但 2026 相對排名後移，波動要控管。",pe:"~16",base:4850,s:["h","m","h","h","m","m"]},
-  {code:"3017",name:"奇鋐",tier:"sat",theme:"cooling",role:"散熱主線，受 AI 平台與液冷升級拉動但波動較高。",pe:"~27",base:2405,s:["m","m","h","h","m","m"]},
-  {code:"3324",name:"雙鴻",tier:"sat",theme:"cooling",role:"液冷散熱衛星，題材明確但觀察位置敏感、波動大。",pe:"~29",base:1055,s:["ml","m","h","h","m","m"]},
-  {code:"3661",name:"世芯-KY",tier:"sat",theme:"asic",role:"ASIC／客製晶片設計，對應 GPU+ASIC 雙主流，但估值偏高、波動大。",pe:"~48",base:4105,s:["l","m","h","mh","m","m"]},
-  {code:"1519",name:"華城",tier:"wait",theme:"power",role:"電力建設長線，但估值與籌碼需等冷卻。",pe:"~59",base:915,s:["l","l","h","h","h","m"]},
-  {code:"2308",name:"台達電",tier:"wait",theme:"power",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。",pe:"~85",base:2215,s:["l","l","h","h","mh","mh"]},
+  {code:"2330",name:"台積電",tier:"core",theme:"foundry",role:"先進製程與封裝，是 AI 供應鏈核心底座。",pe:"~32",base:2310,s:["m","h","h","m","h","h"]},
+  {code:"2317",name:"鴻海",tier:"core",theme:"server",role:"AI 伺服器與整機平台，估值仍偏低，適合作為核心觀察。",pe:"~19",base:260.5,s:["mh","mh","mh","m","m","h"]},
+  {code:"2382",name:"廣達",tier:"sat",theme:"server",role:"AI 伺服器 ODM 與雲端大客戶，2026 老 AI 強弱排名升至前段。",pe:"~19",base:372,s:["mh","mh","h","mh","m","h"]},
+  {code:"3231",name:"緯創",tier:"sat",theme:"server",role:"AI 伺服器 ODM，估值偏低、營收動能強，與廣達並列前段衛星。",pe:"~16",base:156,s:["h","mh","mh","m","m","mh"]},
+  {code:"6669",name:"緯穎",tier:"sat",theme:"server",role:"高 beta AI 伺服器 ODM，估值便宜但 2026 相對排名後移，波動要控管。",pe:"~17",base:4850,s:["h","m","h","h","m","m"]},
+  {code:"3017",name:"奇鋐",tier:"sat",theme:"cooling",role:"散熱主線，受 AI 平台與液冷升級拉動但波動較高。",pe:"~39",base:2405,s:["ml","m","h","h","m","m"]},
+  {code:"3324",name:"雙鴻",tier:"sat",theme:"cooling",role:"液冷散熱衛星，題材明確但觀察位置敏感、波動大。",pe:"~31",base:1055,s:["ml","m","h","h","m","m"]},
+  {code:"3661",name:"世芯-KY",tier:"sat",theme:"asic",role:"ASIC／客製晶片設計，對應 GPU+ASIC 雙主流，但估值偏高、波動大。",pe:"~64",base:4105,s:["l","m","h","mh","m","m"]},
+  {code:"1519",name:"華城",tier:"wait",theme:"power",role:"電力建設長線，但估值與籌碼需等冷卻。",pe:"~57",base:915,s:["l","l","h","h","h","m"]},
+  {code:"2308",name:"台達電",tier:"wait",theme:"power",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。",pe:"~79",base:2215,s:["l","l","h","h","mh","mh"]},
 ];
 
 const TIERS = {
@@ -320,6 +320,7 @@ let state = loadState();
 let staticFeedPromise = null;
 let marketIndexRows = [];
 let marketIndexMeta = null;
+let feedValuation = {};
 
 function $(id){return DOC ? DOC.getElementById(id) : null;}
 
@@ -705,6 +706,38 @@ async function loadStaticFeed(){
     });
   }
   return staticFeedPromise;
+}
+
+function sanitizeValuation(raw){
+  const out = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const code of STOCK_CODES) {
+    const entry = raw[code];
+    if (!entry || typeof entry !== "object") continue;
+    const pe = parseNumber(entry.pe);
+    if (pe == null) continue;
+    out[code] = {pe:pe};
+  }
+  return out;
+}
+
+async function loadValuation(){
+  try {
+    const feed = await loadStaticFeed();
+    const next = sanitizeValuation(feed && feed.valuation);
+    if (Object.keys(next).length) {
+      feedValuation = next;
+      renderScore();
+      return "本益比：靜態 feed valuation";
+    }
+  } catch (error) {}
+  return "本益比：沿用內建參考值";
+}
+
+function peLabel(stock){
+  const entry = feedValuation[stock.code];
+  if (entry && entry.pe != null) return "~" + Math.round(entry.pe);
+  return stock.pe;
 }
 
 function saveEodCache(result){
@@ -1475,7 +1508,7 @@ function renderScore(){
     const tr = document.createElement("tr");
     tr.innerHTML = '<td>' + stockTradingViewLink(stock, false) + '</td>'
       + scoreCells
-      + '<td style="color:var(--soft)">' + escapeHtml(stock.pe) + '</td>'
+      + '<td style="color:var(--soft)">' + escapeHtml(peLabel(stock)) + '</td>'
       + '<td class="px">' + (close != null ? fmt(close, 2) : '<span class="stale">收盤待更新</span>') + '<div class="data-line">' + escapeHtml(dataLabel()) + '</div></td>'
       + '<td>' + observationCellHtml(observation) + '</td>';
     tbody.appendChild(tr);
@@ -1486,7 +1519,7 @@ function renderScore(){
       return '<span class="sc ' + scoreClass(value, index) + '">' + escapeHtml(SCORE_LABELS[index]) + ' ' + STXT[value] + '</span>';
     }).join("");
     card.innerHTML = '<div class="stock-card-head"><div>' + stockTradingViewLink(stock, true) + '</div><span class="tier ' + TIERS[stock.tier].cls + '">' + stock.tier.toUpperCase() + '</span></div>'
-      + '<div class="stock-meta"><div><b>收盤</b>' + (close != null ? fmt(close, 2) : '待更新') + '</div><div><b>距離觀察基準</b>' + escapeHtml(observationText) + '</div><div><b>參考 PE</b>' + escapeHtml(stock.pe) + '</div><div><b>定位</b>' + escapeHtml(TIERS[stock.tier].name) + '</div></div>'
+      + '<div class="stock-meta"><div><b>收盤</b>' + (close != null ? fmt(close, 2) : '待更新') + '</div><div><b>距離觀察基準</b>' + escapeHtml(observationText) + '</div><div><b>參考 PE</b>' + escapeHtml(peLabel(stock)) + '</div><div><b>定位</b>' + escapeHtml(TIERS[stock.tier].name) + '</div></div>'
       + '<div class="score-strip">' + scoreStrip + '</div><div class="data-line">' + escapeHtml(observationMeta) + '</div><div class="data-line">' + escapeHtml(stock.role) + '</div><div class="data-line">' + escapeHtml(dataLabel()) + '</div>';
     cards.appendChild(card);
   });
@@ -1498,12 +1531,14 @@ async function refresh(){
   messages.push(await loadEod());
   messages.push(await loadYield10y());
   messages.push(await loadMarketIndices());
+  messages.push(await loadValuation());
   renderConds();
   $("stamp").textContent = messages.join(" · ") + " · " + new Date().toLocaleString("zh-TW");
 }
 
 async function init(){
   state = sanitizeState(state);
+  loadValuation();
   renderConds();
   renderBuckets();
   renderScore();
