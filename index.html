@@ -57,7 +57,7 @@
   .status-value{margin-top:18px;font-size:24px;font-weight:900;line-height:1.1}
   .status-meta{margin-top:8px;color:var(--faint);font-size:12px;word-break:break-word}
   .ok{color:var(--green)} .warn{color:var(--amber)} .bad{color:var(--red)}
-  .entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+  .entries{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:18px}
   .entry{display:flex;min-height:286px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:20px;text-decoration:none}
   .entry:focus-visible,.entry-button:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
   .entry:hover{border-color:rgba(217,166,76,.8)}
@@ -74,6 +74,7 @@
   .entry-button{display:inline-flex;align-items:center;justify-content:center;min-height:38px;border-radius:8px;background:#243340;border:1px solid #405263;color:var(--ink);font-weight:900;text-decoration:none;padding:0 14px;white-space:nowrap}
   .ai-accent{box-shadow:inset 4px 0 0 rgba(66,184,168,.7)}
   .weather-accent{box-shadow:inset 4px 0 0 rgba(103,199,229,.72)}
+  .esp32-accent{box-shadow:inset 4px 0 0 rgba(217,166,76,.7)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (max-width:900px){
     .hero{grid-template-columns:1fr}
@@ -111,7 +112,7 @@
       <div>
         <div class="eyebrow">STATUS OVERVIEW</div>
         <h1>一眼確認各觀察台狀態，再進入完整工具。</h1>
-        <p class="lead">首頁只做輕量狀態摘要與入口分流。股票投資觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
+        <p class="lead">首頁只做輕量狀態摘要與入口分流，股票、天氣、ESP32 三個觀察台一鍵直達。股票投資觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
       </div>
       <div class="hero-meta" aria-label="服務範圍">
         <div class="metric"><strong>3</strong><span>保留工具</span></div>
@@ -189,7 +190,7 @@
       </div>
     </article>
 
-    <article class="entry ai-accent">
+    <article class="entry esp32-accent">
       <div>
         <div class="entry-head">
           <div class="entry-title">
