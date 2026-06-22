@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-22T14:25:30.521Z",
-  "eodUpdatedAt": "2026-06-22T14:25:30.521Z",
+  "updatedAt": "2026-06-22T23:42:46.923Z",
+  "eodUpdatedAt": "2026-06-22T23:42:46.923Z",
   "holdings": [
     "2330",
     "2317",
@@ -15,34 +15,133 @@
   ],
   "eod": [
     {
+      "code": "1519",
+      "name": "華城",
+      "close": 831,
+      "change": -2
+    },
+    {
+      "code": "2308",
+      "name": "台達電",
+      "close": 2150,
+      "change": 0
+    },
+    {
+      "code": "2317",
+      "name": "鴻海",
+      "close": 268.5,
+      "change": 0
+    },
+    {
+      "code": "2330",
+      "name": "台積電",
+      "close": 2510,
+      "change": 100
+    },
+    {
+      "code": "2382",
+      "name": "廣達",
+      "close": 380,
+      "change": 4
+    },
+    {
+      "code": "3017",
+      "name": "奇鋐",
+      "close": 2420,
+      "change": 20
+    },
+    {
+      "code": "3231",
+      "name": "緯創",
+      "close": 162.5,
+      "change": 1
+    },
+    {
       "code": "3324",
       "name": "雙鴻",
       "close": 1075,
       "change": 5
+    },
+    {
+      "code": "3661",
+      "name": "世芯-KY",
+      "close": 4325,
+      "change": -55
+    },
+    {
+      "code": "6669",
+      "name": "緯穎",
+      "close": 4855,
+      "change": 0
     }
   ],
   "valuation": {
+    "1519": {
+      "code": "1519",
+      "pe": 57.11,
+      "dividendYield": 1.44,
+      "pbRatio": 31.86
+    },
+    "2308": {
+      "code": "2308",
+      "pe": 79.28,
+      "dividendYield": 0.54,
+      "pbRatio": 18.64
+    },
+    "2317": {
+      "code": "2317",
+      "pe": 19.07,
+      "dividendYield": 2.68,
+      "pbRatio": 2.11
+    },
+    "2330": {
+      "code": "2330",
+      "pe": 33.75,
+      "dividendYield": 0.88,
+      "pbRatio": 11.05
+    },
+    "2382": {
+      "code": "2382",
+      "pe": 19.11,
+      "dividendYield": 4.11,
+      "pbRatio": 7.06
+    },
+    "3017": {
+      "code": "3017",
+      "pe": 39.76,
+      "dividendYield": 0.87,
+      "pbRatio": 21.03
+    },
+    "3231": {
+      "code": "3231",
+      "pe": 16.3,
+      "dividendYield": 3.38,
+      "pbRatio": 2.72
+    },
     "3324": {
       "code": "3324",
       "pe": 31.02,
       "dividendYield": 1.11,
       "pbRatio": 7.45
+    },
+    "3661": {
+      "code": "3661",
+      "pe": 63.39,
+      "dividendYield": 0.79,
+      "pbRatio": 8.17
+    },
+    "6669": {
+      "code": "6669",
+      "pe": 16.27,
+      "dividendYield": 3.39,
+      "pbRatio": 6.44
     }
   },
   "yield10y": {
-    "date": "2026-06-17",
-    "value": 4.49,
-    "updatedAt": "2026-06-17T22:00:00.000Z",
+    "date": "2026-06-18",
+    "value": 4.46,
+    "updatedAt": "2026-06-18T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    }
-  ]
+  "errors": []
 }
