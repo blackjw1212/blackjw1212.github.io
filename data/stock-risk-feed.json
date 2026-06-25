@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-25T10:11:29.813Z",
-  "eodUpdatedAt": "2026-06-25T10:11:29.813Z",
+  "updatedAt": "2026-06-25T12:35:52.384Z",
+  "eodUpdatedAt": "2026-06-25T12:35:52.384Z",
   "holdings": [
     "2330",
     "2317",
@@ -55,6 +55,12 @@
       "name": "緯創",
       "close": 157.5,
       "change": -1
+    },
+    {
+      "code": "3324",
+      "name": "雙鴻",
+      "close": 1010,
+      "change": -45
     },
     {
       "code": "3661",
@@ -137,10 +143,5 @@
     "updatedAt": "2026-06-23T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    }
-  ]
+  "errors": []
 }
