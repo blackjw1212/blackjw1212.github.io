@@ -96,8 +96,8 @@
     <h1>Focus Mk3.5 FORScan 觀察台</h1>
     <p class="lead">整理 Ford Focus Mk3.5（2015-2018 小改款）以 FORScan 可由使用者調整的項目，涵蓋便利、儀表、影音與保養服務功能。每張卡片以標籤標出四個維度：模組、修改方式、驗證度與風險。本頁為靜態觀察參考，資料來自社群交叉比對，並非保證值；實際數值逐車不同，操作風險自負。</p>
     <div class="hero-meta" aria-label="內容概況">
-      <div class="metric"><strong>5</strong><span>主題分類</span></div>
-      <div class="metric"><strong>20+</strong><span>可調項目</span></div>
+      <div class="metric"><strong>6</strong><span>主題分類</span></div>
+      <div class="metric"><strong>25+</strong><span>可調項目</span></div>
       <div class="metric"><strong>Mk3.5 / 2015-2018</strong><span>適用車型</span></div>
     </div>
     <div class="notice" aria-label="操作前須知">
@@ -120,13 +120,25 @@
   </section>
 
   <section class="group" aria-label="便利 舒適">
-    <div class="group-head"><h2>便利 · 舒適</h2><span>BCM · 5</span></div>
+    <div class="group-head"><h2>便利 · 舒適</h2><span>BCM · 8</span></div>
     <div class="cards">
       <article class="card"><h3>遙控全車窗升 / 降</h3><code>Global Open / Close</code><p>長按遙控器鎖 / 解鎖鍵一鍵升降全部車窗；前提是車輛至少有一鍵式電動窗按鈕。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
       <article class="card"><h3>鎖車雙閃喇叭關閉</h3><code>Double Honk</code><p>取消上鎖時「嗶嗶」兩聲喇叭，只留方向燈閃爍確認。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
       <article class="card"><h3>霧燈無限制 Bambi Mode</h3><code>Foglamp w/o restriction</code><p>將前霧燈設為「無限制」，可與遠光同時點亮；需先開啟工程模式。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單 · 工程模式</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
       <article class="card"><h3>行駛中自動上鎖</h3><code>Drive-away lock</code><p>起步達一定車速後自動落鎖。Mk3.5 上 BCM 選單未必有此項，社群多改用 FoCCCus 或視選單而定。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單 / FoCCCus</span><span class="chip bad">有爭議 (Mk3.5)</span><span class="chip warn">風險中</span></div></article>
       <article class="card"><h3>熄火 / 打 P 自動解鎖</h3><code>Auto unlock</code><p>熄火或排入 P 檔時自動解鎖車門，依車輛配備而定。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip warn">視配備</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>Auto Start-Stop 預設停用</h3><code>Auto Start-Stop</code><p>讓自動怠速熄火預設關閉。Mk3.5 較穩的做法是在 BCM（Central Config）與 IPC 兩處同時關閉。</p><div class="chips"><span class="chip mcu">BCM / IPC</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>後雨刷倒車自動啟動關閉</h3><code>BCM DID 4155</code><p>取消打 R 檔時後雨刷自動刷動；在 BCM 把 DID 4155 設為 00000001。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">As-Built · DID</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>後視鏡遙控自動收折</h3><code>Power-folding mirror</code><p>鎖車自動收折、解鎖展開；需車輛本身配備電動收折後視鏡硬體。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip warn">需硬體</span><span class="chip ok">風險低</span></div></article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="燈光 外部">
+    <div class="group-head"><h2>燈光 · 外部</h2><span>BCM · 3</span></div>
+    <div class="cards">
+      <article class="card"><h3>DRL 日行燈設定</h3><code>Daytime Running Lamps</code><p>在 BCM Central Config 的「Daytime Running Lamps」切換模式（00 未設定～05 專用日行燈等），開啟 / 關閉或改用近燈式日行燈。依燈具硬體而定。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>方向燈輕觸閃爍次數</h3><code>One-touch indicator</code><p>輕撥方向燈自動閃 3 / 5 次（變換車道用）。屬 Ford Central Config 常見項，Mk3.5 是否有依車而定。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip warn">視配備</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>迎賓 / 送行燈</h3><code>Follow-me-home</code><p>下車後頭燈延時點亮照明。屬 Central Config 項，Mk3.5 視燈具與配備而定。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip warn">視配備</span><span class="chip ok">風險低</span></div></article>
     </div>
   </section>
 
@@ -142,15 +154,17 @@
   </section>
 
   <section class="group" aria-label="影音 SYNC">
-    <div class="group-head"><h2>影音 · SYNC</h2><span>APIM · 2</span></div>
+    <div class="group-head"><h2>影音 · SYNC</h2><span>APIM · 4</span></div>
     <div class="cards">
       <article class="card"><h3>倒車顯影 Reverse Camera</h3><code>APIM 7D0-01-01</code><p>Mk3.5 + SYNC 上「只改 As-Built」未必有效：社群實測可叫出鏡頭選單但打 R 不切畫面，通常還需鏡頭實體接線正確；亂套值曾觸發 ABS / ESP 燈。</p><div class="chips"><span class="chip mcu">APIM</span><span class="chip method">As-Built</span><span class="chip bad">需硬體 · Mk3.5 未完整驗證</span><span class="chip bad">風險高</span></div></article>
-      <article class="card"><h3>行駛中影片 / 設定限制解除</h3><code>APIM config</code><p>解除行駛中部分畫面 / 設定的限制，社群常見調整。</p><div class="chips"><span class="chip mcu">APIM</span><span class="chip method">As-Built</span><span class="chip">社群常見</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>行駛中影片 / 導航操作</h3><code>APIM 7D0-02-01</code><p>解除行駛中影片與導航輸入限制（Video / Nav in Motion）；社群做法為把 7D0-02-01 第一段 5553 改為 5753。</p><div class="chips"><span class="chip mcu">APIM</span><span class="chip method">As-Built</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>SYNC 行駛中設定 / 鍵盤限制解除</h3><code>APIM config</code><p>解除行駛中部分設定選單與鍵盤輸入鎖定，社群常見調整。</p><div class="chips"><span class="chip mcu">APIM</span><span class="chip method">As-Built</span><span class="chip">社群常見</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>DAB 電台按鈕啟用</h3><code>DAB enable</code><p>啟用主機 DAB 數位電台來源 / 按鈕（Focus Mk3.5 社群有討論）；需主機支援 DAB 硬體。</p><div class="chips"><span class="chip mcu">APIM / ACM</span><span class="chip method">As-Built</span><span class="chip warn">視配備</span><span class="chip ok">風險低</span></div></article>
     </div>
   </section>
 
   <section class="group" aria-label="保養 服務功能">
-    <div class="group-head"><h2>保養 · 服務功能</h2><span>Service Functions · 6</span></div>
+    <div class="group-head"><h2>保養 · 服務功能</h2><span>Service Functions · 8</span></div>
     <div class="cards">
       <article class="card"><h3>機油壽命重置</h3><code>Oil Life Reset</code><p>正常車輛用「鑰匙 ON + 同時踩油門與煞車約 20-30 秒」即可歸零；若改過 IPC 設定導致選項消失，FORScan 的作用是把 IPC「Oil Life Reset」功能重新啟用回來。</p><div class="chips"><span class="chip mcu">IPC</span><span class="chip method">服務 / 選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
       <article class="card"><h3>換電瓶 BMS 電池監控重置</h3><code>Battery Monitor Reset</code><p>換新電瓶後必做，讓充電系統重新學習新電瓶；Mk3.5 確認支援。</p><div class="chips"><span class="chip mcu">PCM / BCM</span><span class="chip method">服務</span><span class="chip">多源確認 (Mk3.5)</span><span class="chip ok">風險低</span></div></article>
@@ -158,6 +172,8 @@
       <article class="card"><h3>TPMS 胎壓感測器重學</h3><code>TPMS Relearn</code><p>換胎或更換感測器後重學 / 寫入感測器 ID，熄滅胎壓警示。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
       <article class="card"><h3>節氣門 / KAM / 感測器適應重置</h3><code>Reset Adaptations / KAM</code><p>清除長期學習值（節氣門、MAF、O2、EGR、燃油等），換零件或怠速異常後使用。</p><div class="chips"><span class="chip mcu">PCM</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
       <article class="card"><h3>PATS 防盜鑰匙編程</h3><code>PATS Programming</code><p>新增 / 清除鑰匙，需 Extended License。</p><div class="chips"><span class="chip mcu">PATS</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>PowerShift 離合器適應學習</h3><code>TCM Adaptive Learning</code><p>DPS6 雙離合器變速箱頓挫 / 維修後重學：在 Service 區跑 TCM Adaptive Learning（含 Range / Shift Drum / Clutch 適應）。僅自排 PowerShift 車型。</p><div class="chips"><span class="chip mcu">TCM</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>噴油嘴 IQA 編碼</h3><code>Injector IQA coding</code><p>更換噴油嘴後輸入各缸 IQA / 校正係數。僅柴油車。</p><div class="chips"><span class="chip mcu">PCM</span><span class="chip method">服務</span><span class="chip warn">僅柴油</span><span class="chip warn">風險中</span></div></article>
     </div>
   </section>
 
