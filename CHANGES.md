@@ -6,7 +6,7 @@
 - Each item is tagged by module, change method, verification confidence, and risk; values are observation references only and differ per car.
 - Wired the page into the homepage entry nav, `sw.js` precache, the static-site contract, the frontend smoke test, and the Pages deploy artifact list.
 - Expanded the reference after further cross-verification: added a 燈光·外部 (lighting) group and more items (Auto Start-Stop default off, rear-wiper-on-reverse via BCM DID 4155, power-folding mirror, DRL modes, one-touch indicator, follow-me-home, Video/Nav in motion 7D0-02-01, DAB enable, PowerShift TCM adaptive learning, injector IQA coding) — now 6 groups / 28 item cards, each still tagged by module / method / verification / risk.
-- Added a 本車設定檔 (vehicle profile) block for the 2017 Focus 1.5T EcoBoost 180 Sport (4-door, SYNC 3): spec chips plus an applicability map — directly applicable items, petrol-only N/A items (DPF regen, injector IQA coding), and items to confirm against the actual vehicle (power-folding mirror, follow-me-home, PowerShift clutch adaptation).
+- Added a 本車設定檔 (vehicle profile) block for the 2017 Focus 1.5T EcoBoost 180 (SYNC 3): spec chips (1,499cc 180PS@6000 / 24.5kgm, 6-speed SelectShift conventional automatic — NOT PowerShift, weights 1,428kg 5-door Sport / 1,360kg 4-door) plus an applicability map — directly applicable items, N/A items (DPF regen and injector IQA coding are diesel-only; PowerShift clutch adaptation is N/A because this car is a torque-converter SelectShift auto), and items to confirm against the actual vehicle.
 
 ## Current Public Surface
 
