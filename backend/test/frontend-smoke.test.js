@@ -259,7 +259,8 @@ test("root index is a status overview entry console", async () => {
   assert.match(html, /href="\/stocks\/"/);
   assert.match(html, /href="\/weather\/"/);
   assert.match(html, /href="\/esp32\/"/);
-  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"], ["esp32", "/esp32/"]]);
+  assert.match(html, /href="\/forscan\/"/);
+  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"], ["esp32", "/esp32/"], ["forscan", "/forscan/"]]);
   assert.match(html, /股票投資觀察台/);
   assert.doesNotMatch(html, /href="\/ai\/"|data-primary-entry="ai"|AI Feed/);
   assert.match(html, /BJKW 天氣觀察台/);

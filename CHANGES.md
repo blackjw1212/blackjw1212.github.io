@@ -1,5 +1,11 @@
 # Changes
 
+## FORScan Console
+
+- Added `/forscan/` — a static, multi-dimensional reference of FORScan-adjustable items for the Ford Focus Mk3.5 (2015-2018), covering comfort, instrument cluster, infotainment, and service functions.
+- Each item is tagged by module, change method, verification confidence, and risk; values are observation references only and differ per car.
+- Wired the page into the homepage entry nav, `sw.js` precache, the static-site contract, the frontend smoke test, and the Pages deploy artifact list.
+
 ## Current Public Surface
 
 - Kept only the root entry page, `/stocks/`, `/weather/`, the legacy weather redirect, shared `assets/images` favicon assets, stock data fallback, and the two Worker projects.

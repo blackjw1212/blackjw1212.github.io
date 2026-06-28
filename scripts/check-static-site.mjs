@@ -60,6 +60,7 @@ for (const rel of [
   "stocks/index.html",
   "weather/index.html",
   "esp32/index.html",
+  "forscan/index.html",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -119,12 +120,13 @@ if (has("index.html")) {
   assertMatch("index.html", html, /id="stockFeedStatus"/, "stock status id");
   assertMatch("index.html", html, /id="weatherStatus"/, "weather status id");
   assertMatch("index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev\/health/, "root weather health endpoint");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/ and esp32:/esp32/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/ and forscan:/forscan/, got ${primaryLinks.join(", ")}`);
   }
   assertMatch("index.html", html, /開啟股票投資觀察台 \/stocks\//, "visible stocks CTA");
   assertMatch("index.html", html, /開啟天氣觀察台 \/weather\//, "visible weather CTA");
   assertMatch("index.html", html, /開啟 ESP32 觀察台 \/esp32\//, "visible esp32 CTA");
+  assertMatch("index.html", html, /開啟 FORScan 觀察台 \/forscan\//, "visible forscan CTA");
   assertNoMatch("index.html", html, /\/ai\/|AI 供應鏈觀察台|開啟 AI 觀察台|AI Feed/);
   assertNoMatch("index.html", html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/i);
   assertNoMatch("index.html", html, /保證|可放心|買進|賣出|投資建議|安全資訊/);
@@ -166,13 +168,28 @@ if (has("esp32/index.html")) {
   assertMatch("esp32/index.html", html, /不讀取即時裝置狀態/, "esp32 static-only notice");
 }
 
+if (has("forscan/index.html")) {
+  const html = await read("forscan/index.html");
+  assertMatch("forscan/index.html", html, /<html lang="zh-Hant">/, "forscan document language");
+  assertMatch("forscan/index.html", html, /<title>Focus Mk3.5 FORScan 觀察台｜BJKW<\/title>/, "forscan title");
+  assertMatch("forscan/index.html", html, /rel="canonical" href="\/forscan\/"/, "forscan canonical");
+  assertMatch("forscan/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "forscan manifest");
+  assertMatch("forscan/index.html", html, /name="theme-color" content="#101418"/, "forscan dark theme color");
+  assertMatch("forscan/index.html", html, /apple-mobile-web-app-status-bar-style" content="black"/, "forscan ios status bar");
+  assertMatch("forscan/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "forscan service worker registration");
+  assertMatch("forscan/index.html", html, /<h2>便利 · 舒適<\/h2>/, "forscan comfort group");
+  assertMatch("forscan/index.html", html, /<h2>保養 · 服務功能<\/h2>/, "forscan service group");
+  assertMatch("forscan/index.html", html, /操作前務必先看/, "forscan safety notice");
+  assertMatch("forscan/index.html", html, /逐車不同/, "forscan per-car disclaimer");
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "esp32/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

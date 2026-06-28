@@ -75,6 +75,7 @@
   .ai-accent{box-shadow:inset 4px 0 0 rgba(66,184,168,.7)}
   .weather-accent{box-shadow:inset 4px 0 0 rgba(103,199,229,.72)}
   .esp32-accent{box-shadow:inset 4px 0 0 rgba(217,166,76,.7)}
+  .forscan-accent{box-shadow:inset 4px 0 0 rgba(119,214,110,.7)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (max-width:900px){
     .hero{grid-template-columns:1fr}
@@ -104,7 +105,7 @@
         <div class="brand-title">BJKW 觀察控制台</div>
       </div>
     </div>
-    <div class="route-note">Retained routes: /stocks/ /weather/ /esp32/</div>
+    <div class="route-note">Retained routes: /stocks/ /weather/ /esp32/ /forscan/</div>
   </header>
 
   <section class="hero" aria-label="主頁狀態總覽">
@@ -115,7 +116,7 @@
         <p class="lead">首頁只做輕量狀態摘要與入口分流，股票、天氣、ESP32 三個觀察台一鍵直達。股票投資觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
       </div>
       <div class="hero-meta" aria-label="服務範圍">
-        <div class="metric"><strong>3</strong><span>保留工具</span></div>
+        <div class="metric"><strong>4</strong><span>保留工具</span></div>
         <div class="metric"><strong>0</strong><span>舊站入口</span></div>
         <div class="metric"><strong>1 click</strong><span>進入完整頁</span></div>
       </div>
@@ -209,6 +210,28 @@
       <div class="entry-foot">
         <div class="entry-limit">內容：靜態專案總覽</div>
         <a class="entry-button" data-primary-entry="esp32" href="/esp32/" aria-label="開啟 ESP32 觀察台 /esp32/">開啟 ESP32 觀察台 /esp32/</a>
+      </div>
+    </article>
+
+    <article class="entry forscan-accent">
+      <div>
+        <div class="entry-head">
+          <div class="entry-title">
+            <small>FORSCAN REFERENCE</small>
+            <h2>FORScan 觀察台</h2>
+          </div>
+          <img src="/assets/images/favicon.svg" alt="" width="40" height="40">
+        </div>
+        <p>整理 Ford Focus Mk3.5（2015-2018）以 FORScan 可調整的便利、儀表、影音與保養服務項目，標明模組、修改方式、驗證度與風險。</p>
+        <ul>
+          <li>多維度分類，標示驗證度與風險。</li>
+          <li>能用選單就不動 As-Built。</li>
+          <li>數值逐車不同，僅供觀察參考。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">內容：社群交叉比對整理</div>
+        <a class="entry-button" data-primary-entry="forscan" href="/forscan/" aria-label="開啟 FORScan 觀察台 /forscan/">開啟 FORScan 觀察台 /forscan/</a>
       </div>
     </article>
   </nav>

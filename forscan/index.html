@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Focus Mk3.5 FORScan 觀察台｜BJKW</title>
+<meta name="description" content="Ford Focus Mk3.5（2015-2018 小改款）以 FORScan 可調整項目的多維度參考：便利、儀表、影音與保養服務功能，標明模組、修改方式、驗證度與風險，僅供觀察參考。" />
+<link rel="canonical" href="/forscan/" />
+<meta property="og:title" content="Focus Mk3.5 FORScan 觀察台｜BJKW" />
+<meta property="og:description" content="Focus Mk3.5 FORScan 可調項目多維度參考，僅供觀察參考。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="FORScan">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#82908c;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#ff766e;--shadow:0 18px 50px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:inherit}
+  .shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:28px 0 38px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .brand img{width:34px;height:34px;flex:0 0 auto}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
+  .back{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;text-decoration:none}
+  .back:hover{color:var(--cyan)}
+  .hero{border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:26px;margin-bottom:18px}
+  .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
+  h1{max-width:760px;margin-top:10px;font-size:clamp(28px,4.5vw,46px);line-height:1.1;font-weight:900}
+  .lead{max-width:760px;margin-top:14px;color:var(--soft);font-size:15px}
+  .hero-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:22px}
+  .metric{border-top:1px solid var(--line);padding-top:10px}
+  .metric strong{display:block;font-size:18px}
+  .metric span{display:block;margin-top:2px;color:var(--faint);font-size:12px}
+  .notice{margin-top:18px;border:1px solid rgba(255,118,110,.4);border-left:4px solid var(--red);border-radius:8px;background:rgba(255,118,110,.07);padding:16px 18px}
+  .notice h2{font-size:14px;color:var(--red);letter-spacing:0;margin-bottom:8px}
+  .notice ul{margin:0 0 0 18px;color:var(--soft);font-size:13px;display:grid;gap:6px}
+  .notice li::marker{color:var(--red)}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;align-items:center}
+  .group{margin-top:26px}
+  .group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px}
+  .group-head h2{font-size:18px;letter-spacing:0}
+  .group-head span{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--faint);font-size:12px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px}
+  .card h3{font-size:16px;line-height:1.25}
+  .card code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px}
+  .card p{margin-top:8px;color:var(--soft);font-size:13px;flex:1 1 auto}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .chip{border:1px solid rgba(103,199,229,.32);border-radius:999px;padding:2px 9px;color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
+  .chip.mcu{border-color:rgba(217,166,76,.4);color:var(--amber)}
+  .chip.method{border-color:rgba(66,184,168,.4);color:var(--teal)}
+  .chip.ok{border-color:rgba(119,214,110,.45);color:var(--green)}
+  .chip.warn{border-color:rgba(217,166,76,.5);color:var(--amber)}
+  .chip.bad{border-color:rgba(255,118,110,.5);color:var(--red)}
+  .footnote{margin-top:24px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.7}
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1120px);padding-top:18px}
+    .hero{padding:20px}
+    .hero-meta{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar" aria-label="Focus Mk3.5 FORScan 觀察台">
+    <div class="brand">
+      <img src="/assets/images/favicon.svg" alt="" width="34" height="34">
+      <div>
+        <div class="brand-kicker">BJKW PUBLIC CONSOLE</div>
+        <div class="brand-title">FORScan 觀察台</div>
+      </div>
+    </div>
+    <a class="back" href="/" aria-label="回到 BJKW 觀察控制台">&larr; 回控制台 /</a>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">FORSCAN REFERENCE</div>
+    <h1>Focus Mk3.5 FORScan 觀察台</h1>
+    <p class="lead">整理 Ford Focus Mk3.5（2015-2018 小改款）以 FORScan 可由使用者調整的項目，涵蓋便利、儀表、影音與保養服務功能。每張卡片以標籤標出四個維度：模組、修改方式、驗證度與風險。本頁為靜態觀察參考，資料來自社群交叉比對，並非保證值；實際數值逐車不同，操作風險自負。</p>
+    <div class="hero-meta" aria-label="內容概況">
+      <div class="metric"><strong>5</strong><span>主題分類</span></div>
+      <div class="metric"><strong>20+</strong><span>可調項目</span></div>
+      <div class="metric"><strong>Mk3.5 / 2015-2018</strong><span>適用車型</span></div>
+    </div>
+    <div class="notice" aria-label="操作前須知">
+      <h2>操作前務必先看</h2>
+      <ul>
+        <li>動手前對每個模組（BCM / IPC / APIM）先「儲存 As-Built 備份」成檔，出問題即寫回。</li>
+        <li>As-Built 十六進位數值<strong>逐車不同</strong>，不可照抄網路數值，否則可能亮故障燈或致功能異常。</li>
+        <li>能用「Central Configuration 選單」做的，就不要改 As-Built；多數設定與服務功能需 FORScan Extended License（免費）。</li>
+      </ul>
+    </div>
+    <div class="legend" aria-label="標籤說明">
+      標籤維度：
+      <span class="chip mcu">模組</span>
+      <span class="chip method">方式</span>
+      <span class="chip">驗證度</span>
+      <span class="chip ok">風險低</span>
+      <span class="chip warn">風險中</span>
+      <span class="chip bad">風險高</span>
+    </div>
+  </section>
+
+  <section class="group" aria-label="便利 舒適">
+    <div class="group-head"><h2>便利 · 舒適</h2><span>BCM · 5</span></div>
+    <div class="cards">
+      <article class="card"><h3>遙控全車窗升 / 降</h3><code>Global Open / Close</code><p>長按遙控器鎖 / 解鎖鍵一鍵升降全部車窗；前提是車輛至少有一鍵式電動窗按鈕。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>鎖車雙閃喇叭關閉</h3><code>Double Honk</code><p>取消上鎖時「嗶嗶」兩聲喇叭，只留方向燈閃爍確認。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>霧燈無限制 Bambi Mode</h3><code>Foglamp w/o restriction</code><p>將前霧燈設為「無限制」，可與遠光同時點亮；需先開啟工程模式。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單 · 工程模式</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>行駛中自動上鎖</h3><code>Drive-away lock</code><p>起步達一定車速後自動落鎖。Mk3.5 上 BCM 選單未必有此項，社群多改用 FoCCCus 或視選單而定。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單 / FoCCCus</span><span class="chip bad">有爭議 (Mk3.5)</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>熄火 / 打 P 自動解鎖</h3><code>Auto unlock</code><p>熄火或排入 P 檔時自動解鎖車門，依車輛配備而定。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">選單</span><span class="chip warn">視配備</span><span class="chip ok">風險低</span></div></article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="儀表">
+    <div class="group-head"><h2>儀表</h2><span>IPC · 5</span></div>
+    <div class="cards">
+      <article class="card"><h3>換檔提示箭頭開關</h3><code>Gear Shift Indicator</code><p>關閉 / 開啟儀表的升檔提示箭頭。</p><div class="chips"><span class="chip mcu">IPC</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>平均車速顯示</h3><code>Trip Computer · Average Speed</code><p>行車電腦加開平均車速欄位。</p><div class="chips"><span class="chip mcu">IPC</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>安全帶警示音 / 各種 chime</h3><code>Chimes · Seatbelt</code><p>關閉安全帶警示音、Soft Warning 等提示音。</p><div class="chips"><span class="chip mcu">IPC</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>ECO Mode / ECO Scout 關閉</h3><code>ECO display</code><p>關閉省油提示。注意：社群曾有人關閉後儀表跳警告甚至異常，務必先備份。</p><div class="chips"><span class="chip mcu">IPC</span><span class="chip method">選單</span><span class="chip">多源確認</span><span class="chip bad">風險高</span></div></article>
+      <article class="card"><h3>儀表開機指針掃描</h3><code>Gauge Sweep</code><p>啟動時轉速 / 時速指針掃過全刻度的儀式感效果，依車型而定。</p><div class="chips"><span class="chip mcu">IPC</span><span class="chip method">選單</span><span class="chip warn">視配備</span><span class="chip ok">風險低</span></div></article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="影音 SYNC">
+    <div class="group-head"><h2>影音 · SYNC</h2><span>APIM · 2</span></div>
+    <div class="cards">
+      <article class="card"><h3>倒車顯影 Reverse Camera</h3><code>APIM 7D0-01-01</code><p>Mk3.5 + SYNC 上「只改 As-Built」未必有效：社群實測可叫出鏡頭選單但打 R 不切畫面，通常還需鏡頭實體接線正確；亂套值曾觸發 ABS / ESP 燈。</p><div class="chips"><span class="chip mcu">APIM</span><span class="chip method">As-Built</span><span class="chip bad">需硬體 · Mk3.5 未完整驗證</span><span class="chip bad">風險高</span></div></article>
+      <article class="card"><h3>行駛中影片 / 設定限制解除</h3><code>APIM config</code><p>解除行駛中部分畫面 / 設定的限制，社群常見調整。</p><div class="chips"><span class="chip mcu">APIM</span><span class="chip method">As-Built</span><span class="chip">社群常見</span><span class="chip warn">風險中</span></div></article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="保養 服務功能">
+    <div class="group-head"><h2>保養 · 服務功能</h2><span>Service Functions · 6</span></div>
+    <div class="cards">
+      <article class="card"><h3>機油壽命重置</h3><code>Oil Life Reset</code><p>正常車輛用「鑰匙 ON + 同時踩油門與煞車約 20-30 秒」即可歸零；若改過 IPC 設定導致選項消失，FORScan 的作用是把 IPC「Oil Life Reset」功能重新啟用回來。</p><div class="chips"><span class="chip mcu">IPC</span><span class="chip method">服務 / 選單</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>換電瓶 BMS 電池監控重置</h3><code>Battery Monitor Reset</code><p>換新電瓶後必做，讓充電系統重新學習新電瓶；Mk3.5 確認支援。</p><div class="chips"><span class="chip mcu">PCM / BCM</span><span class="chip method">服務</span><span class="chip">多源確認 (Mk3.5)</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>DPF 強制再生 + 歸零</h3><code>DPF Static Regen</code><p>柴油碳微粒濾清器手動 / 靜態再生，並重置學習值與壓差值。僅柴油車（如 1.5 / 1.6 TDCi）。</p><div class="chips"><span class="chip mcu">PCM</span><span class="chip method">服務</span><span class="chip warn">僅柴油</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>TPMS 胎壓感測器重學</h3><code>TPMS Relearn</code><p>換胎或更換感測器後重學 / 寫入感測器 ID，熄滅胎壓警示。</p><div class="chips"><span class="chip mcu">BCM</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip ok">風險低</span></div></article>
+      <article class="card"><h3>節氣門 / KAM / 感測器適應重置</h3><code>Reset Adaptations / KAM</code><p>清除長期學習值（節氣門、MAF、O2、EGR、燃油等），換零件或怠速異常後使用。</p><div class="chips"><span class="chip mcu">PCM</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
+      <article class="card"><h3>PATS 防盜鑰匙編程</h3><code>PATS Programming</code><p>新增 / 清除鑰匙，需 Extended License。</p><div class="chips"><span class="chip mcu">PATS</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
+    </div>
+  </section>
+
+  <footer class="footnote">
+    Reference only. 本頁僅為觀察整理，不代表官方規格，亦非保證值。<br>
+    操作前務必備份 As-Built；十六進位數值逐車不同、不可照抄；倒車顯影與行駛中自動上鎖在 Mk3.5 上尚未被社群完整驗證。任何修改與後果由操作者自行承擔。
+  </footer>
+</main>
+</body>
+</html>

@@ -1,19 +1,23 @@
 # BJKW 公開主控台
 
-本儲存庫在 GitHub Pages 上發布兩個保留的靜態產品：
+本儲存庫在 GitHub Pages 上發布保留的靜態產品：
 
 - `/stocks/` — 股票投資觀察台
 - `/weather/` — BJKW 天氣觀察台
+- `/esp32/` — ESP32 韌體觀察台
+- `/forscan/` — Focus Mk3.5 FORScan 觀察台
 
-根目錄 `/` 只是這兩個工具的輕量入口頁。不保留其他對外公開的頁面。
+根目錄 `/` 只是這些工具的輕量入口頁。不保留其他對外公開的頁面。
 
 ## 網站結構
 
 ```text
 /
-├── index.html              # 兩產品入口頁
+├── index.html              # 觀察台入口頁
 ├── stocks/index.html       # 股票投資觀察台
 ├── weather/index.html      # 天氣觀察台
+├── esp32/index.html        # ESP32 韌體觀察台
+├── forscan/index.html      # Focus Mk3.5 FORScan 觀察台（靜態參考）
 ├── bjkw_weather.html       # 導向 /weather/ 的舊版轉址
 ├── assets/images/          # 共用 favicon 與 app 圖示
 ├── data/stock-risk-feed.json
