@@ -5,7 +5,7 @@
 - Added `/forscan/` — a static, multi-dimensional reference of FORScan-adjustable items for the Ford Focus Mk3.5 (2015-2018), covering comfort, instrument cluster, infotainment, and service functions.
 - Each item is tagged by module, change method, verification confidence, and risk; values are observation references only and differ per car.
 - Wired the page into the homepage entry nav, `sw.js` precache, the static-site contract, the frontend smoke test, and the Pages deploy artifact list.
-- Expanded the reference after further cross-verification: added a 燈光·外部 (lighting) group and more items (Auto Start-Stop default off, rear-wiper-on-reverse via BCM DID 4155, power-folding mirror, DRL modes, one-touch indicator, follow-me-home, Video/Nav in motion 7D0-02-01, DAB enable, PowerShift TCM adaptive learning, injector IQA coding) — now 6 groups / 26 item cards, each still tagged by module / method / verification / risk.
+- Expanded the reference after further cross-verification: added a 燈光·外部 (lighting) group and more items (Auto Start-Stop default off, rear-wiper-on-reverse via BCM DID 4155, power-folding mirror, DRL modes, one-touch indicator, follow-me-home, Video/Nav in motion 7D0-02-01, DAB enable, PowerShift TCM adaptive learning, injector IQA coding) — now 6 groups / 28 item cards, each still tagged by module / method / verification / risk.
 
 ## Current Public Surface
 
