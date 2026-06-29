@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-29T07:21:16.922Z",
-  "eodUpdatedAt": "2026-06-29T07:21:16.922Z",
+  "updatedAt": "2026-06-29T12:14:09.723Z",
+  "eodUpdatedAt": "2026-06-29T12:14:09.723Z",
   "holdings": [
     "2330",
     "2317",
@@ -17,16 +17,16 @@
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 970,
-      "change": -40
+      "close": 995,
+      "change": 25
     }
   ],
   "valuation": {
     "3324": {
       "code": "3324",
-      "pe": 27.99,
-      "dividendYield": 1.23,
-      "pbRatio": 6.73
+      "pe": 28.72,
+      "dividendYield": 1.2,
+      "pbRatio": 6.9
     }
   },
   "yield10y": {
@@ -38,11 +38,11 @@
   "errors": [
     {
       "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "fetch failed"
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
     },
     {
       "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "fetch failed"
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
     }
   ]
 }
