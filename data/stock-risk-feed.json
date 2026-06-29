@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-29T13:32:10.337Z",
-  "eodUpdatedAt": "2026-06-29T13:32:10.337Z",
+  "updatedAt": "2026-06-29T23:16:14.732Z",
+  "eodUpdatedAt": "2026-06-29T23:16:14.732Z",
   "holdings": [
     "2330",
     "2317",
@@ -19,56 +19,56 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 780,
-      "change": -28
+      "close": 783,
+      "change": 3
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1810,
-      "change": -170
+      "close": 1905,
+      "change": 95
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 248.5,
-      "change": -9
+      "close": 246.5,
+      "change": -2
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2340,
-      "change": -50
+      "close": 2370,
+      "change": 30
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 63.3,
-      "change": -3.4
+      "close": 64.3,
+      "change": 1
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 319.5,
-      "change": -14.5
+      "close": 325,
+      "change": 5.5
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 362,
-      "change": -4.5
+      "close": 367,
+      "change": 5
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2255,
-      "change": -250
+      "close": 2300,
+      "change": 45
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 153,
-      "change": -7
+      "close": 154.5,
+      "change": 1.5
     },
     {
       "code": "3324",
@@ -79,70 +79,70 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3870,
-      "change": -360
+      "close": 3985,
+      "change": 115
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 4280,
-      "change": -265
+      "close": 4580,
+      "change": 300
     }
   ],
   "valuation": {
     "1519": {
       "code": "1519",
-      "pe": 53.61,
-      "dividendYield": 1.54,
-      "pbRatio": 29.91
+      "pe": 53.81,
+      "dividendYield": 1.53,
+      "pbRatio": 30.02
     },
     "2308": {
       "code": "2308",
-      "pe": 66.74,
-      "dividendYield": 0.64,
-      "pbRatio": 15.7
+      "pe": 70.24,
+      "dividendYield": 0.61,
+      "pbRatio": 16.52
     },
     "2317": {
       "code": "2317",
-      "pe": 17.65,
-      "dividendYield": 2.89,
-      "pbRatio": 1.95
+      "pe": 17.51,
+      "dividendYield": 2.91,
+      "pbRatio": 1.94
     },
     "2330": {
       "code": "2330",
-      "pe": 31.46,
-      "dividendYield": 0.94,
-      "pbRatio": 10.3
+      "pe": 31.86,
+      "dividendYield": 0.93,
+      "pbRatio": 10.43
     },
     "2356": {
       "code": "2356",
-      "pe": 24.07,
-      "dividendYield": 3.16,
-      "pbRatio": 3.09
+      "pe": 24.45,
+      "dividendYield": 3.11,
+      "pbRatio": 3.14
     },
     "2376": {
       "code": "2376",
-      "pe": 14.92,
-      "dividendYield": 3.76,
-      "pbRatio": 3.32
+      "pe": 15.18,
+      "dividendYield": 3.69,
+      "pbRatio": 3.37
     },
     "2382": {
       "code": "2382",
-      "pe": 18.2,
-      "dividendYield": 4.31,
-      "pbRatio": 6.72
+      "pe": 18.45,
+      "dividendYield": 4.25,
+      "pbRatio": 6.82
     },
     "3017": {
       "code": "3017",
-      "pe": 37.05,
-      "dividendYield": 0.93,
-      "pbRatio": 19.6
+      "pe": 37.79,
+      "dividendYield": 0.91,
+      "pbRatio": 19.99
     },
     "3231": {
       "code": "3231",
-      "pe": 15.35,
-      "dividendYield": 3.59,
-      "pbRatio": 2.56
+      "pe": 15.5,
+      "dividendYield": 3.56,
+      "pbRatio": 2.58
     },
     "3324": {
       "code": "3324",
@@ -152,21 +152,21 @@
     },
     "3661": {
       "code": "3661",
-      "pe": 56.72,
-      "dividendYield": 0.88,
-      "pbRatio": 7.31
+      "pe": 58.41,
+      "dividendYield": 0.86,
+      "pbRatio": 7.53
     },
     "6669": {
       "code": "6669",
-      "pe": 14.35,
-      "dividendYield": 3.84,
-      "pbRatio": 5.67
+      "pe": 15.35,
+      "dividendYield": 3.59,
+      "pbRatio": 6.07
     }
   },
   "yield10y": {
-    "date": "2026-06-25",
-    "value": 4.4,
-    "updatedAt": "2026-06-25T22:00:00.000Z",
+    "date": "2026-06-26",
+    "value": 4.38,
+    "updatedAt": "2026-06-26T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
   "errors": []
