@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-29T02:31:32.900Z",
-  "eodUpdatedAt": "2026-06-29T02:31:32.900Z",
+  "updatedAt": "2026-06-29T07:21:16.922Z",
+  "eodUpdatedAt": "2026-06-29T07:21:16.922Z",
   "holdings": [
     "2330",
     "2317",
@@ -38,11 +38,11 @@
   "errors": [
     {
       "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+      "message": "fetch failed"
     },
     {
       "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+      "message": "fetch failed"
     }
   ]
 }
