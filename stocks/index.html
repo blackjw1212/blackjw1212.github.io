@@ -1403,7 +1403,11 @@ function renderBuckets(){
     div.className = "bucket";
     div.innerHTML = '<div class="bh"><span class="name">' + escapeHtml(tier.name) + '</span><span class="role">' + escapeHtml(tier.role) + '</span><span class="tier ' + tier.cls + '">' + tierKey.toUpperCase() + '</span></div>'
       + list.map(function(stock){
-        return '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line)"><span class="code">' + stock.code + '</span> <span class="nm">' + escapeHtml(stock.name) + '</span> · <span style="color:var(--soft)">' + escapeHtml(stock.role) + '</span></div>';
+        const snapshot = stockSnapshot(stock, state);
+        const obs = snapshot.observation;
+        const closeText = snapshot.close != null ? fmt(snapshot.close, 2) : "待更新";
+        const live = "PE " + peLabel(stock) + " · 收盤 " + closeText + " · " + (obs && obs.distanceText ? obs.distanceText : "距離待更新");
+        return '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line)"><span class="code">' + stock.code + '</span> <span class="nm">' + escapeHtml(stock.name) + '</span> · <span style="color:var(--soft)">' + escapeHtml(stock.role) + '</span><div class="data-line mono">' + escapeHtml(live) + '</div></div>';
       }).join("");
     box.appendChild(div);
   });
@@ -1527,6 +1531,7 @@ function renderScore(){
       + '<div class="score-strip">' + scoreStrip + '</div><div class="data-line">' + escapeHtml(observationMeta) + '</div><div class="data-line">' + escapeHtml(stock.role) + '</div><div class="data-line">' + escapeHtml(dataLabel()) + '</div>';
     cards.appendChild(card);
   });
+  renderBuckets();
 }
 
 async function refresh(){

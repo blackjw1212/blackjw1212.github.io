@@ -708,6 +708,25 @@ test("scorecard PE prefers feed valuation and falls back to built-in", async () 
   assert.match(baseHtml, /~32/);           // 2330 built-in fallback label
 });
 
+test("allocation buckets append live PE and observation distance under each role", async () => {
+  const { context, document } = await loadApp(async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/stock-risk-feed.json")) {
+      return response(staticFeed({
+        eod: [{ code: "2308", name: "台達電", close: 1905, change: -5, high: 1950, low: 1880 }],
+        valuation: { "2308": { code: "2308", pe: 66.7 } },
+      }));
+    }
+    throw new Error(`unavailable: ${href}`);
+  });
+  await context.window.PortfolioConsoleApp.init();
+  const bucketHtml = document.getElementById("buckets").innerHTML;
+  assert.match(bucketHtml, /等待冷卻/);          // WAIT tier still rendered from static config
+  assert.match(bucketHtml, /電源、散熱/);          // manual role text retained
+  assert.match(bucketHtml, /PE ~67/);            // live feed PE (66.7) wired beside the role
+  assert.match(bucketHtml, /收盤 1,905/);         // live close wired in
+});
+
 test("page shows observation price pending when closing data is unavailable", async () => {
   const { context, document } = await loadApp(async (url) => {
     throw new Error(`unavailable: ${url}`);
