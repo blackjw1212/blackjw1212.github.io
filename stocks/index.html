@@ -261,13 +261,13 @@ const STATIC_STOCK_FEED_URL = "/data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
 
 const STOCKS = [
-  {code:"2330",name:"台積電",tier:"core",theme:"foundry",role:"先進製程與封裝，是 AI 供應鏈核心底座。",pe:"~32",base:2310,s:["m","h","h","m","h","h"]},
-  {code:"2317",name:"鴻海",tier:"core",theme:"server",role:"AI 伺服器與整機平台，估值仍偏低，適合作為核心觀察。",pe:"~19",base:260.5,s:["mh","mh","mh","m","m","h"]},
-  {code:"2382",name:"廣達",tier:"sat",theme:"server",role:"AI 伺服器 ODM 與雲端大客戶，2026 老 AI 強弱排名升至前段。",pe:"~19",base:372,s:["mh","mh","h","mh","m","h"]},
-  {code:"3231",name:"緯創",tier:"sat",theme:"server",role:"AI 伺服器 ODM，估值偏低、營收動能強，與廣達並列前段衛星。",pe:"~16",base:156,s:["h","mh","mh","m","m","mh"]},
-  {code:"6669",name:"緯穎",tier:"sat",theme:"server",role:"高 beta AI 伺服器 ODM，估值便宜但 2026 相對排名後移，波動要控管。",pe:"~17",base:4850,s:["h","m","h","h","m","m"]},
-  {code:"3017",name:"奇鋐",tier:"sat",theme:"cooling",role:"散熱主線，受 AI 平台與液冷升級拉動但波動較高。",pe:"~39",base:2405,s:["ml","m","h","h","m","m"]},
-  {code:"3324",name:"雙鴻",tier:"sat",theme:"cooling",role:"液冷散熱衛星，題材明確但觀察位置敏感、波動大。",pe:"~31",base:1055,s:["ml","m","h","h","m","m"]},
+  {code:"2330",name:"台積電",tier:"core",theme:"foundry",role:"先進製程與封裝，AI 供應鏈核心底座；估值合理，但目前位階偏高、回檔最淺。",pe:"~32",base:2310,s:["m","h","h","m","h","h"]},
+  {code:"2317",name:"鴻海",tier:"core",theme:"server",role:"AI 伺服器與整機平台；估值偏低、股價淨值比貼近淨值，核心裡估值最扎實的一檔。",pe:"~19",base:260.5,s:["mh","mh","mh","m","m","h"]},
+  {code:"2382",name:"廣達",tier:"sat",theme:"server",role:"AI 伺服器 ODM 與雲端大客戶；估值便宜、殖利率為清單最高，前段衛星首選。",pe:"~19",base:372,s:["mh","mh","h","mh","m","h"]},
+  {code:"3231",name:"緯創",tier:"sat",theme:"server",role:"AI 伺服器 ODM；估值為全清單最低、營收動能強，與廣達並列前段衛星。",pe:"~16",base:156,s:["h","mh","mh","m","m","mh"]},
+  {code:"6669",name:"緯穎",tier:"sat",theme:"server",role:"高 beta AI 伺服器 ODM；估值最便宜，但近期自低點大幅反彈、波動要控管。",pe:"~17",base:4850,s:["h","m","h","h","m","m"]},
+  {code:"3017",name:"奇鋐",tier:"sat",theme:"cooling",role:"散熱主線，受 AI 平台與液冷升級拉動；惟估值已墊高、波動較高。",pe:"~39",base:2405,s:["ml","m","h","h","m","m"]},
+  {code:"3324",name:"雙鴻",tier:"sat",theme:"cooling",role:"液冷散熱衛星，題材明確但估值中性偏高、觀察位置敏感、波動大。",pe:"~31",base:1055,s:["ml","m","h","h","m","m"]},
   {code:"3661",name:"世芯-KY",tier:"sat",theme:"asic",role:"ASIC／客製晶片設計，對應 GPU+ASIC 雙主流，但估值偏高、波動大。",pe:"~64",base:4105,s:["l","m","h","mh","m","m"]},
   {code:"2356",name:"英業達",tier:"sat",theme:"server",role:"AI 伺服器 ODM，估值便宜、距高檔回檔深，但毛利薄、題材純度中等。",pe:"~24",base:62,s:["m","m","mh","m","m","m"]},
   {code:"2376",name:"技嘉",tier:"sat",theme:"server",role:"AI 伺服器與板卡，AI 槓桿高、估值偏低，遊戲＋伺服器雙引擎、波動中等。",pe:"~15",base:315,s:["mh","mh","h","mh","m","mh"]},
