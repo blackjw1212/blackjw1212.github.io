@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 const OUT_FILE = new URL("../data/stock-risk-feed.json", import.meta.url);
-const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "1519", "2308", "3231", "3661"]);
+const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "1519", "2308", "3231", "3661", "2356", "2376"]);
 
 const SOURCES = {
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
