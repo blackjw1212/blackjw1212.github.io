@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 
 const OUT_FILE = new URL("../data/stock-risk-feed.json", import.meta.url);
 const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "1519", "2308", "3231", "3661"]);
@@ -141,15 +142,61 @@ async function fetchTreasury10Year() {
   throw lastError || new Error("Treasury XML unavailable");
 }
 
+// 根因修復：上游短暫故障（TWSE OpenAPI 對 runner 回傳 HTML）時，不可用空資料覆蓋
+// 上一份好資料。逐 code 合併（previous 疊上本次成功抓到的），讓 eod/valuation 永不歸零。
+export function mergeFeed(previous, fetched, now) {
+  const prev = previous && typeof previous === "object" ? previous : {};
+  const fetchedEod = Array.isArray(fetched.eod) ? fetched.eod : [];
+  const fetchedValuation = fetched.valuation && typeof fetched.valuation === "object" ? fetched.valuation : {};
+  const fetchedYield = fetched.yield10y || null;
+
+  const eodMap = {};
+  for (const row of Array.isArray(prev.eod) ? prev.eod : []) {
+    const code = String((row && row.code) || "");
+    if (STOCK_CODES.has(code)) eodMap[code] = row;
+  }
+  const fetchedCodes = new Set();
+  for (const row of fetchedEod) {
+    const code = String((row && row.code) || "");
+    if (STOCK_CODES.has(code)) { eodMap[code] = row; fetchedCodes.add(code); }
+  }
+  const eod = Object.values(eodMap).sort((a, b) => String(a.code).localeCompare(String(b.code)));
+  const fullyFresh = [...STOCK_CODES].every((code) => fetchedCodes.has(code));
+  const eodUpdatedAt = fullyFresh ? now : (prev.eodUpdatedAt || (fetchedCodes.size ? now : null));
+
+  const prevValuation = prev.valuation && typeof prev.valuation === "object" ? prev.valuation : {};
+  const valuation = { ...prevValuation, ...fetchedValuation };
+
+  const yield10y = fetchedYield || prev.yield10y || null;
+
+  return {
+    eod,
+    eodUpdatedAt,
+    valuation,
+    yield10y,
+    preserved: {
+      eod: eod.length - fetchedCodes.size,
+      valuation: Object.keys(valuation).length - Object.keys(fetchedValuation).length,
+      yield10y: !fetchedYield && prev.yield10y ? 1 : 0,
+    },
+  };
+}
+
+async function readPreviousFeed() {
+  try {
+    return JSON.parse(await readFile(OUT_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
 async function main() {
   const now = new Date().toISOString();
   const errors = [];
   let eod = [];
-  let eodUpdatedAt = null;
 
   try {
     eod = normalizeEod(await fetchJson(SOURCES.twseEod));
-    eodUpdatedAt = now;
   } catch (error) {
     errors.push({ source: "TWSE OpenAPI STOCK_DAY_ALL", message: error.message });
   }
@@ -165,7 +212,6 @@ async function main() {
         have.add(row.code);
       }
     }
-    if (tpexRows.length && eodUpdatedAt == null) eodUpdatedAt = now;
   } catch (error) {
     errors.push({ source: "TPEX OpenAPI daily close quotes", message: error.message });
   }
@@ -200,13 +246,23 @@ async function main() {
     }
   }
 
+  const previous = await readPreviousFeed();
+  const merged = mergeFeed(previous, { eod, valuation, yield10y }, now);
+  if (merged.preserved.eod || merged.preserved.valuation || merged.preserved.yield10y) {
+    errors.push({
+      source: "feed-preservation",
+      message: `kept ${merged.preserved.eod} eod row(s), ${merged.preserved.valuation} valuation entr(ies)`
+        + `${merged.preserved.yield10y ? ", 1 yield10y" : ""} from previous feed due to upstream gaps`,
+    });
+  }
+
   const feed = {
     updatedAt: now,
-    eodUpdatedAt,
+    eodUpdatedAt: merged.eodUpdatedAt,
     holdings: [...STOCK_CODES],
-    eod,
-    valuation,
-    yield10y,
+    eod: merged.eod,
+    valuation: merged.valuation,
+    yield10y: merged.yield10y,
     errors,
   };
 
@@ -215,7 +271,10 @@ async function main() {
   if (errors.length) console.warn(JSON.stringify(errors, null, 2));
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
