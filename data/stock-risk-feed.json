@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-30T23:37:51.348Z",
+  "updatedAt": "2026-07-01T02:32:04.242Z",
   "eodUpdatedAt": "2026-06-30T12:27:36.438Z",
   "holdings": [
     "2330",
@@ -19,56 +19,56 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 783,
-      "change": 3
+      "close": 776,
+      "change": -7
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1905,
-      "change": 95
+      "close": 1950,
+      "change": 45
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 246.5,
-      "change": -2
+      "close": 251,
+      "change": 4.5
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2370,
-      "change": 30
+      "close": 2410,
+      "change": 40
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 64.3,
-      "change": 1
+      "close": 66.6,
+      "change": 2.3
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 325,
-      "change": 5.5
+      "close": 344,
+      "change": 19
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 367,
-      "change": 5
+      "close": 368,
+      "change": 1
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2300,
-      "change": 45
+      "close": 2525,
+      "change": 225
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 154.5,
-      "change": 1.5
+      "close": 158.5,
+      "change": 4
     },
     {
       "code": "3324",
@@ -79,70 +79,70 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3985,
-      "change": 115
+      "close": 4180,
+      "change": 195
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 4580,
-      "change": 300
+      "close": 4635,
+      "change": 55
     }
   ],
   "valuation": {
     "1519": {
       "code": "1519",
-      "pe": 53.81,
-      "dividendYield": 1.53,
-      "pbRatio": 30.02
+      "pe": 53.33,
+      "dividendYield": 1.55,
+      "pbRatio": 29.75
     },
     "2308": {
       "code": "2308",
-      "pe": 70.24,
-      "dividendYield": 0.61,
-      "pbRatio": 16.52
+      "pe": 71.9,
+      "dividendYield": 0.59,
+      "pbRatio": 16.91
     },
     "2317": {
       "code": "2317",
-      "pe": 17.51,
-      "dividendYield": 2.91,
-      "pbRatio": 1.94
+      "pe": 17.83,
+      "dividendYield": 2.86,
+      "pbRatio": 1.97
     },
     "2330": {
       "code": "2330",
-      "pe": 31.86,
-      "dividendYield": 0.93,
-      "pbRatio": 10.43
+      "pe": 32.4,
+      "dividendYield": 0.91,
+      "pbRatio": 10.61
     },
     "2356": {
       "code": "2356",
-      "pe": 24.45,
-      "dividendYield": 3.11,
-      "pbRatio": 3.14
+      "pe": 25.32,
+      "dividendYield": 3,
+      "pbRatio": 3.25
     },
     "2376": {
       "code": "2376",
-      "pe": 15.18,
-      "dividendYield": 3.69,
-      "pbRatio": 3.37
+      "pe": 16.07,
+      "dividendYield": 3.49,
+      "pbRatio": 3.57
     },
     "2382": {
       "code": "2382",
-      "pe": 18.45,
-      "dividendYield": 4.25,
-      "pbRatio": 6.82
+      "pe": 18.5,
+      "dividendYield": 4.24,
+      "pbRatio": 6.84
     },
     "3017": {
       "code": "3017",
-      "pe": 37.79,
-      "dividendYield": 0.91,
-      "pbRatio": 19.99
+      "pe": 41.49,
+      "dividendYield": 0.83,
+      "pbRatio": 21.95
     },
     "3231": {
       "code": "3231",
-      "pe": 15.5,
-      "dividendYield": 3.56,
-      "pbRatio": 2.58
+      "pe": 15.9,
+      "dividendYield": 3.47,
+      "pbRatio": 2.65
     },
     "3324": {
       "code": "3324",
@@ -152,15 +152,15 @@
     },
     "3661": {
       "code": "3661",
-      "pe": 58.41,
-      "dividendYield": 0.86,
-      "pbRatio": 7.53
+      "pe": 61.26,
+      "dividendYield": 0.82,
+      "pbRatio": 7.9
     },
     "6669": {
       "code": "6669",
-      "pe": 15.35,
-      "dividendYield": 3.59,
-      "pbRatio": 6.07
+      "pe": 15.54,
+      "dividendYield": 3.55,
+      "pbRatio": 6.15
     }
   },
   "yield10y": {
@@ -171,20 +171,16 @@
   },
   "errors": [
     {
-      "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
       "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
     },
     {
-      "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+      "source": "TPEX OpenAPI peratio analysis",
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 520"
     },
     {
       "source": "feed-preservation",
-      "message": "kept 12 eod row(s), 11 valuation entr(ies) from previous feed due to upstream gaps"
+      "message": "kept 1 eod row(s), 1 valuation entr(ies) from previous feed due to upstream gaps"
     }
   ]
 }
