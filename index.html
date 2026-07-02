@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BJKW 觀察控制台</title>
-<meta name="description" content="BJKW 公開觀察控制台，快速查看股票投資與天氣觀察狀態。" />
+<meta name="description" content="BJKW 公開觀察控制台，快速查看股票、天氣、ESP32 與 FORScan 觀察狀態。" />
 <link rel="canonical" href="/" />
 <meta property="og:title" content="BJKW 觀察控制台" />
-<meta property="og:description" content="快速進入股票投資觀察台與 BJKW 天氣觀察台。" />
+<meta property="og:description" content="快速進入股票投資、天氣、ESP32 韌體與 FORScan 觀察台。" />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -27,40 +27,46 @@
 <style>
   :root{
     --bg:#101418;--surface:#151c23;--panel:#19232c;--panel-2:#202b34;--line:#31404b;
-    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#82908c;--teal:#42b8a8;--cyan:#67c7e5;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#8a97a2;--teal:#42b8a8;--cyan:#67c7e5;
     --amber:#d9a64c;--green:#77d66e;--red:#ff766e;--shadow:0 18px 50px rgba(0,0,0,.25);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
   a{color:inherit}
-  .shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:28px 0 38px}
+  .shell{width:min(1200px,calc(100% - 40px));margin:0 auto;padding:28px 0 38px}
+  .skip{position:absolute;left:-9999px;top:0;z-index:9;background:#243340;border:1px solid #405263;border-radius:0 0 8px 0;color:var(--ink);font-weight:900;padding:8px 14px;text-decoration:none}
+  .skip:focus{left:0}
   .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
   .brand{display:flex;align-items:center;gap:12px;min-width:0}
   .brand img{width:34px;height:34px;flex:0 0 auto}
   .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
   .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
-  .route-note{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;text-align:right}
-  .hero{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(320px,.88fr);gap:18px;align-items:stretch}
-  .hero-copy{display:flex;min-height:310px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:26px}
+  .topnav{display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:flex-end;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .topnav a{color:var(--faint);text-decoration:none;padding:2px 0}
+  .topnav a:hover{color:var(--cyan)}
+  .topnav a:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
+  .hero{display:grid;grid-template-columns:1fr;gap:14px}
+  .hero-copy{border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:28px}
   .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
   h1{max-width:760px;margin-top:10px;font-size:clamp(32px,5vw,56px);line-height:1.08;font-weight:900;letter-spacing:0}
   .lead{max-width:700px;margin-top:16px;color:var(--soft);font-size:16px}
-  .hero-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:24px}
+  .hero-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:24px;max-width:640px}
   .metric{border-top:1px solid var(--line);padding-top:10px}
   .metric strong{display:block;font-size:18px}
   .metric span{display:block;margin-top:2px;color:var(--faint);font-size:12px}
-  .status-board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-  .status-card{min-height:150px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px}
+  .status-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .status-card{min-height:128px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px;transition:border-color .15s ease}
+  .status-card:hover{border-color:#3d4d59}
   .status-card h2{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;line-height:1.2;letter-spacing:0}
   .status-card h2 span:first-child{color:var(--soft);font-weight:800}
   .tag{border:1px solid rgba(103,199,229,.35);border-radius:999px;padding:2px 8px;color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
   .status-value{margin-top:18px;font-size:24px;font-weight:900;line-height:1.1}
   .status-meta{margin-top:8px;color:var(--faint);font-size:12px;word-break:break-word}
   .ok{color:var(--green)} .warn{color:var(--amber)} .bad{color:var(--red)}
-  .entries{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:18px}
-  .entry{display:flex;min-height:286px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:20px;text-decoration:none}
+  .entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+  .entry{display:flex;min-height:286px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:20px;text-decoration:none;transition:border-color .15s ease,transform .15s ease}
   .entry:focus-visible,.entry-button:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
-  .entry:hover{border-color:rgba(217,166,76,.8)}
+  .entry:hover{border-color:#4c5e6b;transform:translateY(-2px)}
   .entry-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
   .entry-title{min-width:0}
   .entry img{width:40px;height:40px;flex:0 0 auto}
@@ -77,17 +83,20 @@
   .esp32-accent{box-shadow:inset 4px 0 0 rgba(217,166,76,.7)}
   .forscan-accent{box-shadow:inset 4px 0 0 rgba(119,214,110,.7)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
-  @media (max-width:900px){
-    .hero{grid-template-columns:1fr}
-    .hero-copy{min-height:260px}
+  @media (prefers-reduced-motion:reduce){
+    .entry,.status-card{transition:none}
+    .entry:hover{transform:none}
+  }
+  @media (max-width:980px){
+    .status-board{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
   @media (max-width:640px){
-    .shell{width:min(100% - 24px,1120px);padding-top:18px}
-    .topbar{align-items:flex-start}
-    .route-note{text-align:left}
-    .hero-copy{min-height:0;padding:20px}
-    .hero-meta,.status-board,.entries{grid-template-columns:1fr}
-    .status-card{min-height:120px}
+    .shell{width:min(100% - 24px,1200px);padding-top:18px}
+    .topbar{flex-direction:column;align-items:flex-start;gap:10px}
+    .topnav{justify-content:flex-start}
+    .hero-copy{padding:20px}
+    .entries{grid-template-columns:1fr}
+    .status-card{min-height:112px}
     .entry{min-height:246px;padding:18px}
     .entry h2{font-size:22px}
     .entry-foot{align-items:flex-start;flex-direction:column}
@@ -96,6 +105,7 @@
 </style>
 </head>
 <body>
+<a class="skip" href="#entries">跳到主要觀察台</a>
 <main class="shell">
   <header class="topbar" aria-label="BJKW 觀察控制台">
     <div class="brand">
@@ -105,7 +115,12 @@
         <div class="brand-title">BJKW 觀察控制台</div>
       </div>
     </div>
-    <div class="route-note">Retained routes: /stocks/ /weather/ /esp32/ /forscan/</div>
+    <nav class="topnav" aria-label="快速導覽">
+      <a href="/stocks/">/stocks/</a>
+      <a href="/weather/">/weather/</a>
+      <a href="/esp32/">/esp32/</a>
+      <a href="/forscan/">/forscan/</a>
+    </nav>
   </header>
 
   <section class="hero" aria-label="主頁狀態總覽">
@@ -113,7 +128,7 @@
       <div>
         <div class="eyebrow">STATUS OVERVIEW</div>
         <h1>一眼確認各觀察台狀態，再進入完整工具。</h1>
-        <p class="lead">首頁只做輕量狀態摘要與入口分流，股票、天氣、ESP32 三個觀察台一鍵直達。股票投資觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
+        <p class="lead">首頁只做輕量狀態摘要與入口分流，股票、天氣、ESP32、FORScan 四個觀察台一鍵直達。股票投資觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
       </div>
       <div class="hero-meta" aria-label="服務範圍">
         <div class="metric"><strong>4</strong><span>保留工具</span></div>
@@ -146,7 +161,7 @@
     </section>
   </section>
 
-  <nav class="entries" aria-label="主要觀察台">
+  <nav class="entries" id="entries" aria-label="主要觀察台">
     <article class="entry ai-accent">
       <div>
         <div class="entry-head">
