@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-03T11:25:05.457Z",
+  "updatedAt": "2026-07-03T23:18:02.448Z",
   "eodUpdatedAt": "2026-07-03T11:25:05.457Z",
   "holdings": [
     "2330",
@@ -169,5 +169,18 @@
     "updatedAt": "2026-07-01T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TWSE OpenAPI STOCK_DAY_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+    },
+    {
+      "source": "TWSE OpenAPI BWIBBU_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 11 eod row(s), 11 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
