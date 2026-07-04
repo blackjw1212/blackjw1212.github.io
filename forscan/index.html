@@ -99,7 +99,7 @@
     <h1>Focus Mk3.5 FORScan 觀察台</h1>
     <p class="lead">整理 Ford Focus Mk3.5（2015-2018 小改款）以 FORScan 可由使用者調整的項目，涵蓋便利、儀表、影音與保養服務功能。每張卡片以標籤標出四個維度：模組、修改方式、驗證度與風險。本頁為靜態觀察參考，資料來自社群交叉比對，並非保證值；實際數值逐車不同，操作風險自負。</p>
     <div class="hero-meta" aria-label="內容概況">
-      <div class="metric"><strong>8</strong><span>主題分類</span></div>
+      <div class="metric"><strong>9</strong><span>主題分類</span></div>
       <div class="metric"><strong>25+</strong><span>可調項目</span></div>
       <div class="metric"><strong>Mk3.5 / 2015-2018</strong><span>適用車型</span></div>
     </div>
@@ -257,6 +257,35 @@
           <li>複查油位塞呈滴流狀態後，鎖回油位塞與加注塞。</li>
         </ol>
         <div class="chips"><span class="chip method">10mm 內六角油位塞</span><span class="chip method">依油溫判定</span><span class="chip ok">多源確認</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="SYNC 3 影音 DIY">
+    <div class="group-head"><h2>SYNC 3 影音 DIY</h2><span>APIM · 本車 SYNC 3 · 自負風險</span></div>
+    <div class="cards">
+      <article class="card wide"><h3>SYNC 3 倒車顯影（啟用 / 排查）</h3><code>APIM 7D0-01-01 · pin 14/15</code>
+        <ol>
+          <li>本車頂級運動型為<strong>原廠鏡頭、通常已啟用</strong>；以下為加裝(retrofit)或倒車無畫面時的排查。</li>
+          <li>FORScan 連 APIM，先「儲存 As-Built 備份」成檔。</li>
+          <li>優先走選單：APIM → 設定 → 啟用「Rear View Camera」→ 寫入。</li>
+          <li>選單無效時改 As-Built <strong>7D0-01-01 第一碼</strong>：<strong>3</strong>=僅鏡頭、<strong>A</strong>=鏡頭+PDC（倒車雷達）；末兩碼為 checksum，FORScan 自動計算。</li>
+          <li>部分車另需 <strong>7D0-01-02</strong> 次區塊由 xx8x → xx9x。</li>
+          <li>硬體：OEM 鏡頭 video+ / video- 接 SYNC 3 APIM 接頭 <strong>pin 14 / 15</strong>（用轉接線），電源取倒車燈。</li>
+          <li>仍只出選單、倒車不切畫面：用「含鏡頭 VIN」更新 SYNC 韌體 + Master Reset（社群實測可解）。</li>
+          <li>每次改完存檔、重啟主機，打 R 檔實測。</li>
+        </ol>
+        <div class="chips"><span class="chip mcu">APIM</span><span class="chip method">選單 / As-Built</span><span class="chip ok">本車原廠標配</span><span class="chip warn">retrofit 風險中</span></div>
+      </article>
+      <article class="card wide"><h3>行駛中導航 / 影片（Nav / Video in Motion）</h3><code>APIM 7D0-02-01</code>
+        <ol>
+          <li>先「儲存 APIM As-Built 備份」並<strong>記下原始值</strong>。</li>
+          <li>Nav in Motion：<strong>7D0-02-01</strong> 第一段區碼設 <strong>5753</strong>（區碼：美 5553 / 加 4341 / 國際·東南亞 5753），讓行駛中可操作導航搜尋。</li>
+          <li>注意：此為「區碼」，會連動地圖區域行為；台灣車原廠可能已是亞洲區碼，改前務必記錄原值以便還原。</li>
+          <li>行駛中影片播放屬 APIM As-Built（可對照 fmods.net），依主機軟體版本而定、需先查證再改。</li>
+          <li>存檔、重啟主機驗證。<strong>行駛中觀看影片多數地區違法且危險，安全與法規自負。</strong></li>
+        </ol>
+        <div class="chips"><span class="chip mcu">APIM</span><span class="chip method">As-Built</span><span class="chip ok">區碼多源確認</span><span class="chip warn">風險中</span></div>
       </article>
     </div>
   </section>
