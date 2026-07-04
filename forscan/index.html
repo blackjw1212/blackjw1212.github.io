@@ -63,6 +63,9 @@
   .card h3{font-size:16px;line-height:1.25}
   .card code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px}
   .card p{margin-top:8px;color:var(--soft);font-size:13px;flex:1 1 auto}
+  .card ol{margin:10px 0 0 18px;color:var(--soft);font-size:13px;display:grid;gap:6px}
+  .card ol li::marker{color:var(--teal);font-weight:800}
+  .card.wide{grid-column:1 / -1}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
   .chip{border:1px solid rgba(103,199,229,.32);border-radius:999px;padding:2px 9px;color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
   .chip.mcu{border-color:rgba(217,166,76,.4);color:var(--amber)}
@@ -96,7 +99,7 @@
     <h1>Focus Mk3.5 FORScan 觀察台</h1>
     <p class="lead">整理 Ford Focus Mk3.5（2015-2018 小改款）以 FORScan 可由使用者調整的項目，涵蓋便利、儀表、影音與保養服務功能。每張卡片以標籤標出四個維度：模組、修改方式、驗證度與風險。本頁為靜態觀察參考，資料來自社群交叉比對，並非保證值；實際數值逐車不同，操作風險自負。</p>
     <div class="hero-meta" aria-label="內容概況">
-      <div class="metric"><strong>7</strong><span>主題分類</span></div>
+      <div class="metric"><strong>8</strong><span>主題分類</span></div>
       <div class="metric"><strong>25+</strong><span>可調項目</span></div>
       <div class="metric"><strong>Mk3.5 / 2015-2018</strong><span>適用車型</span></div>
     </div>
@@ -222,6 +225,39 @@
       <article class="card"><h3>煞車油</h3><code>DOT 4</code><p>吸濕性液體，定期更換維持沸點。</p><div class="chips"><span class="chip method">每 2 年</span><span class="chip ok">多源確認</span></div></article>
       <article class="card"><h3>冷卻液</h3><code>Motorcraft Orange · WSS-M97B44-D2</code><p>長效型，勿與他型混用；補充需同規格。</p><div class="chips"><span class="chip method">長效 / 依原廠</span><span class="chip warn">待確認</span></div></article>
       <article class="card"><h3>變速箱油（6 速 SelectShift · 6F35）</h3><code>Motorcraft MERCON LV · WSS-M2C938-A · XT-10-QLVC</code><p>傳統扭力轉換器自排 6F35，<strong>只能用 MERCON LV</strong>（他型會損壞變速箱）。總量約 <strong>8.6L</strong>；洩油+補充(drain &amp; fill) 約 <strong>4L</strong>。無油尺，由<strong>側邊油位塞（10mm 內六角）</strong>檢查：車輛水平、引擎運轉、依規定油溫從側塞溢流為準，並循序踩排各檔。原廠常態未定固定週期，重負荷 / DIY 建議定期更換。</p><div class="chips"><span class="chip method">drain&amp;fill ~4L · 總量 8.6L</span><span class="chip ok">多源確認</span></div></article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="DIY 換油步驟">
+    <div class="group-head"><h2>DIY 換油步驟</h2><span>機油 / 變速箱油 · 自負風險</span></div>
+    <div class="cards">
+      <article class="card wide"><h3>引擎機油更換</h3><code>4.1L · WSS-M2C948-B 5W-20</code>
+        <ol>
+          <li>暖車數分鐘讓機油易流，熄火、拉手煞、前輪加駐車楔，車輛以坡道 / 舉升確保水平。</li>
+          <li>拆下底護板，備好接油盤於洩油螺絲下方。</li>
+          <li>逆時針鬆開洩油螺絲，洩淨舊油（小心高溫）。</li>
+          <li>用濾清器扳手逆時針拆下旋上式機油濾（會有殘油），擦淨引擎座面。</li>
+          <li>新濾墊圈塗薄新機油 → 手轉至墊圈接觸 → 再轉 3/4 圈（勿用工具過緊）。</li>
+          <li>洩油螺絲換新墊圈，順時針鎖回約 28 Nm（以手冊為準）。</li>
+          <li>由加油口先注入約 3.8L，對機油尺檢查、補至上限區（總量約 4.1L）。</li>
+          <li>發動怠速 30 秒，檢查洩油螺絲 / 濾清器無滲漏、機油壓力燈熄滅。</li>
+          <li>熄火靜置數分鐘複查油位；最後用油門+煞車法或 FORScan 歸零機油壽命。</li>
+        </ol>
+        <div class="chips"><span class="chip method">洩油 ~28 Nm</span><span class="chip method">濾芯 3/4 圈</span><span class="chip ok">多源確認</span></div>
+      </article>
+      <article class="card wide"><h3>變速箱油更換（6F35 · drain &amp; fill）</h3><code>MERCON LV · ~4L / 次</code>
+        <ol>
+          <li>只能用 <strong>MERCON LV</strong>（他型會損壞變速箱）；量少多次比一次大換安全。</li>
+          <li>行駛暖車至工作油溫後熄火，車輛保持<strong>四輪水平</strong>（油位判定關鍵）。</li>
+          <li>放掉洩油塞舊油（約 4L），鎖回洩油塞。</li>
+          <li>由加注孔灌入等量新 MERCON LV。</li>
+          <li>拆側邊<strong>油位塞（10mm 內六角）</strong>。</li>
+          <li>引擎發動，<strong>依規定油溫</strong>（建議用 FORScan 監測變速箱油溫）持續補油，直到油位塞流出成滴。</li>
+          <li>踩煞車依序排入各檔各停約 5 秒再回 P，讓油路充填。</li>
+          <li>複查油位塞呈滴流狀態後，鎖回油位塞與加注塞。</li>
+        </ol>
+        <div class="chips"><span class="chip method">10mm 內六角油位塞</span><span class="chip method">依油溫判定</span><span class="chip ok">多源確認</span></div>
+      </article>
     </div>
   </section>
 
