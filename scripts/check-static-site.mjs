@@ -61,6 +61,7 @@ for (const rel of [
   "weather/index.html",
   "esp32/index.html",
   "forscan/index.html",
+  "forscan/service/index.html",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -181,6 +182,19 @@ if (has("forscan/index.html")) {
   assertMatch("forscan/index.html", html, /<h2>保養 · 服務功能<\/h2>/, "forscan service group");
   assertMatch("forscan/index.html", html, /操作前務必先看/, "forscan safety notice");
   assertMatch("forscan/index.html", html, /逐車不同/, "forscan per-car disclaimer");
+  assertMatch("forscan/index.html", html, /href="\/forscan\/service\/"/, "forscan links to service sub-page");
+}
+
+if (has("forscan/service/index.html")) {
+  const html = await read("forscan/service/index.html");
+  assertMatch("forscan/service/index.html", html, /<html lang="zh-Hant">/, "service document language");
+  assertMatch("forscan/service/index.html", html, /rel="canonical" href="\/forscan\/service\/"/, "service canonical");
+  assertMatch("forscan/service/index.html", html, /name="theme-color" content="#101418"/, "service theme color");
+  assertMatch("forscan/service/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "service worker registration");
+  assertMatch("forscan/service/index.html", html, /保養套餐 · 更換件料號/, "service parts group");
+  assertMatch("forscan/service/index.html", html, /維修圖解 · 機油更換/, "service oil-change guide");
+  assertMatch("forscan/service/index.html", html, /27 Nm/, "service drain torque");
+  assertMatch("forscan/service/index.html", html, /14 Nm/, "service filter torque");
 }
 
 if (has("bjkw_weather.html")) {
@@ -189,7 +203,7 @@ if (has("bjkw_weather.html")) {
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

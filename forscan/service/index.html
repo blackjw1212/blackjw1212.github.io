@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>保養維修圖解｜Focus 1.5 EcoBoost｜BJKW</title>
+<meta name="description" content="2017 Ford Focus 1.5 EcoBoost 180 保養套餐料號、扭力值與機油 / 變速箱油 / 空氣濾芯 / 冷氣濾網的圖示順序維修指引。原廠程序，僅供參考，操作自負風險。" />
+<link rel="canonical" href="/forscan/service/" />
+<meta property="og:title" content="保養維修圖解｜Focus 1.5 EcoBoost｜BJKW" />
+<meta property="og:description" content="料號、扭力與圖示順序維修指引，僅供參考。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="保養維修">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#82908c;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#ff766e;--shadow:0 18px 50px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:inherit}
+  .shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:28px 0 38px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .brand img{width:34px;height:34px;flex:0 0 auto}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
+  .back{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;text-decoration:none}
+  .back:hover{color:var(--cyan)}
+  .hero{border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:26px;margin-bottom:18px}
+  .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
+  h1{max-width:760px;margin-top:10px;font-size:clamp(28px,4.5vw,44px);line-height:1.1;font-weight:900}
+  .lead{max-width:760px;margin-top:14px;color:var(--soft);font-size:15px}
+  .notice{margin-top:18px;border:1px solid rgba(255,118,110,.4);border-left:4px solid var(--red);border-radius:8px;background:rgba(255,118,110,.07);padding:16px 18px}
+  .notice h2{font-size:14px;color:var(--red);letter-spacing:0;margin-bottom:8px}
+  .notice ul{margin:0 0 0 18px;color:var(--soft);font-size:13px;display:grid;gap:6px}
+  .notice li::marker{color:var(--red)}
+  .group{margin-top:26px}
+  .group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px}
+  .group-head h2{font-size:18px;letter-spacing:0}
+  .group-head span{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--faint);font-size:12px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px}
+  .card h3{font-size:16px;line-height:1.25}
+  .card code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px}
+  .card p{margin-top:8px;color:var(--soft);font-size:13px;flex:1 1 auto}
+  .card ol{margin:10px 0 0 18px;color:var(--soft);font-size:13px;display:grid;gap:6px}
+  .card ol li::marker{color:var(--teal);font-weight:800}
+  .card.wide{grid-column:1 / -1}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .chip{border:1px solid rgba(103,199,229,.32);border-radius:999px;padding:2px 9px;color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
+  .chip.ok{border-color:rgba(119,214,110,.45);color:var(--green)}
+  .chip.warn{border-color:rgba(217,166,76,.5);color:var(--amber)}
+  .manual{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(240px,.9fr);gap:16px}
+  .manual-col{display:flex;flex-direction:column;gap:14px}
+  .mstep{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px 16px}
+  .mstep h4{font-size:14px;color:var(--soft);margin-bottom:8px;letter-spacing:0}
+  .mstep ol{margin:0 0 0 18px;display:grid;gap:7px;color:var(--soft);font-size:13px}
+  .mstep ol li::marker{color:var(--teal);font-weight:800}
+  .torque{display:inline-block;margin-top:6px;border:1px solid rgba(217,166,76,.5);border-radius:6px;background:rgba(217,166,76,.12);color:var(--amber);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;font-weight:800;padding:3px 9px}
+  .figs{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;align-content:start}
+  .fig{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface);min-height:120px}
+  .fig svg{display:block;width:100%;height:auto}
+  .fig-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+  .fig .lbl{position:absolute;left:0;right:0;bottom:0;z-index:2;background:rgba(16,20,24,.74);color:var(--ink);font-size:12px;font-weight:800;padding:5px 9px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+  .footnote{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.7}
+  @media (max-width:760px){.manual{grid-template-columns:1fr}}
+  @media (max-width:640px){.shell{width:min(100% - 24px,1120px);padding-top:18px}.hero{padding:20px}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar" aria-label="保養維修圖解">
+    <div class="brand">
+      <img src="/assets/images/favicon.svg" alt="" width="34" height="34">
+      <div>
+        <div class="brand-kicker">BJKW PUBLIC CONSOLE</div>
+        <div class="brand-title">保養維修圖解</div>
+      </div>
+    </div>
+    <a class="back" href="/forscan/" aria-label="回到 FORScan 觀察台">&larr; 回 FORScan /forscan/</a>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">SERVICE &amp; MAINTENANCE</div>
+    <h1>保養套餐 · 料號 · 圖示順序維修指引</h1>
+    <p class="lead">2017 Ford Focus 1.5 EcoBoost 180（M8DB 汽油 · 6F35 自排）的保養耗材料號、扭力值與機油 / 變速箱油 / 空氣濾芯 / 冷氣濾網的圖示順序程序。扭力與程序依福特六和原廠保養手冊；元件圖為位置示意（可換上實車照片）。</p>
+    <div class="notice" aria-label="操作前須知">
+      <h2>操作前務必先看</h2>
+      <ul>
+        <li>本車原廠手冊扭力：<strong>洩油螺絲 27 Nm、機油濾芯 14 Nm、火星塞 15 Nm</strong>；輪胎螺絲 133 Nm。所有螺絲右旋牙（順時針鎖）。</li>
+        <li>料號為社群 / 目錄交叉比對值，<strong>下單前以 VIN 向福特原廠料件確認</strong>；洩油墊片每次換新。</li>
+        <li>本頁僅供參考、非保證值，操作與後果自負。行駛 / 舉升作業請確保安全支撐。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="group" aria-label="保養套餐 更換件料號">
+    <div class="group-head"><h2>保養套餐 · 更換件料號</h2><span>1.5 EcoBoost M8DB · 汽油</span></div>
+    <div class="cards">
+      <article class="card"><h3>引擎機油 + 洩油螺絲</h3><code>WSS-M2C948-B · 5W-20 · 4.1L</code><p>低 SAPS 全合成，務必符合 948-B。<strong>洩油螺絲鎖緊扭力 27 Nm</strong>（原廠手冊）、每次換新墊片、順時針。</p><div class="chips"><span class="chip">10,000 km / 6 月</span><span class="chip ok">洩油 27 Nm 原廠手冊</span></div></article>
+      <article class="card"><h3>機油濾清器</h3><code>Ford 1751529（新號 2468342）· Bosch F026407078</code><p>旋上式，外層墊圈塗薄機油後安裝。<strong>鎖緊扭力 14 Nm</strong>（原廠手冊；約手轉接觸再 3/4 圈）。1.0 / 1.5 EcoBoost 共用。</p><div class="chips"><span class="chip">隨機油</span><span class="chip ok">濾芯 14 Nm 原廠手冊</span></div></article>
+      <article class="card"><h3>火星塞</h3><code>Ford DS7G-12405-BA（1802090）· 15 Nm · 14mm</code><p>1.5 EcoBoost 專用（<strong>1.0 為 CM5G-12405-CE，勿混用</strong>）。gap ≈0.7mm、14mm 薄壁套筒、順時針。</p><div class="chips"><span class="chip">40,000 km</span><span class="chip ok">料號 + 扭力確認</span></div></article>
+      <article class="card"><h3>引擎空氣濾芯</h3><code>Ford 1848220</code><p>進氣濾清；多灰環境縮短週期。1.5 是否同號待原廠核對。</p><div class="chips"><span class="chip">48,000 km</span><span class="chip warn">待原廠核對</span></div></article>
+      <article class="card"><h3>冷氣濾網（花粉）</h3><code>Ford 1709013</code><p>座艙進氣過濾；潮濕環境建議提前。</p><div class="chips"><span class="chip">32,000 km</span><span class="chip warn">待原廠核對</span></div></article>
+      <article class="card"><h3>輪胎螺絲</h3><code>133 Nm · 19mm 套筒</code><p>對角星形順序分次鎖緊、順時針。</p><div class="chips"><span class="chip">每次拆裝</span><span class="chip ok">Focus 通用</span></div></article>
+      <article class="card"><h3>煞車油</h3><code>DOT 4</code><p>吸濕性液體，定期更換維持沸點。</p><div class="chips"><span class="chip">每 2 年</span><span class="chip ok">多源確認</span></div></article>
+      <article class="card"><h3>冷卻液</h3><code>Motorcraft Orange · WSS-M97B44-D2</code><p>長效型，勿與他型混用。</p><div class="chips"><span class="chip">長效 / 依原廠</span><span class="chip warn">週期待確認</span></div></article>
+      <article class="card"><h3>變速箱油（6F35）</h3><code>MERCON LV · WSS-M2C938-A · XT-10-QLVC</code><p>只能用 MERCON LV；總量約 8.6L、drain&amp;fill 約 4L，側油位塞（10mm 內六角）判定。</p><div class="chips"><span class="chip">drain&amp;fill ~4L</span><span class="chip ok">多源確認</span></div></article>
+    </div>
+  </section>
+
+  <section class="group" aria-label="維修圖解 機油更換">
+    <div class="group-head"><h2>維修圖解 · 機油更換</h2><span>原廠程序 · 圖示順序指引</span></div>
+    <div class="manual">
+      <div class="manual-col">
+        <div class="mstep">
+          <h4>機油更換</h4>
+          <ol>
+            <li>拆開機油加注口蓋。</li>
+            <li>頂起車輛，拆卸放油（洩油）螺絲，洩淨舊油。</li>
+            <li>拆卸機油濾芯。</li>
+            <li>安裝機油濾芯，在外層墊圈塗抹一層機油。<br><span class="torque">※ 機油濾芯鎖緊扭力 14 Nm</span></li>
+            <li>安裝放油螺絲及新墊片。<br><span class="torque">※ 放油螺絲鎖緊扭力 27 Nm</span></li>
+            <li>添加機油（約 4.1L · WSS-M2C948-B 5W-20）後，裝回加注口蓋。</li>
+          </ol>
+        </div>
+        <div class="mstep">
+          <h4>機油量測</h4>
+          <ol>
+            <li>怠速運轉至暖車狀態，熄火等待 5 分鐘。</li>
+            <li>抽出機油尺，檢查液面是否在規定記號之間。</li>
+            <li>不足時由加油孔補充至上限刻度；切勿超過上限。</li>
+          </ol>
+        </div>
+      </div>
+      <div class="figs" aria-label="元件位置示意圖">
+        <div class="fig">
+          <img class="fig-photo" src="img/oil-filler.jpg" alt="加油孔" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="機油加注口蓋位置示意"><rect x="18" y="48" width="164" height="66" rx="8" fill="#19232c" stroke="#31404b"/><rect x="30" y="60" width="58" height="20" rx="4" fill="#202b34" stroke="#31404b"/><rect x="100" y="60" width="70" height="44" rx="4" fill="#202b34" stroke="#31404b"/><circle cx="60" cy="46" r="13" fill="#67c7e5" stroke="#101418" stroke-width="2"/><circle cx="60" cy="46" r="20" fill="none" stroke="#ff766e" stroke-width="2.5"/><line x1="60" y1="16" x2="60" y2="24" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">加油孔</div>
+        </div>
+        <div class="fig">
+          <img class="fig-photo" src="img/oil-dipstick.jpg" alt="量油尺" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="機油尺位置示意"><rect x="18" y="48" width="164" height="66" rx="8" fill="#19232c" stroke="#31404b"/><rect x="30" y="60" width="112" height="42" rx="4" fill="#202b34" stroke="#31404b"/><circle cx="152" cy="42" r="9" fill="none" stroke="#d9a64c" stroke-width="4"/><line x1="152" y1="51" x2="152" y2="90" stroke="#d9a64c" stroke-width="3"/><circle cx="152" cy="48" r="20" fill="none" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">量油尺</div>
+        </div>
+        <div class="fig">
+          <img class="fig-photo" src="img/oil-filter.jpg" alt="機油濾芯" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="機油濾清器位置示意"><rect x="18" y="20" width="164" height="92" rx="8" fill="#19232c" stroke="#31404b"/><rect x="72" y="34" width="46" height="66" rx="11" fill="#202b34" stroke="#31404b"/><rect x="72" y="52" width="46" height="16" fill="#2a3a44"/><text x="95" y="64" text-anchor="middle" font-size="9" fill="#b8c4c0" font-family="monospace">OIL</text><circle cx="95" cy="67" r="33" fill="none" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">機油濾芯</div>
+        </div>
+        <div class="fig">
+          <img class="fig-photo" src="img/oil-drain.jpg" alt="洩油孔" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="洩油孔位置示意"><path d="M24 32 H176 L158 90 H42 Z" fill="#19232c" stroke="#31404b"/><rect x="88" y="90" width="24" height="10" rx="2" fill="#202b34" stroke="#31404b"/><polygon points="100,100 108,106 104,116 96,116 92,106" fill="#d9a64c" stroke="#101418"/><circle cx="100" cy="108" r="18" fill="none" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">洩油孔</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="維修圖解 變速箱油">
+    <div class="group-head"><h2>維修圖解 · 變速箱油（6F35）</h2><span>MERCON LV · drain &amp; fill</span></div>
+    <div class="manual">
+      <div class="manual-col">
+        <div class="mstep">
+          <h4>變速箱油更換（drain &amp; fill）</h4>
+          <ol>
+            <li>只用 <strong>MERCON LV</strong>（WSS-M2C938-A）；量少多次比一次大換安全。<br><span class="torque">※ 僅限 MERCON LV，他型損壞變速箱</span></li>
+            <li>行駛暖車至工作油溫後熄火，車輛保持四輪水平。</li>
+            <li>拆洩油塞放掉舊油（約 4L），鎖回洩油塞。</li>
+            <li>由加注孔灌入等量新油。</li>
+            <li>拆側邊油位塞（10mm 內六角）。</li>
+            <li>引擎發動、依規定油溫，補油至油位塞流出成滴。<br><span class="torque">※ 依油溫判定（建議 FORScan 讀變速箱油溫）</span></li>
+            <li>踩煞車依序排各檔各停 5 秒回 P。</li>
+            <li>複查滴流狀態後，鎖回油位塞與加注塞。</li>
+          </ol>
+        </div>
+      </div>
+      <div class="figs" aria-label="元件位置示意圖">
+        <div class="fig">
+          <img class="fig-photo" src="img/atf-fill.jpg" alt="加注孔" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="變速箱加注孔位置示意"><path d="M22 30 H178 L160 96 H40 Z" fill="#19232c" stroke="#31404b"/><rect x="132" y="22" width="16" height="14" rx="3" fill="#67c7e5" stroke="#101418"/><circle cx="140" cy="29" r="18" fill="none" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">加注孔</div>
+        </div>
+        <div class="fig">
+          <img class="fig-photo" src="img/atf-level.jpg" alt="油位塞（側）" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="側邊油位塞位置示意"><path d="M22 30 H178 L160 96 H40 Z" fill="#19232c" stroke="#31404b"/><polygon points="168,70 176,74 172,84 164,84 160,74" fill="#d9a64c" stroke="#101418"/><circle cx="168" cy="77" r="17" fill="none" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">油位塞（側 · 10mm 內六角）</div>
+        </div>
+        <div class="fig">
+          <img class="fig-photo" src="img/atf-drain.jpg" alt="洩油塞" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="變速箱洩油塞位置示意"><path d="M22 26 H178 L160 86 H40 Z" fill="#19232c" stroke="#31404b"/><rect x="88" y="86" width="24" height="10" rx="2" fill="#202b34" stroke="#31404b"/><polygon points="100,96 108,102 104,112 96,112 92,102" fill="#d9a64c" stroke="#101418"/><circle cx="100" cy="104" r="18" fill="none" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">洩油塞</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="維修圖解 空氣濾芯">
+    <div class="group-head"><h2>維修圖解 · 引擎空氣濾芯</h2><span>Ford 1848220 · 48,000 km</span></div>
+    <div class="manual">
+      <div class="manual-col">
+        <div class="mstep">
+          <h4>空氣濾芯更換</h4>
+          <ol>
+            <li>打開引擎室，鬆開空濾箱上蓋的扣具 / 螺絲。</li>
+            <li>掀開上蓋，取出舊濾芯（記下裝入方向）。</li>
+            <li>清潔濾箱內落葉與灰塵，勿讓雜物落入進氣。</li>
+            <li>依原方向裝入新濾芯（Ford 1848220），密封膠邊貼合。</li>
+            <li>蓋回上蓋、扣好全部扣具 / 鎖回螺絲。</li>
+          </ol>
+        </div>
+      </div>
+      <div class="figs" aria-label="元件位置示意圖">
+        <div class="fig">
+          <img class="fig-photo" src="img/air-box.jpg" alt="空濾箱" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="空氣濾清器箱位置示意"><rect x="24" y="30" width="152" height="70" rx="8" fill="#19232c" stroke="#31404b"/><rect x="36" y="42" width="128" height="30" rx="4" fill="#202b34" stroke="#31404b"/><circle cx="52" cy="36" r="5" fill="#d9a64c"/><circle cx="148" cy="36" r="5" fill="#d9a64c"/><circle cx="100" cy="65" r="30" fill="none" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">空濾箱（鬆開扣具）</div>
+        </div>
+        <div class="fig">
+          <img class="fig-photo" src="img/air-element.jpg" alt="濾芯方向" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="空氣濾芯方向示意"><rect x="34" y="46" width="132" height="40" rx="4" fill="#202b34" stroke="#31404b"/><path d="M40 46 l6 40 M52 46 l6 40 M64 46 l6 40 M76 46 l6 40 M88 46 l6 40 M100 46 l6 40 M112 46 l6 40 M124 46 l6 40 M136 46 l6 40 M148 46 l6 40" stroke="#31404b" stroke-width="2"/><path d="M100 96 v14 M92 104 l8 6 l8 -6" fill="none" stroke="#67c7e5" stroke-width="3"/></svg>
+          <div class="lbl">濾芯（記方向）</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="維修圖解 冷氣濾網">
+    <div class="group-head"><h2>維修圖解 · 冷氣濾網</h2><span>Ford 1709013 · 32,000 km</span></div>
+    <div class="manual">
+      <div class="manual-col">
+        <div class="mstep">
+          <h4>冷氣濾網（花粉）更換</h4>
+          <ol>
+            <li>打開手套箱，卸下阻擋的固定件 / 緩衝條（部分需拆手套箱擋板）。</li>
+            <li>取下濾網外蓋，抽出舊濾網（記下氣流方向箭頭）。</li>
+            <li>依箭頭方向（通常朝下）裝入新濾網（Ford 1709013）。</li>
+            <li>裝回外蓋、固定件與手套箱。</li>
+          </ol>
+        </div>
+      </div>
+      <div class="figs" aria-label="元件位置示意圖">
+        <div class="fig">
+          <img class="fig-photo" src="img/cabin-box.jpg" alt="手套箱後方" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="手套箱後方濾網蓋位置示意"><rect x="24" y="26" width="152" height="80" rx="8" fill="#19232c" stroke="#31404b"/><rect x="60" y="44" width="80" height="44" rx="4" fill="#202b34" stroke="#31404b"/><rect x="72" y="52" width="56" height="28" rx="2" fill="#151c23" stroke="#31404b"/><circle cx="100" cy="66" r="30" fill="none" stroke="#ff766e" stroke-width="2.5"/></svg>
+          <div class="lbl">手套箱後方濾網蓋</div>
+        </div>
+        <div class="fig">
+          <img class="fig-photo" src="img/cabin-element.jpg" alt="濾網方向箭頭" loading="lazy" onerror="this.remove()">
+          <svg viewBox="0 0 200 130" role="img" aria-label="冷氣濾網氣流方向示意"><rect x="40" y="40" width="120" height="52" rx="4" fill="#202b34" stroke="#31404b"/><path d="M46 40 v52 M58 40 v52 M70 40 v52 M82 40 v52 M94 40 v52 M106 40 v52 M118 40 v52 M130 40 v52 M142 40 v52 M154 40 v52" stroke="#31404b" stroke-width="1.5"/><path d="M100 30 v18 M92 40 l8 8 l8 -8" fill="none" stroke="#d9a64c" stroke-width="3"/><text x="100" y="112" text-anchor="middle" font-size="10" fill="#b8c4c0" font-family="monospace">AIRFLOW ↓</text></svg>
+          <div class="lbl">濾網（箭頭朝下）</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="DIY 換油完整步驟">
+    <div class="group-head"><h2>DIY 換油完整步驟</h2><span>機油 / 變速箱油 · 自負風險</span></div>
+    <div class="cards">
+      <article class="card wide"><h3>引擎機油更換</h3><code>4.1L · WSS-M2C948-B 5W-20</code>
+        <ol>
+          <li>暖車數分鐘讓機油易流，熄火、拉手煞、前輪加駐車楔，車輛以坡道 / 舉升確保水平。</li>
+          <li>拆下底護板，備好接油盤於洩油螺絲下方。</li>
+          <li>逆時針鬆開洩油螺絲，洩淨舊油（小心高溫）。</li>
+          <li>用濾清器扳手逆時針拆下旋上式機油濾（會有殘油），擦淨引擎座面。</li>
+          <li>新濾外層墊圈塗薄新機油 → 手轉至墊圈接觸 → 鎖緊至 <strong>14 Nm</strong>（原廠手冊；約再 3/4 圈）。</li>
+          <li>洩油螺絲換新墊片，順時針鎖回 <strong>27 Nm</strong>（原廠手冊）。</li>
+          <li>由加油口先注入約 3.8L，對機油尺檢查、補至上限區（總量約 4.1L）。</li>
+          <li>發動怠速 30 秒，檢查洩油螺絲 / 濾清器無滲漏、機油壓力燈熄滅。</li>
+          <li>熄火靜置 5 分鐘複查油位；最後用油門+煞車法或 FORScan 歸零機油壽命。</li>
+        </ol>
+        <div class="chips"><span class="chip">洩油 27 Nm</span><span class="chip">濾芯 14 Nm</span><span class="chip ok">原廠手冊</span></div>
+      </article>
+      <article class="card wide"><h3>變速箱油更換（6F35 · drain &amp; fill）</h3><code>MERCON LV · ~4L / 次</code>
+        <ol>
+          <li>只能用 <strong>MERCON LV</strong>（他型會損壞變速箱）；量少多次比一次大換安全。</li>
+          <li>行駛暖車至工作油溫後熄火，車輛保持<strong>四輪水平</strong>（油位判定關鍵）。</li>
+          <li>放掉洩油塞舊油（約 4L），鎖回洩油塞。</li>
+          <li>由加注孔灌入等量新 MERCON LV。</li>
+          <li>拆側邊<strong>油位塞（10mm 內六角）</strong>。</li>
+          <li>引擎發動，<strong>依規定油溫</strong>（建議用 FORScan 監測變速箱油溫）持續補油，直到油位塞流出成滴。</li>
+          <li>踩煞車依序排入各檔各停約 5 秒再回 P，讓油路充填。</li>
+          <li>複查油位塞呈滴流狀態後，鎖回油位塞與加注塞。</li>
+        </ol>
+        <div class="chips"><span class="chip">10mm 內六角油位塞</span><span class="chip">依油溫判定</span><span class="chip ok">多源確認</span></div>
+      </article>
+    </div>
+  </section>
+
+  <footer class="footnote">
+    Reference only. 程序與扭力值依福特六和原廠保養手冊；元件圖為位置示意（非實車照片，可置換）。<br>
+    料號為交叉比對值，下單前以 VIN 向福特原廠確認；任何維修與後果由操作者自行承擔。
+  </footer>
+</main>
+</body>
+</html>
