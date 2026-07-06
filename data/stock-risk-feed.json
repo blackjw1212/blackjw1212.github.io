@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-06T11:22:11.736Z",
-  "eodUpdatedAt": "2026-07-06T11:22:11.736Z",
+  "updatedAt": "2026-07-06T23:31:55.477Z",
+  "eodUpdatedAt": "2026-07-06T23:31:55.477Z",
   "holdings": [
     "2330",
     "2317",
@@ -20,55 +20,55 @@
       "code": "1519",
       "name": "華城",
       "close": 773,
-      "change": 3
+      "change": 0
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 2075,
-      "change": 105
+      "close": 1995,
+      "change": -80
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 240.5,
+      "close": 242,
       "change": 1.5
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2445,
-      "change": -20
+      "close": 2460,
+      "change": 15
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 67.6,
-      "change": 0.4
+      "close": 67.2,
+      "change": -0.4
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 338.5,
-      "change": 0
+      "close": 336.5,
+      "change": -2
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 377,
-      "change": 8
+      "close": 378,
+      "change": 1
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2760,
-      "change": 20
+      "close": 2670,
+      "change": -90
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 159,
-      "change": 0.5
+      "close": 158,
+      "change": -1
     },
     {
       "code": "3324",
@@ -79,14 +79,14 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 4650,
-      "change": -245
+      "close": 4215,
+      "change": -435
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 5265,
-      "change": 65
+      "close": 5035,
+      "change": -230
     }
   ],
   "valuation": {
@@ -98,51 +98,51 @@
     },
     "2308": {
       "code": "2308",
-      "pe": 76.51,
-      "dividendYield": 0.56,
-      "pbRatio": 17.99
+      "pe": 73.56,
+      "dividendYield": 0.58,
+      "pbRatio": 17.3
     },
     "2317": {
       "code": "2317",
-      "pe": 17.08,
-      "dividendYield": 2.98,
-      "pbRatio": 1.89
+      "pe": 17.19,
+      "dividendYield": 2.96,
+      "pbRatio": 1.9
     },
     "2330": {
       "code": "2330",
-      "pe": 32.87,
-      "dividendYield": 0.9,
-      "pbRatio": 10.76
+      "pe": 33.07,
+      "dividendYield": 0.89,
+      "pbRatio": 10.83
     },
     "2356": {
       "code": "2356",
-      "pe": 25.7,
-      "dividendYield": 2.96,
-      "pbRatio": 3.3
+      "pe": 25.55,
+      "dividendYield": 2.98,
+      "pbRatio": 3.28
     },
     "2376": {
       "code": "2376",
-      "pe": 15.81,
-      "dividendYield": 3.55,
-      "pbRatio": 3.51
+      "pe": 15.72,
+      "dividendYield": 3.57,
+      "pbRatio": 3.49
     },
     "2382": {
       "code": "2382",
-      "pe": 18.95,
-      "dividendYield": 4.14,
-      "pbRatio": 7
+      "pe": 19,
+      "dividendYield": 4.13,
+      "pbRatio": 7.02
     },
     "3017": {
       "code": "3017",
-      "pe": 45.35,
-      "dividendYield": 0.76,
-      "pbRatio": 23.99
+      "pe": 43.87,
+      "dividendYield": 0.79,
+      "pbRatio": 23.21
     },
     "3231": {
       "code": "3231",
-      "pe": 15.95,
-      "dividendYield": 3.46,
-      "pbRatio": 2.66
+      "pe": 15.85,
+      "dividendYield": 3.48,
+      "pbRatio": 2.64
     },
     "3324": {
       "code": "3324",
@@ -152,21 +152,21 @@
     },
     "3661": {
       "code": "3661",
-      "pe": 68.15,
-      "dividendYield": 0.73,
-      "pbRatio": 8.79
+      "pe": 61.78,
+      "dividendYield": 0.81,
+      "pbRatio": 7.96
     },
     "6669": {
       "code": "6669",
-      "pe": 17.65,
-      "dividendYield": 3.12,
-      "pbRatio": 6.98
+      "pe": 16.88,
+      "dividendYield": 3.26,
+      "pbRatio": 6.68
     }
   },
   "yield10y": {
-    "date": "2026-07-01",
-    "value": 4.48,
-    "updatedAt": "2026-07-01T22:00:00.000Z",
+    "date": "2026-07-02",
+    "value": 4.49,
+    "updatedAt": "2026-07-02T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
   "errors": []
