@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-06T06:50:30.081Z",
-  "eodUpdatedAt": "2026-07-06T06:50:30.081Z",
+  "updatedAt": "2026-07-06T11:22:11.736Z",
+  "eodUpdatedAt": "2026-07-06T11:22:11.736Z",
   "holdings": [
     "2330",
     "2317",
@@ -73,8 +73,8 @@
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 1020,
-      "change": -20
+      "close": 1010,
+      "change": -10
     },
     {
       "code": "3661",
@@ -146,9 +146,9 @@
     },
     "3324": {
       "code": "3324",
-      "pe": 29.44,
-      "dividendYield": 1.17,
-      "pbRatio": 7.07
+      "pe": 29.15,
+      "dividendYield": 1.18,
+      "pbRatio": 7
     },
     "3661": {
       "code": "3661",
