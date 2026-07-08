@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-08T07:29:02.726Z",
-  "eodUpdatedAt": "2026-07-07T23:14:32.030Z",
+  "updatedAt": "2026-07-08T09:54:42.360Z",
+  "eodUpdatedAt": "2026-07-08T09:54:42.360Z",
   "holdings": [
     "2330",
     "2317",
@@ -73,8 +73,8 @@
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 970,
-      "change": -40
+      "close": 925,
+      "change": -45
     },
     {
       "code": "3661",
@@ -169,14 +169,5 @@
     "updatedAt": "2026-07-06T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
