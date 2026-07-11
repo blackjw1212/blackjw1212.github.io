@@ -11,3 +11,10 @@ target/
 node_modules/
 Library/
 .gocache/
+.claude/.last_verify_ok
+.claude/skip-verify
+.claude/plan.md
+.claude/loop.json
+.claude/.loop_state.json
+.claude/settings.json.bak.*
+.claude/hooks/__pycache__/

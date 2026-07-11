@@ -1,0 +1,16 @@
+{
+  "_comment": "複製成 .claude/loop.json 即武裝 Loop Engineering 迴圈閘門(loop-gate.py 讀取)。checks 全 exit 0 才算綠燈放行。loop.json 與 .loop_state.json 皆為本機任務狀態、不進版控。",
+  "checks": [
+    "npm run build",
+    "npm test",
+    "npx tsc --noEmit"
+  ],
+  "max_rounds": 3,
+  "no_progress_limit": 2,
+  "boundaries": [
+    "僅動必須動的地方,禁止無關的架構重構或代碼清理",
+    "不得為了讓 CI 綠而弱化或刪除既有測試斷言(可為行為變更做正當的測試更新)",
+    "不變動公開 API 接口與資料庫 schema",
+    "極簡優先:只寫解決問題的最少代碼,不做功能推測"
+  ]
+}
