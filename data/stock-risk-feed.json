@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-14T23:10:43.654Z",
+  "updatedAt": "2026-07-15T01:21:30.141Z",
   "eodUpdatedAt": "2026-07-14T08:58:34.957Z",
   "holdings": [
     "2330",
@@ -171,16 +171,16 @@
   },
   "errors": [
     {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
+      "source": "TWSE OpenAPI STOCK_DAY_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
     },
     {
-      "source": "TPEX OpenAPI peratio analysis",
-      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 520"
+      "source": "TWSE OpenAPI BWIBBU_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
     },
     {
       "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 1 valuation entr(ies) from previous feed due to upstream gaps"
+      "message": "kept 11 eod row(s), 11 valuation entr(ies) from previous feed due to upstream gaps"
     }
   ]
 }
