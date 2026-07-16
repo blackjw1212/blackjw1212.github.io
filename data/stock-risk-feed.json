@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-16T09:33:29.880Z",
+  "updatedAt": "2026-07-16T11:26:39.646Z",
   "eodUpdatedAt": "2026-07-16T09:33:29.880Z",
   "holdings": [
     "2330",
@@ -146,9 +146,9 @@
     },
     "3324": {
       "code": "3324",
-      "pe": 25.86,
-      "dividendYield": 1.33,
-      "pbRatio": 6.21
+      "pe": 26.03,
+      "dividendYield": 1.32,
+      "pbRatio": 6.25
     },
     "3661": {
       "code": "3661",
@@ -169,5 +169,18 @@
     "updatedAt": "2026-07-14T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TWSE OpenAPI STOCK_DAY_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+    },
+    {
+      "source": "TWSE OpenAPI BWIBBU_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 11 eod row(s), 11 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
