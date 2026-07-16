@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-15T23:11:52.770Z",
+  "updatedAt": "2026-07-16T01:41:49.258Z",
   "eodUpdatedAt": "2026-07-15T09:04:16.075Z",
   "holdings": [
     "2330",
@@ -175,8 +175,12 @@
       "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
     },
     {
+      "source": "TPEX OpenAPI peratio analysis",
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 520"
+    },
+    {
       "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
+      "message": "kept 1 eod row(s), 1 valuation entr(ies) from previous feed due to upstream gaps"
     }
   ]
 }
