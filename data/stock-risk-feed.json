@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-16T11:26:39.646Z",
-  "eodUpdatedAt": "2026-07-16T09:33:29.880Z",
+  "updatedAt": "2026-07-16T23:10:08.986Z",
+  "eodUpdatedAt": "2026-07-16T23:10:08.986Z",
   "holdings": [
     "2330",
     "2317",
@@ -19,56 +19,56 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 709,
-      "change": 17
+      "close": 691,
+      "change": -18
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1890,
-      "change": 35
+      "close": 1905,
+      "change": 15
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 239,
+      "close": 242.5,
       "change": 3.5
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2440,
-      "change": 20
+      "close": 2470,
+      "change": 30
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 61.1,
-      "change": 0
+      "close": 60.7,
+      "change": -0.4
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 344,
-      "change": 10
+      "close": 337,
+      "change": -7
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 381,
-      "change": 1
+      "close": 352,
+      "change": 0
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2165,
-      "change": 45
+      "close": 2225,
+      "change": 60
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 145.5,
-      "change": 3
+      "close": 146.5,
+      "change": 1
     },
     {
       "code": "3324",
@@ -79,70 +79,70 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3735,
-      "change": 10
+      "close": 3770,
+      "change": 35
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 5095,
-      "change": 190
+      "close": 5115,
+      "change": 20
     }
   ],
   "valuation": {
     "1519": {
       "code": "1519",
-      "pe": 48.73,
-      "dividendYield": 1.69,
-      "pbRatio": 27.19
+      "pe": 47.49,
+      "dividendYield": 1.74,
+      "pbRatio": 26.5
     },
     "2308": {
       "code": "2308",
-      "pe": 69.69,
+      "pe": 70.24,
       "dividendYield": 0.61,
-      "pbRatio": 16.39
+      "pbRatio": 16.52
     },
     "2317": {
       "code": "2317",
-      "pe": 16.97,
-      "dividendYield": 3,
-      "pbRatio": 1.88
+      "pe": 17.22,
+      "dividendYield": 2.96,
+      "pbRatio": 1.91
     },
     "2330": {
       "code": "2330",
-      "pe": 32.8,
-      "dividendYield": 0.9,
-      "pbRatio": 10.74
+      "pe": 33.21,
+      "dividendYield": 0.89,
+      "pbRatio": 10.87
     },
     "2356": {
       "code": "2356",
-      "pe": 23.23,
-      "dividendYield": 3.27,
-      "pbRatio": 2.98
+      "pe": 23.08,
+      "dividendYield": 3.29,
+      "pbRatio": 2.97
     },
     "2376": {
       "code": "2376",
-      "pe": 16.07,
-      "dividendYield": 3.49,
-      "pbRatio": 3.57
+      "pe": 15.74,
+      "dividendYield": 3.56,
+      "pbRatio": 3.5
     },
     "2382": {
       "code": "2382",
-      "pe": 19.16,
-      "dividendYield": 4.09,
-      "pbRatio": 7.08
+      "pe": 17.7,
+      "dividendYield": 4.43,
+      "pbRatio": 6.54
     },
     "3017": {
       "code": "3017",
-      "pe": 35.57,
-      "dividendYield": 0.97,
-      "pbRatio": 18.82
+      "pe": 36.56,
+      "dividendYield": 0.94,
+      "pbRatio": 19.34
     },
     "3231": {
       "code": "3231",
-      "pe": 14.59,
-      "dividendYield": 3.78,
-      "pbRatio": 2.43
+      "pe": 14.69,
+      "dividendYield": 3.75,
+      "pbRatio": 2.45
     },
     "3324": {
       "code": "3324",
@@ -152,35 +152,22 @@
     },
     "3661": {
       "code": "3661",
-      "pe": 54.74,
+      "pe": 55.25,
       "dividendYield": 0.91,
-      "pbRatio": 7.06
+      "pbRatio": 7.12
     },
     "6669": {
       "code": "6669",
-      "pe": 17.08,
-      "dividendYield": 3.23,
-      "pbRatio": 6.76
+      "pe": 17.15,
+      "dividendYield": 3.21,
+      "pbRatio": 6.78
     }
   },
   "yield10y": {
-    "date": "2026-07-14",
-    "value": 4.58,
-    "updatedAt": "2026-07-14T22:00:00.000Z",
+    "date": "2026-07-15",
+    "value": 4.55,
+    "updatedAt": "2026-07-15T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 11 eod row(s), 11 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
