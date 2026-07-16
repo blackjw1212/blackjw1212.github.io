@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-16T01:41:49.258Z",
-  "eodUpdatedAt": "2026-07-15T09:04:16.075Z",
+  "updatedAt": "2026-07-16T04:50:24.465Z",
+  "eodUpdatedAt": "2026-07-16T04:50:24.465Z",
   "holdings": [
     "2330",
     "2317",
@@ -169,18 +169,5 @@
     "updatedAt": "2026-07-14T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
-    },
-    {
-      "source": "TPEX OpenAPI peratio analysis",
-      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 520"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 1 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
