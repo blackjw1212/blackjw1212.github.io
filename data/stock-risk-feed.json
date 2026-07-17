@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-17T11:01:54.457Z",
+  "updatedAt": "2026-07-17T23:07:27.745Z",
   "eodUpdatedAt": "2026-07-17T11:01:54.457Z",
   "holdings": [
     "2330",
@@ -19,56 +19,56 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 691,
-      "change": -18
+      "close": 655,
+      "change": -36
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1905,
-      "change": 15
+      "close": 1740,
+      "change": -165
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 242.5,
-      "change": 3.5
+      "close": 234,
+      "change": -8.5
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2470,
-      "change": 30
+      "close": 2290,
+      "change": -180
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 60.7,
-      "change": -0.4
+      "close": 58.5,
+      "change": -2.2
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 337,
-      "change": -7
+      "close": 325,
+      "change": -12
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 352,
-      "change": 0
+      "close": 325.5,
+      "change": -26.5
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2225,
-      "change": 60
+      "close": 2200,
+      "change": -25
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 146.5,
-      "change": 1
+      "close": 139,
+      "change": -7.5
     },
     {
       "code": "3324",
@@ -79,14 +79,14 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3770,
-      "change": 35
+      "close": 3480,
+      "change": -290
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 5115,
-      "change": 20
+      "close": 4620,
+      "change": -495
     }
   ],
   "valuation": {
@@ -164,10 +164,23 @@
     }
   },
   "yield10y": {
-    "date": "2026-07-15",
-    "value": 4.55,
-    "updatedAt": "2026-07-15T22:00:00.000Z",
+    "date": "2026-07-16",
+    "value": 4.57,
+    "updatedAt": "2026-07-16T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    },
+    {
+      "source": "TWSE OpenAPI BWIBBU_ALL",
+      "message": "fetch failed"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 1 eod row(s), 11 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
