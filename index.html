@@ -280,6 +280,12 @@ function formatDate(value) {
   }).format(date);
 }
 
+// 交易日（資料屬於哪一天）與 eodUpdatedAt（何時抓的）不同，標示要用前者。
+function formatTradingDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  return `${value.slice(5, 7)}/${value.slice(8, 10)}`;
+}
+
 function formatYield(value) {
   const number = Number(value);
   return Number.isFinite(number) ? `${number.toFixed(2)}%` : "待更新";
@@ -294,9 +300,12 @@ async function refreshAiSummary() {
     if (!response.ok) throw new Error(`stock feed ${response.status}`);
     const feed = await response.json();
     const eodRows = Array.isArray(feed.eod) ? feed.eod.length : 0;
-    const stamp = formatDate(feed.eodUpdatedAt || feed.updatedAt);
+    const tradingDate = formatTradingDate(feed.eodTradingDate);
+    const stamp = tradingDate
+      ? `${tradingDate} 收盤`
+      : `收盤資料 ${formatDate(feed.eodUpdatedAt || feed.updatedAt)}`;
     const yieldValue = feed.yield10y && feed.yield10y.value;
-    setStatus("stockFeedStatus", "stockFeedMeta", eodRows ? `${eodRows} 檔` : "待更新", `收盤資料 ${stamp}`, eodRows ? "ok" : "warn");
+    setStatus("stockFeedStatus", "stockFeedMeta", eodRows ? `${eodRows} 檔` : "待更新", stamp, eodRows ? "ok" : "warn");
     setStatus("yieldStatus", "yieldMeta", formatYield(yieldValue), feed.yield10y && feed.yield10y.source ? feed.yield10y.source : "來源待更新", Number.isFinite(Number(yieldValue)) ? "ok" : "warn");
   } catch (error) {
     setStatus("stockFeedStatus", "stockFeedMeta", "待更新", "靜態 feed 暫時無法讀取", "warn");

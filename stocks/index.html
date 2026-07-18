@@ -870,7 +870,7 @@ async function loadEod(){
     const feed = await loadStaticFeed();
     const rows = normalizeEodPayload(feed && (feed.eod || feed.eodRows || feed));
     if (!rows.length) throw new Error("Static feed has no EOD rows");
-    return {rows:rows,source:"GitHub Pages 靜態 stock-risk-feed.json",delay:"同源靜態備援收盤資料",updatedAt:(feed && (feed.eodUpdatedAt || feed.updatedAt)) || ""};
+    return {rows:rows,source:"GitHub Pages 靜態 stock-risk-feed.json",delay:"同源靜態備援收盤資料",updatedAt:(feed && (feed.eodUpdatedAt || feed.updatedAt)) || "",tradingDate:(feed && feed.eodTradingDate) || ""};
   });
   attempts.push(async function(){return loadEodCache();});
 
@@ -1095,7 +1095,8 @@ function dataSignal(snapshots, rawState){
     tone = "a";
     detail = "收盤價 " + priced.length + "/" + STOCKS.length + " 檔可用，但只有 " + autoObserved + " 檔有低點可自動估觀察價；其餘只顯示預設參考值。";
   }
-  const age = ageDays(meta && meta.updatedAt);
+  // 用資料所屬交易日判斷陳舊度；抓取時間每半小時就刷新，會讓這道閘門永遠不觸發。
+  const age = ageDays(meta && (meta.tradingDate || meta.updatedAt));
   if (age != null && age > 7) {
     tone = "r";
     detail = "收盤資料超過 7 天，先視為資料風險。";

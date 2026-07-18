@@ -7,6 +7,7 @@ const STOCK_CODES = new Set(["2330", "2317", "6669", "3017", "3324", "2382", "15
 const SOURCES = {
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
   tpexEod: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
+  misQuote: "https://mis.twse.com.tw/stock/api/getStockInfo.jsp",
   twseValuation: "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
   tpexValuation: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis",
   fredCsv: "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10",
@@ -48,20 +49,69 @@ function roundNumber(value, digits = 2) {
   return Math.round((value + Number.EPSILON) * factor) / factor;
 }
 
-function normalizeEod(rows) {
+// 交易日欄位在各來源格式不同：TWSE/TPEX OpenAPI 給民國 "1150717"，MIS 給 "20260717"。
+// 統一成 ISO "2026-07-17"，讓 feed 能區分「資料屬於哪個交易日」與「何時抓的」。
+export function parseTradingDate(value) {
+  const raw = String(value ?? "").trim().replace(/[/.]/g, "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value ?? "").trim())) return String(value).trim();
+  if (/^\d{7}$/.test(raw)) return `${Number(raw.slice(0, 3)) + 1911}-${raw.slice(3, 5)}-${raw.slice(5, 7)}`;
+  if (/^\d{8}$/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+  return null;
+}
+
+export function normalizeEod(rows) {
   if (!Array.isArray(rows)) throw new Error("TWSE EOD payload is not an array");
   return rows.map((row) => {
     const code = String(field(row, ["Code", "code", "SecuritiesCompanyCode"]) || "").trim();
     if (!STOCK_CODES.has(code)) return null;
     const close = parseNumber(field(row, ["ClosingPrice", "close", "Close", "Closing"]));
     if (close == null) return null;
-    return {
+    const date = parseTradingDate(field(row, ["Date", "date", "TradeDate"]));
+    const entry = {
       code,
       name: String(field(row, ["Name", "name", "CompanyName"]) || "").trim(),
       close: roundNumber(close, 2),
       change: roundNumber(parseNumber(field(row, ["Change", "change", "PriceChange"])), 2),
     };
+    if (date) entry.date = date;
+    return entry;
   }).filter(Boolean);
+}
+
+// 盤後 STOCK_DAY_ALL 可能仍在送前一交易日；MIS 收盤即時報價可補上「當日」。
+// 寬容設計：抓不到就靜默略過，只在交易日比較新時才覆寫，絕不讓 feed 變壞。
+export async function fetchMisQuotes(codes, fetchImpl = fetch) {
+  const found = new Map();
+  const ask = async (prefix, list) => {
+    if (!list.length) return;
+    const channels = list.map((code) => `${prefix}_${code}.tw`).join("|");
+    const response = await fetchImpl(`${SOURCES.misQuote}?ex_ch=${channels}&json=1&delay=0`, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; bjkw-feed/1.0)",
+        Referer: "https://mis.twse.com.tw/stock/fibest.jsp",
+      },
+    });
+    if (!response.ok) throw new Error(`${SOURCES.misQuote} returned HTTP ${response.status}`);
+    const payload = await response.json();
+    for (const item of Array.isArray(payload && payload.msgArray) ? payload.msgArray : []) {
+      const code = String((item && item.c) || "").trim();
+      const close = parseNumber(item && item.z);
+      const date = parseTradingDate(item && item.d);
+      if (!STOCK_CODES.has(code) || close == null || !date || found.has(code)) continue;
+      const previousClose = parseNumber(item && item.y);
+      found.set(code, {
+        code,
+        name: String((item && item.n) || "").trim(),
+        close: roundNumber(close, 2),
+        change: previousClose == null ? null : roundNumber(close - previousClose, 2),
+        date,
+      });
+    }
+  };
+  await ask("tse", codes);
+  await ask("otc", codes.filter((code) => !found.has(code)));
+  return found;
 }
 
 function normalizeValuation(rows) {
@@ -163,6 +213,11 @@ export function mergeFeed(previous, fetched, now) {
   const eod = Object.values(eodMap).sort((a, b) => String(a.code).localeCompare(String(b.code)));
   const fullyFresh = [...STOCK_CODES].every((code) => fetchedCodes.has(code));
   const eodUpdatedAt = fullyFresh ? now : (prev.eodUpdatedAt || (fetchedCodes.size ? now : null));
+  // 資料所屬的最新交易日（與 eodUpdatedAt 的「抓取時刻」分開），供前端標示與陳舊度判斷。
+  const eodTradingDate = eod.reduce((latest, row) => {
+    const date = row && typeof row.date === "string" ? row.date : null;
+    return date && (!latest || date > latest) ? date : latest;
+  }, null);
 
   const prevValuation = prev.valuation && typeof prev.valuation === "object" ? prev.valuation : {};
   const valuation = { ...prevValuation, ...fetchedValuation };
@@ -172,6 +227,7 @@ export function mergeFeed(previous, fetched, now) {
   return {
     eod,
     eodUpdatedAt,
+    eodTradingDate,
     valuation,
     yield10y,
     preserved: {
@@ -214,6 +270,31 @@ async function main() {
     }
   } catch (error) {
     errors.push({ source: "TPEX OpenAPI daily close quotes", message: error.message });
+  }
+
+  // OpenAPI 盤後仍可能停在前一交易日；用 MIS 收盤報價把落後的列升級到當日。
+  try {
+    const quotes = await fetchMisQuotes([...STOCK_CODES]);
+    let upgraded = 0;
+    for (const row of eod) {
+      const quote = quotes.get(row.code);
+      if (quote && (!row.date || quote.date > row.date)) {
+        Object.assign(row, quote);
+        upgraded += 1;
+      }
+    }
+    const have = new Set(eod.map((row) => row.code));
+    for (const [code, quote] of quotes) {
+      if (!have.has(code)) {
+        eod.push(quote);
+        upgraded += 1;
+      }
+    }
+    if (upgraded) {
+      console.log(`MIS same-day quotes upgraded ${upgraded} row(s)`);
+    }
+  } catch (error) {
+    errors.push({ source: "TWSE MIS same-day quotes", message: error.message });
   }
 
   eod.sort((a, b) => a.code.localeCompare(b.code));
@@ -259,6 +340,7 @@ async function main() {
   const feed = {
     updatedAt: now,
     eodUpdatedAt: merged.eodUpdatedAt,
+    eodTradingDate: merged.eodTradingDate,
     holdings: [...STOCK_CODES],
     eod: merged.eod,
     valuation: merged.valuation,
