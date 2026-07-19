@@ -10,6 +10,7 @@ const PRECACHE = [
   "/esp32/",
   "/forscan/",
   "/forscan/service/",
+  "/forscan/sync3/",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",

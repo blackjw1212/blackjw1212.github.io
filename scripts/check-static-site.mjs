@@ -62,6 +62,7 @@ for (const rel of [
   "esp32/index.html",
   "forscan/index.html",
   "forscan/service/index.html",
+  "forscan/sync3/index.html",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -183,6 +184,19 @@ if (has("forscan/index.html")) {
   assertMatch("forscan/index.html", html, /操作前務必先看/, "forscan safety notice");
   assertMatch("forscan/index.html", html, /逐車不同/, "forscan per-car disclaimer");
   assertMatch("forscan/index.html", html, /href="\/forscan\/service\/"/, "forscan links to service sub-page");
+  assertMatch("forscan/index.html", html, /href="\/forscan\/sync3\/"/, "forscan links to sync3 sub-page");
+}
+
+if (has("forscan/sync3/index.html")) {
+  const html = await read("forscan/sync3/index.html");
+  assertMatch("forscan/sync3/index.html", html, /<html lang="zh-Hant">/, "sync3 document language");
+  assertMatch("forscan/sync3/index.html", html, /rel="canonical" href="\/forscan\/sync3\/"/, "sync3 canonical");
+  assertMatch("forscan/sync3/index.html", html, /name="theme-color" content="#101418"/, "sync3 theme color");
+  assertMatch("forscan/sync3/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "sync3 service worker registration");
+  assertMatch("forscan/sync3/index.html", html, /Syn3Updater/, "sync3 tool name");
+  assertMatch("forscan/sync3/index.html", html, /無法再退回 3\.0/, "sync3 irreversible warning");
+  assertMatch("forscan/sync3/index.html", html, /exFAT/, "sync3 usb format");
+  assertMatch("forscan/sync3/index.html", html, /AutoInstall/, "sync3 install modes");
 }
 
 if (has("forscan/service/index.html")) {
@@ -203,7 +217,7 @@ if (has("bjkw_weather.html")) {
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {
