@@ -237,10 +237,11 @@ function completeMisClosingQuotes() {
     { code: "3661", name: "Alchip", price: 4105, change: -95, previousClose: 4200, high: 4250, low: 4000, open: 4200, time: "2026-06-08T13:30:00+08:00" },
     { code: "2356", name: "Inventec", price: 64.3, change: 1, previousClose: 63.3, high: 67, low: 63.8, open: 64, time: "2026-06-08T13:30:00+08:00" },
     { code: "2376", name: "Gigabyte", price: 325, change: 5.5, previousClose: 319.5, high: 330, low: 320, open: 320, time: "2026-06-08T13:30:00+08:00" },
+    { code: "6239", name: "PTI", price: 288, change: -28.5, previousClose: 316.5, high: 325, low: 286.5, open: 320.5, time: "2026-06-08T13:30:00+08:00" },
   ];
 }
 
-const EOD_CACHE_KEY = "bjkw-portfolio-console-v2:eod:2330,2317,2382,3231,6669,3017,3324,3661,2356,2376,1519,2308";
+const EOD_CACHE_KEY = "bjkw-portfolio-console-v2:eod:2330,2317,2382,3231,6669,3017,3324,3661,2356,2376,6239,1519,2308";
 const STATE_KEY = "bjkw-portfolio-console-v2";
 
 test("root index is a status overview entry console", async () => {
@@ -454,6 +455,7 @@ test("auto signal helper gates entry, waiting, and exit observation states", asy
       "2308": { close: 2200, change: 4, high: 2230, low: 2140 },
       "2356": { close: 64, change: 1, high: 67, low: 62 },
       "2376": { close: 325, change: 5, high: 330, low: 318 },
+      "6239": { close: 288, change: 2, high: 292, low: 284 },
     },
     eodMeta: { source: "Worker mock EOD", updatedAt: fresh },
     yieldMeta: { source: "mock 10Y", updatedAt: fresh },

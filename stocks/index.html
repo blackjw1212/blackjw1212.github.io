@@ -271,6 +271,7 @@ const STOCKS = [
   {code:"3661",name:"世芯-KY",tier:"sat",theme:"asic",role:"ASIC／客製晶片設計，對應 GPU+ASIC 雙主流，但估值偏高、波動大。",pe:"~64",base:4105,s:["l","m","h","mh","m","m"]},
   {code:"2356",name:"英業達",tier:"sat",theme:"server",role:"AI 伺服器 ODM，估值便宜、距高檔回檔深，但毛利薄、題材純度中等。",pe:"~24",base:62,s:["m","m","mh","m","m","m"]},
   {code:"2376",name:"技嘉",tier:"sat",theme:"server",role:"AI 伺服器與板卡，AI 槓桿高、估值偏低，遊戲＋伺服器雙引擎、波動中等。",pe:"~15",base:315,s:["mh","mh","h","mh","m","mh"]},
+  {code:"6239",name:"力成",tier:"sat",theme:"test",role:"記憶體／HBM 封測測試，受 AI 記憶體需求拉動；惟估值偏高、殖利率低，且受記憶體循環波動影響大。",pe:"~34",base:280,s:["ml","m","mh","m","h","ml"]},
   {code:"1519",name:"華城",tier:"wait",theme:"power",role:"電力建設長線，但估值與籌碼需等冷卻。",pe:"~57",base:915,s:["l","l","h","h","h","m"]},
   {code:"2308",name:"台達電",tier:"wait",theme:"power",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。",pe:"~79",base:2215,s:["l","l","h","h","mh","mh"]},
 ];
@@ -295,7 +296,7 @@ const CONDS = [
   {id:"concentration", t:"題材集中度", d:"清單同一子題材占比過高時提醒分散風險；由清單組成自動計算，不影響今日結論燈號。"},
 ];
 
-const THEME_NAMES = {foundry:"晶圓代工",server:"伺服器 ODM／系統",cooling:"散熱",asic:"ASIC",power:"電源／重電",other:"其他"};
+const THEME_NAMES = {foundry:"晶圓代工",server:"伺服器 ODM／系統",cooling:"散熱",asic:"ASIC",power:"電源／重電",test:"封測／測試",other:"其他"};
 
 const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
 const TONE_WORD = {g:"綠燈",a:"黃燈",r:"紅燈"};
@@ -313,6 +314,7 @@ const TRADINGVIEW_SYMBOLS = {
   "2308":"TWSE:2308",
   "2356":"TWSE:2356",
   "2376":"TWSE:2376",
+  "6239":"TWSE:6239",
 };
 const EOD_CACHE_KEY = LS + ":eod:" + STOCK_CODES.join(",");
 const MARKET_INDEXES = [
