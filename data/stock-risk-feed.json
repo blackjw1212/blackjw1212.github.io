@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-18T08:46:17.829Z",
-  "eodUpdatedAt": "2026-07-18T08:46:17.829Z",
+  "updatedAt": "2026-07-19T10:14:13.686Z",
+  "eodUpdatedAt": "2026-07-19T10:14:13.686Z",
   "eodTradingDate": "2026-07-17",
   "holdings": [
     "2330",
@@ -14,7 +14,8 @@
     "3231",
     "3661",
     "2356",
-    "2376"
+    "2376",
+    "6239"
   ],
   "eod": [
     {
@@ -95,6 +96,13 @@
       "date": "2026-07-17"
     },
     {
+      "code": "6239",
+      "name": "力成",
+      "close": 288,
+      "change": -28.5,
+      "date": "2026-07-17"
+    },
+    {
       "code": "6669",
       "name": "緯穎",
       "close": 4620,
@@ -169,6 +177,12 @@
       "dividendYield": 0.98,
       "pbRatio": 6.58
     },
+    "6239": {
+      "code": "6239",
+      "pe": 34.29,
+      "dividendYield": 1.56,
+      "pbRatio": 3.65
+    },
     "6669": {
       "code": "6669",
       "pe": 15.49,
@@ -182,10 +196,5 @@
     "updatedAt": "2026-07-16T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    }
-  ]
+  "errors": []
 }
