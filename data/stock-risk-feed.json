@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-21T01:42:53.922Z",
-  "eodUpdatedAt": "2026-07-20T23:14:13.427Z",
+  "updatedAt": "2026-07-21T04:58:29.202Z",
+  "eodUpdatedAt": "2026-07-21T04:58:29.202Z",
   "eodTradingDate": "2026-07-21",
   "holdings": [
     "2330",
@@ -63,9 +63,9 @@
     {
       "code": "2382",
       "name": "廣達",
-      "close": 320,
-      "change": 4,
-      "date": "2026-07-21"
+      "close": 316,
+      "change": -9.5,
+      "date": "2026-07-20"
     },
     {
       "code": "3017",
@@ -77,9 +77,9 @@
     {
       "code": "3231",
       "name": "緯創",
-      "close": 143.5,
-      "change": 4.5,
-      "date": "2026-07-20"
+      "close": 150,
+      "change": 6.5,
+      "date": "2026-07-21"
     },
     {
       "code": "3324",
@@ -91,9 +91,9 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3475,
-      "change": 110,
-      "date": "2026-07-21"
+      "close": 3365,
+      "change": -115,
+      "date": "2026-07-20"
     },
     {
       "code": "6239",
@@ -196,14 +196,5 @@
     "updatedAt": "2026-07-17T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
