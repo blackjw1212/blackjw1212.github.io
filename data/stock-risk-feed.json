@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-21T10:14:17.636Z",
-  "eodUpdatedAt": "2026-07-21T10:14:17.636Z",
+  "updatedAt": "2026-07-21T12:05:47.616Z",
+  "eodUpdatedAt": "2026-07-21T12:05:47.616Z",
   "eodTradingDate": "2026-07-21",
   "holdings": [
     "2330",
@@ -196,5 +196,14 @@
     "updatedAt": "2026-07-17T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TWSE OpenAPI STOCK_DAY_ALL",
+      "message": "fetch failed"
+    },
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
+    }
+  ]
 }
