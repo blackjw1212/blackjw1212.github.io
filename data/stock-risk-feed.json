@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-07-22T01:42:15.673Z",
-  "eodUpdatedAt": "2026-07-21T23:10:50.387Z",
-  "eodTradingDate": "2026-07-21",
+  "updatedAt": "2026-07-22T04:58:03.973Z",
+  "eodUpdatedAt": "2026-07-22T04:58:03.973Z",
+  "eodTradingDate": "2026-07-22",
   "holdings": [
     "2330",
     "2317",
@@ -84,9 +84,9 @@
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 926,
-      "change": 68,
-      "date": "2026-07-21"
+      "close": 914,
+      "change": -12,
+      "date": "2026-07-22"
     },
     {
       "code": "3661",
@@ -98,9 +98,9 @@
     {
       "code": "6239",
       "name": "力成",
-      "close": 272,
-      "change": 5.5,
-      "date": "2026-07-21"
+      "close": 296.5,
+      "change": 24.5,
+      "date": "2026-07-22"
     },
     {
       "code": "6669",
@@ -196,22 +196,5 @@
     "updatedAt": "2026-07-20T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "TWSE MIS same-day quotes",
-      "message": "https://mis.twse.com.tw/stock/api/getStockInfo.jsp returned HTTP 502"
-    },
-    {
-      "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 12 eod row(s), 12 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
