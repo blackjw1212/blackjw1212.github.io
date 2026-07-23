@@ -38,8 +38,8 @@ SUBPROC_TIMEOUT = 540
 TAIL = 1000  # 每項失敗輸出尾段上限(字元)
 
 # 變更偵測涵蓋的副檔名(決定是否要重跑)
-SRC_EXT = (".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".ino", ".py", ".S", ".s",
-           ".js", ".ts", ".jsx", ".tsx", ".sh", ".plist", ".xml", ".json",
+SRC_EXT = (".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".ino", ".py", ".rs", ".S", ".s",
+           ".js", ".ts", ".jsx", ".tsx", ".sh", ".plist", ".xml", ".json", ".toml",
            ".txt", ".yml", ".yaml", ".dsl", ".aml", ".xlsx", ".deb", ".css", ".html")
 SKIP_DIRS = {".git", "build", ".pio", "node_modules", ".claude", ".vscode",
              "managed_components", "dist", ".cache", "__pycache__"}
@@ -250,9 +250,19 @@ def check_node(project):
     return ("Node", f"{' '.join(cmd)} 失敗\n{out}" if rc not in (0, None) else None)
 
 
+def check_cargo(project):
+    if not (project / "Cargo.toml").exists():
+        return None
+    if shutil.which("cargo") is None:
+        warn("cargo 不在 PATH → 跳過 Rust 檢查(請先載入 toolchain)")
+        return None
+    rc, out = run(["cargo", "test", "--quiet"], cwd=str(project))
+    return ("Rust", f"cargo test 失敗\n{out}" if rc not in (0, None) else None)
+
+
 BUILTIN_CHECKS = [
     check_firmware, check_plist, check_acpi, check_xml, check_json,
-    check_adblock, check_xlsx, check_shell, check_python, check_node,
+    check_adblock, check_xlsx, check_shell, check_python, check_node, check_cargo,
 ]
 
 
