@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-07-23T23:10:43.075Z",
-  "eodUpdatedAt": "2026-07-23T23:10:43.075Z",
-  "eodTradingDate": "2026-07-23",
+  "updatedAt": "2026-07-24T01:45:36.383Z",
+  "eodUpdatedAt": "2026-07-24T01:45:36.383Z",
+  "eodTradingDate": "2026-07-24",
   "holdings": [
     "2330",
     "2317",
@@ -63,9 +63,9 @@
     {
       "code": "2382",
       "name": "廣達",
-      "close": 336,
-      "change": 7,
-      "date": "2026-07-23"
+      "close": 334.5,
+      "change": -1.5,
+      "date": "2026-07-24"
     },
     {
       "code": "3017",
