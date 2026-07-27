@@ -155,6 +155,16 @@ export function accumulateDivHistory(history, events, universeCodes, tradeDate) 
   return { start: earliest || tradeDate, stocks: store };
 }
 
+// 該檔自身的配息歷史可回溯到哪一天。coverFrom 由回填工具寫入（Yahoo 2 年區間的
+// 最早事件，即使之後被 13 個月窗剪掉也保留），沒有就退回目前最早的事件日。
+// 不可用全域 history.start：那是所有 ETF 的最早事件，會讓新上市 ETF 也宣稱有滿年歷史。
+export function coverageStart(entry) {
+  if (!entry) return null;
+  if (entry.coverFrom) return entry.coverFrom;
+  const keys = Object.keys(entry.events || {}).sort();
+  return keys.length ? keys[0] : null;
+}
+
 // 由歷史推導：dps 事件（近12月，發放月）、頻率、覆蓋月數、近12月合計
 export function deriveDividend(entry, historyStart, tradeDate) {
   if (!entry || !entry.events) return null;
@@ -181,7 +191,7 @@ export function deriveDividend(entry, historyStart, tradeDate) {
     frequency = median <= 45 ? "月配" : median <= 135 ? "季配" : median <= 270 ? "半年配" : "年配";
   }
 
-  const startMonth = monthKey(historyStart || tradeDate);
+  const startMonth = monthKey(coverageStart(entry) || historyStart || tradeDate);
   const nowMonth = monthKey(tradeDate);
   const covered = Math.min(12, (Number(nowMonth.slice(0, 4)) - Number(startMonth.slice(0, 4))) * 12
     + (Number(nowMonth.slice(5, 7)) - Number(startMonth.slice(5, 7))) + 1);

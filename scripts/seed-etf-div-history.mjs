@@ -88,6 +88,7 @@ async function main() {
   }
   const history = await readJson(HISTORY_FILE, {});
   const store = history.stocks && typeof history.stocks === "object" ? history.stocks : {};
+  const tradeDate = feed.tradeDate || new Date().toISOString().slice(0, 10);
 
   // 全體中位間隔（僅取官方、非推估的事件）
   const allLags = [];
@@ -99,7 +100,8 @@ async function main() {
   const globalLag = allLags.length ? allLags[Math.floor(allLags.length / 2)] : DEFAULT_LAG_DAYS;
   console.log(`global median ex→pay lag: ${globalLag} days (from ${allLags.length} etfs)`);
 
-  const pending = feed.stocks.filter((row) => !(store[row.code] && store[row.code].seeded));
+  // 缺 coverFrom 的舊資料視為未完成回填，自動重抓（自我修復，不需 --force）
+  const pending = feed.stocks.filter((row) => !(store[row.code] && store[row.code].seeded && store[row.code].coverFrom));
   console.log(`seeding ${pending.length} / ${feed.stocks.length} etfs (delay ${DELAY_MS}ms)`);
 
   let ok = 0;
@@ -117,6 +119,14 @@ async function main() {
       const entry = store[row.code] || (store[row.code] = { events: {} });
       const lag = medianLagDays(entry.events) ?? globalLag;
       addedTotal += mergeYahooEvents(entry, events, lag);
+      // 記錄該檔配息歷史可回溯到哪：取 Yahoo 2 年區間的最早事件，
+      // 即使之後被 13 個月窗剪掉也保留，供 divMonthsCovered 判斷是否已有滿年歷史。
+      if (events.length) {
+        const earliestEx = events[0].ex;
+        if (!entry.coverFrom || earliestEx < entry.coverFrom) entry.coverFrom = earliestEx;
+      } else if (!entry.coverFrom) {
+        entry.coverFrom = tradeDate; // 完全無配息紀錄：視為零覆蓋，殖利率不發布
+      }
       entry.seeded = true;
       ok += 1;
     } catch (error) {

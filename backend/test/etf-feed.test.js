@@ -10,6 +10,7 @@ import {
   deriveDividend,
   classifyEtf,
   preserveEtfColumns,
+  coverageStart,
 } from "../../scripts/update-etf-feed.mjs";
 import { rocToIso } from "../../scripts/update-market-feed.mjs";
 
@@ -102,7 +103,9 @@ test("deriveDividend infers frequency from spacing, not event count", () => {
     "2026-05-18": { pay: "2026-06-10", dps: 0.4 },
   } }, "2026-01-06", "2026-07-27");
   assert.equal(quarterly.frequency, "季配");
-  assert.equal(quarterly.divMonthsCovered, 7);
+  // 覆蓋月數依「該檔自身最早事件」(2026-02) 算到 2026-07 = 6 個月，
+  // 不是全域 history.start(2026-01) 的 7 個月
+  assert.equal(quarterly.divMonthsCovered, 6);
   assert.deepEqual(quarterly.dps, [{ m: 3, a: 0.4 }, { m: 6, a: 0.4 }]);
 
   const monthly = deriveDividend({ events: {
@@ -116,6 +119,31 @@ test("deriveDividend infers frequency from spacing, not event count", () => {
   assert.equal(single.frequency, null, "single event cannot determine frequency");
 
   assert.equal(deriveDividend(null, "2026-01-06", "2026-07-27"), null);
+});
+
+test("coverage is per-ETF so a newly listed fund cannot claim a full year", () => {
+  // 回歸測試：先前用全域 history.start 算 covered，導致 205 檔全部得到 12，
+  // 其中 112 檔自身歷史不足一年仍發布殖利率（例：00916 僅 1 筆事件卻顯示 7.49%）。
+  const rookie = { coverFrom: "2026-06-16", events: { "2026-06-16": { pay: "2026-07-11", dps: 1.2 } } };
+  const veteran = { coverFrom: "2024-09-20", events: { "2026-01-22": { pay: "2026-02-11", dps: 1 }, "2026-07-21": { pay: "2026-08-10", dps: 0.6 } } };
+
+  // 全域起點很早也不得讓新 ETF 蒙混過關
+  const rookieOut = deriveDividend(rookie, "2024-08-01", "2026-07-27");
+  assert.equal(rookieOut.divMonthsCovered, 2, "only its own two months count");
+
+  const veteranOut = deriveDividend(veteran, "2024-08-01", "2026-07-27");
+  assert.equal(veteranOut.divMonthsCovered, 12, "an established fund still reaches full coverage");
+
+  // coverFrom 缺漏時退回目前最早事件，仍不得回退成全域起點
+  const legacy = { events: { "2026-05-19": { pay: "2026-06-12", dps: 0.66 } } };
+  assert.equal(deriveDividend(legacy, "2024-08-01", "2026-07-27").divMonthsCovered, 3);
+});
+
+test("coverageStart prefers coverFrom then earliest event", () => {
+  assert.equal(coverageStart({ coverFrom: "2024-09-20", events: { "2026-01-01": {} } }), "2024-09-20");
+  assert.equal(coverageStart({ events: { "2026-03-01": {}, "2026-01-01": {} } }), "2026-01-01");
+  assert.equal(coverageStart({ events: {} }), null);
+  assert.equal(coverageStart(null), null);
 });
 
 test("deriveDividend keeps only the trailing 12 months of events", () => {
