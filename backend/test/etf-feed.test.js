@@ -138,6 +138,52 @@ test("classifyEtf uses code suffix and name keywords", () => {
   assert.equal(classifyEtf("0052", "富邦科技"), "主題型");
 });
 
+test("yahoo backfill never double-counts a distribution recorded a day apart", async () => {
+  const { mergeYahooEvents, hasNearbyEvent, medianLagDays, addDays, yahooDividends } =
+    await import("../../scripts/seed-etf-div-history.mjs");
+
+  // 實測案例：00917 官方 ex=2026-01-19 dps=3.5，Yahoo 回報 ex=2026-01-20 同額。
+  // 只比對相同日期會把 3.5 灌成 7.0（殖利率 14.83% → 29.66%）。
+  const entry = { events: { "2026-01-19": { pay: "2026-02-23", dps: 3.5 } } };
+  const added = mergeYahooEvents(entry, [{ ex: "2026-01-20", dps: 3.5 }], 25);
+  assert.equal(added, 0, "same distribution one day apart must not be added again");
+  assert.equal(Object.keys(entry.events).length, 1);
+  assert.equal(entry.events["2026-01-19"].dps, 3.5, "official record stays untouched");
+
+  // 真正的新事件仍要補進來，且標記為推估發放日
+  const added2 = mergeYahooEvents(entry, [{ ex: "2025-10-16", dps: 3.2 }], 25);
+  assert.equal(added2, 1);
+  assert.equal(entry.events["2025-10-16"].pay, "2025-11-10", "pay = ex + lag");
+  assert.equal(entry.events["2025-10-16"].payEstimated, true);
+  assert.equal(entry.events["2025-10-16"].src, "yahoo");
+
+  assert.equal(hasNearbyEvent(entry.events, "2026-01-22"), "2026-01-19", "within 7 days counts as the same event");
+  assert.equal(hasNearbyEvent(entry.events, "2026-02-19"), null, "a month later is a distinct event");
+  assert.equal(addDays("2026-01-19", 25), "2026-02-13");
+});
+
+test("medianLagDays ignores estimated pay dates so lag never drifts", async () => {
+  const { medianLagDays } = await import("../../scripts/seed-etf-div-history.mjs");
+  assert.equal(medianLagDays({
+    "2026-01-22": { pay: "2026-02-11", dps: 1 },   // 20 天（官方）
+    "2026-04-23": { pay: "2026-05-14", dps: 1 },   // 21 天（官方）
+    "2026-07-21": { pay: "2026-08-15", dps: 1, payEstimated: true }, // 推估 → 不列入
+  }), 21);
+  assert.equal(medianLagDays({}), null);
+  assert.equal(medianLagDays({ "2026-01-01": { pay: "2026-01-01", dps: 1, payEstimated: true } }), null);
+});
+
+test("yahooDividends parses the chart events payload and drops junk", async () => {
+  const { yahooDividends } = await import("../../scripts/seed-etf-div-history.mjs");
+  const rows = yahooDividends({ chart: { result: [{ events: { dividends: {
+    "1769000000": { amount: 1.35, date: 1769000000 },
+    "1737000000": { amount: 0, date: 1737000000 },
+  } } }] } });
+  assert.equal(rows.length, 1, "zero-amount events dropped");
+  assert.equal(rows[0].dps, 1.35);
+  assert.deepEqual(yahooDividends({}), []);
+});
+
 test("etf-static.json is well formed so the overlap calculator cannot silently lie", async () => {
   const { readFile } = await import("node:fs/promises");
   const { fileURLToPath } = await import("node:url");

@@ -56,6 +56,24 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // 每日 feed：network-first。這些檔一天更新多班（收盤後與盤後補抓），
+  // 而頁面的 ?v=YYYY-MM-DD 只換一次；走 cache-first 會讓同一天稍後的更新
+  // 到隔天才看得到。離線時仍以快取備援。
+  if (url.pathname.startsWith("/data/")) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok && res.type === "basic") {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
   // 靜態資產：cache-first，未命中時抓網路並在背景回填快取。
   event.respondWith(
     caches.match(req).then((hit) => {
