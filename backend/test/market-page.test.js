@@ -454,53 +454,138 @@ test("effectiveExposure weights holdings by allocation and reports coverage gaps
   assert.equal(Object.keys(tsmc.per).length, 2, "kept per-ETF weights for the table");
 });
 
-test("suggestAllocation covers 12 months, filters junk, and always totals 100%", async () => {
+test("optimizer output: weights sum 100 within bounds, junk excluded, fail-closed", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
   await app.showTab("etf");
   await new Promise((resolve) => setTimeout(resolve, 0));
-  const monthly = app.helpers.suggestAllocation(app.getEtfs(), { goal: "monthly", maxPicks: 4 });
-  assert.ok(monthly.picks.length >= 2);
-  assert.equal(monthly.picks.reduce((sum, pick) => sum + pick.pct, 0), 100, "weights must sum to exactly 100%");
-  const codes = monthly.picks.map((pick) => pick.code);
+  const out = app.helpers.optimizeAllocation(app.getEtfs(), { total: 1000000, goal: "netYield" });
+  assert.ok(out.picks.length >= 3, "at least 3 funds");
+  assert.equal(out.picks.reduce((sum, pick) => sum + pick.pct, 0), 100, "weights must sum to exactly 100%");
+  out.picks.forEach((pick) => {
+    assert.ok(pick.pct >= 10 && pick.pct <= 40, `${pick.code} weight ${pick.pct} out of [10,40]`);
+    assert.equal(pick.pct % 5, 0, "weights snap to the 5% step");
+  });
+  const codes = out.picks.map((pick) => pick.code);
   assert.ok(!codes.includes("00632R"), "leveraged/inverse excluded");
   assert.ok(!codes.includes("00999"), "a fund with no dividend record cannot be picked");
-  // 貪婪覆蓋應優先補不同月份：0056(2,5,8) + 006208(1,7) + 00878(3,6,9,12)
-  assert.ok(monthly.coveredMonths.length > 3, "greedy set cover widens month coverage");
-  assert.ok(monthly.picks.length >= 3, "must not concentrate into one fund even if it alone covers 12 months");
+  assert.ok(out.evaluated > 0, "must actually search, not template");
+  assert.ok(out.gainVsEqual >= 0, "equal weights live inside the search space, so the optimum can never lose to them");
 
-  const yielded = app.helpers.suggestAllocation(app.getEtfs(), { goal: "yield", maxPicks: 2 });
-  assert.equal(yielded.picks.reduce((sum, pick) => sum + pick.pct, 0), 100);
-
-  const empty = app.helpers.suggestAllocation([], { goal: "monthly" });
-  assert.equal(empty.picks.length, 0, "no pool must produce no picks");
-  assert.ok(empty.reason, "and must explain why");
+  const empty = app.helpers.optimizeAllocation([], { total: 1000000, goal: "netYield" });
+  assert.equal(empty.picks.length, 0);
+  assert.ok(empty.reason);
+  const noTotal = app.helpers.optimizeAllocation(app.getEtfs(), { goal: "netYield" });
+  assert.equal(noTotal.picks.length, 0, "no capital → fail closed");
+  assert.ok(noTotal.reason);
 });
 
-test("suggestAllocation never projects cash flow from an incomplete dividend history", async () => {
+test("optimizer never projects cash flow from an incomplete dividend history", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
   await app.showTab("etf");
   await new Promise((resolve) => setTimeout(resolve, 0));
-  // 全部標記為「歷史累積中」→ 候選池應為空而非硬湊出組合
   const accumulating = app.getEtfs().map((row) => Object.assign({}, row, { yield: null }));
-  const out = app.helpers.suggestAllocation(accumulating, { goal: "monthly" });
+  const out = app.helpers.optimizeAllocation(accumulating, { total: 1000000, goal: "netYield" });
   assert.equal(out.picks.length, 0, "funds without a full year of history must not be picked");
   assert.ok(out.reason);
-
-  // 有滿年歷史者才入選
-  const ok = app.helpers.suggestAllocation(app.getEtfs(), { goal: "monthly" });
-  assert.ok(ok.picks.length >= 3);
+  const ok = app.helpers.optimizeAllocation(app.getEtfs(), { total: 1000000, goal: "netYield" });
   ok.picks.forEach((pick) => assert.notEqual(pick.etf.yield, null, `${pick.code} must have a published yield`));
 });
 
-test("suggestAllocation respects the AUM floor", async () => {
+test("optimizer respects the AUM floor", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
   await app.showTab("etf");
   await new Promise((resolve) => setTimeout(resolve, 0));
-  const out = app.helpers.suggestAllocation(app.getEtfs(), { goal: "yield", maxPicks: 5, minAum: 5000 });
-  out.picks.forEach((pick) => assert.ok(pick.etf.aum >= 5000, `${pick.code} below the AUM floor`));
+  // fixture 合格檔僅 0050(21982)/006208(3500)/0056(7158)：
+  // floor 3000 → 三檔皆入選；floor 5000 → 006208 被排除、剩 2 檔湊不滿最少 3 檔 → fail closed
+  const loose = app.helpers.optimizeAllocation(app.getEtfs(), { total: 1000000, goal: "netYield", minAum: 3000 });
+  assert.equal(loose.picks.length, 3);
+  loose.picks.forEach((pick) => assert.ok(pick.etf.aum >= 3000, `${pick.code} below the AUM floor`));
+  const strict = app.helpers.optimizeAllocation(app.getEtfs(), { total: 1000000, goal: "netYield", minAum: 5000 });
+  assert.equal(strict.picks.length, 0, "floor excludes 006208, leaving too few funds — must fail closed, not relax the floor");
+  assert.ok(strict.reason);
+});
+
+// 「經過計算」的核心價值：權重會繞開／權衡二代健保單筆門檻。
+// A/B 各 10% 殖利率、C 5%；50 萬時等權(40/30/30)讓 A 單筆恰達 2 萬被課費，
+// 最佳解 40/40/20 的扣費後總額更高——這是等權重排版算不出來的。
+test("optimizer weighs the NHI threshold and beats the equal-weight baseline", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const mk = (code, aum, monthA) => ({ code, name: code, type: "高股息", close: 10, aum, yield: monthA.a * 100 / 10, dps: [monthA], payMonths: [monthA.m], divMonthsCovered: 12, topHoldings: [] });
+  const pool = [
+    mk("00A1", 100, { m: 6, a: 1 }),
+    mk("00A2", 90, { m: 12, a: 1 }),
+    mk("00A3", 80, { m: 3, a: 0.5 }),
+  ];
+  const out = app.helpers.optimizeAllocation(pool, { total: 500000, goal: "netYield" });
+  // 手算：40/40/20 → A、B 各 gross 20,000（各課 422）、C 5,000 → net 44,156
+  assert.ok(Math.abs(out.result.totalNet - 44156) < 1, `expected 44156, got ${out.result.totalNet}`);
+  // 等權基準 40/30/30 → 19,578 + 15,000 + 7,500 = 42,078
+  assert.ok(Math.abs(out.baselineNet - 42078) < 1, `expected baseline 42078, got ${out.baselineNet}`);
+  assert.ok(out.gainVsEqual > 2000, "the computed weights must visibly beat equal weights here");
+});
+
+test("monthly goal is lexicographic: full coverage first, then the weakest month", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const monthlyFund = { code: "00M1", name: "月配", type: "高股息", close: 10, aum: 100, yield: 12,
+    dps: Array.from({ length: 12 }, (_, i) => ({ m: i + 1, a: 0.1 })), payMonths: Array.from({ length: 12 }, (_, i) => i + 1), topHoldings: [] };
+  const juneFund = { code: "00J1", name: "六月", type: "高股息", close: 10, aum: 90, yield: 20, dps: [{ m: 6, a: 2 }], payMonths: [6], topHoldings: [] };
+  const decFund = { code: "00D1", name: "十二月", type: "高股息", close: 10, aum: 80, yield: 20, dps: [{ m: 12, a: 2 }], payMonths: [12], topHoldings: [] };
+  const pool = [monthlyFund, juneFund, decFund];
+
+  const monthly = app.helpers.optimizeAllocation(pool, { total: 100000, goal: "monthly" });
+  assert.equal(monthly.result.monthsWithCash, 12, "must reach 12/12 when achievable");
+  const monthlyPct = monthly.picks.find((pick) => pick.code === "00M1").pct;
+  assert.equal(monthlyPct, 40, "then maximises the weakest month by pushing the monthly payer to its cap");
+
+  const net = app.helpers.optimizeAllocation(pool, { total: 100000, goal: "netYield" });
+  const netPct = net.picks.find((pick) => pick.code === "00M1").pct;
+  assert.ok(netPct < monthlyPct, "netYield goal instead minimises the low-yield monthly payer — the objectives genuinely differ");
+
+  // 等權組合也在搜尋空間內 → 字典序最佳解的最弱月不可能輸給等權
+  assert.ok(monthly.result.minMonth >= monthly.baselineMinMonth,
+    "the optimised weakest month can never be thinner than equal weights");
+});
+
+test("diverse goal spans at least three types under a tighter cap", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const mk = (code, type, aum, yieldPct) => ({ code, name: code, type, close: 10, aum, yield: yieldPct,
+    dps: [{ m: 3, a: yieldPct / 10 }], payMonths: [3], topHoldings: [] });
+  const pool = [mk("00T1", "高股息", 100, 8), mk("00T2", "高股息", 95, 7), mk("00T3", "市值型", 90, 3), mk("00T4", "債券型", 85, 4)];
+  const out = app.helpers.optimizeAllocation(pool, { total: 1000000, goal: "diverse" });
+  assert.ok(out.picks.length >= 3);
+  const types = new Set(out.picks.map((pick) => pick.etf.type));
+  assert.ok(types.size >= 3, "must span at least three types");
+  out.picks.forEach((pick) => assert.ok(pick.pct <= 30, "diverse goal caps every fund at 30%"));
+  assert.equal(out.picks.reduce((sum, pick) => sum + pick.pct, 0), 100);
+});
+
+test("optimizer is deterministic and its evaluator agrees with simulate()", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const a = app.helpers.optimizeAllocation(app.getEtfs(), { total: 2000000, goal: "netYield" });
+  const b = app.helpers.optimizeAllocation(app.getEtfs(), { total: 2000000, goal: "netYield" });
+  assert.equal(JSON.stringify(a.picks.map((p) => [p.code, p.pct])), JSON.stringify(b.picks.map((p) => [p.code, p.pct])), "same input, same output");
+
+  // 評估器與 simulate() 是同一套規則：同組合兩邊 totalNet/totalFee 必須一致
+  const etfs = app.getEtfs();
+  const picks = [etfs.find((row) => row.code === "0056"), etfs.find((row) => row.code === "0050")];
+  const weights = [60, 40];
+  const fast = app.helpers.evaluatePortfolio(2000000, picks, weights, 1, app.helpers.NHI);
+  const slow = app.helpers.simulate({
+    total: 2000000, stress: 1, nhi: app.helpers.NHI,
+    allocations: picks.map((etf, index) => ({ code: etf.code, pct: weights[index],
+      security: { code: etf.code, name: etf.name, kind: "etf", price: etf.close, events: etf.dps } })),
+  });
+  assert.ok(Math.abs(fast.totalNet - slow.totalNet) < 1e-6, "evaluator must agree with simulate on net");
+  assert.ok(Math.abs(fast.totalFee - slow.totalFee) < 1e-6, "and on fees");
 });
 
 test("preserved upstream data is disclosed in the stamp", async () => {
