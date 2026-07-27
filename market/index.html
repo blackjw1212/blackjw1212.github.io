@@ -124,7 +124,7 @@
       </div>
       <div class="toolrow">
         <div class="presets">
-          <button class="btn" id="pLow" type="button">低基期 PE≤25 · PB≤6</button>
+          <button class="btn" id="pLow" type="button">低基期 PE≤25 · PB≤6 · 成交額≥0.5億</button>
           <button class="btn" id="pYield" type="button">高殖利率 ≥4%</button>
           <button class="btn" id="pDeep" type="button">距高 ≤ −25%</button>
         </div>
@@ -135,6 +135,7 @@
         <span class="fld">PB ≤ <input id="fPb" type="number" step="0.5" inputmode="decimal" aria-label="股價淨值比上限" /></span>
         <span class="fld">殖利率 ≥ <input id="fYld" type="number" step="0.5" inputmode="decimal" aria-label="殖利率下限" /></span>
         <span class="fld">距高 ≤ <input id="fHi" type="number" step="5" inputmode="decimal" aria-label="距 52 週高上限百分比" />%</span>
+        <span class="fld">成交額 ≥ <input id="fTo" type="number" step="0.5" inputmode="decimal" aria-label="當日成交金額下限（億元）" />億</span>
       </div>
     </div>
   </section>
@@ -153,7 +154,7 @@
           <th data-sort="pbRatio">PB</th>
           <th data-sort="dividendYield">殖利率%</th>
           <th data-sort="fromHi">距52週高</th>
-          <th data-sort="volume">成交量(張)</th>
+          <th data-sort="turnover">成交額(億)</th>
         </tr></thead>
         <tbody id="mktBody"></tbody>
       </table>
@@ -165,6 +166,8 @@
   <footer>
     資料來源：<b>TWSE OpenAPI</b>（上市收盤／本益比）與 <b>TPEx OpenAPI</b>（上櫃收盤／本益比），每交易日收盤後自動更新。
     52 週高低由本站每日快照滾動累積，<span id="hiSince"></span>起算；上游延遲或暫時中斷時會保留前一份資料並標示。
+    成交額為<b>當日</b>收盤價 × 成交股數，只是流動性的粗略代理，單日可能因事件而失真。
+    低估值也可能是獲利一次性、產業衰退或流動性不足所致，<b>低本益比不等於便宜</b>。
     本頁為資料篩選工具，<b>不是投資建議</b>；估值為官方揭露值，與個別公司財報認定期間可能不同。
   </footer>
 </main>
@@ -182,7 +185,7 @@ let viewRows = [];
 let shown = 0;
 let sortKey = "code";
 let sortDir = 1;
-const filters = {q:"", market:"", pe:null, pb:null, yld:null, hi:null};
+const filters = {q:"", market:"", pe:null, pb:null, yld:null, hi:null, to:null};
 
 function $(id){return DOC ? DOC.getElementById(id) : null;}
 
@@ -227,6 +230,11 @@ function normalizeFeed(payload){
       volume:parseNumber(row.volume),
     };
     clean.dayPct = dayPct(clean);
+    // 成交金額（億元）＝ 收盤 × 成交股數。流動性代理指標：純估值篩選會把
+    // 幾乎不能成交的個股排到最前面，這欄用來把它們濾掉。
+    clean.turnover = (clean.close != null && clean.volume != null)
+      ? Math.round(clean.close * clean.volume / 1e6) / 100
+      : null;
     clean.watch = WATCHLIST.indexOf(clean.code) >= 0;
     return clean;
   }).filter(function(row){return row.code && row.close != null;});
@@ -246,6 +254,7 @@ function applyFilters(rows, state){
     if (f.pb != null && !(row.pbRatio != null && row.pbRatio <= f.pb)) return false;
     if (f.yld != null && !(row.dividendYield != null && row.dividendYield >= f.yld)) return false;
     if (f.hi != null && !(row.fromHi != null && row.fromHi <= f.hi)) return false;
+    if (f.to != null && !(row.turnover != null && row.turnover >= f.to)) return false;
     return true;
   });
 }
@@ -290,7 +299,7 @@ function rowHtml(row){
     + '<td class="num">' + (row.pbRatio == null ? "—" : fmt(row.pbRatio, 2)) + '</td>'
     + '<td class="num">' + (row.dividendYield == null ? "—" : fmt(row.dividendYield, 2)) + '</td>'
     + '<td class="num ' + toneClass(row.fromHi) + '">' + (row.fromHi == null ? "—" : fmt(row.fromHi, 1) + "%") + '</td>'
-    + '<td class="num">' + (row.volume == null ? "—" : fmt(Math.round(row.volume / 1000), 0)) + '</td>'
+    + '<td class="num">' + (row.turnover == null ? "—" : fmt(row.turnover, 2)) + '</td>'
     + '</tr>';
 }
 
@@ -371,7 +380,7 @@ function bind(){
   if (q) q.addEventListener("input", function(){filters.q = q.value; recompute();});
   const mk = $("mk");
   if (mk) mk.addEventListener("change", function(){filters.market = mk.value; recompute();});
-  const numeric = [["fPe","pe"],["fPb","pb"],["fYld","yld"],["fHi","hi"]];
+  const numeric = [["fPe","pe"],["fPb","pb"],["fYld","yld"],["fHi","hi"],["fTo","to"]];
   for (const pair of numeric) {
     const node = $(pair[0]);
     if (!node) continue;
@@ -395,8 +404,9 @@ function bind(){
   const setInput = function(id, value){const node = $(id); if (node) node.value = value;};
   const low = $("pLow");
   if (low) low.addEventListener("click", function(){
-    filters.pe = 25; filters.pb = 6;
-    setInput("fPe", 25); setInput("fPb", 6);
+    // 併入流動性門檻：純估值篩選會讓幾乎不能成交的個股佔據前排
+    filters.pe = 25; filters.pb = 6; filters.to = 0.5;
+    setInput("fPe", 25); setInput("fPb", 6); setInput("fTo", 0.5);
     sortKey = "pe"; sortDir = 1;
     recompute();
   });
@@ -416,8 +426,8 @@ function bind(){
   });
   const reset = $("reset");
   if (reset) reset.addEventListener("click", function(){
-    filters.q = ""; filters.market = ""; filters.pe = null; filters.pb = null; filters.yld = null; filters.hi = null;
-    for (const id of ["q","fPe","fPb","fYld","fHi"]) setInput(id, "");
+    filters.q = ""; filters.market = ""; filters.pe = null; filters.pb = null; filters.yld = null; filters.hi = null; filters.to = null;
+    for (const id of ["q","fPe","fPb","fYld","fHi","fTo"]) setInput(id, "");
     const mkNode = $("mk"); if (mkNode) mkNode.value = "";
     sortKey = "code"; sortDir = 1;
     recompute();

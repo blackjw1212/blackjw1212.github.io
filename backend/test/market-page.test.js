@@ -63,7 +63,7 @@ function marketFeed(overrides = {}) {
     updatedAt: "2026-07-27T12:00:00.000Z",
     tradeDate: "2026-07-27",
     hiSince: "2026-07-01",
-    count: 6,
+    count: 7,
     stocks: [
       { code: "2330", name: "台積電", market: "twse", close: 2350, change: -55, pe: 31.59, pbRatio: 10.34, dividendYield: 0.94, hi52: 2535, lo52: 1060, fromHi: -7.3, volume: 24810509 },
       { code: "3231", name: "緯創", market: "twse", close: 179, change: 5.5, pe: 17.95, pbRatio: 2.99, dividendYield: 3.07, hi52: 201, lo52: 109, fromHi: -10.9, volume: 179841065 },
@@ -71,6 +71,8 @@ function marketFeed(overrides = {}) {
       { code: "3324", name: "雙鴻", market: "tpex", close: 930, change: -13, pe: 27.22, pbRatio: 6.54, dividendYield: 1.26, hi52: 1305, lo52: 621, fromHi: -28.7, volume: 1831325 },
       { code: "8888", name: "虧損公司", market: "tpex", close: 12, change: 0, pbRatio: 0.8, dividendYield: 0, fromHi: -60, volume: 1000 },
       { code: "2357", name: "華碩", market: "twse", close: 657, change: -1, pe: 12.51, pbRatio: 1.81, dividendYield: 6, hi52: 966, lo52: 400, fromHi: -32, volume: 5000000 },
+      // 估值極低但幾乎不能成交：低基期預設必須靠流動性門檻把它擋掉
+      { code: "4523", name: "永彰", market: "twse", close: 24.8, change: 1, pe: 1.01, pbRatio: 0.72, dividendYield: 11.08, hi52: 40, lo52: 20, fromHi: -38.2, volume: 120000 },
     ],
     errors: [],
     ...overrides,
@@ -105,8 +107,8 @@ test("loading the feed populates rows, stamp and 52w footnote", async () => {
   const { app, elements } = await loadMarket(async (url) => { calls.push(String(url)); return okResponse(marketFeed()); });
   await app.init();
   assert.ok(calls.some((href) => href.startsWith("/data/market-feed.json")), "should fetch the absolute feed path");
-  assert.equal(app.getAll().length, 6);
-  assert.match(elements.get("stamp").textContent, /全市場 6 檔/);
+  assert.equal(app.getAll().length, 7);
+  assert.match(elements.get("stamp").textContent, /全市場 7 檔/);
   assert.match(elements.get("stamp").textContent, /2026-07-27/);
   assert.equal(elements.get("hiSince").textContent, "2026-07-01");
   const body = elements.get("mktBody").innerHTML;
@@ -126,10 +128,10 @@ test("search filters by code and by name", async () => {
   assert.deepEqual(app.getRows().map((r) => r.code), ["2330"]);
   q.value = "";
   q.fire("input");
-  assert.equal(app.getRows().length, 6);
+  assert.equal(app.getRows().length, 7);
 });
 
-test("low-base preset keeps only PE<=25 and PB<=6 and excludes rows without PE", async () => {
+test("low-base preset keeps only PE<=25, PB<=6 and liquid names", async () => {
   const { app, elements } = await loadMarket(async () => okResponse(marketFeed()));
   await app.init();
   elements.get("pLow").fire("click");
@@ -138,20 +140,38 @@ test("low-base preset keeps only PE<=25 and PB<=6 and excludes rows without PE",
   assert.ok(!codes.includes("2330"), "PE 31.59 must be filtered out");
   assert.ok(!codes.includes("3324"), "PB 6.54 must be filtered out");
   assert.ok(!codes.includes("8888"), "row without PE must not pass a PE threshold");
+  assert.ok(!codes.includes("4523"), "PE 1.01 but only 0.03e8 turnover — illiquid value trap must be excluded");
   assert.equal(elements.get("fPe").value, 25, "preset should reflect into the numeric input");
+  assert.equal(elements.get("fTo").value, 0.5, "liquidity floor should reflect into the input");
+});
+
+test("turnover is derived in 億 and filters independently", async () => {
+  const { app, elements } = await loadMarket(async () => okResponse(marketFeed()));
+  await app.init();
+  const wistron = app.getAll().find((r) => r.code === "3231");
+  assert.equal(wistron.turnover, 321.92, "179 x 179,841,065 ≈ 321.92億");
+  const tiny = app.getAll().find((r) => r.code === "4523");
+  assert.equal(tiny.turnover, 0.03);
+
+  const input = elements.get("fTo");
+  input.value = "100";
+  input.fire("input");
+  // 2330 583億 / 2317 125億 / 3231 321.92億 過關；2357 32.85億、3324 17.03億 被擋
+  assert.deepEqual(app.getRows().map((r) => r.code).sort(), ["2317", "2330", "3231"], "only names above 100億 survive");
 });
 
 test("yield and deep-drawdown presets apply their own thresholds", async () => {
   const { app, elements } = await loadMarket(async () => okResponse(marketFeed()));
   await app.init();
   elements.get("pYield").fire("click");
-  assert.deepEqual(app.getRows().map((r) => r.code), ["2357"]);
+  assert.deepEqual(app.getRows().map((r) => r.code), ["4523", "2357"], "highest yield first, no liquidity floor here");
 
   elements.get("reset").fire("click");
-  assert.equal(app.getRows().length, 6);
+  assert.equal(app.getRows().length, 7);
+  assert.equal(elements.get("fTo").value, "", "reset must clear the liquidity floor too");
 
   elements.get("pDeep").fire("click");
-  assert.deepEqual(app.getRows().map((r) => r.code), ["8888", "2357", "3324"], "most negative first");
+  assert.deepEqual(app.getRows().map((r) => r.code), ["8888", "4523", "2357", "3324"], "most negative first");
 });
 
 test("market selector narrows to a single board", async () => {
@@ -170,7 +190,7 @@ test("sorting toggles direction and always sinks missing values", async () => {
   assert.equal(app.getRows()[0].code, "2330");
   assert.equal(app.getRows()[app.getRows().length - 1].code, "8888", "null PE sinks on desc");
   app.setSort("pe");                                  // 再點一次轉升冪
-  assert.equal(app.getRows()[0].code, "2357");
+  assert.equal(app.getRows()[0].code, "4523");
   assert.equal(app.getRows()[app.getRows().length - 1].code, "8888", "null PE still sinks on asc");
 });
 
