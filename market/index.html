@@ -281,6 +281,23 @@
     <div class="sim-summary" id="simSummary"></div>
     <div class="sim-chart" id="simChart"></div>
     <div id="simDetail"></div>
+    <div id="simExposure"></div>
+  </section>
+
+  <section aria-labelledby="suggestHeading">
+    <h2 id="suggestHeading">配置產生器 <em>GENERATOR</em></h2>
+    <p class="hint">依你在上方輸入的總額與下列<strong>機械式規則</strong>產生參考組合（候選需有配息紀錄、規模≥50億，排除槓桿反向與期貨型）。這是條件篩選的輸出，<strong>不是投資建議</strong>，也未考慮你的風險承受度與稅務狀況。</p>
+    <div class="toolbar">
+      <div class="toolrow">
+        <div class="presets">
+          <button class="btn on" id="gMonthly" type="button">補滿 12 個月現金流</button>
+          <button class="btn" id="gYield" type="button">殖利率優先</button>
+          <button class="btn" id="gLowOverlap" type="button">分散類型</button>
+        </div>
+        <button class="btn" id="gRun" type="button">產生組合</button>
+      </div>
+    </div>
+    <div id="suggestResult"></div>
     <p class="hint" style="margin-top:12px">二代健保補充保費以「單一標的單次給付 ≥ 20,000 元 × 2.11%」全額估算；配息中非股利成分（收益平準金、資本利得、境外債息）之適用規則未查證，實際扣費可能較低。稅負、匯費與健保細部規則不在本模擬範圍。</p>
   </section>
   </div>
@@ -708,6 +725,7 @@ function simulate(input){
   let cashPool = 0;
   let totalFee = 0;
   let pctSum = 0;
+  let maxSingle = 0;   // 單次最大給付：用來說明補充保費為何是 0，以及離門檻多遠
 
   for (const allocation of (input.allocations || [])) {
     const security = allocation.security;
@@ -738,6 +756,7 @@ function simulate(input){
     for (const event of events) {
       if (!(event.m >= 1 && event.m <= 12) || !(event.a > 0)) continue;
       const gross = shares * event.a * stress;         // 壓力乘數先套用
+      if (gross > maxSingle) maxSingle = gross;
       const fee = gross >= nhi.threshold ? gross * nhi.rate : 0;  // 再判單筆門檻
       const net = gross - fee;
       annualGross += gross;
@@ -752,7 +771,112 @@ function simulate(input){
   cashPool += Math.max(0, total - allocated); // 未配置比例 → 現金池；現金池不產生配息
   const totalGross = monthlyGross.reduce(function(sum, value){return sum + value;}, 0);
   const totalNet = monthlyNet.reduce(function(sum, value){return sum + value;}, 0);
-  return {holdings:holdings, cashPool:cashPool, monthlyGross:monthlyGross, monthlyNet:monthlyNet, totalGross:totalGross, totalFee:totalFee, totalNet:totalNet, pctSum:pctSum, overAllocated:pctSum > 100.0001};
+  const monthsWithCash = monthlyGross.filter(function(value){return value > 0;}).length;
+  return {holdings:holdings, cashPool:cashPool, monthlyGross:monthlyGross, monthlyNet:monthlyNet,
+    totalGross:totalGross, totalFee:totalFee, totalNet:totalNet, pctSum:pctSum, overAllocated:pctSum > 100.0001,
+    maxSingle:maxSingle, nhiThreshold:nhi.threshold, monthsWithCash:monthsWithCash,
+    emptyMonths:monthlyGross.map(function(value, index){return value > 0 ? null : index + 1;}).filter(Boolean)};
+}
+
+// 實質曝險：把各檔前十大成分股權重 × 該檔佔總資金比例，加總為「這檔股票佔你多少錢」。
+// 只有精選檔有人工維護的成分股，未涵蓋者以 coverage 回報，避免看起來像全貌。
+function effectiveExposure(allocations){
+  const map = {};
+  let covered = 0;
+  let uncovered = 0;
+  for (const allocation of allocations) {
+    const pct = Number(allocation.pct) || 0;
+    const etf = allEtfs.find(function(row){return row.code === String(allocation.code || "").trim().toUpperCase();});
+    if (!etf || !etf.topHoldings.length) { uncovered += pct; continue; }
+    covered += pct;
+    for (const holding of etf.topHoldings) {
+      if (!map[holding.name]) map[holding.name] = {name:holding.name, eff:0, per:{}};
+      map[holding.name].per[etf.code] = holding.weight;
+      map[holding.name].eff += holding.weight * pct / 100;
+    }
+  }
+  const rows = Object.values(map).map(function(row){
+    row.eff = Math.round(row.eff * 100) / 100;
+    return row;
+  }).sort(function(a, b){return b.eff - a.eff;});
+  return {rows:rows, coveredPct:covered, uncoveredPct:uncovered,
+    top1:rows[0] ? rows[0].eff : 0, top10Sum:Math.round(rows.reduce(function(sum, row){return sum + row.eff;}, 0) * 100) / 100};
+}
+
+// 機械式配置產生：依透明規則挑選，不是投資建議。
+// 候選門檻：有配息紀錄、規模達標、排除槓反與期貨型。
+function suggestAllocation(etfs, options){
+  const opts = options || {};
+  const goal = opts.goal || "monthly";
+  const maxPicks = opts.maxPicks || 4;
+  const minAum = opts.minAum == null ? 50 : opts.minAum;
+  const minPicks = opts.minPicks || 3;
+  // 需有滿一年配息歷史（yield 非 null）才納入：否則用不完整的配息推估現金流會低估
+  const pool = (etfs || []).filter(function(row){
+    return row.dps && row.dps.length && row.yield != null && row.aum != null && row.aum >= minAum
+      && row.type !== "槓桿反向" && row.type !== "期貨型" && row.close > 0;
+  });
+  if (!pool.length) return {picks:[], reason:"沒有符合基本門檻的 ETF"};
+
+  const picks = [];
+  if (goal === "yield") {
+    // 純殖利率：取最高者，同權重
+    pool.slice().sort(function(a, b){return (b.yield || 0) - (a.yield || 0);}).slice(0, maxPicks)
+      .forEach(function(row){picks.push(row);});
+  } else if (goal === "lowOverlap") {
+    // 低重疊：優先挑不同類型，且成分股交集最少
+    const byType = {};
+    pool.slice().sort(function(a, b){return (b.aum || 0) - (a.aum || 0);}).forEach(function(row){
+      if (!byType[row.type]) byType[row.type] = row;
+    });
+    Object.values(byType).slice(0, maxPicks).forEach(function(row){picks.push(row);});
+  } else {
+    // 月現金流：貪婪集合覆蓋——每次挑「能補最多空月」者，同分則取規模大的
+    const coveredMonths = {};
+    while (picks.length < maxPicks) {
+      let best = null;
+      let bestGain = 0;
+      for (const row of pool) {
+        if (picks.indexOf(row) >= 0) continue;
+        let gain = 0;
+        for (const month of row.payMonths) if (!coveredMonths[month]) gain += 1;
+        if (gain > bestGain || (gain === bestGain && gain > 0 && best && (row.aum || 0) > (best.aum || 0))) {
+          best = row; bestGain = gain;
+        }
+      }
+      if (!best || bestGain === 0) break;
+      picks.push(best);
+      for (const month of best.payMonths) coveredMonths[month] = true;
+      // 覆蓋滿 12 個月就停會挑出「單一月配 ETF 佔 100%」這種集中度極差的組合，
+      // 因此仍須湊足最少檔數才收手。
+      if (Object.keys(coveredMonths).length >= 12 && picks.length >= minPicks) break;
+    }
+  }
+  // 不足最少檔數時，以規模最大且類型未重複者補齊，避免過度集中
+  if (picks.length && picks.length < minPicks) {
+    const usedTypes = {};
+    picks.forEach(function(row){usedTypes[row.type] = true;});
+    const rest = pool.filter(function(row){return picks.indexOf(row) < 0;})
+      .sort(function(a, b){
+        const aNew = usedTypes[a.type] ? 1 : 0;
+        const bNew = usedTypes[b.type] ? 1 : 0;
+        if (aNew !== bNew) return aNew - bNew;      // 先取沒用過的類型
+        return (b.aum || 0) - (a.aum || 0);
+      });
+    for (const row of rest) {
+      if (picks.length >= minPicks) break;
+      picks.push(row);
+      usedTypes[row.type] = true;
+    }
+  }
+  if (!picks.length) return {picks:[], reason:"找不到符合條件的組合"};
+  // 等權重、取整到 5%，餘數補到第一檔
+  const base = Math.floor(100 / picks.length / 5) * 5;
+  const rows = picks.map(function(row){return {code:row.code, name:row.name, pct:base, etf:row};});
+  rows[0].pct += 100 - base * picks.length;
+  const months = {};
+  rows.forEach(function(row){row.etf.payMonths.forEach(function(month){months[month] = true;});});
+  return {picks:rows, coveredMonths:Object.keys(months).map(Number).sort(function(a, b){return a - b;}), poolSize:pool.length};
 }
 
 function simRowHtml(index, allocation){
@@ -875,11 +999,19 @@ function runSim(){
     return;
   }
   const warn = result.overAllocated ? '<div class="sim-kpi" style="border-color:var(--red)"><b>警告</b><span style="font-size:13px;color:var(--red)">配置合計超過 100%</span></div>' : "";
+  // 補充保費為 0 時要講清楚原因，否則「年配息」與「扣費後」兩個數字一樣會像壞掉
+  const feeBox = result.totalFee > 0
+    ? '<div class="sim-kpi"><b>估算扣費（保守上限）</b><span class="neg">−' + fmt(Math.round(result.totalFee), 0) + '</span></div>'
+    : '<div class="sim-kpi"><b>估算扣費</b><span style="font-size:14px">未達門檻 · 0</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">單次最大 ' + fmt(Math.round(result.maxSingle), 0)
+      + '，未滿 ' + fmt(result.nhiThreshold, 0) + ' 門檻</span></div>';
   summary.innerHTML = warn
     + '<div class="sim-kpi"><b>年配息（壓力 ×' + simStress + '）</b><span>' + fmt(Math.round(result.totalGross), 0) + '</span></div>'
-    + '<div class="sim-kpi"><b>估算扣費（保守上限）</b><span class="neg">−' + fmt(Math.round(result.totalFee), 0) + '</span></div>'
+    + feeBox
     + '<div class="sim-kpi"><b>扣費後估算</b><span class="pos">' + fmt(Math.round(result.totalNet), 0) + '</span></div>'
     + '<div class="sim-kpi"><b>月均（扣費後）</b><span>' + fmt(Math.round(result.totalNet / 12), 0) + '</span></div>'
+    + '<div class="sim-kpi"><b>有現金流月數</b><span>' + result.monthsWithCash + ' / 12</span>'
+      + (result.emptyMonths.length ? '<span style="display:block;font-size:11px;color:var(--amber);font-family:inherit">空窗 ' + result.emptyMonths.join("·") + ' 月</span>' : '') + '</div>'
     + '<div class="sim-kpi"><b>現金池（未投入）</b><span>' + fmt(Math.round(result.cashPool), 0) + '</span></div>';
   const peak = Math.max.apply(null, result.monthlyNet.concat([1]));
   chart.innerHTML = result.monthlyNet.map(function(value, index){
@@ -898,6 +1030,92 @@ function runSim(){
         }).join("")
       + '</tbody></table></div>';
   }
+  renderExposure();
+}
+
+// 常駐顯示：多檔 ETF 疊起來後，單一股票實際佔了你多少錢。
+// 這是分層清單看不出來的集中度風險，因此不放在手動勾選的重疊計算器裡。
+function renderExposure(){
+  const box = $("simExposure");
+  if (!box) return;
+  const exposure = effectiveExposure(simAllocations);
+  if (!exposure.rows.length) {
+    box.innerHTML = exposure.uncoveredPct > 0
+      ? '<p class="hint" style="margin-top:14px">所選標的沒有人工維護的成分股資料，無法計算實質曝險（目前僅精選 ETF 具備）。</p>'
+      : "";
+    return;
+  }
+  const codes = [];
+  for (const allocation of simAllocations) {
+    const code = String(allocation.code || "").trim().toUpperCase();
+    const etf = allEtfs.find(function(row){return row.code === code;});
+    if (etf && etf.topHoldings.length) codes.push(code);
+  }
+  const top = exposure.rows.slice(0, 10);
+  const shared = exposure.rows.filter(function(row){return Object.keys(row.per).length > 1;});
+  box.innerHTML = '<h2 style="margin-top:26px">實質曝險 <em>EXPOSURE</em></h2>'
+    + '<p class="hint">各檔前十大成分股權重 × 該檔佔總資金比例，加總後即為單一股票實際佔你多少資金。'
+      + '涵蓋 ' + fmt(exposure.coveredPct, 0) + '% 的配置'
+      + (exposure.uncoveredPct > 0 ? '；其餘 ' + fmt(exposure.uncoveredPct, 0) + '% 無成分股資料未計入' : '') + '。</p>'
+    + '<div class="sim-summary">'
+      + '<div class="sim-kpi"><b>最大單一持股</b><span' + (exposure.top1 >= 20 ? ' class="neg"' : '') + '>' + (top[0] ? escapeHtml(top[0].name) + ' ' + fmt(exposure.top1, 2) + '%' : "—") + '</span></div>'
+      + '<div class="sim-kpi"><b>前十大合計曝險</b><span>' + fmt(exposure.top10Sum, 2) + '%</span></div>'
+      + '<div class="sim-kpi"><b>重複持有檔數</b><span>' + shared.length + '</span>'
+        + (shared.length ? '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">' + escapeHtml(shared.slice(0, 3).map(function(row){return row.name;}).join("、")) + '</span>' : '') + '</div>'
+    + '</div>'
+    + '<div class="table-scroll" style="margin-top:12px"><table style="min-width:520px"><thead><tr><th style="text-align:left">成分股</th>'
+      + codes.map(function(code){return '<th>' + escapeHtml(code) + '</th>';}).join("")
+      + '<th>實質佔總資金%</th></tr></thead><tbody>'
+      + top.map(function(row){
+          return '<tr><td style="text-align:left"><span class="nm">' + escapeHtml(row.name) + '</span></td>'
+            + codes.map(function(code){return '<td class="num">' + (row.per[code] != null ? fmt(row.per[code], 2) : "—") + '</td>';}).join("")
+            + '<td class="num"><b>' + fmt(row.eff, 2) + '</b></td></tr>';
+        }).join("")
+    + '</tbody></table></div>';
+}
+
+/* ===================== 配置產生器 ===================== */
+let suggestGoal = "monthly";
+
+function runSuggest(){
+  const box = $("suggestResult");
+  if (!box) return;
+  const total = Number(($("simTotal") || {}).value) || 0;
+  if (!total) { box.innerHTML = '<p class="hint">請先在上方輸入投入總額。</p>'; return; }
+  const out = suggestAllocation(allEtfs, {goal:suggestGoal, maxPicks:4});
+  if (!out.picks.length) { box.innerHTML = '<p class="hint">' + escapeHtml(out.reason || "找不到組合") + '</p>'; return; }
+  const preview = simulate({
+    total:total, stress:simStress, nhi:NHI,
+    allocations:out.picks.map(function(pick){
+      return {code:pick.code, pct:pick.pct, security:lookupSecurity(pick.code)};
+    }),
+  });
+  const missing = preview.emptyMonths;
+  box.innerHTML = '<div class="table-scroll" style="margin-top:10px"><table style="min-width:520px"><thead><tr>'
+      + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>配置%</th><th>殖利率%</th><th>發放月</th></tr></thead><tbody>'
+      + out.picks.map(function(pick){
+          return '<tr><td style="text-align:left"><span class="code">' + escapeHtml(pick.code) + '</span></td>'
+            + '<td style="text-align:left"><span class="nm">' + escapeHtml(pick.name) + '</span></td>'
+            + '<td class="num">' + escapeHtml(pick.etf.type) + '</td>'
+            + '<td class="num"><b>' + pick.pct + '%</b></td>'
+            + '<td class="num">' + (pick.etf.yield == null ? "—" : fmt(pick.etf.yield, 2)) + '</td>'
+            + '<td class="num">' + (pick.etf.payMonths.length ? pick.etf.payMonths.join("·") : "—") + '</td></tr>';
+        }).join("")
+    + '</tbody></table></div>'
+    + '<div class="sim-summary">'
+      + '<div class="sim-kpi"><b>年配息估算</b><span>' + fmt(Math.round(preview.totalGross), 0) + '</span></div>'
+      + '<div class="sim-kpi"><b>整體殖利率</b><span>' + fmt(preview.totalGross / total * 100, 2) + '%</span></div>'
+      + '<div class="sim-kpi"><b>有現金流月數</b><span' + (preview.monthsWithCash === 12 ? ' class="pos"' : '') + '>' + preview.monthsWithCash + ' / 12</span>'
+        + (missing.length ? '<span style="display:block;font-size:11px;color:var(--amber);font-family:inherit">缺 ' + missing.join("·") + ' 月</span>' : '') + '</div>'
+    + '</div>'
+    + '<div class="decision-tools" style="margin-top:10px"><button class="btn" id="applySuggest" type="button">套用到上方試算</button>'
+      + '<span class="stamp">候選池 ' + out.poolSize + ' 檔（有配息紀錄、規模≥50億、排除槓反與期貨型）</span></div>';
+  const apply = $("applySuggest");
+  if (apply) apply.addEventListener("click", function(){
+    simAllocations = out.picks.map(function(pick){return {code:pick.code, pct:pick.pct, month:null};});
+    renderSimRows();
+    runSim();
+  });
 }
 
 /* ===================== 頁籤 ===================== */
@@ -1071,6 +1289,22 @@ function bind(){
   if (s60) s60.addEventListener("click", function(){setStress(0.6, "s60");});
   const simTotal = $("simTotal");
   if (simTotal) simTotal.addEventListener("input", function(){saveSimState();});
+
+  /* --- 配置產生器 --- */
+  for (const pair of [["gMonthly", "monthly"], ["gYield", "yield"], ["gLowOverlap", "lowOverlap"]]) {
+    const node = $(pair[0]);
+    if (!node) continue;
+    node.addEventListener("click", function(){
+      suggestGoal = pair[1];
+      for (const id of ["gMonthly", "gYield", "gLowOverlap"]) {
+        const button = $(id);
+        if (button) button.className = id === pair[0] ? "btn on" : "btn";
+      }
+      runSuggest();
+    });
+  }
+  const gRun = $("gRun");
+  if (gRun) gRun.addEventListener("click", runSuggest);
 }
 
 async function init(){
@@ -1108,6 +1342,8 @@ const marketApp = {
     normalizeEtfFeed:normalizeEtfFeed,
     applyEtfFilters:applyEtfFilters,
     computeOverlap:computeOverlap,
+    effectiveExposure:effectiveExposure,
+    suggestAllocation:suggestAllocation,
     simulate:simulate,
     lookupSecurity:lookupSecurity,
     etfFeedUrl:etfFeedUrl,
