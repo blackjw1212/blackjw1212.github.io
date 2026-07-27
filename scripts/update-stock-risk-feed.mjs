@@ -25,7 +25,7 @@ async function fetchText(url) {
   return await response.text();
 }
 
-function field(row, names) {
+export function field(row, names) {
   if (!row || typeof row !== "object") return "";
   for (const name of names) {
     for (const key of Object.keys(row)) {
@@ -35,7 +35,7 @@ function field(row, names) {
   return "";
 }
 
-function parseNumber(value) {
+export function parseNumber(value) {
   if (value == null) return null;
   const match = String(value).replace(/,/g, "").replace(/%/g, "").match(/[+-]?\d+(?:\.\d+)?/);
   if (!match) return null;
@@ -43,7 +43,7 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function roundNumber(value, digits = 2) {
+export function roundNumber(value, digits = 2) {
   if (value == null || !Number.isFinite(value)) return null;
   const factor = 10 ** digits;
   return Math.round((value + Number.EPSILON) * factor) / factor;

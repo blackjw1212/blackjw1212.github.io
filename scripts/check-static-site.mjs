@@ -58,6 +58,8 @@ function publicTargetsFromSrcset(value) {
 for (const rel of [
   "index.html",
   "stocks/index.html",
+  "market/index.html",
+  "data/market-feed.json",
   "weather/index.html",
   "esp32/index.html",
   "forscan/index.html",
@@ -142,6 +144,19 @@ if (has("stocks/index.html")) {
   assertNoMatch("stocks/index.html", html, /RetailConsole|個人參考基準|\/filings\b|MOPS/i);
 }
 
+if (has("market/index.html")) {
+  const html = await read("market/index.html");
+  assertMatch("market/index.html", html, /<html lang="zh-Hant">/, "market document language");
+  assertMatch("market/index.html", html, /<title>全市場個股清單｜BJKW<\/title>/, "market title");
+  assertMatch("market/index.html", html, /rel="canonical" href="\/market\/"/, "market canonical");
+  assertMatch("market/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "market manifest");
+  assertMatch("market/index.html", html, /name="theme-color" content="#101418"/, "market theme color");
+  assertMatch("market/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "market service worker registration");
+  assertMatch("market/index.html", html, /MARKET_FEED_URL\s*=\s*"\/data\/market-feed\.json"/, "absolute market feed path");
+  assertMatch("market/index.html", html, /不是投資建議/, "market non-advice disclaimer");
+  assertNoMatch("market/index.html", html, /保證|可放心|買進訊號|賣出訊號/);
+}
+
 if (has("weather/index.html")) {
   const html = await read("weather/index.html");
   assertMatch("weather/index.html", html, /rel="icon" href="\/assets\/images\/favicon\.ico"/, "asset favicon ico");
@@ -217,7 +232,7 @@ if (has("bjkw_weather.html")) {
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

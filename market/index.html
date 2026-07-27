@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>全市場個股清單｜BJKW</title>
+<meta name="description" content="台股全市場（上市＋上櫃）個股每日收盤與估值清單，可搜尋、排序並以本益比、股價淨值比、殖利率、距 52 週高自動篩選低基期候選。" />
+<link rel="canonical" href="/market/">
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/images/favicon-32x32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="/assets/images/favicon-16x16.png" type="image/png" sizes="16x16">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="全市場清單">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#101418; --panel:#172028; --panel2:#202b34; --line:#2e3a43; --line2:#3d4a53;
+    --ink:#f3f7f4; --soft:#b6c0bd; --faint:#87928f;
+    --teal:#42b8a8; --blue:#76a9dc; --amber:#d9a64c; --red:#e36962; --green:#79c96a;
+    --red-bg:#2b191a; --green-bg:#182719; --amber-bg:#2b2416; --blue-bg:#172535;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Noto Sans TC",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding:0 0 56px;-webkit-font-smoothing:antialiased}
+  .mono{font-family:"Roboto Mono",monospace}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 18px}
+  a{color:var(--teal);text-decoration:none}a:hover{text-decoration:underline}
+  header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#151b20,#101418);padding:24px 0 18px}
+  .kick{font-family:"Roboto Mono",monospace;font-size:11px;color:var(--teal);margin-bottom:8px}
+  h1{font-family:"Noto Serif TC",serif;font-weight:900;font-size:30px;line-height:1.18}
+  .profile{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px;align-items:center}
+  .tagp{font-family:"Roboto Mono",monospace;font-size:11px;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;color:var(--soft)}
+  .tagp b{color:var(--amber)}
+  h2{font-family:"Noto Serif TC",serif;font-weight:700;font-size:18px;margin:26px 0 4px;display:flex;align-items:baseline;gap:10px}
+  h2 em{font-family:"Roboto Mono",monospace;font-style:normal;font-size:11px;color:var(--amber)}
+  .hint{font-size:12px;color:var(--faint);margin-bottom:12px}
+  .stamp{font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint)}
+  .btn{font-family:"Roboto Mono",monospace;font-size:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:8px 13px;cursor:pointer;min-height:36px}
+  .btn:hover{border-color:var(--amber);color:var(--amber)}
+  .btn.on{border-color:var(--amber);color:var(--amber);background:var(--amber-bg)}
+  input,select{font-family:"Roboto Mono",monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:7px 9px;font-size:13px}
+  input:focus,select:focus{outline:none;border-color:var(--amber)}
+
+  .toolbar{background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:14px;margin-top:8px}
+  .toolrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .toolrow + .toolrow{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+  .grow{flex:1;min-width:180px}
+  .fld{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--soft)}
+  .fld input{width:74px}
+  .presets{display:flex;flex-wrap:wrap;gap:8px}
+  .count{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--soft);margin-left:auto}
+
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin-top:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:900px}
+  th{font-family:"Roboto Mono",monospace;font-size:10px;font-weight:600;color:var(--faint);text-align:right;padding:8px 6px;border-bottom:1px solid var(--line2);white-space:nowrap;cursor:pointer;user-select:none}
+  th:first-child,th:nth-child(2){text-align:left}
+  th:hover{color:var(--amber)}
+  th .ar{color:var(--amber)}
+  td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle;white-space:nowrap}
+  td:first-child,td:nth-child(2){text-align:left}
+  tr:last-child td{border-bottom:0}
+  .code{font-family:"Roboto Mono",monospace;color:var(--faint)}
+  .nm{font-weight:700}
+  .px{font-family:"Roboto Mono",monospace;font-weight:600}
+  .num{font-family:"Roboto Mono",monospace}
+  .pos{color:var(--green)}.neg{color:var(--red)}.flat{color:var(--faint)}
+  .mk{font-family:"Roboto Mono",monospace;font-size:10px;border:1px solid var(--line2);border-radius:8px;padding:1px 6px;color:var(--soft)}
+  .badge{font-family:"Roboto Mono",monospace;font-size:10px;border-radius:8px;padding:1px 6px;background:var(--green-bg);color:var(--green);margin-left:6px}
+  .lowbase{background:var(--green-bg);color:var(--green);border-radius:8px;padding:1px 6px;font-family:"Roboto Mono",monospace;font-size:10px}
+  .empty{padding:26px;text-align:center;color:var(--faint);font-size:13px}
+  .more{display:flex;justify-content:center;margin-top:14px}
+  footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
+  footer b{color:var(--soft)}
+
+  @media (max-width:760px){
+    .wrap{padding:0 14px}
+    h1{font-size:24px}
+    .count{margin-left:0;width:100%}
+    .btn{min-height:44px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="kick">Market Screener · TWSE + TPEx · v0.1</div>
+    <h1>全市場個股清單</h1>
+    <div class="profile">
+      <span class="tagp">範圍 <b>上市＋上櫃</b></span>
+      <span class="tagp">資料 <b>每日自動更新</b></span>
+      <span class="tagp">篩選 <b>本益比／淨值比／殖利率</b></span>
+      <a href="/stocks/">← 回股票投資觀察台</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section aria-labelledby="screenHeading">
+    <h2 id="screenHeading">搜尋與篩選 <em>SCREENER</em></h2>
+    <p class="hint">全部條件在瀏覽器端即時運算。這是資料篩選工具，不是買賣建議，也不評估你的資金規則與風險承受度。</p>
+    <div class="toolbar">
+      <div class="toolrow">
+        <input class="grow" id="q" type="search" placeholder="搜尋代碼或名稱，例如 2330 或 台積" aria-label="搜尋代碼或名稱" />
+        <select id="mk" aria-label="市場別">
+          <option value="">全部市場</option>
+          <option value="twse">上市</option>
+          <option value="tpex">上櫃</option>
+        </select>
+        <button class="btn" id="reset" type="button">清除條件</button>
+      </div>
+      <div class="toolrow">
+        <div class="presets">
+          <button class="btn" id="pLow" type="button">低基期 PE≤25 · PB≤6</button>
+          <button class="btn" id="pYield" type="button">高殖利率 ≥4%</button>
+          <button class="btn" id="pDeep" type="button">距高 ≤ −25%</button>
+        </div>
+        <span class="count" id="count">載入中…</span>
+      </div>
+      <div class="toolrow">
+        <span class="fld">PE ≤ <input id="fPe" type="number" step="1" inputmode="decimal" aria-label="本益比上限" /></span>
+        <span class="fld">PB ≤ <input id="fPb" type="number" step="0.5" inputmode="decimal" aria-label="股價淨值比上限" /></span>
+        <span class="fld">殖利率 ≥ <input id="fYld" type="number" step="0.5" inputmode="decimal" aria-label="殖利率下限" /></span>
+        <span class="fld">距高 ≤ <input id="fHi" type="number" step="5" inputmode="decimal" aria-label="距 52 週高上限百分比" />%</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="listHeading">
+    <h2 id="listHeading">個股清單 <em>LIST</em></h2>
+    <div class="stamp" id="stamp">尚未更新</div>
+    <div class="table-scroll">
+      <table id="mktTable">
+        <thead><tr>
+          <th data-sort="code">代碼</th>
+          <th data-sort="name">名稱</th>
+          <th data-sort="close">收盤</th>
+          <th data-sort="dayPct">漲跌%</th>
+          <th data-sort="pe">PE</th>
+          <th data-sort="pbRatio">PB</th>
+          <th data-sort="dividendYield">殖利率%</th>
+          <th data-sort="fromHi">距52週高</th>
+          <th data-sort="volume">成交量(張)</th>
+        </tr></thead>
+        <tbody id="mktBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyBox"></div>
+    <div class="more"><button class="btn" id="more" type="button" hidden>載入更多</button></div>
+  </section>
+
+  <footer>
+    資料來源：<b>TWSE OpenAPI</b>（上市收盤／本益比）與 <b>TPEx OpenAPI</b>（上櫃收盤／本益比），每交易日收盤後自動更新。
+    52 週高低由本站每日快照滾動累積，<span id="hiSince"></span>起算；上游延遲或暫時中斷時會保留前一份資料並標示。
+    本頁為資料篩選工具，<b>不是投資建議</b>；估值為官方揭露值，與個別公司財報認定期間可能不同。
+  </footer>
+</main>
+
+<script>
+(function(){
+const ROOT = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {});
+const DOC = typeof document !== "undefined" ? document : null;
+const MARKET_FEED_URL = "/data/market-feed.json";
+const PAGE_SIZE = 100;
+const WATCHLIST = ["2330","2317","2382","3231","6669","3017","3324","3661","2356","2376","6239","1519","2308"];
+
+let allStocks = [];
+let viewRows = [];
+let shown = 0;
+let sortKey = "code";
+let sortDir = 1;
+const filters = {q:"", market:"", pe:null, pb:null, yld:null, hi:null};
+
+function $(id){return DOC ? DOC.getElementById(id) : null;}
+
+function escapeHtml(value){
+  return String(value == null ? "" : value).replace(/[&<>"']/g, function(char){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char];
+  });
+}
+
+function parseNumber(value){
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function fmt(value, digits){
+  if (value == null || !Number.isFinite(Number(value))) return "—";
+  return Number(value).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:digits == null ? 2 : digits});
+}
+
+function dayPct(row){
+  if (row.close == null || row.change == null) return null;
+  const previous = row.close - row.change;
+  if (!previous) return null;
+  return Math.round(row.change / previous * 1000) / 10;
+}
+
+function normalizeFeed(payload){
+  const rows = Array.isArray(payload && payload.stocks) ? payload.stocks : [];
+  return rows.map(function(row){
+    const clean = {
+      code:String(row.code || ""),
+      name:String(row.name || ""),
+      market:row.market === "tpex" ? "tpex" : "twse",
+      close:parseNumber(row.close),
+      change:parseNumber(row.change),
+      pe:parseNumber(row.pe),
+      pbRatio:parseNumber(row.pbRatio),
+      dividendYield:parseNumber(row.dividendYield),
+      fromHi:parseNumber(row.fromHi),
+      hi52:parseNumber(row.hi52),
+      volume:parseNumber(row.volume),
+    };
+    clean.dayPct = dayPct(clean);
+    clean.watch = WATCHLIST.indexOf(clean.code) >= 0;
+    return clean;
+  }).filter(function(row){return row.code && row.close != null;});
+}
+
+function isLowBase(row){
+  return row.pe != null && row.pe <= 25 && row.pbRatio != null && row.pbRatio <= 6;
+}
+
+function applyFilters(rows, state){
+  const f = state || filters;
+  const needle = String(f.q || "").trim().toLowerCase();
+  return rows.filter(function(row){
+    if (needle && row.code.toLowerCase().indexOf(needle) < 0 && row.name.toLowerCase().indexOf(needle) < 0) return false;
+    if (f.market && row.market !== f.market) return false;
+    if (f.pe != null && !(row.pe != null && row.pe <= f.pe)) return false;
+    if (f.pb != null && !(row.pbRatio != null && row.pbRatio <= f.pb)) return false;
+    if (f.yld != null && !(row.dividendYield != null && row.dividendYield >= f.yld)) return false;
+    if (f.hi != null && !(row.fromHi != null && row.fromHi <= f.hi)) return false;
+    return true;
+  });
+}
+
+function sortRows(rows, key, dir){
+  const factor = dir < 0 ? -1 : 1;
+  return rows.slice().sort(function(a, b){
+    const x = a[key];
+    const y = b[key];
+    if (x == null && y == null) return a.code.localeCompare(b.code);
+    if (x == null) return 1;   // 無資料一律沉底，不隨排序方向翻轉
+    if (y == null) return -1;
+    if (typeof x === "string" || typeof y === "string") return String(x).localeCompare(String(y)) * factor;
+    if (x === y) return a.code.localeCompare(b.code);
+    return (x < y ? -1 : 1) * factor;
+  });
+}
+
+function toneClass(value){
+  if (value == null || value === 0) return "flat";
+  return value > 0 ? "pos" : "neg";
+}
+
+function signed(value, digits){
+  if (value == null) return "—";
+  const text = fmt(value, digits);
+  return value > 0 ? "+" + text : text;
+}
+
+function rowHtml(row){
+  const pct = row.dayPct;
+  return '<tr>'
+    + '<td><span class="code">' + escapeHtml(row.code) + '</span></td>'
+    + '<td><span class="nm">' + escapeHtml(row.name) + '</span>'
+      + '<span class="mk" style="margin-left:6px">' + (row.market === "tpex" ? "上櫃" : "上市") + '</span>'
+      + (row.watch ? '<span class="badge">觀察台</span>' : '')
+      + (isLowBase(row) ? '<span class="lowbase" style="margin-left:6px">低基</span>' : '')
+      + '</td>'
+    + '<td class="px">' + fmt(row.close, 2) + '</td>'
+    + '<td class="num ' + toneClass(pct) + '">' + (pct == null ? "—" : signed(pct, 1) + "%") + '</td>'
+    + '<td class="num">' + (row.pe == null ? "—" : fmt(row.pe, 2)) + '</td>'
+    + '<td class="num">' + (row.pbRatio == null ? "—" : fmt(row.pbRatio, 2)) + '</td>'
+    + '<td class="num">' + (row.dividendYield == null ? "—" : fmt(row.dividendYield, 2)) + '</td>'
+    + '<td class="num ' + toneClass(row.fromHi) + '">' + (row.fromHi == null ? "—" : fmt(row.fromHi, 1) + "%") + '</td>'
+    + '<td class="num">' + (row.volume == null ? "—" : fmt(Math.round(row.volume / 1000), 0)) + '</td>'
+    + '</tr>';
+}
+
+function renderHead(){
+  const table = $("mktTable");
+  if (!table || !table.querySelectorAll) return;
+  const heads = table.querySelectorAll("th");
+  for (const th of heads) {
+    const key = th.dataset ? th.dataset.sort : null;
+    if (!key) continue;
+    const base = String(th.textContent || "").replace(/[ ▲▼]+$/, "");
+    th.textContent = key === sortKey ? base + (sortDir > 0 ? " ▲" : " ▼") : base;
+  }
+}
+
+function render(){
+  const body = $("mktBody");
+  const empty = $("emptyBox");
+  const more = $("more");
+  if (!body) return;
+  const slice = viewRows.slice(0, shown);
+  body.innerHTML = slice.map(rowHtml).join("");
+  if (empty) empty.innerHTML = viewRows.length ? "" : '<div class="empty">沒有符合條件的個股，請放寬篩選。</div>';
+  if (more) more.hidden = shown >= viewRows.length;
+  const count = $("count");
+  if (count) {
+    count.textContent = allStocks.length
+      ? "符合 " + viewRows.length + " / " + allStocks.length + " 檔（顯示 " + slice.length + "）"
+      : "尚無資料";
+  }
+  renderHead();
+}
+
+function recompute(){
+  viewRows = sortRows(applyFilters(allStocks, filters), sortKey, sortDir);
+  shown = Math.min(PAGE_SIZE, viewRows.length);
+  render();
+}
+
+function setSort(key){
+  if (sortKey === key) sortDir = -sortDir;
+  else {
+    sortKey = key;
+    // 代碼/名稱預設升冪，其餘數值欄預設降冪（大的在前）
+    sortDir = (key === "code" || key === "name") ? 1 : -1;
+  }
+  recompute();
+}
+
+function feedUrl(){
+  return MARKET_FEED_URL + "?v=" + encodeURIComponent(new Date().toISOString().slice(0,10));
+}
+
+async function load(){
+  const stamp = $("stamp");
+  try {
+    const response = await fetch(feedUrl(), {cache:"no-store", headers:{Accept:"application/json"}});
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const payload = await response.json();
+    allStocks = normalizeFeed(payload);
+    recompute();
+    const when = payload.tradeDate ? "交易日 " + payload.tradeDate : "";
+    const stale = Array.isArray(payload.errors) && payload.errors.length ? "（上游有中斷，部分為前次保留資料）" : "";
+    if (stamp) stamp.textContent = "全市場 " + allStocks.length + " 檔 · " + when + " " + stale;
+    const since = $("hiSince");
+    if (since && payload.hiSince) since.textContent = payload.hiSince;
+    return "market feed ok";
+  } catch (error) {
+    if (stamp) stamp.textContent = "清單載入失敗：" + error.message;
+    const count = $("count");
+    if (count) count.textContent = "載入失敗";
+    return "market feed failed";
+  }
+}
+
+function bind(){
+  const q = $("q");
+  if (q) q.addEventListener("input", function(){filters.q = q.value; recompute();});
+  const mk = $("mk");
+  if (mk) mk.addEventListener("change", function(){filters.market = mk.value; recompute();});
+  const numeric = [["fPe","pe"],["fPb","pb"],["fYld","yld"],["fHi","hi"]];
+  for (const pair of numeric) {
+    const node = $(pair[0]);
+    if (!node) continue;
+    node.addEventListener("input", function(){
+      filters[pair[1]] = node.value === "" ? null : parseNumber(node.value);
+      recompute();
+    });
+  }
+  const more = $("more");
+  if (more) more.addEventListener("click", function(){
+    shown = Math.min(shown + PAGE_SIZE, viewRows.length);
+    render();
+  });
+  const table = $("mktTable");
+  if (table && table.querySelectorAll) {
+    for (const th of table.querySelectorAll("th")) {
+      const key = th.dataset ? th.dataset.sort : null;
+      if (key) th.addEventListener("click", function(){setSort(key);});
+    }
+  }
+  const setInput = function(id, value){const node = $(id); if (node) node.value = value;};
+  const low = $("pLow");
+  if (low) low.addEventListener("click", function(){
+    filters.pe = 25; filters.pb = 6;
+    setInput("fPe", 25); setInput("fPb", 6);
+    sortKey = "pe"; sortDir = 1;
+    recompute();
+  });
+  const yieldBtn = $("pYield");
+  if (yieldBtn) yieldBtn.addEventListener("click", function(){
+    filters.yld = 4;
+    setInput("fYld", 4);
+    sortKey = "dividendYield"; sortDir = -1;
+    recompute();
+  });
+  const deep = $("pDeep");
+  if (deep) deep.addEventListener("click", function(){
+    filters.hi = -25;
+    setInput("fHi", -25);
+    sortKey = "fromHi"; sortDir = 1;
+    recompute();
+  });
+  const reset = $("reset");
+  if (reset) reset.addEventListener("click", function(){
+    filters.q = ""; filters.market = ""; filters.pe = null; filters.pb = null; filters.yld = null; filters.hi = null;
+    for (const id of ["q","fPe","fPb","fYld","fHi"]) setInput(id, "");
+    const mkNode = $("mk"); if (mkNode) mkNode.value = "";
+    sortKey = "code"; sortDir = 1;
+    recompute();
+  });
+}
+
+async function init(){
+  bind();
+  await load();
+}
+
+const marketApp = {
+  init:init,
+  load:load,
+  getRows:function(){return viewRows;},
+  getAll:function(){return allStocks;},
+  setFilters:function(next){Object.assign(filters, next); recompute();},
+  setSort:setSort,
+  showMore:function(){shown = Math.min(shown + PAGE_SIZE, viewRows.length); render(); return shown;},
+  getShown:function(){return shown;},
+  helpers:{
+    normalizeFeed:normalizeFeed,
+    applyFilters:applyFilters,
+    sortRows:sortRows,
+    isLowBase:isLowBase,
+    dayPct:dayPct,
+    parseNumber:parseNumber,
+  },
+};
+ROOT.MarketApp = marketApp;
+
+if (DOC && !ROOT.__MARKET_SKIP_AUTO_INIT__) {
+  if (DOC.readyState === "loading") {
+    DOC.addEventListener("DOMContentLoaded", function(){init().catch(function(error){const s = $("stamp"); if (s) s.textContent = "初始化失敗：" + error.message;});});
+  } else {
+    init().catch(function(error){const s = $("stamp"); if (s) s.textContent = "初始化失敗：" + error.message;});
+  }
+}
+})();
+</script>
+</body>
+</html>

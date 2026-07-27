@@ -1,0 +1,33 @@
+name: Update market feed
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 台灣 14:30 收盤後首抓、18:15 補抓（TWSE OpenAPI 常落後）
+    - cron: "30 6 * * 1-5"
+    - cron: "15 10 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  update-market-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Generate market feed
+        run: node scripts/update-market-feed.mjs
+      - name: Commit market feed update
+        run: |
+          if git diff --quiet -- data/market-feed.json data/market-52w.json; then
+            echo "No market feed changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/market-feed.json data/market-52w.json
+          git commit -m "Update market feed"
+          git push
