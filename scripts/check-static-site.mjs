@@ -60,6 +60,8 @@ for (const rel of [
   "stocks/index.html",
   "market/index.html",
   "data/market-feed.json",
+  "data/etf-feed.json",
+  "data/etf-static.json",
   "weather/index.html",
   "esp32/index.html",
   "forscan/index.html",
@@ -154,7 +156,13 @@ if (has("market/index.html")) {
   assertMatch("market/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "market service worker registration");
   assertMatch("market/index.html", html, /MARKET_FEED_URL\s*=\s*"\/data\/market-feed\.json"/, "absolute market feed path");
   assertMatch("market/index.html", html, /不是投資建議/, "market non-advice disclaimer");
-  assertNoMatch("market/index.html", html, /保證|可放心|買進訊號|賣出訊號/);
+  assertMatch("market/index.html", html, /ETF_FEED_URL\s*=\s*"\/data\/etf-feed\.json"/, "absolute etf feed path");
+  assertMatch("market/index.html", html, /id="tabStock"/, "stock tab");
+  assertMatch("market/index.html", html, /id="tabEtf"/, "etf tab");
+  assertMatch("market/index.html", html, /id="tabSim"/, "simulator tab");
+  assertMatch("market/index.html", html, /保守上限/, "simulator must frame NHI deduction as a conservative upper bound");
+  assertMatch("market/index.html", html, /未查證/, "simulator must disclose the unverified NHI basis");
+  assertNoMatch("market/index.html", html, /保證|可放心|買進訊號|賣出訊號|實領淨收益/);
 }
 
 if (has("weather/index.html")) {

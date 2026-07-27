@@ -82,6 +82,27 @@
   .lowbase{background:var(--green-bg);color:var(--green);border-radius:8px;padding:1px 6px;font-family:"Roboto Mono",monospace;font-size:10px}
   .empty{padding:26px;text-align:center;color:var(--faint);font-size:13px}
   .more{display:flex;justify-content:center;margin-top:14px}
+  .tabbar{display:flex;gap:8px;margin-top:16px;border-bottom:1px solid var(--line);padding-bottom:0}
+  .tabbar .tab{font-family:"Noto Serif TC",serif;font-weight:700;font-size:15px;background:none;border:none;border-bottom:2px solid transparent;color:var(--soft);padding:8px 14px;cursor:pointer;min-height:40px}
+  .tabbar .tab.on{color:var(--amber);border-bottom-color:var(--amber)}
+  .tabbar .tab:hover{color:var(--amber)}
+  .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-top:10px}
+  .ov-item{display:flex;align-items:center;gap:8px;font-size:13px;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;min-height:40px}
+  .ov-item input{accent-color:var(--amber)}
+  .ov-item.off{opacity:.45}
+  .sim-rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .sim-row{display:grid;grid-template-columns:110px minmax(0,1fr) 84px 90px 36px;gap:8px;align-items:center}
+  .sim-row .nm2{font-size:12px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sim-chart{display:flex;align-items:flex-end;gap:5px;height:130px;margin-top:14px;border-bottom:1px solid var(--line2);padding-bottom:2px}
+  .sim-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;min-width:0}
+  .sim-bar{width:100%;background:linear-gradient(180deg,var(--teal),#2b7a70);border-radius:3px 3px 0 0;min-height:2px}
+  .sim-col b{font-family:"Roboto Mono",monospace;font-size:9px;color:var(--soft);font-weight:500}
+  .sim-col span{font-family:"Roboto Mono",monospace;font-size:10px;color:var(--faint)}
+  .sim-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
+  .sim-kpi{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.025);padding:9px 11px}
+  .sim-kpi b{display:block;font-size:11px;color:var(--faint);font-weight:500}
+  .sim-kpi span{font-family:"Roboto Mono",monospace;font-size:16px;font-weight:600}
+  @media (max-width:760px){.sim-row{grid-template-columns:90px minmax(0,1fr) 70px 80px 32px}}
   footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
   footer b{color:var(--soft)}
 
@@ -109,6 +130,13 @@
 </header>
 
 <main class="wrap">
+  <div class="tabbar" role="tablist" aria-label="市場資料分頁">
+    <button class="tab on" id="tabStock" type="button" role="tab" aria-selected="true">全股票</button>
+    <button class="tab" id="tabEtf" type="button" role="tab" aria-selected="false">ETF</button>
+    <button class="tab" id="tabSim" type="button" role="tab" aria-selected="false">現金流模擬</button>
+  </div>
+
+  <div id="stockPanel">
   <section aria-labelledby="screenHeading">
     <h2 id="screenHeading">搜尋與篩選 <em>SCREENER</em></h2>
     <p class="hint">全部條件在瀏覽器端即時運算。這是資料篩選工具，不是買賣建議，也不評估你的資金規則與風險承受度。</p>
@@ -162,6 +190,98 @@
     <div id="emptyBox"></div>
     <div class="more"><button class="btn" id="more" type="button" hidden>載入更多</button></div>
   </section>
+  </div>
+
+  <div id="etfPanel" hidden>
+  <section aria-labelledby="etfScreenHeading">
+    <h2 id="etfScreenHeading">ETF 搜尋與篩選 <em>ETF SCREENER</em></h2>
+    <p class="hint">淨值與折溢價取自 TWSE MIS 同一快照；折溢價異常（與官方值差逾 0.5 個百分點）當日不顯示。本頁為資料篩選工具，僅供參考。</p>
+    <div class="toolbar">
+      <div class="toolrow">
+        <input class="grow" id="qE" type="search" placeholder="搜尋代碼或名稱，例如 0056 或 高股息" aria-label="搜尋 ETF 代碼或名稱" />
+        <select id="typeE" aria-label="ETF 類型">
+          <option value="">全部類型</option>
+          <option value="市值型">市值型</option>
+          <option value="高股息">高股息</option>
+          <option value="債券型">債券型</option>
+          <option value="主題型">主題型</option>
+          <option value="槓桿反向">槓桿反向</option>
+          <option value="期貨型">期貨型</option>
+        </select>
+        <button class="btn" id="resetE" type="button">清除條件</button>
+      </div>
+      <div class="toolrow">
+        <div class="presets">
+          <button class="btn" id="pEMcap" type="button">市值精選</button>
+          <button class="btn" id="pEYield" type="button">高股息配息中</button>
+          <button class="btn" id="pEDisc" type="button">折價 ≤ −0.3% · 規模≥10億</button>
+        </div>
+        <span class="count" id="etfCount">尚未載入</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="etfListHeading">
+    <h2 id="etfListHeading">ETF 清單 <em>LIST</em></h2>
+    <div class="stamp" id="etfStamp">切換到此頁籤時載入</div>
+    <div class="table-scroll">
+      <table id="etfTable">
+        <thead><tr>
+          <th data-etf-sort="code">代碼</th>
+          <th data-etf-sort="name">名稱</th>
+          <th data-etf-sort="type">類型</th>
+          <th data-etf-sort="close">收盤</th>
+          <th data-etf-sort="nav">淨值</th>
+          <th data-etf-sort="discountPremium">折溢價%</th>
+          <th data-etf-sort="aum">規模(億)</th>
+          <th data-etf-sort="yield">近12月殖利率%</th>
+          <th data-etf-sort="frequency">頻率</th>
+        </tr></thead>
+        <tbody id="etfBody"></tbody>
+      </table>
+    </div>
+    <div id="etfEmpty"></div>
+    <div class="more"><button class="btn" id="etfMore" type="button" hidden>載入更多</button></div>
+  </section>
+
+  <section aria-labelledby="ovHeading">
+    <h2 id="ovHeading">成分股重疊 <em>OVERLAP</em></h2>
+    <p class="hint">勾選 2–5 檔精選 ETF，計算前十大成分股交集與合計曝險。僅精選檔有人工維護的成分股資料（含資料日），其餘暫不支援。</p>
+    <div class="ov-grid" id="ovList"></div>
+    <div class="decision-tools" style="margin-top:12px">
+      <button class="btn" id="ovCompute" type="button">計算重疊</button>
+      <span class="stamp" id="ovStamp"></span>
+    </div>
+    <div id="ovResult"></div>
+  </section>
+  </div>
+
+  <div id="simPanel" hidden>
+  <section aria-labelledby="simHeading">
+    <h2 id="simHeading">資金月現金流模擬 <em>SIMULATOR</em></h2>
+    <p class="hint">依實際發放月分攤，非年收益÷12。個股用歷史殖利率推估、發放月預設 8 月可修改；扣費為簡化估算之保守上限，僅供參考，不是投資建議。</p>
+    <div class="toolbar">
+      <div class="toolrow">
+        <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
+        <button class="btn" id="simAdd" type="button">＋ 加入標的</button>
+        <span class="count" id="simPctSum"></span>
+      </div>
+      <div class="sim-rows" id="simRows"></div>
+      <div class="toolrow">
+        <div class="presets">
+          <button class="btn on" id="s100" type="button">歷史基準</button>
+          <button class="btn" id="s80" type="button">保守 −20%</button>
+          <button class="btn" id="s60" type="button">極端 −40%</button>
+        </div>
+        <button class="btn" id="simRun" type="button">試算</button>
+      </div>
+    </div>
+    <div class="sim-summary" id="simSummary"></div>
+    <div class="sim-chart" id="simChart"></div>
+    <div id="simDetail"></div>
+    <p class="hint" style="margin-top:12px">二代健保補充保費以「單一標的單次給付 ≥ 20,000 元 × 2.11%」全額估算；配息中非股利成分（收益平準金、資本利得、境外債息）之適用規則未查證，實際扣費可能較低。稅負、匯費與健保細部規則不在本模擬範圍。</p>
+  </section>
+  </div>
 
   <footer>
     資料來源：<b>TWSE OpenAPI</b>（上市收盤／本益比）與 <b>TPEx OpenAPI</b>（上櫃收盤／本益比），每交易日收盤後自動更新。
@@ -353,6 +473,425 @@ function feedUrl(){
   return MARKET_FEED_URL + "?v=" + encodeURIComponent(new Date().toISOString().slice(0,10));
 }
 
+/* ===================== ETF 頁籤 ===================== */
+const ETF_FEED_URL = "/data/etf-feed.json";
+// 二代健保補充保費（簡化估算之保守上限；單次給付上限金額未查證，cap 預留停用）
+const NHI = {rate:0.0211, threshold:20000, cap:null};
+const LS_SIM = "bjkw-market-sim-v1";
+
+let activeTab = "stock";
+let allEtfs = [];
+let etfLoaded = false;
+let etfViewRows = [];
+let etfShown = 0;
+let etfSortKey = "code";
+let etfSortDir = 1;
+const etfFilters = {q:"", type:"", disc:null, aumMin:null, payingOnly:false};
+
+function storage(){
+  try { return ROOT.localStorage || null; } catch (error) { return null; }
+}
+
+function etfFeedUrl(){
+  return ETF_FEED_URL + "?v=" + encodeURIComponent(new Date().toISOString().slice(0,10));
+}
+
+function normalizeEtfFeed(payload){
+  const rows = Array.isArray(payload && payload.stocks) ? payload.stocks : [];
+  return rows.map(function(row){
+    return {
+      code:String(row.code || ""),
+      name:String(row.name || ""),
+      market:row.market === "tpex" ? "tpex" : "twse",
+      type:String(row.type || "主題型"),
+      close:parseNumber(row.close),
+      change:parseNumber(row.change),
+      nav:parseNumber(row.nav),
+      discountPremium:parseNumber(row.discountPremium),
+      aum:parseNumber(row.aum),
+      yield:parseNumber(row.yield),
+      frequency:row.frequency || null,
+      payMonths:Array.isArray(row.payMonths) ? row.payMonths : [],
+      dps:Array.isArray(row.dps) ? row.dps.filter(function(d){return d && Number.isFinite(Number(d.m)) && Number.isFinite(Number(d.a));}) : [],
+      divMonthsCovered:parseNumber(row.divMonthsCovered),
+      expenseRatio:parseNumber(row.expenseRatio),
+      topHoldings:Array.isArray(row.topHoldings) ? row.topHoldings : [],
+      holdingsAsOf:row.holdingsAsOf || null,
+      domicileNote:row.domicileNote || null,
+    };
+  }).filter(function(row){return row.code && row.close != null;});
+}
+
+function applyEtfFilters(rows, state){
+  const f = state || etfFilters;
+  const needle = String(f.q || "").trim().toLowerCase();
+  return rows.filter(function(row){
+    if (needle && row.code.toLowerCase().indexOf(needle) < 0 && row.name.toLowerCase().indexOf(needle) < 0) return false;
+    if (f.type && row.type !== f.type) return false;
+    if (f.disc != null && !(row.discountPremium != null && row.discountPremium <= f.disc)) return false;
+    if (f.aumMin != null && !(row.aum != null && row.aum >= f.aumMin)) return false;
+    if (f.payingOnly && !(row.dps && row.dps.length)) return false;
+    return true;
+  });
+}
+
+function etfRowHtml(row){
+  return '<tr>'
+    + '<td><span class="code">' + escapeHtml(row.code) + '</span></td>'
+    + '<td><span class="nm">' + escapeHtml(row.name) + '</span>'
+      + '<span class="mk" style="margin-left:6px">' + (row.market === "tpex" ? "上櫃" : "上市") + '</span>'
+      + (row.topHoldings.length ? '<span class="badge">精選</span>' : '')
+      + '</td>'
+    + '<td class="num">' + escapeHtml(row.type) + '</td>'
+    + '<td class="px">' + fmt(row.close, 2) + '</td>'
+    + '<td class="num">' + (row.nav == null ? "—" : fmt(row.nav, 2)) + '</td>'
+    + '<td class="num ' + toneClass(row.discountPremium) + '">' + (row.discountPremium == null ? "—" : signed(row.discountPremium, 2) + "%") + '</td>'
+    + '<td class="num">' + (row.aum == null ? "—" : fmt(row.aum, 1)) + '</td>'
+    + '<td class="num">' + (row.yield == null ? '<span class="stale">累積中</span>' : fmt(row.yield, 2)) + '</td>'
+    + '<td class="num">' + (row.frequency ? escapeHtml(row.frequency) : "—") + '</td>'
+    + '</tr>';
+}
+
+function renderEtfHead(){
+  const table = $("etfTable");
+  if (!table || !table.querySelectorAll) return;
+  for (const th of table.querySelectorAll("th")) {
+    const key = th.dataset ? th.dataset.etfSort : null;
+    if (!key) continue;
+    const base = String(th.textContent || "").replace(/[ ▲▼]+$/, "");
+    th.textContent = key === etfSortKey ? base + (etfSortDir > 0 ? " ▲" : " ▼") : base;
+  }
+}
+
+function renderEtf(){
+  const body = $("etfBody");
+  if (!body) return;
+  const slice = etfViewRows.slice(0, etfShown);
+  body.innerHTML = slice.map(etfRowHtml).join("");
+  const empty = $("etfEmpty");
+  if (empty) empty.innerHTML = etfViewRows.length ? "" : '<div class="empty">沒有符合條件的 ETF，請放寬篩選。</div>';
+  const more = $("etfMore");
+  if (more) more.hidden = etfShown >= etfViewRows.length;
+  const count = $("etfCount");
+  if (count) count.textContent = allEtfs.length ? "符合 " + etfViewRows.length + " / " + allEtfs.length + " 檔（顯示 " + slice.length + "）" : "尚未載入";
+  renderEtfHead();
+}
+
+function recomputeEtf(){
+  etfViewRows = sortRows(applyEtfFilters(allEtfs, etfFilters), etfSortKey, etfSortDir);
+  etfShown = Math.min(PAGE_SIZE, etfViewRows.length);
+  renderEtf();
+}
+
+function setEtfSort(key){
+  if (etfSortKey === key) etfSortDir = -etfSortDir;
+  else { etfSortKey = key; etfSortDir = (key === "code" || key === "name" || key === "type" || key === "frequency") ? 1 : -1; }
+  recomputeEtf();
+}
+
+async function loadEtf(){
+  if (etfLoaded) return "etf cached";
+  const stamp = $("etfStamp");
+  try {
+    const response = await fetch(etfFeedUrl(), {cache:"no-store", headers:{Accept:"application/json"}});
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const payload = await response.json();
+    allEtfs = normalizeEtfFeed(payload);
+    etfLoaded = true;
+    recomputeEtf();
+    renderOvList();
+    const stale = Array.isArray(payload.errors) && payload.errors.length ? "（上游有中斷或校驗異常，部分欄位保留前值/隱藏）" : "";
+    if (stamp) stamp.textContent = "ETF " + allEtfs.length + " 檔 · 交易日 " + (payload.tradeDate || "—") + " · 配息史起算 " + (payload.divHistoryStart || "—") + " " + stale;
+    return "etf feed ok";
+  } catch (error) {
+    if (stamp) stamp.textContent = "ETF 清單載入失敗：" + error.message;
+    return "etf feed failed";
+  }
+}
+
+/* ===================== 成分股重疊 ===================== */
+function curatedEtfs(){
+  return allEtfs.filter(function(row){return row.topHoldings.length;});
+}
+
+function computeOverlap(selected){
+  // selected: [{code, name, topHoldings:[{name, weight}]}] → 合計曝險排序
+  const map = {};
+  for (const etf of selected) {
+    for (const holding of etf.topHoldings) {
+      const key = holding.name;
+      if (!map[key]) map[key] = {name:key, total:0, per:{}};
+      map[key].per[etf.code] = holding.weight;
+      map[key].total += holding.weight;
+    }
+  }
+  const rows = Object.values(map).map(function(entry){
+    entry.total = Math.round(entry.total * 100) / 100;
+    entry.inAll = selected.every(function(etf){return entry.per[etf.code] != null;});
+    return entry;
+  });
+  rows.sort(function(a, b){return b.total - a.total || a.name.localeCompare(b.name);});
+  return rows;
+}
+
+function renderOvList(){
+  const box = $("ovList");
+  if (!box) return;
+  box.innerHTML = curatedEtfs().map(function(row){
+    return '<label class="ov-item"><input type="checkbox" data-ov="' + escapeHtml(row.code) + '"> <span class="code">' + escapeHtml(row.code) + '</span> ' + escapeHtml(row.name) + '</label>';
+  }).join("") || '<div class="empty">尚無精選成分股資料。</div>';
+}
+
+function runOverlap(){
+  const box = $("ovList");
+  const result = $("ovResult");
+  const stamp = $("ovStamp");
+  if (!box || !result) return;
+  const checked = [];
+  if (box.querySelectorAll) {
+    for (const input of box.querySelectorAll("input")) {
+      if (input.checked && input.dataset && input.dataset.ov) checked.push(input.dataset.ov);
+    }
+  }
+  const selected = curatedEtfs().filter(function(row){return checked.indexOf(row.code) >= 0;});
+  if (selected.length < 2 || selected.length > 5) {
+    if (stamp) stamp.textContent = "請勾選 2–5 檔";
+    result.innerHTML = "";
+    return;
+  }
+  const rows = computeOverlap(selected);
+  const asOf = selected.map(function(e){return e.holdingsAsOf;}).filter(Boolean).sort()[0] || "";
+  if (stamp) stamp.textContent = selected.map(function(e){return e.code;}).join(" + ") + (asOf ? " · 成分股資料日 " + asOf : "");
+  result.innerHTML = '<div class="table-scroll" style="margin-top:12px"><table style="min-width:520px"><thead><tr><th style="text-align:left">成分股</th>'
+    + selected.map(function(e){return '<th>' + escapeHtml(e.code) + '</th>';}).join("")
+    + '<th>合計曝險%</th><th>交集</th></tr></thead><tbody>'
+    + rows.slice(0, 20).map(function(entry){
+        return '<tr><td style="text-align:left"><span class="nm">' + escapeHtml(entry.name) + '</span></td>'
+          + selected.map(function(e){return '<td class="num">' + (entry.per[e.code] != null ? fmt(entry.per[e.code], 2) : "—") + '</td>';}).join("")
+          + '<td class="num"><b>' + fmt(entry.total, 2) + '</b></td>'
+          + '<td>' + (entry.inAll ? "✓" : "") + '</td></tr>';
+      }).join("")
+    + '</tbody></table></div>'
+    + '<p class="hint" style="margin-top:8px">合計曝險為各檔前十大權重直接相加（未按投入比例加權）；前十大以外持股不在計算內。</p>';
+}
+
+/* ===================== 現金流模擬 ===================== */
+let simStress = 1;
+let simAllocations = [];
+
+function lookupSecurity(code){
+  const cleaned = String(code || "").trim().toUpperCase();
+  if (!cleaned) return null;
+  const etf = allEtfs.find(function(row){return row.code === cleaned;});
+  if (etf) {
+    return {code:etf.code, name:etf.name, kind:"etf", price:etf.close, events:etf.dps, note:etf.dps.length ? null : "無配息紀錄（" + etf.type + "）"};
+  }
+  const stock = allStocks.find(function(row){return row.code === cleaned;});
+  if (stock) {
+    const annual = (stock.dividendYield != null && stock.close != null) ? Math.round(stock.close * stock.dividendYield) / 100 : 0;
+    return {code:stock.code, name:stock.name, kind:"stock", price:stock.close, annualDps:annual, note:annual ? "歷史殖利率推估" : "無殖利率資料，年配以 0 計"};
+  }
+  return null;
+}
+
+// 純函式：零股 floor、發放月分攤、壓力乘數先於門檻、單筆 >= 門檻扣補充保費
+function simulate(input){
+  const total = Number(input.total) || 0;
+  const stress = Number(input.stress) || 1;
+  const nhi = input.nhi || NHI;
+  const monthlyGross = new Array(12).fill(0);
+  const monthlyNet = new Array(12).fill(0);
+  const holdings = [];
+  let allocated = 0;
+  let cashPool = 0;
+  let totalFee = 0;
+  let pctSum = 0;
+
+  for (const allocation of (input.allocations || [])) {
+    const security = allocation.security;
+    const pct = Number(allocation.pct) || 0;
+    pctSum += pct;
+    const budget = total * pct / 100;
+    allocated += budget;
+    if (!security || !(security.price > 0)) {
+      cashPool += budget;
+      holdings.push({code:allocation.code || "?", name:(security && security.name) || "未知標的", shares:0, spent:0, leftover:budget, annualGross:0, annualNet:0, events:[], note:"查無標的或無價格"});
+      continue;
+    }
+    const shares = Math.floor(budget / security.price);
+    const spent = shares * security.price;
+    const leftover = budget - spent;
+    cashPool += leftover;
+
+    let events = [];
+    if (security.kind === "etf") {
+      events = (security.events || []).map(function(event){return {m:Number(event.m), a:Number(event.a)};});
+    } else if (security.annualDps > 0) {
+      const month = Number(allocation.month) >= 1 && Number(allocation.month) <= 12 ? Number(allocation.month) : 8;
+      events = [{m:month, a:security.annualDps}];
+    }
+    let annualGross = 0;
+    let annualNet = 0;
+    const outEvents = [];
+    for (const event of events) {
+      if (!(event.m >= 1 && event.m <= 12) || !(event.a > 0)) continue;
+      const gross = shares * event.a * stress;         // 壓力乘數先套用
+      const fee = gross >= nhi.threshold ? gross * nhi.rate : 0;  // 再判單筆門檻
+      const net = gross - fee;
+      annualGross += gross;
+      annualNet += net;
+      totalFee += fee;
+      monthlyGross[event.m - 1] += gross;
+      monthlyNet[event.m - 1] += net;
+      outEvents.push({m:event.m, gross:gross, fee:fee, net:net});
+    }
+    holdings.push({code:security.code, name:security.name, shares:shares, spent:spent, leftover:leftover, annualGross:annualGross, annualNet:annualNet, events:outEvents, note:security.note || null});
+  }
+  cashPool += Math.max(0, total - allocated); // 未配置比例 → 現金池；現金池不產生配息
+  const totalGross = monthlyGross.reduce(function(sum, value){return sum + value;}, 0);
+  const totalNet = monthlyNet.reduce(function(sum, value){return sum + value;}, 0);
+  return {holdings:holdings, cashPool:cashPool, monthlyGross:monthlyGross, monthlyNet:monthlyNet, totalGross:totalGross, totalFee:totalFee, totalNet:totalNet, pctSum:pctSum, overAllocated:pctSum > 100.0001};
+}
+
+function simRowHtml(index, allocation){
+  return '<div class="sim-row" data-sim-row="' + index + '">'
+    + '<input type="text" value="' + escapeHtml(allocation.code || "") + '" data-sim-code="' + index + '" placeholder="代碼" aria-label="標的代碼" />'
+    + '<span class="nm2" id="simName' + index + '"></span>'
+    + '<input type="number" value="' + escapeHtml(allocation.pct == null ? "" : allocation.pct) + '" data-sim-pct="' + index + '" placeholder="比例%" step="5" aria-label="配置比例%" />'
+    + '<input type="number" value="' + escapeHtml(allocation.month == null ? "" : allocation.month) + '" data-sim-month="' + index + '" placeholder="發放月" min="1" max="12" aria-label="個股發放月（ETF 忽略）" />'
+    + '<button class="btn" data-sim-del="' + index + '" type="button" aria-label="移除">✕</button>'
+    + '</div>';
+}
+
+function renderSimRows(){
+  const box = $("simRows");
+  if (!box) return;
+  box.innerHTML = simAllocations.map(function(allocation, index){return simRowHtml(index, allocation);}).join("");
+  if (box.querySelectorAll) {
+    for (const input of box.querySelectorAll("input")) {
+      const codeIdx = input.dataset && input.dataset.simCode;
+      const pctIdx = input.dataset && input.dataset.simPct;
+      const monthIdx = input.dataset && input.dataset.simMonth;
+      if (codeIdx != null) input.addEventListener("input", function(){simAllocations[codeIdx].code = input.value; updateSimNames();});
+      if (pctIdx != null) input.addEventListener("input", function(){simAllocations[pctIdx].pct = input.value === "" ? null : Number(input.value); updateSimPctSum();});
+      if (monthIdx != null) input.addEventListener("input", function(){simAllocations[monthIdx].month = input.value === "" ? null : Number(input.value);});
+    }
+    for (const button of box.querySelectorAll("button")) {
+      const delIdx = button.dataset && button.dataset.simDel;
+      if (delIdx != null) button.addEventListener("click", function(){simAllocations.splice(Number(delIdx), 1); renderSimRows();});
+    }
+  }
+  updateSimNames();
+  updateSimPctSum();
+}
+
+function updateSimNames(){
+  simAllocations.forEach(function(allocation, index){
+    const node = $("simName" + index);
+    if (!node) return;
+    const security = lookupSecurity(allocation.code);
+    node.textContent = security ? security.name + " @" + fmt(security.price, 2) + (security.note ? " · " + security.note : "") : (allocation.code ? "查無此標的" : "");
+  });
+}
+
+function updateSimPctSum(){
+  const node = $("simPctSum");
+  if (!node) return;
+  const sum = simAllocations.reduce(function(total, allocation){return total + (Number(allocation.pct) || 0);}, 0);
+  node.textContent = "已配置 " + fmt(sum, 1) + "%";
+}
+
+function saveSimState(){
+  const store = storage();
+  if (!store) return;
+  try { store.setItem(LS_SIM, JSON.stringify({total:($("simTotal") || {}).value || "", rows:simAllocations, stress:simStress})); } catch (error) {}
+}
+
+function loadSimState(){
+  const store = storage();
+  if (!store) return;
+  try {
+    const saved = JSON.parse(store.getItem(LS_SIM) || "null");
+    if (!saved) return;
+    if ($("simTotal") && saved.total) $("simTotal").value = saved.total;
+    if (Array.isArray(saved.rows)) simAllocations = saved.rows.slice(0, 10);
+    if (saved.stress === 0.8 || saved.stress === 0.6 || saved.stress === 1) simStress = saved.stress;
+  } catch (error) {}
+}
+
+function setStress(value, buttonId){
+  simStress = value;
+  for (const id of ["s100", "s80", "s60"]) {
+    const node = $(id);
+    if (node) node.className = id === buttonId ? "btn on" : "btn";
+  }
+  runSim();
+}
+
+function runSim(){
+  const summary = $("simSummary");
+  const chart = $("simChart");
+  const detail = $("simDetail");
+  if (!summary || !chart) return;
+  const total = Number(($("simTotal") || {}).value) || 0;
+  const result = simulate({
+    total:total,
+    stress:simStress,
+    nhi:NHI,
+    allocations:simAllocations.map(function(allocation){
+      return {code:allocation.code, pct:allocation.pct, month:allocation.month, security:lookupSecurity(allocation.code)};
+    }),
+  });
+  saveSimState();
+  if (!total || !simAllocations.length) {
+    summary.innerHTML = '<div class="sim-kpi"><b>狀態</b><span style="font-size:13px">輸入總額並加入標的後試算</span></div>';
+    chart.innerHTML = "";
+    if (detail) detail.innerHTML = "";
+    return;
+  }
+  const warn = result.overAllocated ? '<div class="sim-kpi" style="border-color:var(--red)"><b>警告</b><span style="font-size:13px;color:var(--red)">配置合計超過 100%</span></div>' : "";
+  summary.innerHTML = warn
+    + '<div class="sim-kpi"><b>年配息（壓力 ×' + simStress + '）</b><span>' + fmt(Math.round(result.totalGross), 0) + '</span></div>'
+    + '<div class="sim-kpi"><b>估算扣費（保守上限）</b><span class="neg">−' + fmt(Math.round(result.totalFee), 0) + '</span></div>'
+    + '<div class="sim-kpi"><b>扣費後估算</b><span class="pos">' + fmt(Math.round(result.totalNet), 0) + '</span></div>'
+    + '<div class="sim-kpi"><b>月均（扣費後）</b><span>' + fmt(Math.round(result.totalNet / 12), 0) + '</span></div>'
+    + '<div class="sim-kpi"><b>現金池（未投入）</b><span>' + fmt(Math.round(result.cashPool), 0) + '</span></div>';
+  const peak = Math.max.apply(null, result.monthlyNet.concat([1]));
+  chart.innerHTML = result.monthlyNet.map(function(value, index){
+    const height = Math.round(value / peak * 100);
+    return '<div class="sim-col"><b>' + (value ? fmt(Math.round(value / 1000), 0) + "k" : "") + '</b><div class="sim-bar" style="height:' + height + '%"></div><span>' + (index + 1) + '月</span></div>';
+  }).join("");
+  if (detail) {
+    detail.innerHTML = '<div class="table-scroll" style="margin-top:14px"><table style="min-width:560px"><thead><tr><th style="text-align:left">標的</th><th>股數</th><th>投入</th><th>年配息</th><th>扣費後</th><th>備註</th></tr></thead><tbody>'
+      + result.holdings.map(function(holding){
+          return '<tr><td style="text-align:left"><span class="code">' + escapeHtml(holding.code) + '</span> <span class="nm">' + escapeHtml(holding.name) + '</span></td>'
+            + '<td class="num">' + fmt(holding.shares, 0) + '</td>'
+            + '<td class="num">' + fmt(Math.round(holding.spent), 0) + '</td>'
+            + '<td class="num">' + fmt(Math.round(holding.annualGross), 0) + '</td>'
+            + '<td class="num">' + fmt(Math.round(holding.annualNet), 0) + '</td>'
+            + '<td style="font-size:11px;color:var(--faint)">' + escapeHtml(holding.note || "") + '</td></tr>';
+        }).join("")
+      + '</tbody></table></div>';
+  }
+}
+
+/* ===================== 頁籤 ===================== */
+function showTab(name){
+  activeTab = name;
+  const panels = {stock:"stockPanel", etf:"etfPanel", sim:"simPanel"};
+  const tabs = {stock:"tabStock", etf:"tabEtf", sim:"tabSim"};
+  for (const key of Object.keys(panels)) {
+    const panel = $(panels[key]);
+    if (panel) panel.hidden = key !== name;
+    const tab = $(tabs[key]);
+    if (tab) {
+      tab.className = key === name ? "tab on" : "tab";
+      if (tab.setAttribute) tab.setAttribute("aria-selected", key === name ? "true" : "false");
+    }
+  }
+  if (name === "etf" || name === "sim") loadEtf().then(function(){if (name === "sim") { renderSimRows(); runSim(); }});
+}
+
 async function load(){
   const stamp = $("stamp");
   try {
@@ -432,9 +971,85 @@ function bind(){
     sortKey = "code"; sortDir = 1;
     recompute();
   });
+
+  /* --- 頁籤 --- */
+  for (const pair of [["tabStock","stock"],["tabEtf","etf"],["tabSim","sim"]]) {
+    const node = $(pair[0]);
+    if (node) node.addEventListener("click", function(){showTab(pair[1]);});
+  }
+
+  /* --- ETF 頁籤 --- */
+  const qE = $("qE");
+  if (qE) qE.addEventListener("input", function(){etfFilters.q = qE.value; recomputeEtf();});
+  const typeE = $("typeE");
+  if (typeE) typeE.addEventListener("change", function(){etfFilters.type = typeE.value; recomputeEtf();});
+  const etfMore = $("etfMore");
+  if (etfMore) etfMore.addEventListener("click", function(){etfShown = Math.min(etfShown + PAGE_SIZE, etfViewRows.length); renderEtf();});
+  const etfTable = $("etfTable");
+  if (etfTable && etfTable.querySelectorAll) {
+    for (const th of etfTable.querySelectorAll("th")) {
+      const key = th.dataset ? th.dataset.etfSort : null;
+      if (key) th.addEventListener("click", function(){setEtfSort(key);});
+    }
+  }
+  const pEMcap = $("pEMcap");
+  if (pEMcap) pEMcap.addEventListener("click", function(){
+    etfFilters.type = "市值型"; etfFilters.disc = null; etfFilters.aumMin = null; etfFilters.payingOnly = false;
+    if (typeE) typeE.value = "市值型";
+    etfSortKey = "aum"; etfSortDir = -1;
+    recomputeEtf();
+  });
+  const pEYield = $("pEYield");
+  if (pEYield) pEYield.addEventListener("click", function(){
+    etfFilters.type = "高股息"; etfFilters.disc = null; etfFilters.aumMin = null; etfFilters.payingOnly = true;
+    if (typeE) typeE.value = "高股息";
+    etfSortKey = "yield"; etfSortDir = -1;
+    recomputeEtf();
+  });
+  const pEDisc = $("pEDisc");
+  if (pEDisc) pEDisc.addEventListener("click", function(){
+    // 甜甜價併入規模門檻並排除槓反/期貨——重演個股 4523 教訓的預防
+    etfFilters.type = ""; etfFilters.disc = -0.3; etfFilters.aumMin = 10; etfFilters.payingOnly = false;
+    if (typeE) typeE.value = "";
+    etfSortKey = "discountPremium"; etfSortDir = 1;
+    etfViewRows = sortRows(applyEtfFilters(allEtfs, etfFilters).filter(function(row){return row.type !== "槓桿反向" && row.type !== "期貨型";}), etfSortKey, etfSortDir);
+    etfShown = Math.min(PAGE_SIZE, etfViewRows.length);
+    renderEtf();
+  });
+  const resetE = $("resetE");
+  if (resetE) resetE.addEventListener("click", function(){
+    etfFilters.q = ""; etfFilters.type = ""; etfFilters.disc = null; etfFilters.aumMin = null; etfFilters.payingOnly = false;
+    if (qE) qE.value = "";
+    if (typeE) typeE.value = "";
+    etfSortKey = "code"; etfSortDir = 1;
+    recomputeEtf();
+  });
+
+  /* --- 重疊 --- */
+  const ovCompute = $("ovCompute");
+  if (ovCompute) ovCompute.addEventListener("click", runOverlap);
+
+  /* --- 模擬器 --- */
+  const simAdd = $("simAdd");
+  if (simAdd) simAdd.addEventListener("click", function(){
+    if (simAllocations.length >= 10) return;
+    simAllocations.push({code:"", pct:null, month:null});
+    renderSimRows();
+  });
+  const simRun = $("simRun");
+  if (simRun) simRun.addEventListener("click", runSim);
+  const s100 = $("s100");
+  if (s100) s100.addEventListener("click", function(){setStress(1, "s100");});
+  const s80 = $("s80");
+  if (s80) s80.addEventListener("click", function(){setStress(0.8, "s80");});
+  const s60 = $("s60");
+  if (s60) s60.addEventListener("click", function(){setStress(0.6, "s60");});
+  const simTotal = $("simTotal");
+  if (simTotal) simTotal.addEventListener("input", function(){saveSimState();});
 }
 
 async function init(){
+  loadSimState();
   bind();
   await load();
 }
@@ -448,6 +1063,16 @@ const marketApp = {
   setSort:setSort,
   showMore:function(){shown = Math.min(shown + PAGE_SIZE, viewRows.length); render(); return shown;},
   getShown:function(){return shown;},
+  loadEtf:loadEtf,
+  getEtfs:function(){return allEtfs;},
+  getEtfRows:function(){return etfViewRows;},
+  setEtfSort:setEtfSort,
+  showTab:showTab,
+  getActiveTab:function(){return activeTab;},
+  runOverlap:runOverlap,
+  getSimAllocations:function(){return simAllocations;},
+  setSimAllocations:function(rows){simAllocations = rows; renderSimRows();},
+  runSim:runSim,
   helpers:{
     normalizeFeed:normalizeFeed,
     applyFilters:applyFilters,
@@ -455,6 +1080,13 @@ const marketApp = {
     isLowBase:isLowBase,
     dayPct:dayPct,
     parseNumber:parseNumber,
+    normalizeEtfFeed:normalizeEtfFeed,
+    applyEtfFilters:applyEtfFilters,
+    computeOverlap:computeOverlap,
+    simulate:simulate,
+    lookupSecurity:lookupSecurity,
+    etfFeedUrl:etfFeedUrl,
+    NHI:NHI,
   },
 };
 ROOT.MarketApp = marketApp;

@@ -1,0 +1,428 @@
+{
+  "updatedAt": "2026-07-27",
+  "note": "人工維護精選檔。topHoldings 來源 MoneyDJ 公開頁（權重%）；expenseRatio 無可靠機器可讀源，暫留 null。",
+  "etfs": {
+    "0050": {
+      "type": "市值型",
+      "expenseRatio": null,
+      "topHoldings": [
+        {
+          "name": "台積電",
+          "weight": 57.37
+        },
+        {
+          "name": "聯發科",
+          "weight": 6.11
+        },
+        {
+          "name": "台達電",
+          "weight": 3.67
+        },
+        {
+          "name": "鴻海",
+          "weight": 2.99
+        },
+        {
+          "name": "日月光投控",
+          "weight": 2.2
+        },
+        {
+          "name": "聯電",
+          "weight": 1.87
+        },
+        {
+          "name": "國巨*",
+          "weight": 1.75
+        },
+        {
+          "name": "台光電",
+          "weight": 1.53
+        },
+        {
+          "name": "欣興",
+          "weight": 1.37
+        },
+        {
+          "name": "中信金",
+          "weight": 1.23
+        }
+      ],
+      "source": "MoneyDJ Basic0007a",
+      "asOf": "2026-07-27"
+    },
+    "006208": {
+      "type": "市值型",
+      "expenseRatio": null,
+      "topHoldings": [
+        {
+          "name": "台積電",
+          "weight": 57.39
+        },
+        {
+          "name": "聯發科",
+          "weight": 6.09
+        },
+        {
+          "name": "台達電",
+          "weight": 3.67
+        },
+        {
+          "name": "鴻海",
+          "weight": 2.99
+        },
+        {
+          "name": "日月光投控",
+          "weight": 2.2
+        },
+        {
+          "name": "聯電",
+          "weight": 1.87
+        },
+        {
+          "name": "國巨*",
+          "weight": 1.75
+        },
+        {
+          "name": "台光電",
+          "weight": 1.52
+        },
+        {
+          "name": "欣興",
+          "weight": 1.38
+        },
+        {
+          "name": "中信金",
+          "weight": 1.22
+        }
+      ],
+      "source": "MoneyDJ Basic0007a",
+      "asOf": "2026-07-27"
+    },
+    "0052": {
+      "type": "主題型",
+      "expenseRatio": null,
+      "topHoldings": [
+        {
+          "name": "台積電",
+          "weight": 63.41
+        },
+        {
+          "name": "聯發科",
+          "weight": 6.74
+        },
+        {
+          "name": "鴻海",
+          "weight": 3.31
+        },
+        {
+          "name": "日月光投控",
+          "weight": 2.43
+        },
+        {
+          "name": "聯電",
+          "weight": 2.07
+        },
+        {
+          "name": "國巨*",
+          "weight": 1.94
+        },
+        {
+          "name": "台光電",
+          "weight": 1.67
+        },
+        {
+          "name": "欣興",
+          "weight": 1.52
+        },
+        {
+          "name": "廣達",
+          "weight": 1.05
+        },
+        {
+          "name": "奇鋐",
+          "weight": 0.87
+        }
+      ],
+      "source": "MoneyDJ Basic0007a",
+      "asOf": "2026-07-27"
+    },
+    "0056": {
+      "type": "高股息",
+      "expenseRatio": null,
+      "topHoldings": [
+        {
+          "name": "華邦電",
+          "weight": 4.85
+        },
+        {
+          "name": "中信金",
+          "weight": 4.34
+        },
+        {
+          "name": "廣達",
+          "weight": 4.33
+        },
+        {
+          "name": "南亞科",
+          "weight": 4.14
+        },
+        {
+          "name": "永豐金",
+          "weight": 3.88
+        },
+        {
+          "name": "聯電",
+          "weight": 3.67
+        },
+        {
+          "name": "華南金",
+          "weight": 3.55
+        },
+        {
+          "name": "緯創",
+          "weight": 3.5
+        },
+        {
+          "name": "兆豐金",
+          "weight": 3.4
+        },
+        {
+          "name": "華碩",
+          "weight": 3.28
+        }
+      ],
+      "source": "MoneyDJ Basic0007a",
+      "asOf": "2026-07-27"
+    },
+    "00878": {
+      "type": "高股息",
+      "expenseRatio": null,
+      "topHoldings": [
+        {
+          "name": "中信金",
+          "weight": 10.28
+        },
+        {
+          "name": "廣達",
+          "weight": 10.11
+        },
+        {
+          "name": "國泰金",
+          "weight": 5.99
+        },
+        {
+          "name": "聯電",
+          "weight": 4.93
+        },
+        {
+          "name": "華碩",
+          "weight": 4.39
+        },
+        {
+          "name": "聯發科",
+          "weight": 3.44
+        },
+        {
+          "name": "瑞昱",
+          "weight": 3.38
+        },
+        {
+          "name": "長榮",
+          "weight": 3.37
+        },
+        {
+          "name": "世界",
+          "weight": 3.33
+        },
+        {
+          "name": "台新新光金",
+          "weight": 3.08
+        }
+      ],
+      "source": "MoneyDJ Basic0007a",
+      "asOf": "2026-07-27"
+    },
+    "00919": {
+      "type": "高股息",
+      "expenseRatio": null,
+      "topHoldings": [
+        {
+          "name": "富邦金",
+          "weight": 14.12
+        },
+        {
+          "name": "國泰金",
+          "weight": 12.08
+        },
+        {
+          "name": "廣達",
+          "weight": 11.87
+        },
+        {
+          "name": "中信金",
+          "weight": 11.61
+        },
+        {
+          "name": "台新新光金",
+          "weight": 7.05
+        },
+        {
+          "name": "華碩",
+          "weight": 4.44
+        },
+        {
+          "name": "凱基金",
+          "weight": 4.15
+        },
+        {
+          "name": "聯詠",
+          "weight": 3.83
+        },
+        {
+          "name": "長榮",
+          "weight": 3.41
+        },
+        {
+          "name": "瑞昱",
+          "weight": 3.36
+        }
+      ],
+      "source": "MoneyDJ Basic0007a",
+      "asOf": "2026-07-27"
+    },
+    "00929": {
+      "type": "高股息",
+      "expenseRatio": null,
+      "topHoldings": [
+        {
+          "name": "聯電",
+          "weight": 10.49
+        },
+        {
+          "name": "聯發科",
+          "weight": 5.97
+        },
+        {
+          "name": "華碩",
+          "weight": 4.61
+        },
+        {
+          "name": "大立光",
+          "weight": 3.87
+        },
+        {
+          "name": "漢唐",
+          "weight": 3.68
+        },
+        {
+          "name": "聯詠",
+          "weight": 3.22
+        },
+        {
+          "name": "力成",
+          "weight": 3.17
+        },
+        {
+          "name": "世界",
+          "weight": 2.8
+        },
+        {
+          "name": "威剛",
+          "weight": 2.55
+        },
+        {
+          "name": "環球晶",
+          "weight": 2.55
+        }
+      ],
+      "source": "MoneyDJ Basic0007a",
+      "asOf": "2026-07-27"
+    },
+    "00713": {
+      "type": "高股息",
+      "expenseRatio": null,
+      "topHoldings": [
+        {
+          "name": "台灣大",
+          "weight": 9.48
+        },
+        {
+          "name": "統一",
+          "weight": 8.36
+        },
+        {
+          "name": "統一超",
+          "weight": 6.48
+        },
+        {
+          "name": "遠傳",
+          "weight": 6.25
+        },
+        {
+          "name": "第一金",
+          "weight": 5.11
+        },
+        {
+          "name": "華南金",
+          "weight": 4.27
+        },
+        {
+          "name": "玉山金",
+          "weight": 3.75
+        },
+        {
+          "name": "遠東新",
+          "weight": 2.86
+        },
+        {
+          "name": "上海商銀",
+          "weight": 2.7
+        },
+        {
+          "name": "廣達",
+          "weight": 2.46
+        }
+      ],
+      "source": "MoneyDJ Basic0007a",
+      "asOf": "2026-07-27"
+    },
+    "00679B": {
+      "type": "債券型",
+      "expenseRatio": null,
+      "topHoldings": [],
+      "source": null,
+      "asOf": null,
+      "domicileNote": "境外債息，補充保費適用規則未查證"
+    },
+    "00687B": {
+      "type": "債券型",
+      "expenseRatio": null,
+      "topHoldings": [],
+      "source": null,
+      "asOf": null,
+      "domicileNote": "境外債息，補充保費適用規則未查證"
+    },
+    "00937B": {
+      "type": "債券型",
+      "expenseRatio": null,
+      "topHoldings": [],
+      "source": null,
+      "asOf": null,
+      "domicileNote": "境外債息，補充保費適用規則未查證"
+    },
+    "00631L": {
+      "type": "槓桿反向",
+      "expenseRatio": null,
+      "topHoldings": [],
+      "source": null,
+      "asOf": null
+    },
+    "00632R": {
+      "type": "槓桿反向",
+      "expenseRatio": null,
+      "topHoldings": [],
+      "source": null,
+      "asOf": null
+    }
+  }
+}

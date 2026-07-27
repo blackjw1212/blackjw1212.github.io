@@ -19,15 +19,21 @@ jobs:
         with:
           node-version: "24"
       - name: Generate market feed
-        run: node scripts/update-market-feed.mjs
-      - name: Commit market feed update
+        run: node scripts/update-market-feed.mjs --emit-bulk /tmp/bulk.json
+      # ETF 引擎失敗不得連坐個股 feed：這步容錯，commit 步驟改 if: always()
+      - name: Generate ETF feed
+        continue-on-error: true
+        run: node scripts/update-etf-feed.mjs --bulk /tmp/bulk.json
+      - name: Commit feed updates
+        if: always()
         run: |
-          if git diff --quiet -- data/market-feed.json data/market-52w.json; then
-            echo "No market feed changes"
+          FILES="data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json"
+          if git diff --quiet -- $FILES; then
+            echo "No feed changes"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/market-feed.json data/market-52w.json
-          git commit -m "Update market feed"
+          git add $FILES
+          git commit -m "Update market and ETF feeds"
           git push

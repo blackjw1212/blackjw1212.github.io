@@ -180,17 +180,32 @@ async function main() {
   const previousStocks = Array.isArray(previousFeed.stocks) ? previousFeed.stocks : [];
   const prevByMarket = { twse: previousStocks.filter((s) => s.market === "twse"), tpex: previousStocks.filter((s) => s.market === "tpex") };
 
+  // --emit-bulk <path>：把原始 bulk payload 落檔給 etf 引擎重用，
+  // 避免同一班 workflow 對 TWSE/TPEX 重複請求把失敗率疊上去。
+  const emitIndex = process.argv.indexOf("--emit-bulk");
+  const emitPath = emitIndex >= 0 ? process.argv[emitIndex + 1] : null;
+  const bulkRaw = { twse: null, tpex: null, fetchedAt: now };
+
   let twseRows = [];
   try {
-    twseRows = normalizeMarketRows(await fetchJson(SOURCES.twseEod), "twse");
+    bulkRaw.twse = await fetchJson(SOURCES.twseEod);
+    twseRows = normalizeMarketRows(bulkRaw.twse, "twse");
   } catch (error) {
     errors.push({ source: "TWSE OpenAPI STOCK_DAY_ALL", message: error.message });
   }
   let tpexRows = [];
   try {
-    tpexRows = normalizeMarketRows(await fetchJson(SOURCES.tpexEod), "tpex");
+    bulkRaw.tpex = await fetchJson(SOURCES.tpexEod);
+    tpexRows = normalizeMarketRows(bulkRaw.tpex, "tpex");
   } catch (error) {
     errors.push({ source: "TPEX OpenAPI daily close quotes", message: error.message });
+  }
+  if (emitPath) {
+    try {
+      await writeFile(emitPath, JSON.stringify(bulkRaw), "utf8");
+    } catch (error) {
+      errors.push({ source: "emit-bulk", message: error.message });
+    }
   }
 
   const twse = preserveMarketRows(prevByMarket.twse, twseRows);

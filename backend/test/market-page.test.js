@@ -34,7 +34,7 @@ class FakeElement {
   }
 }
 
-// 依實際 HTML 的 data-sort 欄位建出表頭，避免測試與頁面脫節
+// 依實際 HTML 的 data-sort / data-etf-sort 欄位分表建出表頭，避免測試與頁面脫節
 function buildDocument(html) {
   const elements = new Map();
   const table = new FakeElement("mktTable");
@@ -46,6 +46,15 @@ function buildDocument(html) {
     table.children.push(th);
   }
   elements.set("mktTable", table);
+  const etfTable = new FakeElement("etfTable");
+  for (const match of html.matchAll(/<th data-etf-sort="([^"]+)">([^<]*)<\/th>/g)) {
+    const th = new FakeElement();
+    th.tag = "th";
+    th.dataset.etfSort = match[1];
+    th.textContent = match[2];
+    etfTable.children.push(th);
+  }
+  elements.set("etfTable", etfTable);
   const document = {
     readyState: "complete",
     addEventListener() {},
@@ -220,6 +229,156 @@ test("feed failure surfaces an error stamp without throwing", async () => {
   await app.init();
   assert.match(elements.get("stamp").textContent, /清單載入失敗/);
   assert.equal(app.getAll().length, 0);
+});
+
+function etfFeed(overrides = {}) {
+  return {
+    updatedAt: "2026-07-27T12:00:00.000Z",
+    tradeDate: "2026-07-27",
+    divHistoryStart: "2026-01-06",
+    count: 6,
+    stocks: [
+      { code: "0050", name: "元大台灣50", market: "twse", type: "市值型", close: 101.7, change: 0.45, nav: 101.27, discountPremium: 0.18, aum: 21982.68, yield: null, frequency: "半年配", payMonths: [2, 8], dps: [{ m: 2, a: 1.6 }, { m: 8, a: 1.7 }], divMonthsCovered: 7, topHoldings: [{ name: "台積電", weight: 57.37 }, { name: "聯發科", weight: 6.11 }], holdingsAsOf: "2026-07-27" },
+      { code: "006208", name: "富邦台50", market: "twse", type: "市值型", close: 118, change: 0.5, nav: 117.8, discountPremium: 0.17, aum: 3500, yield: null, frequency: "半年配", payMonths: [1, 7], dps: [{ m: 1, a: 1.2 }, { m: 7, a: 1.3 }], divMonthsCovered: 7, topHoldings: [{ name: "台積電", weight: 57.39 }, { name: "富邦金", weight: 2.2 }], holdingsAsOf: "2026-07-27" },
+      { code: "0056", name: "元大高股息", market: "twse", type: "高股息", close: 50.2, change: 0.2, nav: 50.33, discountPremium: -0.66, aum: 7158.2, yield: null, frequency: "季配", payMonths: [2, 5, 8], dps: [{ m: 2, a: 1.07 }, { m: 5, a: 1.2 }, { m: 8, a: 1.35 }], divMonthsCovered: 7, topHoldings: [] },
+      { code: "00999", name: "無配息高股息", market: "twse", type: "高股息", close: 20, change: 0, nav: 20.1, discountPremium: -0.5, aum: 50, yield: null, frequency: null, payMonths: [], dps: [], divMonthsCovered: null, topHoldings: [] },
+      { code: "00632R", name: "元大台灣50反1", market: "twse", type: "槓桿反向", close: 10.57, change: -0.1, nav: 10.58, discountPremium: -0.4, aum: 249.97, yield: null, frequency: null, payMonths: [], dps: [], topHoldings: [] },
+      { code: "00679B", name: "元大美債20年", market: "tpex", type: "債券型", close: 26.89, change: 0.05, nav: 26.843, discountPremium: -0.35, aum: 1726.73, yield: null, frequency: null, payMonths: [], dps: [], domicileNote: "境外債息，補充保費適用規則未查證", topHoldings: [] },
+    ],
+    errors: [],
+    ...overrides,
+  };
+}
+
+function dualFeedMock(calls) {
+  return async (url) => {
+    const href = String(url);
+    if (calls) calls.push(href);
+    if (href.startsWith("/data/market-feed.json")) return okResponse(marketFeed());
+    if (href.startsWith("/data/etf-feed.json")) return okResponse(etfFeed());
+    throw new Error(`unavailable: ${href}`);
+  };
+}
+
+test("etf tab lazy-loads the etf feed with cache-busting and toggles panels", async () => {
+  const calls = [];
+  const { app, elements } = await loadMarket(dualFeedMock(calls));
+  await app.init();
+  assert.ok(!calls.some((href) => href.startsWith("/data/etf-feed.json")), "etf feed must NOT load on stock tab");
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const etfCall = calls.find((href) => href.startsWith("/data/etf-feed.json"));
+  assert.ok(etfCall, "switching tab loads the etf feed");
+  assert.match(etfCall, /\?v=\d{4}-\d{2}-\d{2}/, "cache-busting version param required (sw.js is cache-first)");
+  assert.equal(app.getActiveTab(), "etf");
+  assert.equal(elements.get("stockPanel").hidden, true);
+  assert.equal(elements.get("etfPanel").hidden, false);
+  assert.equal(app.getEtfs().length, 6);
+  assert.match(elements.get("etfStamp").textContent, /ETF 6 檔/);
+  assert.match(elements.get("etfBody").innerHTML, /元大台灣50/);
+  // 再切一次不得重複抓
+  await app.showTab("stock");
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls.filter((href) => href.startsWith("/data/etf-feed.json")).length, 1, "etf feed fetched once");
+});
+
+test("etf presets: discount preset enforces AUM floor and excludes leveraged funds", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  elements.get("pEDisc").fire("click");
+  const codes = app.getEtfRows().map((row) => row.code);
+  // 折價由深到淺：0056(−0.66) → 00999(−0.5) → 00679B(−0.35)；反1(−0.4) 被類型排除
+  assert.deepEqual(codes, ["0056", "00999", "00679B"], "most discounted first, AUM>=10億, leveraged excluded");
+  assert.ok(!codes.includes("00632R"), "槓桿反向 must be excluded even when discounted");
+});
+
+test("etf high-dividend preset keeps only paying funds", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  elements.get("pEYield").fire("click");
+  const codes = app.getEtfRows().map((row) => row.code);
+  assert.ok(codes.includes("0056"));
+  assert.ok(!codes.includes("00999"), "高股息 without any dps events must be excluded");
+  assert.ok(!codes.includes("0050"), "type filter applies");
+});
+
+test("computeOverlap sums weights and marks full intersection", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const curated = app.getEtfs().filter((row) => row.topHoldings.length);
+  const rows = app.helpers.computeOverlap(curated);
+  assert.equal(rows[0].name, "台積電", "largest combined exposure first");
+  assert.equal(rows[0].total, 114.76, "57.37 + 57.39");
+  assert.equal(rows[0].inAll, true);
+  const mediatek = rows.find((row) => row.name === "聯發科");
+  assert.equal(mediatek.inAll, false, "only in 0050");
+});
+
+test("simulate: odd-lot floor, cash pool earns nothing, pay-month allocation", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const result = app.helpers.simulate({
+    total: 1000000,
+    stress: 1,
+    nhi: { rate: 0.0211, threshold: 20000 },
+    allocations: [
+      { code: "0050", pct: 60, security: { code: "0050", name: "元大台灣50", kind: "etf", price: 101.7, events: [{ m: 2, a: 1.6 }, { m: 8, a: 1.7 }] } },
+      { code: "2330", pct: 20, security: { code: "2330", name: "台積電", kind: "stock", price: 2350, annualDps: 22.6 }, month: 10 },
+    ],
+  });
+  const holding = result.holdings[0];
+  assert.equal(holding.shares, Math.floor(600000 / 101.7));      // 5899
+  assert.ok(holding.leftover > 0 && holding.leftover < 101.7, "sub-share remainder goes to cash pool");
+  // 未配置的 20% 也進現金池
+  assert.ok(Math.abs(result.cashPool - (holding.leftover + result.holdings[1].leftover + 200000)) < 0.01);
+  // 發放月分攤：2 月與 8 月（0050）、10 月（個股自訂）
+  assert.ok(result.monthlyGross[1] > 0 && result.monthlyGross[7] > 0 && result.monthlyGross[9] > 0);
+  assert.equal(result.monthlyGross[0], 0);
+  // 年合計 = 各月合計（現金池不產生配息）
+  const monthSum = result.monthlyGross.reduce((sum, value) => sum + value, 0);
+  assert.ok(Math.abs(monthSum - result.totalGross) < 0.01);
+});
+
+test("simulate: NHI threshold boundary and stress-before-threshold ordering", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const base = (stress, perShare) => app.helpers.simulate({
+    total: 20000,
+    stress,
+    nhi: { rate: 0.0211, threshold: 20000 },
+    allocations: [{ code: "X", pct: 100, security: { code: "X", name: "測試", kind: "etf", price: 1, events: [{ m: 6, a: perShare }] } }],
+  });
+  // 20,000 股 × 1 元 = 單筆 20,000 → 課 2.11%
+  assert.ok(Math.abs(base(1, 1).totalFee - 20000 * 0.0211) < 0.01);
+  // 單筆 19,999.99…（每股 0.99995）→ 不課。用 0.9999 保守驗證
+  assert.equal(base(1, 0.9999).totalFee, 0);
+  // 壓力先套用再判門檻：25,000 × 0.8 = 20,000 → 課；× 0.6 = 15,000 → 不課
+  assert.ok(base(0.8, 1.25).totalFee > 0, "25000*0.8 hits the threshold");
+  assert.equal(base(0.6, 1.25).totalFee, 0, "25000*0.6 stays below");
+});
+
+test("simulate: stock without yield contributes zero, never NaN; over-allocation flagged", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const result = app.helpers.simulate({
+    total: 100000,
+    stress: 1,
+    nhi: { rate: 0.0211, threshold: 20000 },
+    allocations: [
+      { code: "9999", pct: 60, security: { code: "9999", name: "無配息股", kind: "stock", price: 50, annualDps: 0 } },
+      { code: "0050", pct: 50, security: { code: "0050", name: "元大台灣50", kind: "etf", price: 101.7, events: [{ m: 2, a: 1.6 }] } },
+    ],
+  });
+  assert.equal(result.holdings[0].annualGross, 0);
+  assert.ok(Number.isFinite(result.totalGross) && Number.isFinite(result.totalNet), "no NaN leakage");
+  assert.equal(result.overAllocated, true, "60+50 > 100 must be flagged");
 });
 
 test("preserved upstream data is disclosed in the stamp", async () => {
