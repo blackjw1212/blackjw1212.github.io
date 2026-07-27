@@ -346,6 +346,43 @@ test("simulate: odd-lot floor, cash pool earns nothing, pay-month allocation", a
   assert.ok(Math.abs(monthSum - result.totalGross) < 0.01);
 });
 
+test("simulate: an ETF ignores any user-supplied pay month", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const result = app.helpers.simulate({
+    total: 100000,
+    stress: 1,
+    nhi: { rate: 0.0211, threshold: 20000 },
+    allocations: [{
+      code: "0056",
+      pct: 100,
+      month: 3, // 使用者亂填也不得生效——ETF 一律照 feed 的實際發放月
+      security: { code: "0056", name: "元大高股息", kind: "etf", price: 50.2, events: [{ m: 2, a: 1.07 }, { m: 8, a: 1.35 }] },
+    }],
+  });
+  assert.equal(result.monthlyGross[2], 0, "March must stay empty even though month:3 was passed");
+  assert.ok(result.monthlyGross[1] > 0 && result.monthlyGross[7] > 0, "cash flow follows the ETF's real pay months");
+});
+
+test("simulator month input is auto-filled for ETFs and editable only for stocks", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");                       // 讓 ETF feed 載入，lookupSecurity 才查得到
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  app.setSimAllocations([
+    { code: "0056", pct: 50, month: null },       // ETF → 自動
+    { code: "2330", pct: 30, month: null },       // 個股 → 可填
+    { code: "", pct: 20, month: null },           // 空白 → 停用
+  ]);
+  const etfMonth = elements.get("simMonth0");
+  assert.equal(etfMonth.disabled, true, "ETF row must not invite input");
+  assert.match(etfMonth.placeholder, /自動 2·5·8月/, "shows the real pay months from the feed");
+  const stockMonth = elements.get("simMonth1");
+  assert.equal(stockMonth.disabled, false, "stock row stays editable");
+  assert.match(stockMonth.placeholder, /預設8/);
+  assert.equal(elements.get("simMonth2").disabled, true, "empty row stays disabled");
+});
+
 test("simulate: NHI threshold boundary and stress-before-threshold ordering", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

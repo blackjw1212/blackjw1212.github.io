@@ -93,6 +93,8 @@
   .sim-rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
   .sim-row{display:grid;grid-template-columns:110px minmax(0,1fr) 84px 90px 36px;gap:8px;align-items:center}
   .sim-row .nm2{font-size:12px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sim-row input:disabled{background:rgba(255,255,255,.02);border-color:var(--line);color:var(--faint);cursor:not-allowed}
+  .sim-row input:disabled::placeholder{color:var(--teal);opacity:.85}
   .sim-chart{display:flex;align-items:flex-end;gap:5px;height:130px;margin-top:14px;border-bottom:1px solid var(--line2);padding-bottom:2px}
   .sim-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;min-width:0}
   .sim-bar{width:100%;background:linear-gradient(180deg,var(--teal),#2b7a70);border-radius:3px 3px 0 0;min-height:2px}
@@ -259,7 +261,7 @@
   <div id="simPanel" hidden>
   <section aria-labelledby="simHeading">
     <h2 id="simHeading">資金月現金流模擬 <em>SIMULATOR</em></h2>
-    <p class="hint">依實際發放月分攤，非年收益÷12。個股用歷史殖利率推估、發放月預設 8 月可修改；扣費為簡化估算之保守上限，僅供參考，不是投資建議。</p>
+    <p class="hint">ETF 依實際配息的發放月自動分攤（不需自行填月份），非年收益÷12；個股無公開配息日曆，以歷史殖利率推估、發放月預設 8 月可自行修改。扣費為簡化估算之保守上限，僅供參考，不是投資建議。</p>
     <div class="toolbar">
       <div class="toolrow">
         <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
@@ -758,7 +760,7 @@ function simRowHtml(index, allocation){
     + '<input type="text" value="' + escapeHtml(allocation.code || "") + '" data-sim-code="' + index + '" placeholder="代碼" aria-label="標的代碼" />'
     + '<span class="nm2" id="simName' + index + '"></span>'
     + '<input type="number" value="' + escapeHtml(allocation.pct == null ? "" : allocation.pct) + '" data-sim-pct="' + index + '" placeholder="比例%" step="5" aria-label="配置比例%" />'
-    + '<input type="number" value="' + escapeHtml(allocation.month == null ? "" : allocation.month) + '" data-sim-month="' + index + '" placeholder="發放月" min="1" max="12" aria-label="個股發放月（ETF 忽略）" />'
+    + '<input type="number" id="simMonth' + index + '" value="' + escapeHtml(allocation.month == null ? "" : allocation.month) + '" data-sim-month="' + index + '" placeholder="發放月" min="1" max="12" aria-label="發放月（ETF 自動帶入，僅個股需填）" />'
     + '<button class="btn" data-sim-del="' + index + '" type="button" aria-label="移除">✕</button>'
     + '</div>';
 }
@@ -787,10 +789,33 @@ function renderSimRows(){
 
 function updateSimNames(){
   simAllocations.forEach(function(allocation, index){
-    const node = $("simName" + index);
-    if (!node) return;
     const security = lookupSecurity(allocation.code);
-    node.textContent = security ? security.name + " @" + fmt(security.price, 2) + (security.note ? " · " + security.note : "") : (allocation.code ? "查無此標的" : "");
+    const node = $("simName" + index);
+    if (node) {
+      node.textContent = security ? security.name + " @" + fmt(security.price, 2) + (security.note ? " · " + security.note : "") : (allocation.code ? "查無此標的" : "");
+    }
+    // 發放月只對個股有意義：ETF 依 feed 的實際配息事件自動分攤，
+    // 使用者填的月份會被 simulate() 忽略，因此直接停用並顯示實際月份。
+    const monthNode = $("simMonth" + index);
+    if (!monthNode) return;
+    if (security && security.kind === "etf") {
+      const months = (security.events || []).map(function(event){return event.m;});
+      const unique = [];
+      for (const month of months) if (unique.indexOf(month) < 0) unique.push(month);
+      unique.sort(function(a, b){return a - b;});
+      monthNode.disabled = true;
+      monthNode.value = "";
+      monthNode.placeholder = unique.length ? "自動 " + unique.join("·") + "月" : "無配息";
+      monthNode.title = unique.length ? "依 ETF 實際配息發放月自動分攤，不需填寫" : "此 ETF 無配息紀錄";
+    } else if (security) {
+      monthNode.disabled = false;
+      monthNode.placeholder = "發放月(預設8)";
+      monthNode.title = "個股無公開配息日曆，可自行指定發放月；留空以 8 月估算";
+    } else {
+      monthNode.disabled = true;
+      monthNode.placeholder = "發放月";
+      monthNode.title = "";
+    }
   });
 }
 
