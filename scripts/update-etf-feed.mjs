@@ -17,6 +17,7 @@ import { rocToIso, monthKey } from "./update-market-feed.mjs";
 const FEED_FILE = new URL("../data/etf-feed.json", import.meta.url);
 const HISTORY_FILE = new URL("../data/etf-div-history.json", import.meta.url);
 const STATIC_FILE = new URL("../data/etf-static.json", import.meta.url);
+const HOLDINGS_FILE = new URL("../data/etf-holdings.json", import.meta.url);
 
 const SOURCES = {
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
@@ -62,7 +63,9 @@ export function normalizeEtfBulkRows(rows, market) {
     const code = String(field(row, ["Code", "SecuritiesCompanyCode", "code"]) || "").trim().toUpperCase();
     if (!ETF_CODE_RE.test(code)) continue;
     const close = parseNumber(field(row, ["ClosingPrice", "Close", "close"]));
-    if (close == null) continue;
+    // 收盤 0 代表當日無成交（實測 00682U、00707R 等冷門期貨/反向 ETF），
+    // 不是有效價格：會讓折溢價算成 -100%、股數計算除以零，直接排除。
+    if (close == null || !(close > 0)) continue;
     const entry = {
       code,
       name: String(field(row, ["Name", "CompanyName", "name"]) || "").trim(),
@@ -198,6 +201,26 @@ export function deriveDividend(entry, historyStart, tradeDate) {
   return { dps, totalDps: total, count, frequency, divMonthsCovered: Math.max(1, covered) };
 }
 
+// 配息變異係數 = 標準差 / 平均。少於 2 筆無從判斷，回 null。
+// 與 market/index.html 的 dividendCv() 同一套規則，並由測試互驗兩者一致。
+export function dividendCv(dps) {
+  const values = (Array.isArray(dps) ? dps : [])
+    .map((event) => Number(event && event.a))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (values.length < 2) return null;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (!(mean > 0)) return null;
+  const variance = values.reduce((sum, value) => sum + (value - mean) * (value - mean), 0) / values.length;
+  return roundNumber(Math.sqrt(variance) / mean, 2);
+}
+
+// 核心＝大型、低配息、非債券的股票型 ETF。刻意不看 type：全 350 檔僅 2 檔被標
+// 「市值型」（classifyEtf 預設回主題型），改用客觀的規模與殖利率判定；
+// 排除債券型是必要的，否則長天期債 ETF 會頂替掉 0050 這類真正的核心。
+export function isCoreEtf(row) {
+  return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && row.type !== "債券型");
+}
+
 // 名稱規則粗分（etf-static 可覆寫）
 export function classifyEtf(code, name) {
   const text = String(name || "");
@@ -280,9 +303,11 @@ async function main() {
   const historyRaw = await readJsonOr(HISTORY_FILE, {});
   const history = accumulateDivHistory(historyRaw, events, rows.map((r) => r.code), tradeDate);
 
-  // 4) 靜態人工欄
+  // 4) 靜態人工欄 + 自動抓取的成分股（人工清單優先，因為它經過查核）
   const staticData = await readJsonOr(STATIC_FILE, {});
   const staticEtfs = (staticData && staticData.etfs) || {};
+  const holdingsData = await readJsonOr(HOLDINGS_FILE, {});
+  const holdingsEtfs = (holdingsData && holdingsData.etfs) || {};
 
   // 5) 合成
   let premiumMismatch = 0;
@@ -318,10 +343,23 @@ async function main() {
       }
     }
     if (curated.expenseRatio != null) row.expenseRatio = curated.expenseRatio;
+    // 成分股：人工查核過的清單優先，其次用自動抓取的
+    const scraped = holdingsEtfs[row.code];
     if (Array.isArray(curated.topHoldings) && curated.topHoldings.length) {
       row.topHoldings = curated.topHoldings;
       row.holdingsAsOf = curated.asOf || null;
+      row.holdingsSource = curated.source || null;
+    } else if (scraped && Array.isArray(scraped.topHoldings) && scraped.topHoldings.length) {
+      row.topHoldings = scraped.topHoldings;
+      row.holdingsAsOf = scraped.asOf || null;
+      row.holdingsSource = scraped.source || null;
     }
+    // 明確旗標：前端據此判斷「實質曝險算不算得出來」，不要用 length 猜
+    row.hasHoldingsData = Boolean(row.topHoldings && row.topHoldings.length);
+    // 品質與分類指標寫入資料層（原本只在前端算，消費原始 JSON 者拿不到）
+    const cv = dividendCv(row.dps);
+    if (cv != null) row.dividendCv = cv;
+    row.isCore = isCoreEtf(row);
     if (curated.domicileNote) row.domicileNote = curated.domicileNote;
   }
   if (premiumMismatch) errors.push({ source: "premium-sanity", message: `${premiumMismatch} row(s) premium mismatch >${PREMIUM_SANITY_PP}pp vs MIS official; column suppressed` });

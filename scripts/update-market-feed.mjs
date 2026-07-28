@@ -39,7 +39,8 @@ export function normalizeMarketRows(rows, market) {
     // 僅收 4 碼一般個股；排除權證(6碼)、ETF/ETN(00 開頭 5-6 碼)——本頁定位是「個股」篩選
     if (!/^\d{4}$/.test(code) || code.startsWith("00")) continue;
     const close = parseNumber(field(row, ["ClosingPrice", "Close", "close"]));
-    if (close == null) continue;
+    // 收盤 0 代表當日無成交，不是有效價格（會讓距離觀察基準、股數計算失真）
+    if (close == null || !(close > 0)) continue;
     const entry = {
       code,
       name: String(field(row, ["Name", "CompanyName", "name"]) || "").trim(),

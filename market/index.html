@@ -566,8 +566,15 @@ function normalizeEtfFeed(payload){
       dps:Array.isArray(row.dps) ? row.dps.filter(function(d){return d && Number.isFinite(Number(d.m)) && Number.isFinite(Number(d.a));}) : [],
       divMonthsCovered:parseNumber(row.divMonthsCovered),
       expenseRatio:parseNumber(row.expenseRatio),
+      // 品質/分類指標優先取資料層（pipeline 已算好）；舊 feed 沒有時退回前端計算
+      dividendCvField:parseNumber(row.dividendCv),
+      isCoreField:typeof row.isCore === "boolean" ? row.isCore : null,
+      hasHoldingsData:typeof row.hasHoldingsData === "boolean"
+        ? row.hasHoldingsData
+        : Boolean(row.topHoldings && row.topHoldings.length),
       topHoldings:Array.isArray(row.topHoldings) ? row.topHoldings : [],
       holdingsAsOf:row.holdingsAsOf || null,
+      holdingsSource:row.holdingsSource || null,
       domicileNote:row.domicileNote || null,
     };
   }).filter(function(row){return row.code && row.close != null;});
@@ -872,6 +879,12 @@ function evaluatePortfolio(total, picks, weights, stress, nhi){
 // 配息波動度（變異係數 = 標準差/平均）。少於 2 筆無從判斷，回 null。
 // 刻意不用「首筆→末筆變化率」：實測 006208（0.989→3.448→4.75）會被判 +380% 誤殺，
 // 但那是正常的配息政策調整；而只有 1 筆配息的標的反而算出 0%「最穩定」。
+// 取用順序：資料層已算好的 dividendCv → 否則就地由 dps 計算（兩者同規則，測試互驗）
+function etfCv(row){
+  if (row && row.dividendCvField != null) return row.dividendCvField;
+  return dividendCv(row && row.dps);
+}
+
 function dividendCv(dps){
   const values = (Array.isArray(dps) ? dps : []).map(function(event){return Number(event && event.a);})
     .filter(function(value){return Number.isFinite(value) && value > 0;});
@@ -888,7 +901,8 @@ const QUALITY = {maxCv:0.6, maxPremium:1};
 // 被標「市值型」（classifyEtf 預設回主題型，僅人工清單那 13 檔正確），改用客觀的
 // 規模與殖利率判定；「債券型」靠名稱含「債」判斷可靠，用於排除以免債券 ETF 佔走核心位。
 function isCoreHolding(row){
-  return row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && row.type !== "債券型";
+  if (row && row.isCoreField != null) return row.isCoreField;
+  return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && row.type !== "債券型");
 }
 
 // 候選池：滿一年配息歷史（yield 非 null）、規模達標、排除槓反與期貨型，
@@ -902,7 +916,7 @@ function buildCandidatePool(etfs, options){
   const base = (etfs || []).filter(function(row){
     if (!(row.dps && row.dps.length && row.yield != null && row.aum != null && row.aum >= minAum
       && row.type !== "槓桿反向" && row.type !== "期貨型" && row.close > 0)) return false;
-    const cv = dividendCv(row.dps);
+    const cv = etfCv(row);
     if (cv != null && cv > QUALITY.maxCv) { rejected.cv += 1; return false; }
     if (row.discountPremium != null && row.discountPremium > QUALITY.maxPremium) { rejected.premium += 1; return false; }
     return true;
@@ -1300,7 +1314,7 @@ function runSuggest(){
   const missing = [];
   result.monthlyNet.forEach(function(value, index){ if (!(value > 0)) missing.push(index + 1); });
   const cvText = function(etf){
-    const cv = dividendCv(etf.dps);
+    const cv = etfCv(etf);
     if (cv == null) return '<span class="stale">樣本' + (etf.dps ? etf.dps.length : 0) + '筆</span>';
     const tone = cv <= 0.3 ? "pos" : (cv <= 0.6 ? "" : "neg");
     return '<span class="' + tone + '">' + fmt(cv, 2) + '</span>';
@@ -1581,6 +1595,7 @@ const marketApp = {
     evaluatePortfolio:evaluatePortfolio,
     buildCandidatePool:buildCandidatePool,
     dividendCv:dividendCv,
+    etfCv:etfCv,
     isCoreHolding:isCoreHolding,
     weightCompositions:weightCompositions,
     simulate:simulate,

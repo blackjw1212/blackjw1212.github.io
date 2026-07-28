@@ -11,6 +11,8 @@ import {
   classifyEtf,
   preserveEtfColumns,
   coverageStart,
+  dividendCv,
+  isCoreEtf,
 } from "../../scripts/update-etf-feed.mjs";
 import { rocToIso } from "../../scripts/update-market-feed.mjs";
 
@@ -49,6 +51,31 @@ test("normalizeEtfBulkRows keeps only ETF codes from both boards", () => {
   assert.equal(tpex.length, 1);
   assert.equal(tpex[0].code, "00679B");
   assert.equal(tpex[0].market, "tpex");
+});
+
+test("a zero close is rejected as no-trade, not treated as a price", () => {
+  // 實測 00682U 期元大美元指數、00707R 期元大S&P日圓反1 當日無成交回 0。
+  // 若當成價格：折溢價會算成 -100%、模擬器股數計算除以零。
+  const rows = normalizeEtfBulkRows([
+    { Code: "0050", Name: "元大台灣50", ClosingPrice: "101.70", Change: "0.45" },
+    { Code: "00682U", Name: "期元大美元指數", ClosingPrice: "0", Change: "0", TradeVolume: "0" },
+    { Code: "00707R", Name: "期元大S&P日圓反1", ClosingPrice: "0.00", Change: "0" },
+  ], "twse");
+  assert.deepEqual(rows.map((row) => row.code), ["0050"], "untraded ETFs must be dropped");
+});
+
+test("dividendCv and isCoreEtf match the front-end rules", () => {
+  // 與 market/index.html 的同名函式必須同規則，否則資料層與畫面會漂移
+  assert.equal(dividendCv([{ m: 2, a: 1 }, { m: 8, a: 1 }]), 0);
+  assert.ok(dividendCv([{ m: 2, a: 0.1 }, { m: 8, a: 2.5 }]) > 0.6);
+  assert.equal(dividendCv([{ m: 8, a: 1 }]), null, "one event cannot show volatility");
+  assert.equal(dividendCv(null), null);
+
+  assert.equal(isCoreEtf({ aum: 21982, yield: 1.57, type: "市值型" }), true);
+  assert.equal(isCoreEtf({ aum: 4279, yield: 3.52, type: "主題型" }), true, "broad funds mislabelled 主題型 still count");
+  assert.equal(isCoreEtf({ aum: 1726, yield: 4.17, type: "債券型" }), false, "a bond ETF is never core");
+  assert.equal(isCoreEtf({ aum: 500, yield: 2, type: "市值型" }), false, "too small");
+  assert.equal(isCoreEtf({ aum: 5384, yield: 9.7, type: "高股息" }), false, "yield too high");
 });
 
 test("normalizeAllEtf decodes the MIS field letters", () => {

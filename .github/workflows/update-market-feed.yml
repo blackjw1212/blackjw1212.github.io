@@ -20,14 +20,31 @@ jobs:
           node-version: "24"
       - name: Generate market feed
         run: node scripts/update-market-feed.mjs --emit-bulk /tmp/bulk.json
+      # 成分股：官方無此資料，只能解析 MoneyDJ；每週一 18:15 那班才跑（成分股月頻變動，
+      # 且這是最脆弱的一段）。放在 ETF feed 之前，讓當班就能把新成分股併進 feed。
+      # 成功率低於 50% 時腳本自己會拒絕覆寫，避免上游改版洗掉好資料。
+      - name: Refresh ETF holdings (Mondays only)
+        continue-on-error: true
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$(date -u +%u)" = "1" ]; then
+            node scripts/fetch-etf-holdings.mjs
+          else
+            echo "Not Monday — skipping the weekly holdings scrape"
+          fi
       # ETF 引擎失敗不得連坐個股 feed：這步容錯，commit 步驟改 if: always()
       - name: Generate ETF feed
         continue-on-error: true
         run: node scripts/update-etf-feed.mjs --bulk /tmp/bulk.json
+      - name: Validate data schema
+        run: node --test backend/test/etf-schema.test.js
       - name: Commit feed updates
         if: always()
         run: |
-          FILES="data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json"
+          # 只納入實際存在的檔案：holdings 首次執行前不存在，git diff 會報錯
+          FILES=""
+          for f in data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json data/etf-holdings.json; do
+            [ -f "$f" ] && FILES="$FILES $f"
+          done
           if git diff --quiet -- $FILES; then
             echo "No feed changes"
             exit 0
