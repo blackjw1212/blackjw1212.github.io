@@ -138,7 +138,7 @@ test("codes link out to the shared TradingView layout with the right exchange pr
 
   const url = new URL(tvUrl("2330", "twse"));
   assert.equal(url.hostname, "tw.tradingview.com");
-  assert.equal(url.pathname, "/chart/ztwIfzY1/", "same shared layout as /stocks/");
+  assert.equal(url.pathname, "/chart/", "same plain chart URL as /stocks/");
   assert.equal(url.searchParams.get("symbol"), "TWSE:2330");
 
   const link = codeLink("2330", "twse", "台積電");
@@ -150,12 +150,12 @@ test("codes link out to the shared TradingView layout with the right exchange pr
 
   // 股票表與 ETF 表都要套用
   const stockHtml = elements.get("mktBody").innerHTML;
-  assert.match(stockHtml, /chart\/ztwIfzY1\/\?symbol=TWSE%3A2330/);
+  assert.match(stockHtml, /chart\/\?symbol=TWSE%3A2330/);
   await app.showTab("etf");
   await new Promise((resolve) => setTimeout(resolve, 0));
   const etfHtml = elements.get("etfBody").innerHTML;
-  assert.match(etfHtml, /chart\/ztwIfzY1\/\?symbol=TWSE%3A0050/);
-  assert.match(etfHtml, /chart\/ztwIfzY1\/\?symbol=TPEX%3A00679B/, "the OTC bond ETF must not be labelled TWSE");
+  assert.match(etfHtml, /chart\/\?symbol=TWSE%3A0050/);
+  assert.match(etfHtml, /chart\/\?symbol=TPEX%3A00679B/, "the OTC bond ETF must not be labelled TWSE");
 });
 
 test("search filters by code and by name", async () => {

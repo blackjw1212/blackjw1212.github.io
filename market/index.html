@@ -333,9 +333,6 @@ const filters = {q:"", market:"", pe:null, pb:null, yld:null, hi:null, to:null};
 
 function $(id){return DOC ? DOC.getElementById(id) : null;}
 
-// 指定的 TradingView 圖表版面；與 /stocks/ 一致
-const TRADINGVIEW_CHART = "ztwIfzY1";
-
 // 代碼先過嚴格白名單正則再組交易所前綴——絕不把未驗證輸入拼進網址
 function tvSymbol(code, market){
   const cleaned = String(code == null ? "" : code).trim().toUpperCase();
@@ -346,7 +343,7 @@ function tvSymbol(code, market){
 function tvUrl(code, market){
   const symbol = tvSymbol(code, market);
   if (!symbol) return "";
-  const url = new URL("https://tw.tradingview.com/chart/" + TRADINGVIEW_CHART + "/");
+  const url = new URL("https://tw.tradingview.com/chart/");
   url.searchParams.set("symbol", symbol);
   return url.toString();
 }
