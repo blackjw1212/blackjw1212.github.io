@@ -487,6 +487,106 @@ test("effectiveExposure weights holdings by allocation and reports coverage gaps
   assert.equal(Object.keys(tsmc.per).length, 2, "kept per-ETF weights for the table");
 });
 
+test("dividendCv measures payout volatility and needs at least two events", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { dividendCv } = app.helpers;
+  assert.equal(dividendCv([{ m: 2, a: 1 }, { m: 5, a: 1 }, { m: 8, a: 1 }]), 0, "a flat series has zero volatility");
+  assert.ok(dividendCv([{ m: 2, a: 0.87 }, { m: 5, a: 1 }, { m: 8, a: 1.35 }]) < 0.3, "mild growth stays low");
+  assert.ok(dividendCv([{ m: 2, a: 0.1 }, { m: 5, a: 0.2 }, { m: 8, a: 2.5 }]) > 0.6, "a spike is flagged");
+  assert.equal(dividendCv([{ m: 8, a: 1 }]), null, "one event cannot show volatility");
+  assert.equal(dividendCv([]), null);
+  assert.equal(dividendCv(null), null);
+});
+
+test("quality gate drops volatile payers and premium buys but keeps steady growers", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const mk = (code, extra) => Object.assign({
+    code, name: code, type: "高股息", close: 10, aum: 500, yield: 8, discountPremium: 0,
+    dps: [{ m: 2, a: 1 }, { m: 8, a: 1 }], payMonths: [2, 8], topHoldings: [],
+  }, extra);
+  const pool = app.helpers.buildCandidatePool([
+    mk("00S1"),
+    mk("00V1", { dps: [{ m: 2, a: 0.1 }, { m: 5, a: 0.2 }, { m: 8, a: 2.5 }], payMonths: [2, 5, 8] }), // CV 過高
+    mk("00P1", { discountPremium: 3.22 }),                                                            // 溢價過高
+    // 配息成長但穩定（006208 那類 0.989→3.448→4.75 的政策調整）不得被誤殺
+    mk("00G1", { dps: [{ m: 2, a: 0.989 }, { m: 5, a: 3.448 }, { m: 8, a: 4.75 }], payMonths: [2, 5, 8] }),
+  ], {});
+  const codes = pool.map((row) => row.code);
+  assert.ok(codes.includes("00S1"));
+  assert.ok(codes.includes("00G1"), "a growing-but-steady payer must survive the gate");
+  assert.ok(!codes.includes("00V1"), "spiky payout excluded");
+  assert.ok(!codes.includes("00P1"), "buying at a premium excluded");
+  assert.equal(pool.rejected.cv, 1);
+  assert.equal(pool.rejected.premium, 1);
+});
+
+test("isCoreHolding uses size and yield, not the unreliable type field", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { isCoreHolding } = app.helpers;
+  // 0050 等級：大規模、低配息
+  assert.equal(isCoreHolding({ aum: 21982, yield: 1.57, type: "市值型" }), true);
+  // 廣基型被 classifyEtf 誤標主題型，仍要認得出來
+  assert.equal(isCoreHolding({ aum: 4279, yield: 3.52, type: "主題型" }), true);
+  // 債券 ETF 不得佔走股票型核心的位置（原型驗證時 00679B 4.17% 曾頂替 0050）
+  assert.equal(isCoreHolding({ aum: 1726, yield: 4.17, type: "債券型" }), false);
+  assert.equal(isCoreHolding({ aum: 500, yield: 2, type: "市值型" }), false, "too small");
+  assert.equal(isCoreHolding({ aum: 5384, yield: 9.7, type: "高股息" }), false, "yield too high to be a core");
+});
+
+test("balanced goal anchors a real core and caps the high-yield sleeve", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const mk = (code, aum, yieldPct, type) => ({
+    code, name: code, type, close: 10, aum, yield: yieldPct, discountPremium: 0,
+    dps: [{ m: 3, a: yieldPct / 10 }, { m: 9, a: yieldPct / 10 }], payMonths: [3, 9], topHoldings: [],
+  });
+  const pool = [
+    mk("0050X", 21982, 1.6, "市值型"),   // 核心
+    mk("00B1", 1726, 4.1, "債券型"),     // 大且低配息，但是債券 → 不算核心
+    mk("00H1", 5384, 9.7, "高股息"),     // 高息 >9%
+    mk("00H2", 1131, 9.5, "主題型"),     // 高息 >9%
+    mk("00M1", 581, 8.8, "主題型"),
+  ];
+  const out = app.helpers.optimizeAllocation(pool, { total: 2000000, goal: "balanced" });
+  assert.ok(out.picks.length >= 3);
+  assert.equal(out.picks.reduce((sum, pick) => sum + pick.pct, 0), 100);
+  assert.ok(out.picks.some((pick) => pick.core), "must hold at least one core");
+  assert.ok(out.coreWeight >= 30, `core weight ${out.coreWeight} below the 30% floor`);
+  out.picks.forEach((pick) => assert.ok(pick.pct <= 30, "balanced caps every fund at 30%"));
+  const highYield = out.picks.reduce((sum, pick) => sum + (pick.etf.yield > 9 ? pick.pct : 0), 0);
+  assert.ok(highYield <= 40, `high-yield sleeve ${highYield}% exceeds the 40% cap`);
+  const bondAsCore = out.picks.some((pick) => pick.core && pick.etf.type === "債券型");
+  assert.equal(bondAsCore, false, "a bond ETF must never satisfy the core requirement");
+});
+
+test("balanced pool reaches the core that yield ranking structurally excludes", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  // 重現真實情況：合格檔數超過 poolCap(9) 時，純殖利率排序會把
+  // 0050 這種 1.57% 的核心擠到最後（實測 91 檔中排名 #91），永遠進不了搜尋空間
+  const highYielders = Array.from({ length: 12 }, (_, i) => ({
+    code: "00Y" + i, name: "高息" + i, type: "高股息", close: 10, aum: 500, yield: 9 - i * 0.1, discountPremium: 0,
+    dps: [{ m: 3, a: 0.45 }, { m: 9, a: 0.45 }], payMonths: [3, 9], topHoldings: [],
+  }));
+  const core = {
+    code: "0050X", name: "大型核心", type: "市值型", close: 100, aum: 21982, yield: 1.57, discountPremium: 0,
+    dps: [{ m: 2, a: 0.8 }, { m: 8, a: 0.8 }], payMonths: [2, 8], topHoldings: [],
+  };
+  const universe = highYielders.concat([core]);
+
+  const yieldPool = app.helpers.buildCandidatePool(universe, { goal: "netYield" });
+  assert.equal(yieldPool.length, 9, "cap binds once there are more candidates than slots");
+  assert.equal(yieldPool.filter(app.helpers.isCoreHolding).length, 0, "yield ranking leaves the core out entirely");
+
+  const balancedPool = app.helpers.buildCandidatePool(universe, { goal: "balanced" });
+  assert.ok(balancedPool.some(app.helpers.isCoreHolding), "balanced pool seeds the core regardless of its yield rank");
+  const out = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "balanced" });
+  assert.ok(out.picks.some((pick) => pick.code === "0050X"), "and the optimiser can actually pick it");
+});
+
 test("optimizer output: weights sum 100 within bounds, junk excluded, fail-closed", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

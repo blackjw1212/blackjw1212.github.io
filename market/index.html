@@ -291,11 +291,13 @@
 
   <section aria-labelledby="suggestHeading">
     <h2 id="suggestHeading">配置產生器 <em>OPTIMIZER</em></h2>
-    <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。「最佳」僅指在候選池（滿一年配息史、規模≥50億、排除槓反與期貨型）與權重約束內、以歷史配息算出的最大值——未來配息可能不同，<strong>不是投資建議</strong>，也未考慮你的風險承受度與稅務狀況。</p>
+    <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者。
+      注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。目標函數也只看配息現金流、不含資本利得——這是低配息的市值型 ETF 在「最高配息」目標下必然墊底的原因。<strong>不是投資建議</strong>。</p>
     <div class="toolbar">
       <div class="toolrow">
         <div class="presets">
-          <button class="btn on" id="gYield" type="button">最高配息（計算）</button>
+          <button class="btn on" id="gBalanced" type="button">均衡：核心＋配息（計算）</button>
+          <button class="btn" id="gYield" type="button">最高配息（計算）</button>
           <button class="btn" id="gMonthly" type="button">補滿 12 個月（計算）</button>
           <button class="btn" id="gLowOverlap" type="button">分散類型（計算）</button>
         </div>
@@ -867,18 +869,58 @@ function evaluatePortfolio(total, picks, weights, stress, nhi){
     monthlyNet:monthlyNet, monthsWithCash:monthsWithCash, minMonth:minMonth, cashPool:cashPool};
 }
 
-// 候選池：滿一年配息歷史（yield 非 null）、規模達標、排除槓反與期貨型。
+// 配息波動度（變異係數 = 標準差/平均）。少於 2 筆無從判斷，回 null。
+// 刻意不用「首筆→末筆變化率」：實測 006208（0.989→3.448→4.75）會被判 +380% 誤殺，
+// 但那是正常的配息政策調整；而只有 1 筆配息的標的反而算出 0%「最穩定」。
+function dividendCv(dps){
+  const values = (Array.isArray(dps) ? dps : []).map(function(event){return Number(event && event.a);})
+    .filter(function(value){return Number.isFinite(value) && value > 0;});
+  if (values.length < 2) return null;
+  const mean = values.reduce(function(sum, value){return sum + value;}, 0) / values.length;
+  if (!(mean > 0)) return null;
+  const variance = values.reduce(function(sum, value){return sum + (value - mean) * (value - mean);}, 0) / values.length;
+  return Math.round(Math.sqrt(variance) / mean * 100) / 100;
+}
+
+const QUALITY = {maxCv:0.6, maxPremium:1};
+
+// 核心＝大型、低配息、非債券的股票型 ETF。刻意不看 type 欄位：全 350 檔只有 2 檔
+// 被標「市值型」（classifyEtf 預設回主題型，僅人工清單那 13 檔正確），改用客觀的
+// 規模與殖利率判定；「債券型」靠名稱含「債」判斷可靠，用於排除以免債券 ETF 佔走核心位。
+function isCoreHolding(row){
+  return row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && row.type !== "債券型";
+}
+
+// 候選池：滿一年配息歷史（yield 非 null）、規模達標、排除槓反與期貨型，
+// 再過品質門檻（配息波動過大、溢價買進）。
 // 依目標預選前 N 檔控制搜尋空間；排序固定（殖利率→規模→代碼）確保同輸入同輸出。
 function buildCandidatePool(etfs, options){
   const opts = options || {};
   const minAum = opts.minAum == null ? 50 : opts.minAum;
   const cap = opts.poolCap || 9;
+  const rejected = {cv:0, premium:0};
   const base = (etfs || []).filter(function(row){
-    return row.dps && row.dps.length && row.yield != null && row.aum != null && row.aum >= minAum
-      && row.type !== "槓桿反向" && row.type !== "期貨型" && row.close > 0;
+    if (!(row.dps && row.dps.length && row.yield != null && row.aum != null && row.aum >= minAum
+      && row.type !== "槓桿反向" && row.type !== "期貨型" && row.close > 0)) return false;
+    const cv = dividendCv(row.dps);
+    if (cv != null && cv > QUALITY.maxCv) { rejected.cv += 1; return false; }
+    if (row.discountPremium != null && row.discountPremium > QUALITY.maxPremium) { rejected.premium += 1; return false; }
+    return true;
   }).sort(function(a, b){
     return (b.yield - a.yield) || (b.aum - a.aum) || a.code.localeCompare(b.code);
   });
+  base.rejected = rejected;
+
+  // 均衡目標：核心（依規模）＋ 配息端（依殖利率）分開取，
+  // 否則純殖利率排序會讓 0050（1.57%，91 檔中排名倒數第一）永遠進不了搜尋空間。
+  if (opts.goal === "balanced") {
+    const cores = base.filter(isCoreHolding).sort(function(a, b){return (b.aum - a.aum) || a.code.localeCompare(b.code);});
+    const rest = base.filter(function(row){return !isCoreHolding(row);});
+    const merged = cores.slice(0, 3).concat(rest.slice(0, 8));
+    merged.rejected = rejected;
+    return merged;
+  }
+
   if (base.length <= cap) return base;
 
   const picked = [];
@@ -903,6 +945,7 @@ function buildCandidatePool(etfs, options){
     if (picked.length >= cap) break;
     if (!seen[row.code]) { seen[row.code] = true; picked.push(row); }
   }
+  picked.rejected = rejected;
   return picked;
 }
 
@@ -945,7 +988,10 @@ function optimizeAllocation(etfs, options){
   const maxPicks = opts.maxPicks || 5;
   const step = opts.step || 5;
   const minW = opts.minW == null ? 10 : opts.minW;
-  const maxW = goal === "diverse" ? Math.min(opts.maxW == null ? 40 : opts.maxW, 30) : (opts.maxW == null ? 40 : opts.maxW);
+  const tightCap = goal === "diverse" || goal === "balanced";
+  const maxW = tightCap ? Math.min(opts.maxW == null ? 40 : opts.maxW, 30) : (opts.maxW == null ? 40 : opts.maxW);
+  const minCoreW = opts.minCoreW == null ? 30 : opts.minCoreW;   // 均衡：核心合計下限
+  const maxHighYieldW = opts.maxHighYieldW == null ? 40 : opts.maxHighYieldW; // 均衡：>9% 高息合計上限
   const stress = opts.stress || 1;
   const nhi = opts.nhi || NHI;
 
@@ -973,16 +1019,28 @@ function optimizeAllocation(etfs, options){
   const subset = [];
   (function chooseSubset(startIndex){
     if (subset.length >= feasibleMin && subset.length <= sizeMax) {
-      let typeOk = true;
+      let subsetOk = true;
       if (goal === "diverse") {
         const types = {};
         subset.forEach(function(row){types[row.type] = true;});
-        typeOk = Object.keys(types).length >= 3;
+        subsetOk = Object.keys(types).length >= 3;
+      } else if (goal === "balanced") {
+        subsetOk = subset.some(isCoreHolding);
       }
-      if (typeOk) {
+      if (subsetOk) {
         const compositions = compositionCache[subset.length]
           || (compositionCache[subset.length] = weightCompositions(subset.length, minW, maxW, step));
         for (const weights of compositions) {
+          if (goal === "balanced") {
+            // 核心要真的佔份量，且高息部位不得喧賓奪主
+            let coreWeight = 0;
+            let highYieldWeight = 0;
+            for (let index = 0; index < subset.length; index += 1) {
+              if (isCoreHolding(subset[index])) coreWeight += weights[index];
+              if (subset[index].yield > 9) highYieldWeight += weights[index];
+            }
+            if (coreWeight < minCoreW || highYieldWeight > maxHighYieldW) continue;
+          }
           evaluated += 1;
           const result = evaluatePortfolio(total, subset, weights, stress, nhi);
           if (better(result, best && best.result)) {
@@ -1007,10 +1065,17 @@ function optimizeAllocation(etfs, options){
   const months = {};
   best.funds.forEach(function(row){row.dps.forEach(function(event){months[event.m] = true;});});
 
+  let coreWeight = 0;
+  best.funds.forEach(function(row, index){ if (isCoreHolding(row)) coreWeight += best.weights[index]; });
+
   return {
-    picks:best.funds.map(function(row, index){return {code:row.code, name:row.name, pct:best.weights[index], etf:row};}),
+    picks:best.funds.map(function(row, index){
+      return {code:row.code, name:row.name, pct:best.weights[index], etf:row, core:isCoreHolding(row)};
+    }),
     result:best.result,
     goal:goal,
+    coreWeight:coreWeight,
+    rejected:pool.rejected || {cv:0, premium:0},
     baselineNet:baseline.totalNet,
     baselineMinMonth:baseline.minMonth,
     // netYield/diverse 下等權在搜尋空間內，此值恆 ≥ 0；
@@ -1220,7 +1285,7 @@ function renderExposure(){
 }
 
 /* ===================== 配置產生器 ===================== */
-let suggestGoal = "netYield";
+let suggestGoal = "balanced";
 
 function runSuggest(){
   const box = $("suggestResult");
@@ -1234,14 +1299,25 @@ function runSuggest(){
   const result = out.result;
   const missing = [];
   result.monthlyNet.forEach(function(value, index){ if (!(value > 0)) missing.push(index + 1); });
-  box.innerHTML = '<div class="table-scroll" style="margin-top:10px"><table style="min-width:520px"><thead><tr>'
-      + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th><th>殖利率%</th><th>發放月</th></tr></thead><tbody>'
+  const cvText = function(etf){
+    const cv = dividendCv(etf.dps);
+    if (cv == null) return '<span class="stale">樣本' + (etf.dps ? etf.dps.length : 0) + '筆</span>';
+    const tone = cv <= 0.3 ? "pos" : (cv <= 0.6 ? "" : "neg");
+    return '<span class="' + tone + '">' + fmt(cv, 2) + '</span>';
+  };
+  box.innerHTML = '<div class="table-scroll" style="margin-top:10px"><table style="min-width:680px"><thead><tr>'
+      + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th>'
+      + '<th>殖利率%</th><th>配息波動</th><th>折溢價%</th><th>規模(億)</th><th>發放月</th></tr></thead><tbody>'
       + out.picks.map(function(pick){
-          return '<tr><td style="text-align:left"><span class="code">' + escapeHtml(pick.code) + '</span></td>'
-            + '<td style="text-align:left"><span class="nm">' + escapeHtml(pick.name) + '</span></td>'
+          return '<tr><td style="text-align:left">' + codeLink(pick.code, pick.etf.market, pick.name) + '</td>'
+            + '<td style="text-align:left"><span class="nm">' + escapeHtml(pick.name) + '</span>'
+              + (pick.core ? '<span class="badge">核心</span>' : '') + '</td>'
             + '<td class="num">' + escapeHtml(pick.etf.type) + '</td>'
             + '<td class="num"><b>' + pick.pct + '%</b></td>'
             + '<td class="num">' + (pick.etf.yield == null ? "—" : fmt(pick.etf.yield, 2)) + '</td>'
+            + '<td class="num">' + cvText(pick.etf) + '</td>'
+            + '<td class="num ' + toneClass(pick.etf.discountPremium) + '">' + (pick.etf.discountPremium == null ? "—" : signed(pick.etf.discountPremium, 2)) + '</td>'
+            + '<td class="num">' + (pick.etf.aum == null ? "—" : fmt(pick.etf.aum, 0)) + '</td>'
             + '<td class="num">' + (pick.etf.payMonths.length ? pick.etf.payMonths.join("·") : "—") + '</td></tr>';
         }).join("")
     + '</tbody></table></div>'
@@ -1250,7 +1326,11 @@ function runSuggest(){
       + '<div class="sim-kpi"><b>整體殖利率（扣費後）</b><span>' + fmt(result.totalNet / total * 100, 2) + '%</span></div>'
       + '<div class="sim-kpi"><b>有現金流月數</b><span' + (result.monthsWithCash === 12 ? ' class="pos"' : '') + '>' + result.monthsWithCash + ' / 12</span>'
         + (missing.length ? '<span style="display:block;font-size:11px;color:var(--amber);font-family:inherit">缺 ' + missing.join("·") + ' 月</span>' : '') + '</div>'
-      + (suggestGoal === "monthly"
+      + (suggestGoal === "balanced"
+        // 均衡的價值在「核心佔比」，等權重基準可能違反核心下限而看似更賺，比它會誤導
+        ? '<div class="sim-kpi"><b>核心佔比</b><span class="pos">' + out.coreWeight + '%</span>'
+          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">大型低配息股票型（規模≥1000億、殖利率≤4.5%）</span></div>'
+        : suggestGoal === "monthly"
         // 字典序目標的價值在「最弱月更厚」，可能犧牲總額——比較最弱月而非總額，才不誤導
         ? '<div class="sim-kpi"><b>最弱月（扣費後）</b><span class="pos">' + fmt(Math.round(result.minMonth), 0) + '</span>'
           + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重最弱月 ' + fmt(Math.round(out.baselineMinMonth), 0)
@@ -1259,7 +1339,8 @@ function runSuggest(){
           + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重為 ' + fmt(Math.round(out.baselineNet), 0) + '</span></div>')
     + '</div>'
     + '<div class="decision-tools" style="margin-top:10px"><button class="btn" id="applySuggest" type="button">套用到上方試算</button>'
-      + '<span class="stamp">已計算 ' + fmt(out.evaluated, 0) + ' 個組合（' + elapsed + 'ms）· 候選池 ' + out.poolSize + ' 檔 · 權重 10–40% 步進 5%</span></div>';
+      + '<span class="stamp">已計算 ' + fmt(out.evaluated, 0) + ' 個組合（' + elapsed + 'ms）· 候選池 ' + out.poolSize + ' 檔'
+        + '（品質門檻已排除 配息波動過大 ' + out.rejected.cv + ' 檔、溢價過高 ' + out.rejected.premium + ' 檔）</span></div>';
   const apply = $("applySuggest");
   if (apply) apply.addEventListener("click", function(){
     simAllocations = out.picks.map(function(pick){return {code:pick.code, pct:pick.pct, month:null};});
@@ -1441,12 +1522,12 @@ function bind(){
   if (simTotal) simTotal.addEventListener("input", function(){saveSimState();});
 
   /* --- 配置產生器 --- */
-  for (const pair of [["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"]]) {
+  for (const pair of [["gBalanced", "balanced"], ["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"]]) {
     const node = $(pair[0]);
     if (!node) continue;
     node.addEventListener("click", function(){
       suggestGoal = pair[1];
-      for (const id of ["gYield", "gMonthly", "gLowOverlap"]) {
+      for (const id of ["gBalanced", "gYield", "gMonthly", "gLowOverlap"]) {
         const button = $(id);
         if (button) button.className = id === pair[0] ? "btn on" : "btn";
       }
@@ -1499,6 +1580,8 @@ const marketApp = {
     optimizeAllocation:optimizeAllocation,
     evaluatePortfolio:evaluatePortfolio,
     buildCandidatePool:buildCandidatePool,
+    dividendCv:dividendCv,
+    isCoreHolding:isCoreHolding,
     weightCompositions:weightCompositions,
     simulate:simulate,
     lookupSecurity:lookupSecurity,
