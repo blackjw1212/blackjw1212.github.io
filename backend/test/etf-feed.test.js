@@ -14,6 +14,7 @@ import {
   dividendCv,
   isCoreEtf,
   estimateYield,
+  isActiveEtf,
 } from "../../scripts/update-etf-feed.mjs";
 import { rocToIso } from "../../scripts/update-market-feed.mjs";
 
@@ -203,6 +204,41 @@ test("deriveDividend keeps only the trailing 12 months of events", () => {
   assert.equal(out.count, 1);
   assert.equal(out.totalDps, 0.4);
   assert.equal(out.divMonthsCovered, 12, "coverage caps at 12");
+});
+
+test("classifyEtf recognises the A/D/T/K/C suffix families", () => {
+  // 主動型：先前 29 檔 A 後綴全被誤歸主題型，已在污染產生器候選池
+  assert.equal(classifyEtf("00403A", "主動統一升級50"), "主動型");
+  assert.equal(classifyEtf("00992A", "主動群益科技創新"), "主動型");
+  // 平衡型（股債混合）
+  assert.equal(classifyEtf("00981T", "平衡凱基雙核收息"), "平衡型");
+  // 外幣計價版：同標的的外幣交易版，規模僅 0～0.19 億
+  assert.equal(classifyEtf("00625K", "富邦上証+R"), "外幣計價");
+  assert.equal(classifyEtf("00687C", "國泰20年美債+櫃U"), "外幣計價");
+  // 名稱無「債」字的債券 ETF（原本漏網歸主題型）
+  assert.equal(classifyEtf("00840B", "凱基IG精選15+"), "債券型");
+  // 順序鎖定：主動式債券同時符合兩者，須歸債券型（配息行為由債券性質主導）
+  assert.equal(classifyEtf("00981D", "主動中信非投等債"), "債券型");
+  // 既有判定不得回歸
+  assert.equal(classifyEtf("00631L", "元大台灣50正2"), "槓桿反向");
+  assert.equal(classifyEtf("00632R", "元大台灣50反1"), "槓桿反向");
+  assert.equal(classifyEtf("00693U", "街口S&P黃豆期貨"), "期貨型");
+  assert.equal(classifyEtf("0056", "元大高股息"), "高股息");
+  assert.equal(classifyEtf("0052", "富邦科技"), "主題型");
+});
+
+test("isActiveEtf flags managed funds even when typed as bonds", () => {
+  assert.equal(isActiveEtf({ code: "00403A", name: "主動統一升級50" }), true);
+  // 主動式債券被歸債券型，但仍須標記為主動管理
+  assert.equal(isActiveEtf({ code: "00981D", name: "主動中信非投等債" }), true);
+  assert.equal(isActiveEtf({ code: "0050", name: "元大台灣50" }), false);
+  assert.equal(isActiveEtf({ code: "00679B", name: "元大美債20年" }), false);
+  assert.equal(isActiveEtf(null), false);
+
+  // 規模與殖利率都夠格也不得成為核心——00403A 1,526億、00981A 2,485億
+  assert.equal(isCoreEtf({ code: "00403A", name: "主動統一升級50", aum: 1526, yield: 3, type: "主動型" }), false,
+    "an actively managed fund must never be treated as a passive core");
+  assert.equal(isCoreEtf({ code: "006208", name: "富邦台50", aum: 4279, yield: 3.52, type: "市值型" }), true);
 });
 
 test("classifyEtf uses code suffix and name keywords", () => {

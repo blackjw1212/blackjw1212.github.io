@@ -587,6 +587,45 @@ test("balanced pool reaches the core that yield ranking structurally excludes", 
   assert.ok(out.picks.some((pick) => pick.code === "0050X"), "and the optimiser can actually pick it");
 });
 
+test("active funds are opt-in and structurally barred from being core", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const mk = (code, name, extra) => Object.assign({
+    code, name, type: "高股息", close: 20, aum: 5000, yield: 8, discountPremium: 0,
+    dps: [{ m: 3, a: 0.8 }, { m: 9, a: 0.8 }], payMonths: [3, 9], topHoldings: [],
+  }, extra || {});
+  const universe = [
+    mk("00403A", "主動統一升級50", { isActive: true, type: "主動型", aum: 1526, yield: 3 }),
+    mk("00P1", "被動一", { isActive: false }),
+    mk("00P2", "被動二", { isActive: false, yield: 7 }),
+    mk("00P3", "被動三", { isActive: false, yield: 6 }),
+    mk("00L1", "槓桿一", { isActive: false, type: "槓桿反向" }),
+    mk("00X1", "外幣版", { isActive: false, type: "外幣計價" }),
+  ];
+
+  // 預設：主動型不進候選池，且排除數要被記錄下來供 UI 揭露
+  const off = app.helpers.buildCandidatePool(universe, {});
+  assert.ok(!off.some((row) => row.code === "00403A"), "active funds excluded by default");
+  assert.equal(off.rejected.active, 1);
+  // 槓反與外幣計價恆排除，不受開關影響
+  assert.ok(!off.some((row) => row.type === "槓桿反向"), "leveraged always excluded");
+  assert.ok(!off.some((row) => row.type === "外幣計價"), "foreign-currency share classes always excluded");
+
+  // 開關打開才納入
+  const on = app.helpers.buildCandidatePool(universe, { includeActive: true });
+  assert.ok(on.some((row) => row.code === "00403A"), "opt-in brings them back");
+  assert.ok(!on.some((row) => row.type === "槓桿反向"), "but never the leveraged ones");
+
+  // 即使納入，主動型仍不得被判為核心（規模與殖利率都符合也一樣）
+  assert.equal(app.helpers.isCoreHolding({ code: "00403A", isActive: true, aum: 1526, yield: 3, type: "主動型" }), false);
+
+  // 端到端：optimizeAllocation 透傳 includeActive
+  const defaultRun = app.helpers.optimizeAllocation(universe, { total: 1000000, goal: "netYield" });
+  assert.ok(!defaultRun.picks.some((pick) => pick.code === "00403A"));
+  const optIn = app.helpers.optimizeAllocation(universe, { total: 1000000, goal: "netYield", includeActive: true });
+  assert.ok(optIn.poolSize > defaultRun.poolSize, "opt-in widens the pool");
+});
+
 test("an estimated yield is displayed but never feeds the optimiser", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

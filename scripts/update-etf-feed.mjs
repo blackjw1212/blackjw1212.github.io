@@ -232,15 +232,37 @@ export function estimateYield(row) {
 // 「市值型」（classifyEtf 預設回主題型），改用客觀的規模與殖利率判定；
 // 排除債券型是必要的，否則長天期債 ETF 會頂替掉 0050 這類真正的核心。
 export function isCoreEtf(row) {
+  // 主動型永不擔任核心：即使規模與殖利率都符合（00403A 1,526億、00981A 2,485億
+  // 都夠大），經理人風險與較高費用率不適合當作被動核心部位
+  if (isActiveEtf(row)) return false;
   return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && row.type !== "債券型");
 }
 
 // 名稱規則粗分（etf-static 可覆寫）
+// 主動型：代碼 A/D 結尾或名稱以「主動」起首。獨立於 type 判斷，因為部分
+// 主動式債券 ETF（如 00981D 主動中信非投等債）會被歸為債券型，
+// 但仍需標記為主動管理——經理人風險與費用率差異必須可辨識。
+export function isActiveEtf(row) {
+  if (!row) return false;
+  const code = String(row.code || "").toUpperCase();
+  const name = String(row.name || "");
+  return /[AD]$/.test(code) || /^主動/.test(name);
+}
+
+// 分類順序由具體到一般。三個關鍵順序：
+// 1. 外幣計價最先——它是同一標的的外幣交易版，規模與流動性和本國版天差地遠
+// 2. 債券型排在主動型之前——00981D 主動中信非投等債同時符合兩者，
+//    其配息行為由債券性質主導，歸債券型較貼近實際
+// 3. 高股息排在主題型之前（現行行為，不動）
 export function classifyEtf(code, name) {
   const text = String(name || "");
-  if (/[LR]$/.test(code) || /正2|反1|槓桿|反向/.test(text)) return "槓桿反向";
-  if (/U$/.test(code) || /期貨/.test(text)) return "期貨型";
-  if (/債/.test(text)) return "債券型";
+  const id = String(code || "").toUpperCase();
+  if (/[KC]$/.test(id) || /\+R|\+U|\+櫃/.test(text)) return "外幣計價";
+  if (/[LR]$/.test(id) || /正2|反1|槓桿|反向/.test(text)) return "槓桿反向";
+  if (/U$/.test(id) || /期貨/.test(text)) return "期貨型";
+  if (/T$/.test(id) || /^平衡/.test(text)) return "平衡型";
+  if (/債/.test(text) || /IG|投等|非投等|公司債|金融債/.test(text)) return "債券型";
+  if (/[AD]$/.test(id) || /^主動/.test(text)) return "主動型";
   if (/高股息|高息|優息|股利|存股/.test(text)) return "高股息";
   return "主題型";
 }
@@ -379,6 +401,7 @@ async function main() {
     // 品質與分類指標寫入資料層（原本只在前端算，消費原始 JSON 者拿不到）
     const cv = dividendCv(row.dps);
     if (cv != null) row.dividendCv = cv;
+    row.isActive = isActiveEtf(row);
     row.isCore = isCoreEtf(row);
     if (curated.domicileNote) row.domicileNote = curated.domicileNote;
   }

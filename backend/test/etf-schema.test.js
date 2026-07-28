@@ -41,6 +41,8 @@ test("etf-feed.json matches the expected schema", async () => {
     }
     assert.ok(typeof row.hasHoldingsData === "boolean", at("hasHoldingsData must be a boolean flag"));
     assert.ok(typeof row.isCore === "boolean", at("isCore must be a boolean flag"));
+    assert.ok(typeof row.isActive === "boolean", at("isActive must be a boolean flag"));
+    assert.ok(!(row.isActive && row.isCore), at("an actively managed fund must never be flagged core"));
     if (row.dps != null) {
       assert.ok(Array.isArray(row.dps), at("dps array"));
       for (const event of row.dps) {
@@ -100,6 +102,16 @@ test("known ETFs land in the expected quality bands", async () => {
   assert.equal(by["00679B"].isCore, false, "a bond ETF must never be core");
 
   // 穩定配息者 CV 落在安全區、劇烈者被標出來
+  // 後綴家族分類（先前 29 檔 A 全被誤歸主題型並已進入產生器候選池）
+  assert.equal(by["00403A"].type, "主動型");
+  assert.equal(by["00403A"].isActive, true);
+  assert.equal(by["00403A"].isCore, false, "a 1,526億 active fund still must not be core");
+  assert.equal(by["00981T"].type, "平衡型");
+  assert.equal(by["00625K"].type, "外幣計價");
+  assert.equal(by["00840B"].type, "債券型", "IG bond fund without 債 in its name");
+  assert.equal(by["00981D"].type, "債券型", "active bond fund is typed by its bond nature");
+  assert.equal(by["00981D"].isActive, true, "but still flagged as actively managed");
+
   assert.ok(by["0050"].dividendCv < 0.6, `0050 cv ${by["0050"].dividendCv} should be safe`);
   assert.ok(by["006208"].dividendCv < 0.6, `006208 cv ${by["006208"].dividendCv} should be safe`);
   assert.ok(by["00905"].dividendCv > 0.6, `00905 cv ${by["00905"].dividendCv} should be flagged volatile`);

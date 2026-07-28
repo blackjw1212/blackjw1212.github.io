@@ -212,8 +212,11 @@
           <option value="高股息">高股息</option>
           <option value="債券型">債券型</option>
           <option value="主題型">主題型</option>
+          <option value="主動型">主動型</option>
+          <option value="平衡型">平衡型</option>
           <option value="槓桿反向">槓桿反向</option>
           <option value="期貨型">期貨型</option>
+          <option value="外幣計價">外幣計價</option>
         </select>
         <button class="btn" id="resetE" type="button">清除條件</button>
       </div>
@@ -302,6 +305,9 @@
           <button class="btn" id="gLowOverlap" type="button">分散類型（計算）</button>
         </div>
         <button class="btn" id="gRun" type="button">產生組合</button>
+      </div>
+      <div class="toolrow">
+        <label class="fld" style="cursor:pointer"><input type="checkbox" id="gActive" style="accent-color:var(--amber)" /> 納入主動型 ETF（經理人選股，費用率較高；預設不含，且一律不列為核心）</label>
       </div>
     </div>
     <div id="suggestResult"></div>
@@ -572,6 +578,9 @@ function normalizeEtfFeed(payload){
       // 品質/分類指標優先取資料層（pipeline 已算好）；舊 feed 沒有時退回前端計算
       dividendCvField:parseNumber(row.dividendCv),
       isCoreField:typeof row.isCore === "boolean" ? row.isCore : null,
+      isActive:typeof row.isActive === "boolean"
+        ? row.isActive
+        : (/[AD]$/.test(String(row.code || "").toUpperCase()) || /^主動/.test(String(row.name || ""))),
       hasHoldingsData:typeof row.hasHoldingsData === "boolean"
         ? row.hasHoldingsData
         : Boolean(row.topHoldings && row.topHoldings.length),
@@ -918,6 +927,7 @@ const QUALITY = {maxCv:0.6, maxPremium:1};
 // 規模與殖利率判定；「債券型」靠名稱含「債」判斷可靠，用於排除以免債券 ETF 佔走核心位。
 function isCoreHolding(row){
   if (row && row.isCoreField != null) return row.isCoreField;
+  if (row && row.isActive) return false;   // 主動型永不擔任核心
   return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && row.type !== "債券型");
 }
 
@@ -928,10 +938,16 @@ function buildCandidatePool(etfs, options){
   const opts = options || {};
   const minAum = opts.minAum == null ? 50 : opts.minAum;
   const cap = opts.poolCap || 9;
-  const rejected = {cv:0, premium:0};
+  const rejected = {cv:0, premium:0, active:0};
+  // 主動型預設不納入：經理人風險與較高費用率，性質與被動指數 ETF 不同
+  const includeActive = Boolean(opts.includeActive);
   const base = (etfs || []).filter(function(row){
+    // 槓反有每日重設的路徑依賴、期貨有轉倉成本、外幣計價版規模與流動性極低——
+    // 三者皆不適合長期配置，恆排除
+    if (row.type === "槓桿反向" || row.type === "期貨型" || row.type === "外幣計價") return false;
+    if (row.isActive && !includeActive) { rejected.active += 1; return false; }
     if (!(row.dps && row.dps.length && row.yield != null && row.aum != null && row.aum >= minAum
-      && row.type !== "槓桿反向" && row.type !== "期貨型" && row.close > 0)) return false;
+      && row.close > 0)) return false;
     const cv = etfCv(row);
     if (cv != null && cv > QUALITY.maxCv) { rejected.cv += 1; return false; }
     if (row.discountPremium != null && row.discountPremium > QUALITY.maxPremium) { rejected.premium += 1; return false; }
@@ -1025,7 +1041,7 @@ function optimizeAllocation(etfs, options){
   const stress = opts.stress || 1;
   const nhi = opts.nhi || NHI;
 
-  const pool = buildCandidatePool(etfs, {goal:goal, minAum:opts.minAum, poolCap:opts.poolCap});
+  const pool = buildCandidatePool(etfs, {goal:goal, minAum:opts.minAum, poolCap:opts.poolCap, includeActive:opts.includeActive});
   if (!pool.length) return {picks:[], reason:"沒有符合基本門檻的 ETF（需滿一年配息歷史、規模 ≥50 億、非槓反/期貨）"};
 
   // 單檔上限 × 最少檔數必須湊得到 100%（例：上限 30% 時 3 檔最多 90%，需 4 檔起跳）
@@ -1335,7 +1351,8 @@ function runSuggest(){
   const total = Number(($("simTotal") || {}).value) || 0;
   if (!total) { box.innerHTML = '<p class="hint">請先在上方輸入投入總額。</p>'; return; }
   const started = Date.now();
-  const out = optimizeAllocation(allEtfs, {total:total, goal:suggestGoal, stress:simStress, nhi:NHI});
+  const includeActive = Boolean(($("gActive") || {}).checked);
+  const out = optimizeAllocation(allEtfs, {total:total, goal:suggestGoal, stress:simStress, nhi:NHI, includeActive:includeActive});
   const elapsed = Date.now() - started;
   if (!out.picks.length) { box.innerHTML = '<p class="hint">' + escapeHtml(out.reason || "找不到組合") + '</p>'; return; }
   const result = out.result;
@@ -1382,7 +1399,9 @@ function runSuggest(){
     + '</div>'
     + '<div class="decision-tools" style="margin-top:10px"><button class="btn" id="applySuggest" type="button">套用到上方試算</button>'
       + '<span class="stamp">已計算 ' + fmt(out.evaluated, 0) + ' 個組合（' + elapsed + 'ms）· 候選池 ' + out.poolSize + ' 檔'
-        + '（品質門檻已排除 配息波動過大 ' + out.rejected.cv + ' 檔、溢價過高 ' + out.rejected.premium + ' 檔）</span></div>';
+        + '（品質門檻已排除 配息波動過大 ' + out.rejected.cv + ' 檔、溢價過高 ' + out.rejected.premium + ' 檔'
+        + (out.rejected.active ? '、主動型 ' + out.rejected.active + ' 檔' : '') + '）'
+        + '<span style="display:block">恆不納入：槓桿／反向（每日重設有路徑依賴）、期貨型（轉倉成本）、外幣計價（規模與流動性極低）</span></span></div>';
   const apply = $("applySuggest");
   if (apply) apply.addEventListener("click", function(){
     simAllocations = out.picks.map(function(pick){return {code:pick.code, pct:pick.pct, month:null};});
@@ -1578,6 +1597,8 @@ function bind(){
   }
   const gRun = $("gRun");
   if (gRun) gRun.addEventListener("click", runSuggest);
+  const gActive = $("gActive");
+  if (gActive) gActive.addEventListener("change", runSuggest);
 }
 
 async function init(){
