@@ -417,10 +417,10 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   const tvUrl = new URL(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330"));
   assert.equal(tvUrl.protocol, "https:");
   assert.equal(tvUrl.hostname, "tw.tradingview.com");
-  assert.equal(tvUrl.pathname, "/chart/");
+  assert.equal(tvUrl.pathname, "/chart/ztwIfzY1/", "must open the shared chart layout, not a blank chart");
   assert.equal(tvUrl.searchParams.get("symbol"), "TWSE:2330");
   assert.match(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330"), /symbol=TWSE%3A2330/);
-  assert.equal(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330/../../evil"), "");
+  assert.equal(context.window.PortfolioConsoleApp.helpers.tradingViewUrl("2330/../../evil"), "", "unknown codes stay unlinked");
 });
 
 
@@ -663,8 +663,8 @@ test("page renders automated checklist, cards, and source labels from static fal
   assert.doesNotMatch(cardHtml, /class="(?:pos|neg)">預設參考值/);
   assert.match(cardHtml, /今日低點不足，未產生系統觀察價/);
   assert.match(cardHtml, /市場指數待更新，未判讀防守模式/);
-  assert.match(scoreHtml, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
-  assert.match(cardHtml, /https:\/\/tw\.tradingview\.com\/chart\/\?symbol=TWSE%3A2330/);
+  assert.match(scoreHtml, /https:\/\/tw\.tradingview\.com\/chart\/ztwIfzY1\/\?symbol=TWSE%3A2330/);
+  assert.match(cardHtml, /https:\/\/tw\.tradingview\.com\/chart\/ztwIfzY1\/\?symbol=TWSE%3A2330/);
   assert.doesNotMatch(scoreHtml, /\/technicals\//);
   assert.match(scoreHtml, /target="_blank"/);
   assert.match(cardHtml, /rel="noopener noreferrer"/);

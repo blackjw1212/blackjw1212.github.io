@@ -74,6 +74,11 @@
   tr:last-child td{border-bottom:0}
   .code{font-family:"Roboto Mono",monospace;color:var(--faint)}
   .nm{font-weight:700}
+  a.tvlink{display:inline-block;color:var(--teal);text-decoration:none;border-bottom:1px dotted var(--line2);min-height:24px}
+  a.tvlink .code{color:var(--teal)}
+  a.tvlink:hover{text-decoration:none;border-bottom-color:var(--amber)}
+  a.tvlink:hover .code{color:var(--amber)}
+  a.tvlink:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   .px{font-family:"Roboto Mono",monospace;font-weight:600}
   .num{font-family:"Roboto Mono",monospace}
   .pos{color:var(--green)}.neg{color:var(--red)}.flat{color:var(--faint)}
@@ -328,6 +333,34 @@ const filters = {q:"", market:"", pe:null, pb:null, yld:null, hi:null, to:null};
 
 function $(id){return DOC ? DOC.getElementById(id) : null;}
 
+// 指定的 TradingView 圖表版面；與 /stocks/ 一致
+const TRADINGVIEW_CHART = "ztwIfzY1";
+
+// 代碼先過嚴格白名單正則再組交易所前綴——絕不把未驗證輸入拼進網址
+function tvSymbol(code, market){
+  const cleaned = String(code == null ? "" : code).trim().toUpperCase();
+  if (!/^[0-9]{4,6}[A-Z]?$/.test(cleaned)) return "";
+  return (market === "tpex" ? "TPEX:" : "TWSE:") + cleaned;
+}
+
+function tvUrl(code, market){
+  const symbol = tvSymbol(code, market);
+  if (!symbol) return "";
+  const url = new URL("https://tw.tradingview.com/chart/" + TRADINGVIEW_CHART + "/");
+  url.searchParams.set("symbol", symbol);
+  return url.toString();
+}
+
+// 代碼連結：另開分頁到指定圖表版面。代碼不合法時退回純文字，不產生連結。
+function codeLink(code, market, name){
+  const href = tvUrl(code, market);
+  const label = escapeHtml(String(code == null ? "" : code));
+  if (!href) return '<span class="code">' + label + '</span>';
+  return '<a class="tvlink" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer"'
+    + ' aria-label="在 TradingView 開啟 ' + label + ' ' + escapeHtml(name || "") + ' 圖表（外部連結）">'
+    + '<span class="code">' + label + '</span></a>';
+}
+
 function escapeHtml(value){
   return String(value == null ? "" : value).replace(/[&<>"']/g, function(char){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char];
@@ -426,7 +459,7 @@ function signed(value, digits){
 function rowHtml(row){
   const pct = row.dayPct;
   return '<tr>'
-    + '<td><span class="code">' + escapeHtml(row.code) + '</span></td>'
+    + '<td>' + codeLink(row.code, row.market, row.name) + '</td>'
     + '<td><span class="nm">' + escapeHtml(row.name) + '</span>'
       + '<span class="mk" style="margin-left:6px">' + (row.market === "tpex" ? "上櫃" : "上市") + '</span>'
       + (row.watch ? '<span class="badge">觀察台</span>' : '')
@@ -556,7 +589,7 @@ function applyEtfFilters(rows, state){
 
 function etfRowHtml(row){
   return '<tr>'
-    + '<td><span class="code">' + escapeHtml(row.code) + '</span></td>'
+    + '<td>' + codeLink(row.code, row.market, row.name) + '</td>'
     + '<td><span class="nm">' + escapeHtml(row.name) + '</span>'
       + '<span class="mk" style="margin-left:6px">' + (row.market === "tpex" ? "上櫃" : "上市") + '</span>'
       + (row.topHoldings.length ? '<span class="badge">精選</span>' : '')
@@ -1134,7 +1167,9 @@ function runSim(){
   if (detail) {
     detail.innerHTML = '<div class="table-scroll" style="margin-top:14px"><table style="min-width:560px"><thead><tr><th style="text-align:left">標的</th><th>股數</th><th>投入</th><th>年配息</th><th>扣費後</th><th>備註</th></tr></thead><tbody>'
       + result.holdings.map(function(holding){
-          return '<tr><td style="text-align:left"><span class="code">' + escapeHtml(holding.code) + '</span> <span class="nm">' + escapeHtml(holding.name) + '</span></td>'
+          const holdingMarket = (allEtfs.find(function(row){return row.code === holding.code;})
+            || allStocks.find(function(row){return row.code === holding.code;}) || {}).market;
+          return '<tr><td style="text-align:left">' + codeLink(holding.code, holdingMarket, holding.name) + ' <span class="nm">' + escapeHtml(holding.name) + '</span></td>'
             + '<td class="num">' + fmt(holding.shares, 0) + '</td>'
             + '<td class="num">' + fmt(Math.round(holding.spent), 0) + '</td>'
             + '<td class="num">' + fmt(Math.round(holding.annualGross), 0) + '</td>'
@@ -1457,6 +1492,9 @@ const marketApp = {
     isLowBase:isLowBase,
     dayPct:dayPct,
     parseNumber:parseNumber,
+    tvSymbol:tvSymbol,
+    tvUrl:tvUrl,
+    codeLink:codeLink,
     normalizeEtfFeed:normalizeEtfFeed,
     applyEtfFilters:applyEtfFilters,
     computeOverlap:computeOverlap,

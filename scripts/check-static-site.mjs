@@ -143,6 +143,7 @@ if (has("stocks/index.html")) {
   assertMatch("stocks/index.html", html, /<title>股票投資觀察台｜AI 供應鏈<\/title>/, "stocks title");
   assertMatch("stocks/index.html", html, /<h1>股票投資觀察台<\/h1>/, "stocks h1");
   assertMatch("stocks/index.html", html, /STATIC_STOCK_FEED_URL\s*=\s*"\/data\/stock-risk-feed\.json"/, "absolute stock feed path");
+  assertMatch("stocks/index.html", html, /TRADINGVIEW_CHART\s*=\s*"ztwIfzY1"/, "shared TradingView chart layout");
   assertNoMatch("stocks/index.html", html, /RetailConsole|個人參考基準|\/filings\b|MOPS/i);
 }
 
@@ -160,6 +161,7 @@ if (has("market/index.html")) {
   assertMatch("market/index.html", html, /id="tabStock"/, "stock tab");
   assertMatch("market/index.html", html, /id="tabEtf"/, "etf tab");
   assertMatch("market/index.html", html, /id="tabSim"/, "simulator tab");
+  assertMatch("market/index.html", html, /TRADINGVIEW_CHART\s*=\s*"ztwIfzY1"/, "shared TradingView chart layout");
   assertMatch("market/index.html", html, /保守上限/, "simulator must frame NHI deduction as a conservative upper bound");
   assertMatch("market/index.html", html, /未查證/, "simulator must disclose the unverified NHI basis");
   assertNoMatch("market/index.html", html, /保證|可放心|買進訊號|賣出訊號|實領淨收益/);

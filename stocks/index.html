@@ -82,6 +82,18 @@
   .guard-note{font-size:12px;color:var(--faint);border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
   .decision-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}
 
+  .statusbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:12px 14px;margin-top:16px}
+  .statusbar .vlight{width:26px;height:26px}
+  .statusbar .vt{font-family:"Noto Serif TC",serif;font-weight:900;font-size:19px;line-height:1.2}
+  .statusbar .sb-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  details.fold{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-top:10px}
+  details.fold > summary{font-family:"Noto Serif TC",serif;font-weight:700;font-size:15px;padding:11px 14px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
+  details.fold > summary::-webkit-details-marker{display:none}
+  details.fold > summary::after{content:"展開";margin-left:auto;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint)}
+  details.fold[open] > summary::after{content:"收起"}
+  details.fold > summary:hover{color:var(--amber)}
+  details.fold > summary em{font-family:"Roboto Mono",monospace;font-style:normal;font-size:11px;color:var(--amber)}
+  details.fold .fold-body{padding:0 14px 14px}
   .cond{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px;margin-top:8px}
   .cond .dot{width:13px;height:13px;border-radius:50%;background:var(--faint)}
   .cond .lbl{min-width:0}
@@ -149,6 +161,10 @@
     .decision-actions{grid-template-columns:1fr}
     .decision-tools{align-items:stretch}
     .decision-tools .btn{width:100%}
+    /* 資料來源字串在窄螢幕會換行多次，把狀態列撐高、擠掉觀察清單的第一屏空間 */
+    .statusbar .sb-right{width:100%;margin-left:0}
+    .statusbar .sb-right .btn{flex:1}
+    .statusbar .stamp{width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .cond{grid-template-columns:auto minmax(0,1fr);align-items:start}
     .cond .ctrl{grid-column:2}
     .bucket .bh{flex-wrap:wrap}
@@ -193,45 +209,18 @@
 </header>
 
 <main class="wrap">
-  <section aria-labelledby="decisionHeading">
-    <h2 id="decisionHeading">今日觀察結論 <em>DECISION</em></h2>
-    <p class="hint">先看結論，再看自動燈號。這裡是觀察門檻，不是個人化買賣建議。</p>
-    <div class="decision-card">
-      <div class="decision-top">
-        <span class="vlight" id="verdictLight"></span>
-        <div class="vtext">
-          <div class="vt" id="verdictTitle">等待</div>
-          <div class="vd" id="verdictDesc">更新收盤資料與 10Y 後，這裡會自動顯示條件接近觀察、等待或風險升高觀察。</div>
-        </div>
-      </div>
-      <div class="signal-summary" id="signalSummary"></div>
-      <div class="decision-actions">
-        <div class="action-box"><b>下一步觀察</b><span id="actionNext">先更新資料，確認自動燈號。</span></div>
-        <div class="action-box"><b>先不要做</b><span id="actionAvoid">不要把收盤或快取資料當成即時訊號。</span></div>
-      </div>
-      <div class="guard-note">本頁不評估你的風險承受度、資金需求、稅務、交易成本或持股集中度。實際操作前請用自己的規則再確認一次。</div>
-      <div class="decision-tools">
-        <button class="btn" id="refresh" type="button">更新收盤資料 / 10Y</button>
-        <div class="stamp" id="stamp">尚未更新</div>
-      </div>
+  <div class="statusbar">
+    <span class="vlight" id="verdictLight"></span>
+    <div class="vt" id="verdictTitle">等待</div>
+    <div class="sb-right">
+      <button class="btn" id="refresh" type="button">更新收盤 / 10Y</button>
+      <div class="stamp" id="stamp">尚未更新</div>
     </div>
-  </section>
-
-  <section aria-labelledby="lightsHeading">
-    <h2 id="lightsHeading">自動燈號檢查 <em>CHECKLIST</em></h2>
-    <p class="hint">燈號由收盤價、10Y、核心/衛星分層與資料品質自動推導；資料不足時不產生條件接近觀察。</p>
-    <div id="conds"></div>
-  </section>
-
-  <section aria-labelledby="allocationHeading">
-    <h2 id="allocationHeading">核心 / 衛星 / 現金 <em>ALLOCATION</em></h2>
-    <p class="hint">先分清楚哪一些是核心觀察、哪一些只是衛星題材，避免一看到題材就把資金全部推上去。</p>
-    <div id="buckets"></div>
-  </section>
+  </div>
 
   <section aria-labelledby="scoreHeading">
     <h2 id="scoreHeading">股票觀察清單 <em>SCORECARD</em></h2>
-    <p class="hint">系統觀察價由收盤與 13:30 快照自動估算，只是等待/觀察基準，不是目標價，也不是買賣建議。</p>
+    <p class="hint">系統觀察價由收盤與 13:30 快照自動估算，是觀察基準而非目標價；點代碼開 TradingView。</p>
     <div class="table-scroll">
       <table id="scoreTable">
         <thead><tr>
@@ -244,10 +233,37 @@
     <div id="stockCards" class="stock-cards"></div>
   </section>
 
+  <details class="fold">
+    <summary>今日觀察結論 <em>DECISION</em></summary>
+    <div class="fold-body">
+      <div class="vd" id="verdictDesc">更新收盤資料與 10Y 後，這裡會自動顯示條件接近觀察、等待或風險升高觀察。</div>
+      <div class="signal-summary" id="signalSummary"></div>
+      <div class="decision-actions">
+        <div class="action-box"><b>下一步觀察</b><span id="actionNext">先更新資料，確認自動燈號。</span></div>
+        <div class="action-box"><b>先不要做</b><span id="actionAvoid">不要把收盤或快取資料當成即時訊號。</span></div>
+      </div>
+      <div class="guard-note">本頁不評估你的風險承受度、資金需求、稅務、交易成本或持股集中度。</div>
+    </div>
+  </details>
+
+  <details class="fold">
+    <summary>自動燈號檢查 <em>CHECKLIST</em></summary>
+    <div class="fold-body">
+      <p class="hint">由收盤價、10Y、分層與資料品質自動推導；資料不足時不產生條件接近觀察。</p>
+      <div id="conds"></div>
+    </div>
+  </details>
+
+  <details class="fold">
+    <summary>核心 / 衛星 / 現金 <em>ALLOCATION</em></summary>
+    <div class="fold-body">
+      <p class="hint">分清楚哪些是核心觀察、哪些只是衛星題材。</p>
+      <div id="buckets"></div>
+    </div>
+  </details>
+
   <footer>
-    本頁是決策輔助，不是投資建議。資料標籤會區分 <b>Worker、TWSE 收盤資料、靜態備援、本機快取、10Y 自動來源</b>；
-    延遲、收盤、靜態或快取資料不會標為即時。TradingView 為外部完整圖表，僅供觀察，不代表交易建議。
-    後端沿用 Worker endpoints：/eod、/quote、/yield10y、/health。
+    本頁是決策輔助，<b>不是投資建議</b>。資料標籤會區分 Worker、TWSE 收盤、靜態備援、本機快取與 10Y 來源；延遲或快取資料不會標為即時。
   </footer>
 </main>
 
@@ -302,6 +318,8 @@ const THEME_NAMES = {foundry:"晶圓代工",server:"伺服器 ODM／系統",cool
 const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
 const TONE_WORD = {g:"綠燈",a:"黃燈",r:"紅燈"};
 const STOCK_CODES = STOCKS.map(function(stock){return stock.code;});
+// 指定的 TradingView 圖表版面；全站（/stocks/ 與 /market/）一致
+const TRADINGVIEW_CHART = "ztwIfzY1";
 const TRADINGVIEW_SYMBOLS = {
   "2330":"TWSE:2330",
   "2317":"TWSE:2317",
@@ -1432,7 +1450,7 @@ function dataLabel(){
 function tradingViewUrl(code){
   const symbol = TRADINGVIEW_SYMBOLS[String(code)];
   if (!symbol) return "";
-  const url = new URL("https://tw.tradingview.com/chart/");
+  const url = new URL("https://tw.tradingview.com/chart/" + TRADINGVIEW_CHART + "/");
   url.searchParams.set("symbol", symbol);
   return url.toString();
 }

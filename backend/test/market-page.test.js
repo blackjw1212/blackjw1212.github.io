@@ -125,6 +125,39 @@ test("loading the feed populates rows, stamp and 52w footnote", async () => {
   assert.match(body, /觀察台/, "watchlist codes should be badged");
 });
 
+test("codes link out to the shared TradingView layout with the right exchange prefix", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { tvSymbol, tvUrl, codeLink } = app.helpers;
+
+  assert.equal(tvSymbol("2330", "twse"), "TWSE:2330");
+  assert.equal(tvSymbol("00679B", "tpex"), "TPEX:00679B", "OTC funds must use the TPEX prefix");
+  assert.equal(tvSymbol("2330/../../evil", "twse"), "", "path traversal must not reach the URL");
+  assert.equal(tvSymbol("", "twse"), "");
+  assert.equal(tvSymbol("<script>", "twse"), "");
+
+  const url = new URL(tvUrl("2330", "twse"));
+  assert.equal(url.hostname, "tw.tradingview.com");
+  assert.equal(url.pathname, "/chart/ztwIfzY1/", "same shared layout as /stocks/");
+  assert.equal(url.searchParams.get("symbol"), "TWSE:2330");
+
+  const link = codeLink("2330", "twse", "台積電");
+  assert.match(link, /target="_blank"/);
+  assert.match(link, /rel="noopener noreferrer"/);
+  assert.match(link, /aria-label="在 TradingView 開啟 2330 台積電 圖表（外部連結）"/);
+  // 代碼不合法時只回純文字，不得產生連結
+  assert.doesNotMatch(codeLink("bogus!", "twse", "x"), /<a /);
+
+  // 股票表與 ETF 表都要套用
+  const stockHtml = elements.get("mktBody").innerHTML;
+  assert.match(stockHtml, /chart\/ztwIfzY1\/\?symbol=TWSE%3A2330/);
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const etfHtml = elements.get("etfBody").innerHTML;
+  assert.match(etfHtml, /chart\/ztwIfzY1\/\?symbol=TWSE%3A0050/);
+  assert.match(etfHtml, /chart\/ztwIfzY1\/\?symbol=TPEX%3A00679B/, "the OTC bond ETF must not be labelled TWSE");
+});
+
 test("search filters by code and by name", async () => {
   const { app, elements } = await loadMarket(async () => okResponse(marketFeed()));
   await app.init();
