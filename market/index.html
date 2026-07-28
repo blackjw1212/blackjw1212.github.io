@@ -96,7 +96,8 @@
   .ov-item input{accent-color:var(--amber)}
   .ov-item.off{opacity:.45}
   .sim-rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-  .sim-row{display:grid;grid-template-columns:110px minmax(0,1fr) 84px 90px 36px;gap:8px;align-items:center}
+  .sim-row{display:grid;grid-template-columns:100px minmax(0,1fr) 68px 88px 68px 72px 32px;gap:8px;align-items:center}
+  .sim-row .px2{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--soft);text-align:right}
   .sim-row .nm2{font-size:12px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sim-row input:disabled{background:rgba(255,255,255,.02);border-color:var(--line);color:var(--faint);cursor:not-allowed}
   .sim-row input:disabled::placeholder{color:var(--teal);opacity:.85}
@@ -109,7 +110,18 @@
   .sim-kpi{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.025);padding:9px 11px}
   .sim-kpi b{display:block;font-size:11px;color:var(--faint);font-weight:500}
   .sim-kpi span{font-family:"Roboto Mono",monospace;font-size:16px;font-weight:600}
-  @media (max-width:760px){.sim-row{grid-template-columns:90px minmax(0,1fr) 70px 80px 32px}}
+  /* 手機拆三列：代碼+移除 / 名稱 / 收盤·股數·比例·發放月，避免 7 欄擠爆 */
+  @media (max-width:760px){
+    .sim-row{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:6px}
+    /* 需同時指定 grid-row，否則只給 column 會讓元素自動往下一列流（✕ 會自己佔一列） */
+    .sim-row > :nth-child(1){grid-column:1/4;grid-row:1}
+    .sim-row > :nth-child(7){grid-column:4/5;grid-row:1}
+    .sim-row > :nth-child(2){grid-column:1/5;grid-row:2}
+    .sim-row > :nth-child(3){grid-column:1/2;grid-row:3;text-align:left}
+    .sim-row > :nth-child(4){grid-column:2/3;grid-row:3}
+    .sim-row > :nth-child(5){grid-column:3/4;grid-row:3}
+    .sim-row > :nth-child(6){grid-column:4/5;grid-row:3}
+  }
   footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
   footer b{color:var(--soft)}
 
@@ -274,6 +286,7 @@
       <div class="toolrow">
         <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
         <button class="btn" id="simAdd" type="button">＋ 加入標的</button>
+        <button class="btn" id="simUseHoldings" type="button" title="把投入總額設為目前所有持股的市值合計，讓比例%以實際持股為基準">總額＝目前持股市值</button>
         <span class="count" id="simPctSum"></span>
       </div>
       <div class="sim-rows" id="simRows"></div>
@@ -793,18 +806,23 @@ function simulate(input){
 
   for (const allocation of (input.allocations || [])) {
     const security = allocation.security;
+    // 股數優先：使用者已持有時直接用實際股數，不再由總額×比例反推
+    const explicitShares = Number(allocation.shares);
+    const useShares = Number.isFinite(explicitShares) && explicitShares > 0;
     const pct = Number(allocation.pct) || 0;
-    pctSum += pct;
-    const budget = total * pct / 100;
-    allocated += budget;
+    // 由股數驅動的列不計入 pctSum，否則會誤報「配置超過 100%」
+    if (!useShares) pctSum += pct;
+    const budget = useShares ? 0 : total * pct / 100;
     if (!security || !(security.price > 0)) {
       cashPool += budget;
-      holdings.push({code:allocation.code || "?", name:(security && security.name) || "未知標的", shares:0, spent:0, leftover:budget, annualGross:0, annualNet:0, events:[], note:"查無標的或無價格"});
+      allocated += budget;
+      holdings.push({code:allocation.code || "?", name:(security && security.name) || "未知標的", shares:0, spent:0, marketValue:0, leftover:budget, annualGross:0, annualNet:0, events:[], note:"查無標的或無價格"});
       continue;
     }
-    const shares = Math.floor(budget / security.price);
+    const shares = useShares ? Math.floor(explicitShares) : Math.floor(budget / security.price + 1e-9);
     const spent = shares * security.price;
-    const leftover = budget - spent;
+    const leftover = useShares ? 0 : budget - spent;
+    allocated += useShares ? spent : budget;
     cashPool += leftover;
 
     let events = [];
@@ -830,14 +848,21 @@ function simulate(input){
       monthlyNet[event.m - 1] += net;
       outEvents.push({m:event.m, gross:gross, fee:fee, net:net});
     }
-    holdings.push({code:security.code, name:security.name, shares:shares, spent:spent, leftover:leftover, annualGross:annualGross, annualNet:annualNet, events:outEvents, note:security.note || null});
+    holdings.push({code:security.code, name:security.name, shares:shares, spent:spent, marketValue:spent, price:security.price, leftover:leftover, annualGross:annualGross, annualNet:annualNet, events:outEvents, note:security.note || null});
   }
   cashPool += Math.max(0, total - allocated); // 未配置比例 → 現金池；現金池不產生配息
+  // 實際資產比：以各檔市值佔總市值計算，與「配置比例%」不同——
+  // 後者是相對於使用者填的總額，前者才是目前真正的持股結構
+  const totalMarketValue = holdings.reduce(function(sum, holding){return sum + (holding.marketValue || 0);}, 0);
+  holdings.forEach(function(holding){
+    holding.weight = totalMarketValue > 0 ? Math.round((holding.marketValue || 0) / totalMarketValue * 1000) / 10 : 0;
+  });
   const totalGross = monthlyGross.reduce(function(sum, value){return sum + value;}, 0);
   const totalNet = monthlyNet.reduce(function(sum, value){return sum + value;}, 0);
   const monthsWithCash = monthlyGross.filter(function(value){return value > 0;}).length;
   return {holdings:holdings, cashPool:cashPool, monthlyGross:monthlyGross, monthlyNet:monthlyNet,
     totalGross:totalGross, totalFee:totalFee, totalNet:totalNet, pctSum:pctSum, overAllocated:pctSum > 100.0001,
+    totalMarketValue:totalMarketValue,
     maxSingle:maxSingle, nhiThreshold:nhi.threshold, monthsWithCash:monthsWithCash,
     emptyMonths:monthlyGross.map(function(value, index){return value > 0 ? null : index + 1;}).filter(Boolean)};
 }
@@ -1137,6 +1162,8 @@ function simRowHtml(index, allocation){
   return '<div class="sim-row" data-sim-row="' + index + '">'
     + '<input type="text" value="' + escapeHtml(allocation.code || "") + '" data-sim-code="' + index + '" placeholder="代碼" aria-label="標的代碼" />'
     + '<span class="nm2" id="simName' + index + '"></span>'
+    + '<span class="px2" id="simPrice' + index + '">—</span>'
+    + '<input type="number" value="' + escapeHtml(allocation.shares == null ? "" : allocation.shares) + '" data-sim-shares="' + index + '" placeholder="股數" min="0" step="1000" aria-label="持有股數（1 張＝1000 股）" />'
     + '<input type="number" value="' + escapeHtml(allocation.pct == null ? "" : allocation.pct) + '" data-sim-pct="' + index + '" placeholder="比例%" step="5" aria-label="配置比例%" />'
     + '<input type="number" id="simMonth' + index + '" value="' + escapeHtml(allocation.month == null ? "" : allocation.month) + '" data-sim-month="' + index + '" placeholder="發放月" min="1" max="12" aria-label="發放月（ETF 自動帶入，僅個股需填）" />'
     + '<button class="btn" data-sim-del="' + index + '" type="button" aria-label="移除">✕</button>'
@@ -1151,9 +1178,21 @@ function renderSimRows(){
     for (const input of box.querySelectorAll("input")) {
       const codeIdx = input.dataset && input.dataset.simCode;
       const pctIdx = input.dataset && input.dataset.simPct;
+      const sharesIdx = input.dataset && input.dataset.simShares;
       const monthIdx = input.dataset && input.dataset.simMonth;
       if (codeIdx != null) input.addEventListener("input", function(){simAllocations[codeIdx].code = input.value; updateSimNames();});
-      if (pctIdx != null) input.addEventListener("input", function(){simAllocations[pctIdx].pct = input.value === "" ? null : Number(input.value); updateSimPctSum();});
+      // 雙向連動：每次編輯只單向更新另一欄，不再回頭重算自己——
+      // 否則 floor() 會讓股數在反覆換算中逐次縮水
+      if (pctIdx != null) input.addEventListener("input", function(){
+        simAllocations[pctIdx].pct = input.value === "" ? null : Number(input.value);
+        syncSharesFromPct(pctIdx);
+        updateSimPctSum();
+      });
+      if (sharesIdx != null) input.addEventListener("input", function(){
+        simAllocations[sharesIdx].shares = input.value === "" ? null : Number(input.value);
+        syncPctFromShares(sharesIdx);
+        updateSimPctSum();
+      });
       if (monthIdx != null) input.addEventListener("input", function(){simAllocations[monthIdx].month = input.value === "" ? null : Number(input.value);});
     }
     for (const button of box.querySelectorAll("button")) {
@@ -1165,26 +1204,65 @@ function renderSimRows(){
   updateSimPctSum();
 }
 
+// 比例% → 股數。只寫股數欄，不再由新股數回推比例（避免 floor 造成漂移）。
+function syncSharesFromPct(index){
+  const allocation = simAllocations[index];
+  if (!allocation) return;
+  const security = lookupSecurity(allocation.code);
+  const total = Number(($("simTotal") || {}).value) || 0;
+  if (!security || !(security.price > 0) || !(total > 0) || allocation.pct == null) return;
+  // 加 epsilon 再 floor：508500/101.7 在二進位下是 4999.999…，直接 floor 會少一股
+  allocation.shares = Math.floor(total * allocation.pct / 100 / security.price + 1e-9);
+  const node = DOC && DOC.querySelector ? DOC.querySelector('[data-sim-shares="' + index + '"]') : null;
+  if (node) node.value = allocation.shares;
+}
+
+// 股數 → 比例%。同樣單向：只寫比例欄。
+function syncPctFromShares(index){
+  const allocation = simAllocations[index];
+  if (!allocation) return;
+  const security = lookupSecurity(allocation.code);
+  const total = Number(($("simTotal") || {}).value) || 0;
+  if (!security || !(security.price > 0) || !(total > 0) || allocation.shares == null) return;
+  // 內部存全精度：若在此四捨五入（29.96%→30.0%），再換算回股數就會多出 26 股。
+  // 顯示才取到小數 2 位。
+  allocation.pct = allocation.shares * security.price / total * 100;
+  const node = DOC && DOC.querySelector ? DOC.querySelector('[data-sim-pct="' + index + '"]') : null;
+  if (node) node.value = Math.round(allocation.pct * 100) / 100;
+}
+
 function updateSimNames(){
   simAllocations.forEach(function(allocation, index){
     const security = lookupSecurity(allocation.code);
+    // ETF 的配息月放在名稱列（欄寬 1fr）而不是塞進窄輸入框的 placeholder，
+    // 否則「自動 2·5·8·11月」會被 90px 的欄位截成「自動 2·5」
+    let payMonths = [];
+    if (security && security.kind === "etf") {
+      for (const event of (security.events || [])) if (payMonths.indexOf(event.m) < 0) payMonths.push(event.m);
+      payMonths.sort(function(a, b){return a - b;});
+    }
     const node = $("simName" + index);
     if (node) {
-      node.textContent = security ? security.name + " @" + fmt(security.price, 2) + (security.note ? " · " + security.note : "") : (allocation.code ? "查無此標的" : "");
+      node.textContent = security
+        ? security.name
+          + (payMonths.length ? " · 配息 " + payMonths.join("·") + "月" : "")
+          + (security.note ? " · " + security.note : "")
+        : (allocation.code ? "查無此標的" : "");
     }
+    const priceNode = $("simPrice" + index);
+    if (priceNode) priceNode.textContent = security && security.price > 0 ? fmt(security.price, 2) : "—";
+
     // 發放月只對個股有意義：ETF 依 feed 的實際配息事件自動分攤，
-    // 使用者填的月份會被 simulate() 忽略，因此直接停用並顯示實際月份。
+    // 使用者填的月份會被 simulate() 忽略，因此直接停用。
     const monthNode = $("simMonth" + index);
     if (!monthNode) return;
     if (security && security.kind === "etf") {
-      const months = (security.events || []).map(function(event){return event.m;});
-      const unique = [];
-      for (const month of months) if (unique.indexOf(month) < 0) unique.push(month);
-      unique.sort(function(a, b){return a - b;});
       monthNode.disabled = true;
       monthNode.value = "";
-      monthNode.placeholder = unique.length ? "自動 " + unique.join("·") + "月" : "無配息";
-      monthNode.title = unique.length ? "依 ETF 實際配息發放月自動分攤，不需填寫" : "此 ETF 無配息紀錄";
+      monthNode.placeholder = payMonths.length ? "自動" : "無配息";
+      monthNode.title = payMonths.length
+        ? "依 ETF 實際配息發放月（" + payMonths.join("·") + "月）自動分攤，不需填寫"
+        : "此 ETF 無配息紀錄";
     } else if (security) {
       monthNode.disabled = false;
       monthNode.placeholder = "發放月(預設8)";
@@ -1242,7 +1320,7 @@ function runSim(){
     stress:simStress,
     nhi:NHI,
     allocations:simAllocations.map(function(allocation){
-      return {code:allocation.code, pct:allocation.pct, month:allocation.month, security:lookupSecurity(allocation.code)};
+      return {code:allocation.code, pct:allocation.pct, shares:allocation.shares, month:allocation.month, security:lookupSecurity(allocation.code)};
     }),
   });
   saveSimState();
@@ -1266,6 +1344,7 @@ function runSim(){
     + '<div class="sim-kpi"><b>月均（扣費後）</b><span>' + fmt(Math.round(result.totalNet / 12), 0) + '</span></div>'
     + '<div class="sim-kpi"><b>有現金流月數</b><span>' + result.monthsWithCash + ' / 12</span>'
       + (result.emptyMonths.length ? '<span style="display:block;font-size:11px;color:var(--amber);font-family:inherit">空窗 ' + result.emptyMonths.join("·") + ' 月</span>' : '') + '</div>'
+    + '<div class="sim-kpi"><b>總市值（實際持股）</b><span>' + fmt(Math.round(result.totalMarketValue), 0) + '</span></div>'
     + '<div class="sim-kpi"><b>現金池（未投入）</b><span>' + fmt(Math.round(result.cashPool), 0) + '</span></div>';
   const peak = Math.max.apply(null, result.monthlyNet.concat([1]));
   chart.innerHTML = result.monthlyNet.map(function(value, index){
@@ -1273,13 +1352,15 @@ function runSim(){
     return '<div class="sim-col"><b>' + (value ? fmt(Math.round(value / 1000), 0) + "k" : "") + '</b><div class="sim-bar" style="height:' + height + '%"></div><span>' + (index + 1) + '月</span></div>';
   }).join("");
   if (detail) {
-    detail.innerHTML = '<div class="table-scroll" style="margin-top:14px"><table style="min-width:560px"><thead><tr><th style="text-align:left">標的</th><th>股數</th><th>投入</th><th>年配息</th><th>扣費後</th><th>備註</th></tr></thead><tbody>'
+    detail.innerHTML = '<div class="table-scroll" style="margin-top:14px"><table style="min-width:680px"><thead><tr><th style="text-align:left">標的</th><th>收盤</th><th>股數</th><th>市值</th><th>實際佔比%</th><th>年配息</th><th>扣費後</th><th>備註</th></tr></thead><tbody>'
       + result.holdings.map(function(holding){
           const holdingMarket = (allEtfs.find(function(row){return row.code === holding.code;})
             || allStocks.find(function(row){return row.code === holding.code;}) || {}).market;
           return '<tr><td style="text-align:left">' + codeLink(holding.code, holdingMarket, holding.name) + ' <span class="nm">' + escapeHtml(holding.name) + '</span></td>'
+            + '<td class="num">' + (holding.price == null ? "—" : fmt(holding.price, 2)) + '</td>'
             + '<td class="num">' + fmt(holding.shares, 0) + '</td>'
-            + '<td class="num">' + fmt(Math.round(holding.spent), 0) + '</td>'
+            + '<td class="num">' + fmt(Math.round(holding.marketValue || 0), 0) + '</td>'
+            + '<td class="num"><b>' + fmt(holding.weight, 1) + '</b></td>'
             + '<td class="num">' + fmt(Math.round(holding.annualGross), 0) + '</td>'
             + '<td class="num">' + fmt(Math.round(holding.annualNet), 0) + '</td>'
             + '<td style="font-size:11px;color:var(--faint)">' + escapeHtml(holding.note || "") + '</td></tr>';
@@ -1568,11 +1649,27 @@ function bind(){
   const simAdd = $("simAdd");
   if (simAdd) simAdd.addEventListener("click", function(){
     if (simAllocations.length >= 10) return;
-    simAllocations.push({code:"", pct:null, month:null});
+    simAllocations.push({code:"", pct:null, shares:null, month:null});
     renderSimRows();
   });
   const simRun = $("simRun");
   if (simRun) simRun.addEventListener("click", runSim);
+  const useHoldings = $("simUseHoldings");
+  if (useHoldings) useHoldings.addEventListener("click", function(){
+    // 已持有者的比例基準若沿用舊總額會失真，這裡把總額對齊到實際持股市值
+    let value = 0;
+    simAllocations.forEach(function(allocation){
+      const security = lookupSecurity(allocation.code);
+      const shares = Number(allocation.shares);
+      if (security && security.price > 0 && Number.isFinite(shares) && shares > 0) value += shares * security.price;
+    });
+    if (!(value > 0)) return;
+    const totalNode = $("simTotal");
+    if (totalNode) totalNode.value = Math.round(value);
+    simAllocations.forEach(function(_, index){syncPctFromShares(index);});
+    renderSimRows();
+    runSim();
+  });
   const s100 = $("s100");
   if (s100) s100.addEventListener("click", function(){setStress(1, "s100");});
   const s80 = $("s80");
@@ -1625,6 +1722,8 @@ const marketApp = {
   runOverlap:runOverlap,
   getSimAllocations:function(){return simAllocations;},
   setSimAllocations:function(rows){simAllocations = rows; renderSimRows();},
+  syncPctFromShares:syncPctFromShares,
+  syncSharesFromPct:syncSharesFromPct,
   runSim:runSim,
   helpers:{
     normalizeFeed:normalizeFeed,

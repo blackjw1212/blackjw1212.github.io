@@ -409,11 +409,82 @@ test("simulator month input is auto-filled for ETFs and editable only for stocks
   ]);
   const etfMonth = elements.get("simMonth0");
   assert.equal(etfMonth.disabled, true, "ETF row must not invite input");
-  assert.match(etfMonth.placeholder, /自動 2·5·8月/, "shows the real pay months from the feed");
+  // 完整月份改放名稱列（欄寬 1fr）——塞在 90px 的窄輸入框 placeholder 會被截成「自動 2·5」
+  assert.equal(etfMonth.placeholder, "自動", "the narrow field only needs a short label");
+  assert.match(etfMonth.title, /2·5·8月/, "full months live in the tooltip");
+  assert.match(elements.get("simName0").textContent, /配息 2·5·8月/, "and on the name line, which cannot clip");
+  assert.equal(elements.get("simPrice0").textContent, "50.2", "closing price gets its own column");
   const stockMonth = elements.get("simMonth1");
   assert.equal(stockMonth.disabled, false, "stock row stays editable");
   assert.match(stockMonth.placeholder, /預設8/);
   assert.equal(elements.get("simMonth2").disabled, true, "empty row stays disabled");
+});
+
+test("simulate: explicit shares take precedence over the percentage", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const security = { code: "0056", name: "元大高股息", kind: "etf", price: 50, events: [{ m: 2, a: 1 }, { m: 8, a: 2 }] };
+  const result = app.helpers.simulate({
+    total: 1000000, stress: 1, nhi: { rate: 0.0211, threshold: 20000 },
+    // pct 說 10%（= 2000 股），但使用者已持有 7,500 股 —— 應以實際持股為準
+    allocations: [{ code: "0056", pct: 10, shares: 7500, security }],
+  });
+  const holding = result.holdings[0];
+  assert.equal(holding.shares, 7500, "the real holding wins over the derived one");
+  assert.equal(holding.marketValue, 375000, "7500 x 50");
+  assert.equal(holding.leftover, 0, "an existing position has no odd-lot remainder");
+  assert.equal(result.totalMarketValue, 375000);
+  // 配息以實際股數計：7500 x (1 + 2) = 22,500
+  assert.equal(Math.round(result.totalGross), 22500);
+  assert.equal(result.overAllocated, false, "share-driven rows must not trip the 100% check");
+});
+
+test("simulate: shares and percentage rows coexist and report real weights", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const held = { code: "0056", name: "元大高股息", kind: "etf", price: 50, events: [{ m: 2, a: 1 }] };
+  const planned = { code: "0050", name: "元大台灣50", kind: "etf", price: 100, events: [{ m: 8, a: 2 }] };
+  const result = app.helpers.simulate({
+    total: 1000000, stress: 1, nhi: { rate: 0.0211, threshold: 20000 },
+    allocations: [
+      { code: "0056", shares: 6000, security: held },     // 已持有 → 市值 300,000
+      { code: "0050", pct: 30, security: planned },       // 規劃 30% → 3,000 股 = 300,000
+    ],
+  });
+  assert.equal(result.holdings[0].marketValue, 300000);
+  assert.equal(result.holdings[1].shares, 3000);
+  assert.equal(result.totalMarketValue, 600000);
+  // 實際佔比以市值計，兩檔各半
+  assert.equal(result.holdings[0].weight, 50);
+  assert.equal(result.holdings[1].weight, 50);
+  assert.equal(result.holdings.reduce((sum, h) => sum + h.weight, 0), 100, "weights must total 100%");
+  // 兩列都要進月現金流：2 月 6000、8 月 6000
+  assert.equal(Math.round(result.monthlyGross[1]), 6000);
+  assert.equal(Math.round(result.monthlyGross[7]), 6000);
+});
+
+test("shares and percentage stay in sync without floor drift", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  elements.get("simTotal").value = 2000000;
+  // 刻意選「不整除」的組合：0050 @101.7、5,000 股、總額 200 萬 → 比例 25.425%。
+  // 若在內部四捨五入成 25.4% 再換算回去會掉到 4,995 股。整除的組合測不出這個 bug
+  // （線上實測 00888 @29.96、20,000 股就多出 26 股）。
+  app.setSimAllocations([{ code: "0050", pct: null, shares: 5000, month: null }]);
+  app.syncPctFromShares(0);
+  const derivedPct = app.getSimAllocations()[0].pct;
+  assert.ok(derivedPct > 0, "shares produce a percentage");
+  assert.notEqual(derivedPct, Math.round(derivedPct * 10) / 10, "the fixture must actually exercise sub-0.1% precision");
+  app.syncSharesFromPct(0);
+  assert.equal(app.getSimAllocations()[0].shares, 5000, "round-tripping must not inflate or shrink the position");
+
+  // 顯示欄位仍取到小數 2 位，不把全精度倒進畫面
+  const shown = Number(elements.get("simTotal").value) > 0
+    ? String(Math.round(derivedPct * 100) / 100)
+    : "";
+  assert.ok(/^\d+(\.\d{1,2})?$/.test(shown), "the visible percentage stays readable");
 });
 
 test("simulate: NHI threshold boundary and stress-before-threshold ordering", async () => {
