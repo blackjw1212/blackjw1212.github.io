@@ -29,8 +29,15 @@ test("etf-feed.json matches the expected schema", async () => {
     assert.equal(typeof row.name, "string", at("name"));
     assert.ok(row.market === "twse" || row.market === "tpex", at("market"));
     assert.ok(isNum(row.close) && row.close > 0, at("close must be a positive number"));
-    for (const key of ["change", "volume", "nav", "discountPremium", "aum", "yield", "expenseRatio", "divMonthsCovered", "dividendCv"]) {
+    for (const key of ["change", "volume", "nav", "discountPremium", "aum", "yield", "expenseRatio", "divMonthsCovered", "dividendCv", "yieldEstimated"]) {
       assert.ok(optNum(row[key]), at(`${key} must be a number or absent`));
+    }
+    // 推估與實績互斥：有完整年度實績就不該再掛推估值，否則畫面會二選一失準
+    if (row.yieldEstimated != null) {
+      assert.equal(row.yield, null, at("an estimate must only exist where there is no full-year yield"));
+      assert.ok(row.yieldBasis && isNum(row.yieldBasis.events) && isNum(row.yieldBasis.months),
+        at("an estimate must carry its basis"));
+      assert.ok(row.yieldBasis.events >= 2 && row.yieldBasis.months >= 6, at("estimate basis too thin"));
     }
     assert.ok(typeof row.hasHoldingsData === "boolean", at("hasHoldingsData must be a boolean flag"));
     assert.ok(typeof row.isCore === "boolean", at("isCore must be a boolean flag"));
@@ -56,6 +63,8 @@ test("etf-feed.json matches the expected schema", async () => {
       assert.ok(sum <= 100.01, at(`top holdings sum ${sum.toFixed(2)} exceeds 100%`));
       assert.match(row.holdingsAsOf || "", /^\d{4}-\d{2}-\d{2}$/, at("holdingsAsOf ISO date"));
       assert.ok(row.holdingsSource, at("holdings must carry a source attribution"));
+      // 成分股是月頻揭露，資料日必為過去；未來日代表來源解析錯誤
+      assert.ok(row.holdingsAsOf <= new Date().toISOString().slice(0, 10), at("holdingsAsOf must not be in the future"));
     }
   }
 });
@@ -94,6 +103,37 @@ test("known ETFs land in the expected quality bands", async () => {
   assert.ok(by["0050"].dividendCv < 0.6, `0050 cv ${by["0050"].dividendCv} should be safe`);
   assert.ok(by["006208"].dividendCv < 0.6, `006208 cv ${by["006208"].dividendCv} should be safe`);
   assert.ok(by["00905"].dividendCv > 0.6, `00905 cv ${by["00905"].dividendCv} should be flagged volatile`);
+});
+
+test("holdings parser is anchored on header labels, not CSS classes", async () => {
+  const { parseHoldings, parseAsOf } = await import("../../scripts/fetch-etf-holdings.mjs");
+
+  const table = (cls) => `<table id="Repeater1" class="datalist">
+    <tr><th>股票名稱</th><th>持股(千股)</th><th>比例</th><th>增減</th></tr>
+    <tr><td class="${cls}a">台積電</td><td class="${cls}b">525,977.00</td><td class="${cls}c">57.37</td><td class="${cls}d">-0.91%</td></tr>
+    <tr><td class="${cls}a">聯發科</td><td class="${cls}b">60,000.00</td><td class="${cls}c">6.11</td><td class="${cls}d">+0.２%</td></tr>
+  </table>`;
+
+  const original = parseHoldings(table("col05"));
+  assert.deepEqual(original, [{ name: "台積電", weight: 57.37 }, { name: "聯發科", weight: 6.11 }]);
+  // 這是抗改版的核心價值：class 全部改名仍要解析成功
+  assert.deepEqual(parseHoldings(table("brandNew")), original, "a CSS class rename must not break the parser");
+
+  // 頁面把持股拆成左右兩張表，兩張都要收
+  assert.equal(parseHoldings(table("col05") + table("col05")).length, 4);
+  // 取前十大就停
+  const many = `<table><tr><th>股票名稱</th><th>比例</th></tr>`
+    + Array.from({ length: 30 }, (_, i) => `<tr><td>股${i}</td><td>${(30 - i) / 10}</td></tr>`).join("") + `</table>`;
+  assert.equal(parseHoldings(many).length, 10);
+
+  // 表頭不見了＝上游真的改版 → 回空陣列，讓呼叫端記為失敗並保留前次值
+  assert.deepEqual(parseHoldings(`<table><tr><th>代號</th><th>數量</th></tr><tr><td>x</td><td>1</td></tr></table>`), []);
+  assert.deepEqual(parseHoldings("<div>no table at all</div>"), []);
+
+  // 資料日：頁面標示的持股日期，與抓取日不同（實測相差 11 天）
+  assert.equal(parseAsOf('<div>資料日期：2026/07/17</div>'), "2026-07-17");
+  assert.equal(parseAsOf('資料日期: 2026/7/1'), "2026-07-01", "single-digit month and day");
+  assert.equal(parseAsOf("<div>no date here</div>"), null);
 });
 
 test("holdings scrape refuses to overwrite good data when upstream degrades", async () => {

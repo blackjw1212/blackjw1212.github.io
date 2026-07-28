@@ -587,6 +587,30 @@ test("balanced pool reaches the core that yield ranking structurally excludes", 
   assert.ok(out.picks.some((pick) => pick.code === "0050X"), "and the optimiser can actually pick it");
 });
 
+test("an estimated yield is displayed but never feeds the optimiser", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  // 只有年化推估、沒有完整年度實績的標的：現金流試算必須建立在已實現配息上，
+  // 因此候選池一律只讀嚴格的 yield
+  const estimatedOnly = {
+    code: "00E1", name: "推估標的", type: "高股息", close: 20, aum: 5000,
+    yield: null, yieldEstimated: 8.6, yieldBasis: { events: 8, months: 8 },
+    discountPremium: 0, dps: [{ m: 3, a: 0.86 }, { m: 9, a: 0.86 }], payMonths: [3, 9], topHoldings: [],
+  };
+  const realised = (code, yieldPct) => ({
+    code, name: code, type: "高股息", close: 20, aum: 5000, yield: yieldPct, discountPremium: 0,
+    dps: [{ m: 3, a: yieldPct / 10 }, { m: 9, a: yieldPct / 10 }], payMonths: [3, 9], topHoldings: [],
+  });
+  const universe = [estimatedOnly, realised("00R1", 6), realised("00R2", 5.5), realised("00R3", 5)];
+
+  const pool = app.helpers.buildCandidatePool(universe, {});
+  assert.ok(!pool.some((row) => row.code === "00E1"), "estimate-only funds must stay out of the candidate pool");
+
+  const out = app.helpers.optimizeAllocation(universe, { total: 1000000, goal: "netYield" });
+  assert.ok(out.picks.length >= 3);
+  assert.ok(!out.picks.some((pick) => pick.code === "00E1"), "and can never be picked, despite the highest headline number");
+});
+
 test("optimizer output: weights sum 100 within bounds, junk excluded, fail-closed", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

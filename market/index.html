@@ -561,6 +561,9 @@ function normalizeEtfFeed(payload){
       discountPremium:parseNumber(row.discountPremium),
       aum:parseNumber(row.aum),
       yield:parseNumber(row.yield),
+      // 年化推估：僅供揭露，不得進入最佳化器（品質門檻與候選池一律只讀 yield）
+      yieldEstimated:parseNumber(row.yieldEstimated),
+      yieldBasis:row.yieldBasis && typeof row.yieldBasis === "object" ? row.yieldBasis : null,
       frequency:row.frequency || null,
       payMonths:Array.isArray(row.payMonths) ? row.payMonths : [],
       dps:Array.isArray(row.dps) ? row.dps.filter(function(d){return d && Number.isFinite(Number(d.m)) && Number.isFinite(Number(d.a));}) : [],
@@ -593,6 +596,19 @@ function applyEtfFilters(rows, state){
   });
 }
 
+// 殖利率顯示三態：完整年度實績 → 年化推估（明確標示）→ 累積中。
+// 推估值刻意用不同樣式與文案，避免和實績混為一談。
+function yieldCell(row){
+  if (row.yield != null) return fmt(row.yield, 2);
+  if (row.yieldEstimated != null) {
+    const basis = row.yieldBasis || {};
+    const note = "依已實現 " + (basis.events || row.dps.length) + " 筆／"
+      + (basis.months || row.divMonthsCovered || "?") + " 個月年化推估，非完整年度實績";
+    return '<span class="stale" title="' + escapeHtml(note) + '">推估 ' + fmt(row.yieldEstimated, 2) + '</span>';
+  }
+  return '<span class="stale">累積中</span>';
+}
+
 function etfRowHtml(row){
   return '<tr>'
     + '<td>' + codeLink(row.code, row.market, row.name) + '</td>'
@@ -605,7 +621,7 @@ function etfRowHtml(row){
     + '<td class="num">' + (row.nav == null ? "—" : fmt(row.nav, 2)) + '</td>'
     + '<td class="num ' + toneClass(row.discountPremium) + '">' + (row.discountPremium == null ? "—" : signed(row.discountPremium, 2) + "%") + '</td>'
     + '<td class="num">' + (row.aum == null ? "—" : fmt(row.aum, 1)) + '</td>'
-    + '<td class="num">' + (row.yield == null ? '<span class="stale">累積中</span>' : fmt(row.yield, 2)) + '</td>'
+    + '<td class="num">' + yieldCell(row) + '</td>'
     + '<td class="num">' + (row.frequency ? escapeHtml(row.frequency) : "—") + '</td>'
     + '</tr>';
 }
@@ -1277,10 +1293,22 @@ function renderExposure(){
   }
   const top = exposure.rows.slice(0, 10);
   const shared = exposure.rows.filter(function(row){return Object.keys(row.per).length > 1;});
+  // 成分股是月頻揭露，抓取日不等於資料日；把實際資料日與距今天數講明，
+  // 避免使用者以為曝險是即時的
+  const asOfDates = codes.map(function(code){
+    const etf = allEtfs.find(function(row){return row.code === code;});
+    return etf && etf.holdingsAsOf;
+  }).filter(Boolean).sort();
+  const oldest = asOfDates[0] || null;
+  const ageDays = oldest ? Math.floor((Date.now() - new Date(oldest + "T00:00:00Z").getTime()) / 86400000) : null;
+  const freshness = oldest
+    ? '成分股資料日 ' + escapeHtml(oldest) + (ageDays != null ? '（' + ageDays + ' 天前）' : '')
+    : '';
   box.innerHTML = '<h2 style="margin-top:26px">實質曝險 <em>EXPOSURE</em></h2>'
     + '<p class="hint">各檔前十大成分股權重 × 該檔佔總資金比例，加總後即為單一股票實際佔你多少資金。'
       + '涵蓋 ' + fmt(exposure.coveredPct, 0) + '% 的配置'
-      + (exposure.uncoveredPct > 0 ? '；其餘 ' + fmt(exposure.uncoveredPct, 0) + '% 無成分股資料未計入' : '') + '。</p>'
+      + (exposure.uncoveredPct > 0 ? '；其餘 ' + fmt(exposure.uncoveredPct, 0) + '% 無成分股資料未計入' : '')
+      + (freshness ? '。<span' + (ageDays != null && ageDays > 45 ? ' style="color:var(--amber)"' : '') + '>' + freshness + '</span>' : '') + '。</p>'
     + '<div class="sim-summary">'
       + '<div class="sim-kpi"><b>最大單一持股</b><span' + (exposure.top1 >= 20 ? ' class="neg"' : '') + '>' + (top[0] ? escapeHtml(top[0].name) + ' ' + fmt(exposure.top1, 2) + '%' : "—") + '</span></div>'
       + '<div class="sim-kpi"><b>前十大合計曝險</b><span>' + fmt(exposure.top10Sum, 2) + '%</span></div>'

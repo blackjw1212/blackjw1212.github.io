@@ -214,6 +214,20 @@ export function dividendCv(dps) {
   return roundNumber(Math.sqrt(variance) / mean, 2);
 }
 
+// 年化推估：給「有配息但歷史未滿一年」的標的一個可揭露的參考值。
+// 嚴格條件避免亂外推：需 ≥2 筆（頻率可判）且覆蓋 ≥6 個月。
+// 完全無配息紀錄者（槓反/期貨/不配息型，實測 142 檔）恆回 null——填值等於造假。
+// 這個值只供畫面揭露，最佳化器與現金流試算一律只吃嚴格的 yield。
+export function estimateYield(row) {
+  if (!row || !Array.isArray(row.dps) || row.dps.length < 2) return null;
+  const months = Number(row.divMonthsCovered);
+  if (!Number.isFinite(months) || months < 6) return null;
+  if (!(row.close > 0)) return null;
+  const realised = row.dps.reduce((sum, event) => sum + (Number(event.a) || 0), 0);
+  if (!(realised > 0)) return null;
+  return roundNumber(realised / row.close * 100 * (12 / Math.min(12, months)), 2);
+}
+
 // 核心＝大型、低配息、非債券的股票型 ETF。刻意不看 type：全 350 檔僅 2 檔被標
 // 「市值型」（classifyEtf 預設回主題型），改用客觀的規模與殖利率判定；
 // 排除債券型是必要的，否則長天期債 ETF 會頂替掉 0050 這類真正的核心。
@@ -340,6 +354,12 @@ async function main() {
         row.yield = roundNumber(dividend.totalDps / row.close * 100, 2);
       } else {
         row.yield = null; // 歷史累積中，避免上線初期輸出系統性偏低的殖利率
+        // 但別讓資訊完全消失：符合條件者給獨立的年化推估欄位供畫面揭露
+        const estimated = estimateYield(row);
+        if (estimated != null) {
+          row.yieldEstimated = estimated;
+          row.yieldBasis = { events: row.dps.length, months: dividend.divMonthsCovered };
+        }
       }
     }
     if (curated.expenseRatio != null) row.expenseRatio = curated.expenseRatio;

@@ -46,20 +46,45 @@ export function moneydjId(code, market) {
   return cleaned + (market === "tpex" ? ".TWO" : ".TW");
 }
 
-// <td class="col05">台積電</td><td class="col06">525,977.00</td><td class="col07">57.37</td>
+// 以中文表頭定位欄位，不綁 CSS class——class 改名是最可能的改版方式，
+// 而「股票名稱／比例」是語意錨點，穩定得多。實測與舊 class 解析結果完全相同。
+// 頁面把持股拆成左右兩張 <table>，因此要走訪全部表格。
 export function parseHoldings(html, topN = TOP_N) {
-  const rows = [...String(html || "").matchAll(
-    /<td class="col05">([^<]+)<\/td>\s*<td class="col06">[^<]*<\/td>\s*<td class="col07">([\d.]+)<\/td>/g
-  )];
   const out = [];
-  for (const row of rows) {
-    const name = row[1].trim();
-    const weight = Number(row[2]);
-    if (!name || !Number.isFinite(weight) || weight <= 0 || weight > 100) continue;
-    out.push({ name, weight: Math.round(weight * 100) / 100 });
-    if (out.length >= topN) break;
+  const source = String(html || "");
+  const tableRe = /<table[^>]*>([\s\S]*?)<\/table>/g;
+  let table;
+  while ((table = tableRe.exec(source))) {
+    const body = table[1];
+    const headRow = body.match(/<tr>\s*(<th[\s\S]*?)<\/tr>/);
+    if (!headRow) continue;
+    const headers = [...headRow[1].matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)]
+      .map((cell) => cell[1].replace(/<[^>]*>/g, "").trim());
+    const nameIndex = headers.findIndex((text) => /股票名稱|標的名稱|名稱/.test(text));
+    const weightIndex = headers.findIndex((text) => /比例|權重|比重/.test(text));
+    if (nameIndex < 0 || weightIndex < 0) continue;
+
+    const rowRe = /<tr>\s*((?:<td[\s\S]*?<\/td>\s*)+)<\/tr>/g;
+    let row;
+    while ((row = rowRe.exec(body))) {
+      const cells = [...row[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
+        .map((cell) => cell[1].replace(/<[^>]*>/g, "").trim());
+      const name = cells[nameIndex];
+      const weight = Number(String(cells[weightIndex] == null ? "" : cells[weightIndex]).replace(/[^\d.]/g, ""));
+      if (!name || !Number.isFinite(weight) || weight <= 0 || weight > 100) continue;
+      out.push({ name, weight: Math.round(weight * 100) / 100 });
+      if (out.length >= topN) return out;
+    }
   }
   return out;
+}
+
+// MoneyDJ 標示的持股資料日（例：「資料日期：2026/07/17」）。
+// 這與抓取日不同——實測相差 11 天，用抓取日會把舊持股標示成當日資料。
+export function parseAsOf(html) {
+  const match = String(html || "").match(/資料日期[：:]\s*(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if (!match) return null;
+  return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
 }
 
 // 指數退避重試：僅對網路/5xx 重試，4xx 直接放棄（重試也不會變好）
@@ -102,9 +127,18 @@ async function main() {
     const id = moneydjId(row.code, row.market);
     if (!id) { failed += 1; continue; }
     try {
-      const holdings = parseHoldings(await fetchWithRetry("https://www.moneydj.com/ETF/X/Basic/Basic0007a.xdjhtm?etfid=" + id));
+      const html = await fetchWithRetry("https://www.moneydj.com/ETF/X/Basic/Basic0007a.xdjhtm?etfid=" + id);
+      const holdings = parseHoldings(html);
+      // 解析不到＝表頭結構變了（或該檔本就無成分股）→ 記為失敗，交給 isDegraded 護欄判斷
       if (!holdings.length) throw new Error("no holdings rows");
-      etfs[row.code] = { topHoldings: holdings, source: SOURCE, asOf: today };
+      const asOf = parseAsOf(html);
+      etfs[row.code] = {
+        topHoldings: holdings,
+        source: SOURCE,
+        asOf: asOf || today,
+        // 標明日期是頁面標示的還是退回抓取日，避免把來源不明的日期當權威
+        asOfSource: asOf ? "page" : "scrape",
+      };
       ok += 1;
     } catch (error) {
       failed += 1;

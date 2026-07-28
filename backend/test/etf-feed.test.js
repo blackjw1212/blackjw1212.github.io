@@ -13,6 +13,7 @@ import {
   coverageStart,
   dividendCv,
   isCoreEtf,
+  estimateYield,
 } from "../../scripts/update-etf-feed.mjs";
 import { rocToIso } from "../../scripts/update-market-feed.mjs";
 
@@ -62,6 +63,27 @@ test("a zero close is rejected as no-trade, not treated as a price", () => {
     { Code: "00707R", Name: "期元大S&P日圓反1", ClosingPrice: "0.00", Change: "0" },
   ], "twse");
   assert.deepEqual(rows.map((row) => row.code), ["0050"], "untraded ETFs must be dropped");
+});
+
+test("estimateYield annualises only when the history can support it", () => {
+  const mk = (dps, months, close = 100) => ({ dps, divMonthsCovered: months, close });
+
+  // 實測案例 009802：4 筆／11 月／已實現 2.66% → 年化 2.9%
+  const near = estimateYield(mk([{ m: 2, a: 0.1 }, { m: 5, a: 0.1 }, { m: 8, a: 0.1 }, { m: 11, a: 0.188 }], 11));
+  assert.ok(Math.abs(near - 0.488 / 100 * 100 * (12 / 11)) < 0.01);
+
+  // 完全無配息紀錄（槓反/期貨/不配息型，實測 142 檔）→ 恆 null，填值等於造假
+  assert.equal(estimateYield(mk([], 12)), null);
+  assert.equal(estimateYield(mk(null, 12)), null);
+  // 僅 1 筆無法判頻率 → null
+  assert.equal(estimateYield(mk([{ m: 8, a: 1 }], 10)), null);
+  // 覆蓋不足 6 個月 → 外推太遠，拒絕
+  assert.equal(estimateYield(mk([{ m: 7, a: 1 }, { m: 8, a: 1 }], 5)), null);
+  assert.ok(estimateYield(mk([{ m: 7, a: 1 }, { m: 8, a: 1 }], 6)) != null, "six months is the boundary");
+  // 無價格無法算殖利率
+  assert.equal(estimateYield({ dps: [{ m: 1, a: 1 }, { m: 2, a: 1 }], divMonthsCovered: 12, close: 0 }), null);
+  // 滿 12 個月時不再放大（因子上限為 1）
+  assert.equal(estimateYield(mk([{ m: 1, a: 1 }, { m: 7, a: 1 }], 12)), 2);
 });
 
 test("dividendCv and isCoreEtf match the front-end rules", () => {
