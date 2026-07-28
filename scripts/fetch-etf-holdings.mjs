@@ -22,8 +22,13 @@ const SOURCE = "MoneyDJ Basic0007a";
 const DELAY_MS = Number(process.env.HOLDINGS_DELAY_MS || 450);
 const MAX_RETRY = 3;
 const TOP_N = 10;
-// 成功率低於此比例就不覆寫（防止上游改版時把好資料洗掉）
-const MIN_SUCCESS_RATE = 0.5;
+// 護欄：拒絕覆寫的條件。
+// 不能只看絕對成功率——槓反/期貨型 ETF 結構上就沒有成分股頁，實測正常成功率僅約 58%
+// （202/348），若門檻設 50% 只剩 8 個百分點餘裕，上游小幅劣化也偵測不到。
+// 改以「相對前次筆數」為主：掉到前次的 70% 以下就視為上游異常。
+const MIN_RATIO_VS_PREVIOUS = 0.7;
+// 首次執行（無前次檔）時才用絕對下限把關
+const MIN_FIRST_RUN_COUNT = 50;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -73,6 +78,12 @@ async function fetchWithRetry(url, attempt = 1) {
   }
 }
 
+// 是否劣化到不該覆寫。有前次資料時比相對筆數，首次執行才看絕對下限。
+export function isDegraded(okCount, previousCount) {
+  if (previousCount > 0) return okCount < previousCount * MIN_RATIO_VS_PREVIOUS;
+  return okCount < MIN_FIRST_RUN_COUNT;
+}
+
 async function main() {
   const feed = await readJson(FEED_FILE, null);
   if (!feed || !Array.isArray(feed.stocks) || !feed.stocks.length) {
@@ -105,12 +116,15 @@ async function main() {
     await sleep(DELAY_MS);
   }
 
-  const rate = ok / feed.stocks.length;
-  console.log(`holdings: ok ${ok}, failed ${failed}, success rate ${(rate * 100).toFixed(1)}%`);
+  const previousCount = Object.keys(previousEtfs).length;
+  console.log(`holdings: ok ${ok}, failed ${failed} (${(ok / feed.stocks.length * 100).toFixed(1)}% of universe`
+    + (previousCount ? `, ${(ok / previousCount * 100).toFixed(0)}% of previous ${previousCount}` : ", first run") + ")");
   if (failures.length) console.warn("failures (first 10):\n" + failures.slice(0, 10).join("\n"));
 
-  if (rate < MIN_SUCCESS_RATE && Object.keys(previousEtfs).length) {
-    console.error(`success rate below ${MIN_SUCCESS_RATE * 100}% — keeping the previous file untouched (upstream likely changed)`);
+  if (isDegraded(ok, previousCount)) {
+    console.error(previousCount
+      ? `only ${ok} of the previous ${previousCount} succeeded (<${MIN_RATIO_VS_PREVIOUS * 100}%) — keeping the previous file untouched (upstream likely changed)`
+      : `first run produced only ${ok} entries (<${MIN_FIRST_RUN_COUNT}) — refusing to write a near-empty file`);
     process.exitCode = 1;
     return;
   }

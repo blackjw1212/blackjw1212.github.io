@@ -96,6 +96,27 @@ test("known ETFs land in the expected quality bands", async () => {
   assert.ok(by["00905"].dividendCv > 0.6, `00905 cv ${by["00905"].dividendCv} should be flagged volatile`);
 });
 
+test("holdings scrape refuses to overwrite good data when upstream degrades", async () => {
+  const { isDegraded, moneydjId, parseHoldings } = await import("../../scripts/fetch-etf-holdings.mjs");
+
+  // 實測正常成功數 202/348（槓反與期貨型結構上沒有成分股頁），
+  // 所以護欄必須比「相對前次」而非絕對成功率——否則上游小幅劣化偵測不到。
+  assert.equal(isDegraded(202, 202), false, "a normal run must write");
+  assert.equal(isDegraded(150, 202), false, "mild variance still writes");
+  assert.equal(isDegraded(140, 202), true, "a 30% drop means upstream changed — keep the old file");
+  assert.equal(isDegraded(0, 202), true, "total failure must never wipe the file");
+  // 首次執行沒有比較基準，用絕對下限擋住近乎空的檔案
+  assert.equal(isDegraded(202, 0), false);
+  assert.equal(isDegraded(10, 0), true, "first run must not persist a near-empty result");
+
+  assert.equal(moneydjId("0050", "twse"), "0050.TW");
+  assert.equal(moneydjId("00679B", "tpex"), "00679B.TWO");
+  assert.equal(moneydjId("../evil", "twse"), "", "only validated codes reach the URL");
+  // 上游改版（class 名變動）時要回空陣列，讓呼叫端判定失敗並保留前次值
+  assert.deepEqual(parseHoldings('<td class="colXX">台積電</td>'), []);
+  assert.deepEqual(parseHoldings(""), []);
+});
+
 test("etf-holdings.json is well formed when present", async () => {
   let holdings;
   try {
