@@ -680,13 +680,54 @@ test("balanced pool reaches the core that yield ranking structurally excludes", 
   const universe = highYielders.concat([core]);
 
   const yieldPool = app.helpers.buildCandidatePool(universe, { goal: "netYield" });
-  assert.equal(yieldPool.length, 9, "cap binds once there are more candidates than slots");
-  assert.equal(yieldPool.filter(app.helpers.isCoreHolding).length, 0, "yield ranking leaves the core out entirely");
+  // cap 仍是 9，規模保送額外再加 1 檔（不佔用殖利率名額）
+  assert.equal(yieldPool.length, 10, "cap binds, then the size seed adds the largest fund on top");
+  assert.ok(yieldPool.some((row) => row.code === "0050X"), "純殖利率排序也不得把最大檔關在門外");
 
   const balancedPool = app.helpers.buildCandidatePool(universe, { goal: "balanced" });
   assert.ok(balancedPool.some(app.helpers.isCoreHolding), "balanced pool seeds the core regardless of its yield rank");
   const out = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "balanced" });
   assert.ok(out.picks.some((pick) => pick.code === "0050X"), "and the optimiser can actually pick it");
+});
+
+test("the three largest qualifying funds are seeded into every goal's pool", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  // 實測情境：0056（6,716億、CV 0.19）每一關都過，但依殖利率排序排第 10 名，
+  // 池只取 9 檔就進不來——使用者因此看不到它跟小型高息標的被比較過。
+  // yield 只決定池的排序，目標函數用的是 dps 現金流——兩者必須一致，
+  // 否則測到的是自己造的假資料而不是程式行為
+  const mk = (code, name, close, aum, pct, months) => {
+    const per = Math.round(close * pct / 100 / months.length * 1000) / 1000;
+    return { code, name, type: "高股息", close, aum, yield: pct, discountPremium: 0,
+      dps: months.map((m) => ({ m, a: per })), payMonths: months, topHoldings: [] };
+  };
+  const small = Array.from({ length: 12 }, (_, i) => mk("00S" + i, "小型高息" + i, 10, 200, 13 - i * 0.1, [3, 9]));
+  const big = [
+    mk("0056X", "大型高息", 50, 6716, 8.47, [2, 8]),
+    mk("00878X", "大型永續", 31, 5701, 5.97, [3, 9]),
+    mk("00919X", "大型精選", 28, 5198, 9.9, [1, 7]),
+  ];
+  const universe = small.concat(big);
+
+  for (const goal of ["balanced", "netYield", "monthly", "diverse"]) {
+    const pool = app.helpers.buildCandidatePool(universe, { goal });
+    for (const row of big) {
+      assert.ok(pool.some((p) => p.code === row.code), `${goal}: ${row.code}（規模 ${row.aum}億）必須入池`);
+    }
+    assert.ok(pool.length <= 14, `${goal}: 保送不得讓搜尋空間失控（實得 ${pool.length}）`);
+  }
+
+  // 保送是「入池」不是「保底入選」——目標函數仍自由決定。這裡驗證它確實有被評估到：
+  // 純配息目標下小型高息殖利率壓倒性領先，大型檔入池但選不上，這是誠實的結果。
+  const yieldOut = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "netYield" });
+  assert.ok(yieldOut.picks.length > 0, "純配息目標仍要產出配置");
+
+  // 反面：若最大檔同時也是殖利率最高，它必須被選中
+  const rigged = Array.from({ length: 12 }, (_, i) => mk("00S" + i, "小型" + i, 10, 200, 3, [3, 9]))
+    .concat([mk("0056X", "大型高息", 50, 6716, 12, [2, 8])]);
+  const out = app.helpers.optimizeAllocation(rigged, { total: 2000000, goal: "netYield" });
+  assert.ok(out.picks.some((pick) => pick.code === "0056X"), "又大又高息時必須勝出");
 });
 
 test("active funds are opt-in and structurally barred from being core", async () => {

@@ -307,7 +307,7 @@
 
   <section aria-labelledby="suggestHeading">
     <h2 id="suggestHeading">配置產生器 <em>OPTIMIZER</em></h2>
-    <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者。
+    <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
       注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。目標函數也只看配息現金流、不含資本利得——這是低配息的市值型 ETF 在「最高配息」目標下必然墊底的原因。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
     <div class="toolbar">
       <div class="toolrow">
@@ -1010,14 +1010,29 @@ function buildCandidatePool(etfs, options){
   });
   base.rejected = rejected;
 
+  // 規模保送：池依殖利率降冪截斷，大型標的會被小型高息擠掉——0056（6,716億、CV 0.19）
+  // 每一關都過卻排第 10 名，池只取 9 檔就進不來，使用者根本看不到它被比較過。
+  // 規模前 3 大一律入池，且不佔用原有名額，讓「大型穩配」與「小型高息」
+  // 在同一個搜尋空間裡正面較量。仍由目標函數決定誰勝出，這裡只讓它有上場機會。
+  const LARGE_SEED = 3;
+  const largest = base.slice()
+    .sort(function(a, b){return (b.aum - a.aum) || a.code.localeCompare(b.code);})
+    .slice(0, LARGE_SEED);
+  const seedLargest = function(list){
+    const seenCodes = {};
+    list.forEach(function(row){ seenCodes[row.code] = true; });
+    largest.forEach(function(row){ if (!seenCodes[row.code]) { seenCodes[row.code] = true; list.push(row); } });
+    list.sort(function(a, b){ return (b.yield - a.yield) || (b.aum - a.aum) || a.code.localeCompare(b.code); });
+    list.rejected = rejected;
+    return list;
+  };
+
   // 均衡目標：核心（依規模）＋ 配息端（依殖利率）分開取，
   // 否則純殖利率排序會讓 0050（1.57%，91 檔中排名倒數第一）永遠進不了搜尋空間。
   if (opts.goal === "balanced") {
     const cores = base.filter(isCoreHolding).sort(function(a, b){return (b.aum - a.aum) || a.code.localeCompare(b.code);});
     const rest = base.filter(function(row){return !isCoreHolding(row);});
-    const merged = cores.slice(0, 3).concat(rest.slice(0, 8));
-    merged.rejected = rejected;
-    return merged;
+    return seedLargest(cores.slice(0, 3).concat(rest.slice(0, 8)));
   }
 
   if (base.length <= cap) return base;
@@ -1044,8 +1059,7 @@ function buildCandidatePool(etfs, options){
     if (picked.length >= cap) break;
     if (!seen[row.code]) { seen[row.code] = true; picked.push(row); }
   }
-  picked.rejected = rejected;
-  return picked;
+  return seedLargest(picked);
 }
 
 // 產生「合計恰 100、單檔在 [minW,maxW]、step 倍數」的所有權重組合
