@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-07-28T23:14:48.787Z",
-  "eodUpdatedAt": "2026-07-28T23:14:48.787Z",
-  "eodTradingDate": "2026-07-28",
+  "updatedAt": "2026-07-29T01:30:04.849Z",
+  "eodUpdatedAt": "2026-07-29T01:30:04.849Z",
+  "eodTradingDate": "2026-07-29",
   "holdings": [
     "2330",
     "2317",
@@ -56,9 +56,9 @@
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 327,
-      "change": -22.5,
-      "date": "2026-07-28"
+      "close": 331,
+      "change": 4,
+      "date": "2026-07-29"
     },
     {
       "code": "2382",
@@ -105,9 +105,9 @@
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 5315,
-      "change": -430,
-      "date": "2026-07-28"
+      "close": 5375,
+      "change": 60,
+      "date": "2026-07-29"
     }
   ],
   "valuation": {
