@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dividendCv, isCoreEtf } from "../../scripts/update-etf-feed.mjs";
+import { classifyEtf, dividendCv, isCoreEtf } from "../../scripts/update-etf-feed.mjs";
 
 const readJson = async (rel) => JSON.parse(await readFile(fileURLToPath(new URL(rel, import.meta.url)), "utf8"));
 
@@ -147,15 +147,24 @@ test("known ETFs land in the expected quality bands", async () => {
   }
 
   // 穩定配息者 CV 落在安全區、劇烈者被標出來
-  // 後綴家族分類（先前 29 檔 A 全被誤歸主題型並已進入產生器候選池）
-  assert.equal(by["00403A"].type, "主動型");
-  assert.equal(by["00403A"].isActive, true);
-  assert.equal(by["00403A"].isCore, false, "a 1,526億 active fund still must not be core");
-  assert.equal(by["00981T"].type, "平衡型");
-  assert.equal(by["00625K"].type, "外幣計價");
-  assert.equal(by["00840B"].type, "債券型", "IG bond fund without 債 in its name");
-  assert.equal(by["00981D"].type, "債券型", "active bond fund is typed by its bond nature");
-  assert.equal(by["00981D"].isActive, true, "but still flagged as actively managed");
+  // 後綴家族分類（先前 29 檔 A 全被誤歸主題型並已進入產生器候選池）。
+  // 直接測純函式：綁 feed 裡的特定代碼會在該檔當日無成交時假性失敗——
+  // 00625K 就因為 2026-07-29 沒有成交、收盤為 "--" 被正確剔除而弄倒過這條測試。
+  assert.equal(classifyEtf("00403A", "野村臺灣新科技50"), "主動型");
+  assert.equal(classifyEtf("00981T", "統一台灣高息動能平衡"), "平衡型");
+  assert.equal(classifyEtf("00625K", "富邦上證180+R"), "外幣計價");
+  assert.equal(classifyEtf("00840B", "凱基美國非投等債"), "債券型", "IG/非投等債即使名稱沒有『債』字也要歸債券型");
+  assert.equal(classifyEtf("00981D", "主動統一台股增長"), "主動型");
+  assert.equal(classifyEtf("00631L", "元大台灣50正2"), "槓桿反向");
+  assert.equal(classifyEtf("00682U", "元大美元指數"), "期貨型");
+
+  // feed 端只檢查「這些型別確實存在且旗標一致」，不綁單一代碼
+  const activeFunds = feed.stocks.filter((row) => row.isActive);
+  assert.ok(activeFunds.length >= 20, `expected the active family to be populated, got ${activeFunds.length}`);
+  assert.equal(activeFunds.every((row) => row.isCore === false), true, "主動型一律不得為核心");
+  for (const type of ["主動型", "債券型", "槓桿反向", "高股息", "市值型"]) {
+    assert.ok(feed.stocks.some((row) => row.type === type), `feed 應涵蓋 ${type}`);
+  }
 
   assert.ok(by["0050"].dividendCv < 0.6, `0050 cv ${by["0050"].dividendCv} should be safe`);
   assert.ok(by["006208"].dividendCv < 0.6, `006208 cv ${by["006208"].dividendCv} should be safe`);

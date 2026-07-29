@@ -151,6 +151,22 @@ test("the stamp separates real preservation from ordinary missing fields", async
   assert.match(partial, /部分欄位缺料/);
   assert.doesNotMatch(partial, /保留/, "沒有列被保留就不該說保留");
 
+  // 兩市場資料日不同步時要講明白。舊版只印單一 tradeDate，於是 TPEX 已到 07-29、
+  // TWSE 還停在 07-28 時整份被標成 07-29——1,083 檔上市股掛著它們沒有的日期，
+  // 使用者拿券商帳面一對就發現價差一天。
+  const split = feedStamp("全市場", 1958, {
+    tradeDate: "2026-07-28", marketDates: { twse: "2026-07-28", tpex: "2026-07-29" },
+    updatedAt: "2026-07-29T13:00:00.000Z", errors: [],
+  });
+  assert.match(split, /交易日 上市 2026-07-28 · 上櫃 2026-07-29/);
+  assert.doesNotMatch(split, /交易日 2026-07-29/, "不得只印較新的那一天");
+
+  // 同步時維持單一日期，不要無謂地變囉唆
+  assert.match(feedStamp("全市場", 1958, {
+    tradeDate: "2026-07-29", marketDates: { twse: "2026-07-29", tpex: "2026-07-29" },
+    updatedAt: "2026-07-29T13:00:00.000Z", errors: [],
+  }), /交易日 2026-07-29 ·/);
+
   // 缺欄位時退成破折號，不得印出 undefined
   assert.equal(feedStamp("ETF", 0, {}), "ETF 0 檔 · 交易日 —");
   assert.doesNotMatch(feedStamp("ETF", 0, { updatedAt: "not-a-date" }), /Invalid|NaN|undefined/);

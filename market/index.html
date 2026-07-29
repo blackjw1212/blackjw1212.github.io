@@ -404,13 +404,21 @@ function fmt(value, digits){
 function feedStamp(label, count, payload){
   const errors = Array.isArray(payload && payload.errors) ? payload.errors : [];
   const preserved = errors.filter(function(e){ return e && e.source === "feed-preservation"; });
-  const parts = [label + " " + count + " 檔", "交易日 " + ((payload && payload.tradeDate) || "—")];
+  const parts = [label + " " + count + " 檔", "交易日 " + tradeDateText(payload)];
   const updated = stampTime(payload && payload.updatedAt);
   if (updated) parts.push("更新 " + updated);
   const notes = [];
   if (preserved.length) notes.push("部分為前次保留資料");
   else if (errors.length) notes.push("部分欄位缺料");
   return parts.join(" · ") + (notes.length ? "（" + notes.join("、") + "）" : "");
+}
+
+// 兩個市場的資料日可能不同步（TWSE 的盤後端點曾比 TPEX 慢一天）。
+// 舊版只印單一 tradeDate，等於讓上市列掛著它們沒有的日期——寧可把落差講出來。
+function tradeDateText(payload){
+  const d = (payload && payload.marketDates) || {};
+  if (d.twse && d.tpex && d.twse !== d.tpex) return "上市 " + d.twse + " · 上櫃 " + d.tpex;
+  return (payload && payload.tradeDate) || d.twse || d.tpex || "—";
 }
 
 // updatedAt 是 UTC；使用者在台灣，直接顯示 UTC 會差 8 小時而看起來像「還沒更新」

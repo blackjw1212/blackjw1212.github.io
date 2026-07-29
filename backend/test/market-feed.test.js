@@ -9,7 +9,94 @@ import {
   accumulate52w,
   derive52w,
   monthKey,
+  normalizeMiIndex,
+  parseMiChange,
 } from "../../scripts/update-market-feed.mjs";
+
+// 取自 2026-07-29 真實回應。上市收盤原本吃 openapi 的 STOCK_DAY_ALL，該端點在
+// 台灣 21:47（收盤後 8 小時）仍只有 07-28，使用者對帳時發現價差一天。
+// MI_INDEX 同日就到位，這裡用真實列鎖住解析結果。
+const MI_FIELDS = ["證券代號", "證券名稱", "成交股數", "成交筆數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌(+/-)", "漲跌價差", "最後揭示買價", "最後揭示買量", "最後揭示賣價", "最後揭示賣量", "本益比"];
+const DOWN = "<p style= color:green>-</p>";
+const UP = "<p style= color:red>+</p>";
+const FLAT = "<p> </p>";
+const EXDIV = "<p>X</p>";
+const miPayload = (rows, overrides = {}) => ({
+  stat: "OK",
+  date: "20260729",
+  tables: [
+    { title: "115年07月29日 價格指數(臺灣證券交易所)", fields: ["指數", "收盤指數"], data: [["發行量加權股價指數", "30000"]] },
+    { title: "115年07月29日 每日收盤行情(全部(不含權證、牛熊證、可展延牛熊證))", fields: MI_FIELDS, data: rows },
+  ],
+  ...overrides,
+});
+
+test("parseMiChange recovers the sign that MI_INDEX hides in HTML colour", () => {
+  // 「漲跌價差」永遠是絕對值；只讀那一欄會讓當天 961 檔下跌股全部變成上漲
+  assert.equal(parseMiChange(DOWN, "1.00"), -1);
+  assert.equal(parseMiChange(UP, "0.19"), 0.19);
+  assert.equal(parseMiChange(FLAT, "0.00"), 0);
+  assert.equal(parseMiChange(DOWN, "180.00"), -180, "緯穎當日 -180");
+  // 除權息當日與前一日不可比，記 null 而不是 0——0 會被畫成「平盤」
+  assert.equal(parseMiChange(EXDIV, "0.00"), null);
+  assert.equal(parseMiChange(DOWN, "--"), null);
+  assert.equal(parseMiChange(null, null), null);
+});
+
+test("normalizeMiIndex parses the real payload shape and survives upstream reshuffles", () => {
+  const rows = [
+    ["2317", "鴻海", "84,937,463", "71,078", "20,205,542,596", "240.00", "246.50", "231.00", "237.00", DOWN, "1.00", "237.00", "187", "237.50", "839", "16.83"],
+    ["6669", "緯穎", "2,854,613", "14,999", "14,856,018,475", "5,430.00", "5,475.00", "4,940.00", "5,135.00", DOWN, "180.00", "5,130.00", "1", "5,135.00", "2", "17.21"],
+    ["0061", "元大寶滬深", "254,569", "1", "1", "24.5", "24.8", "24.4", "24.70", UP, "0.19", "", "", "", "", "0.00"],
+    ["00625K", "富邦上證+R", "0", "0", "0", "--", "--", "--", "--", FLAT, "0.00", "", "", "", "", "0.00"],
+  ];
+  const { rows: out, date } = normalizeMiIndex(miPayload(rows));
+  assert.equal(date, "2026-07-29");
+  assert.equal(out.length, 3, "收盤 '--' 的無成交列必須丟掉，不能當成價格");
+
+  const hon = out.find((r) => r.Code === "2317");
+  // 千分位要 strip；帶號漲跌要還原
+  assert.equal(hon.ClosingPrice, 237);
+  assert.equal(hon.Change, -1);
+  assert.equal(hon.TradeVolume, 84937463);
+  assert.equal(hon.Date, "1150729", "日期在 payload 層，要轉回民國年塞進列裡供下游沿用");
+  assert.equal(out.find((r) => r.Code === "6669").ClosingPrice, 5135);
+  assert.equal(out.find((r) => r.Code === "0061").Change, 0.19);
+
+  // 端到端：normalizeMarketRows 要能直接吃這批列（鍵名刻意與 STOCK_DAY_ALL 相同）
+  const stocks = normalizeMarketRows(out, "twse");
+  assert.equal(stocks.length, 2, "ETF 由個股清單排除");
+  assert.deepEqual(stocks.find((s) => s.code === "2317"), {
+    code: "2317", name: "鴻海", market: "twse", close: 237, change: -1,
+    open: 240, high: 246.5, low: 231, volume: 84937463, date: "2026-07-29",
+  });
+});
+
+test("normalizeMiIndex is anchored on labels, not positions", () => {
+  const rows = [["2317", "鴻海", "1", "1", "1", "240.00", "246.50", "231.00", "237.00", DOWN, "1.00", "", "", "", "", "16.83"]];
+  const baseline = normalizeMiIndex(miPayload(rows)).rows;
+
+  // 表順序改變（上游多插一張表）仍要找得到
+  const shuffled = miPayload(rows);
+  shuffled.tables.unshift({ title: "新增的統計表", fields: ["a"], data: [["x"]] });
+  assert.deepEqual(normalizeMiIndex(shuffled).rows, baseline, "表索引位移不得影響解析");
+
+  // 欄位順序改變也要跟著走
+  const swapped = miPayload([["鴻海", "2317", "237.00", DOWN, "1.00"]]);
+  swapped.tables[1].fields = ["證券名稱", "證券代號", "收盤價", "漲跌(+/-)", "漲跌價差"];
+  const out = normalizeMiIndex(swapped).rows;
+  assert.equal(out[0].Code, "2317");
+  assert.equal(out[0].ClosingPrice, 237);
+  assert.equal(out[0].Change, -1);
+
+  // 真的改版（找不到表或關鍵欄位）→ 回空讓呼叫端退回 STOCK_DAY_ALL，而不是解析出垃圾
+  assert.deepEqual(normalizeMiIndex({ stat: "很抱歉，沒有符合條件的資料!" }), { rows: [], date: null });
+  assert.deepEqual(normalizeMiIndex(miPayload([], { tables: [] })).rows, []);
+  const noCode = miPayload(rows);
+  noCode.tables[1].fields = MI_FIELDS.map((f) => (f === "證券代號" ? "代號" : f));
+  assert.deepEqual(normalizeMiIndex(noCode).rows, [], "關鍵欄位改名要當成失敗，不可猜位置");
+  assert.deepEqual(normalizeMiIndex(null), { rows: [], date: null });
+});
 
 test("rocToIso converts ROC calendar dates and rejects junk", () => {
   assert.equal(rocToIso("1150717"), "2026-07-17");

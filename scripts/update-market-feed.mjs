@@ -11,6 +11,11 @@ const FEED_FILE = new URL("../data/market-feed.json", import.meta.url);
 const ACC_FILE = new URL("../data/market-52w.json", import.meta.url);
 
 const SOURCES = {
+  // 上市收盤主來源。openapi 的 STOCK_DAY_ALL 發佈很慢——實測 2026-07-29 台灣 21:47
+  // （收盤後 8 小時）仍只有 07-28 的資料，導致頁面顯示的價比使用者帳面舊一天。
+  // 同一交易所的 MI_INDEX 當日就到位，且與 MIS 即時、券商帳面三方一致。
+  // 不帶 date 參數即回最新交易日，不必自己維護交易日曆。
+  twseEodFast: "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=ALLBUT0999&response=json",
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
   tpexEod: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
   twseValuation: "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
@@ -41,6 +46,67 @@ export function rocToIso(value) {
   if (!match) return null;
   const year = Number(match[1]) + 1911;
   return `${year}-${match[2]}-${match[3]}`;
+}
+
+// MI_INDEX 的漲跌方向藏在 HTML 裡（紅 + 漲、綠 - 跌），「漲跌價差」欄一律是絕對值。
+// 只讀價差欄會讓 961 檔下跌股全部變成上漲。除權息（X）當日無從比較，記 null 而非 0。
+export function parseMiChange(signCell, diffCell) {
+  const magnitude = parseNumber(String(diffCell == null ? "" : diffCell).replace(/,/g, ""));
+  const sign = String(signCell == null ? "" : signCell);
+  if (/>X</.test(sign) || /^\s*X\s*$/.test(sign)) return null;
+  if (magnitude == null) return null;
+  if (/color:\s*red|\+/.test(sign)) return magnitude;
+  if (/color:\s*green|-/.test(sign)) return -magnitude;
+  return 0; // 平盤：<p> </p>
+}
+
+// 以 title 與 fields 名稱錨定，不用固定的 tables 索引與欄位位置——
+// 比照 fetch-etf-holdings 的 parseHoldings，讓上游改版時是「解析不到」而非「解析錯」。
+export function normalizeMiIndex(payload) {
+  const empty = { rows: [], date: null };
+  if (!payload || typeof payload !== "object") return empty;
+  if (payload.stat && payload.stat !== "OK") return empty;
+  const table = (Array.isArray(payload.tables) ? payload.tables : [])
+    .find((t) => /每日收盤行情/.test(String(t && t.title || "")) && Array.isArray(t.data) && t.data.length);
+  if (!table) return empty;
+  const fields = Array.isArray(table.fields) ? table.fields.map((f) => String(f).trim()) : [];
+  const at = (label) => fields.indexOf(label);
+  const iCode = at("證券代號");
+  const iClose = at("收盤價");
+  if (iCode < 0 || iClose < 0) return empty;
+  const idx = {
+    name: at("證券名稱"), open: at("開盤價"), high: at("最高價"), low: at("最低價"),
+    volume: at("成交股數"), sign: at("漲跌(+/-)"), diff: at("漲跌價差"),
+  };
+  const num = (cell) => parseNumber(String(cell == null ? "" : cell).replace(/,/g, ""));
+  // 日期在 payload 層（20260729），不在每一列。轉回民國年塞進列裡，
+  // 下游 normalizeMarketRows 就能沿用既有的 Date 解析，不必為這個來源開特例。
+  const ymd = /^(\d{4})(\d{2})(\d{2})$/.exec(String(payload.date || "").trim());
+  const rocDate = ymd ? `${Number(ymd[1]) - 1911}${ymd[2]}${ymd[3]}` : null;
+  const rows = [];
+  for (const row of table.data) {
+    if (!Array.isArray(row)) continue;
+    // 無成交的列收盤是 "--"，不能當成價格
+    const close = num(row[iClose]);
+    if (close == null || !(close > 0)) continue;
+    const entry = {
+      Code: String(row[iCode] == null ? "" : row[iCode]).trim(),
+      Name: idx.name >= 0 ? String(row[idx.name] == null ? "" : row[idx.name]).trim() : "",
+      ClosingPrice: close,
+    };
+    if (rocDate) entry.Date = rocDate;
+    const change = idx.sign >= 0 ? parseMiChange(row[idx.sign], row[idx.diff]) : null;
+    if (change != null) entry.Change = change;
+    for (const [key, label] of [["OpeningPrice", "open"], ["HighestPrice", "high"], ["LowestPrice", "low"], ["TradeVolume", "volume"]]) {
+      if (idx[label] < 0) continue;
+      const value = num(row[idx[label]]);
+      if (value != null) entry[key] = value;
+    }
+    rows.push(entry);
+  }
+  // 標題形如「115年07月29日 每日收盤行情(...)」；payload.date 是 20260729
+  const iso = /^(\d{4})(\d{2})(\d{2})$/.exec(String(payload.date || "").trim());
+  return { rows, date: iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : null };
 }
 
 export function normalizeMarketRows(rows, market) {
@@ -199,12 +265,24 @@ async function main() {
   const emitPath = emitIndex >= 0 ? process.argv[emitIndex + 1] : null;
   const bulkRaw = { twse: null, tpex: null, fetchedAt: now };
 
+  // 上市收盤：先取當日就到位的 MI_INDEX，抓不到才退回慢一天的 STOCK_DAY_ALL。
+  // 兩條都留著——MI_INDEX 走 www.twse.com.tw，未經 runner 實測；既有教訓是
+  // TWSE 會對 GitHub runner IP 回 HTML 錯誤頁，退路必須存在。
   let twseRows = [];
   try {
-    bulkRaw.twse = await fetchJson(SOURCES.twseEod);
-    twseRows = normalizeMarketRows(bulkRaw.twse, "twse");
-  } catch (error) {
-    errors.push({ source: "TWSE OpenAPI STOCK_DAY_ALL", message: error.message });
+    const mi = normalizeMiIndex(await fetchJson(SOURCES.twseEodFast));
+    if (!mi.rows.length) throw new Error("MI_INDEX returned no closing rows");
+    bulkRaw.twse = mi.rows;
+    twseRows = normalizeMarketRows(mi.rows, "twse");
+  } catch (miError) {
+    errors.push({ source: "TWSE MI_INDEX", message: miError.message });
+    try {
+      bulkRaw.twse = await fetchJson(SOURCES.twseEod);
+      twseRows = normalizeMarketRows(bulkRaw.twse, "twse");
+      errors.push({ source: "twse-eod-fallback", message: "fell back to STOCK_DAY_ALL (may lag one trading day)" });
+    } catch (error) {
+      errors.push({ source: "TWSE OpenAPI STOCK_DAY_ALL", message: error.message });
+    }
   }
   let tpexRows = [];
   try {
@@ -246,11 +324,21 @@ async function main() {
     }
   }
 
-  // 兩個市場都退回保留資料時，行內已無 date：沿用前次 tradeDate，
-  // 不可把今天當成交易日，否則畫面會宣稱舊資料是今天的。
-  const tradeDate = stocks.map((s) => s.date).filter(Boolean).sort().pop()
-    || previousFeed.tradeDate
-    || now.slice(0, 10);
+  // 交易日必須逐市場算。原本取「全體最大日期」，於是 TPEX 已到 07-29、TWSE 還停在
+  // 07-28 時，整份 feed 被標成 07-29——1,083 檔上市股標著它們沒有的日期，
+  // 而 errors 是空的。改為取兩市場的最小值（「這份清單至少完整到這一天」），
+  // 並把各市場日期一起輸出，讓畫面能誠實說明落差。
+  const marketDate = (rows) => rows.map((s) => s.date).filter(Boolean).sort().pop() || null;
+  const marketDates = {};
+  const twseDate = marketDate(twse.rows);
+  const tpexDate = marketDate(tpex.rows);
+  if (twseDate) marketDates.twse = twseDate;
+  if (tpexDate) marketDates.tpex = tpexDate;
+  const known = [twseDate, tpexDate].filter(Boolean).sort();
+  const tradeDate = known[0] || previousFeed.tradeDate || now.slice(0, 10);
+  if (twseDate && tpexDate && twseDate !== tpexDate) {
+    errors.push({ source: "stale-market", message: `TWSE ${twseDate} vs TPEX ${tpexDate} — feed dated to the older one` });
+  }
 
   // 52 週累積：只有在本次抓到「新鮮」資料時才累積（保留模式下不重複灌同一天）。
   const accumulatorRaw = await readJsonOr(ACC_FILE, {});
@@ -273,7 +361,7 @@ async function main() {
     errors.push({ source: "feed-preservation", message: `kept previous valuation for ${valuationPreserved} row(s) missing from this run` });
   }
 
-  const feed = { updatedAt: now, tradeDate, hiSince: accumulator.start, count: stocks.length, stocks, errors };
+  const feed = { updatedAt: now, tradeDate, marketDates, hiSince: accumulator.start, count: stocks.length, stocks, errors };
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   // minified：全市場 ~2,200 列，縮排會讓體積翻倍
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
