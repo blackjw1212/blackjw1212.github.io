@@ -17,10 +17,22 @@ const SOURCES = {
   tpexValuation: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis",
 };
 
-async function fetchJson(url) {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
-  return await response.json();
+// TPEX 回 10,000+ 列、耗時近 1 秒，在 runner 上常見連線被中斷（undici 的 "terminated"）。
+// 實測 2026-07-28 兩班都因此丟失全部上櫃資料。4xx 不重試（重試也不會變好），
+// 其餘以指數退避重試，比照 fetch-etf-holdings.mjs 的既有做法。
+export async function fetchJson(url, attempt = 1, maxAttempt = 3, baseDelayMs = 800) {
+  try {
+    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    if (response.status >= 400 && response.status < 500) {
+      throw Object.assign(new Error(`${url} returned HTTP ${response.status}`), { fatal: true });
+    }
+    if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (error.fatal || attempt >= maxAttempt) throw error;
+    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * Math.pow(2, attempt - 1)));
+    return fetchJson(url, attempt + 1, maxAttempt, baseDelayMs);
+  }
 }
 
 // TPEX Date 欄位是民國年 (1150717)；TWSE STOCK_DAY_ALL 的 Date 同樣民國年。

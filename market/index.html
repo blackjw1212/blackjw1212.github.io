@@ -396,6 +396,31 @@ function fmt(value, digits){
   return Number(value).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:digits == null ? 2 : digits});
 }
 
+// 狀態列。原本只要 errors 非空就一律標「上游有中斷，部分為前次保留資料」，
+// 但 errors 裡也可能只是估值來源缺料，並沒有任何列被保留——那樣講就是誇大。
+// 另外「交易日比更新時間早一天」多半不是壞掉，而是 TWSE OpenAPI 當下還沒發佈
+// （實測 2026-07-28 台灣 20:13 仍只有 07-27 的資料），所以把更新時間一起顯示，
+// 讓「為什麼交易日沒前進」看得出原因，而不是誤以為排程沒跑。
+function feedStamp(label, count, payload){
+  const errors = Array.isArray(payload && payload.errors) ? payload.errors : [];
+  const preserved = errors.filter(function(e){ return e && e.source === "feed-preservation"; });
+  const parts = [label + " " + count + " 檔", "交易日 " + ((payload && payload.tradeDate) || "—")];
+  const updated = stampTime(payload && payload.updatedAt);
+  if (updated) parts.push("更新 " + updated);
+  const notes = [];
+  if (preserved.length) notes.push("部分為前次保留資料");
+  else if (errors.length) notes.push("部分欄位缺料");
+  return parts.join(" · ") + (notes.length ? "（" + notes.join("、") + "）" : "");
+}
+
+// updatedAt 是 UTC；使用者在台灣，直接顯示 UTC 會差 8 小時而看起來像「還沒更新」
+function stampTime(iso){
+  const at = iso ? new Date(iso) : null;
+  if (!at || Number.isNaN(at.getTime())) return "";
+  const local = new Date(at.getTime() + 8 * 3600 * 1000).toISOString();
+  return local.slice(5, 10) + " " + local.slice(11, 16);
+}
+
 function dayPct(row){
   if (row.close == null || row.change == null) return null;
   const previous = row.close - row.change;
@@ -696,8 +721,8 @@ async function loadEtf(){
     etfLoaded = true;
     recomputeEtf();
     renderOvList();
-    const stale = Array.isArray(payload.errors) && payload.errors.length ? "（上游有中斷或校驗異常，部分欄位保留前值/隱藏）" : "";
-    if (stamp) stamp.textContent = "ETF " + allEtfs.length + " 檔 · 交易日 " + (payload.tradeDate || "—") + " · 配息史起算 " + (payload.divHistoryStart || "—") + " " + stale;
+    if (stamp) stamp.textContent = feedStamp("ETF", allEtfs.length, payload)
+      + " · 配息史起算 " + (payload.divHistoryStart || "—");
     return "etf feed ok";
   } catch (error) {
     if (stamp) stamp.textContent = "ETF 清單載入失敗：" + error.message;
@@ -1516,9 +1541,7 @@ async function load(){
     const payload = await response.json();
     allStocks = normalizeFeed(payload);
     recompute();
-    const when = payload.tradeDate ? "交易日 " + payload.tradeDate : "";
-    const stale = Array.isArray(payload.errors) && payload.errors.length ? "（上游有中斷，部分為前次保留資料）" : "";
-    if (stamp) stamp.textContent = "全市場 " + allStocks.length + " 檔 · " + when + " " + stale;
+    if (stamp) stamp.textContent = feedStamp("全市場", allStocks.length, payload);
     const since = $("hiSince");
     if (since && payload.hiSince) since.textContent = payload.hiSince;
     return "market feed ok";
@@ -1749,6 +1772,7 @@ const marketApp = {
     simulate:simulate,
     lookupSecurity:lookupSecurity,
     etfFeedUrl:etfFeedUrl,
+    feedStamp:feedStamp,
     NHI:NHI,
   },
 };

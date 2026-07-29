@@ -12,13 +12,50 @@ const readJson = async (rel) => JSON.parse(await readFile(fileURLToPath(new URL(
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const optNum = (v) => v == null || isNum(v);
 
+// 上游一個市場中斷就整批消失，是 2026-07-28 實際發生的事故（ETF 348→231、個股上櫃 853→0）。
+// 逐市場下限比「總筆數下限」更有意義：總數掉一半才會觸發，掉一個市場往往還在門檻之上。
+const assertBothMarkets = (rows, label, floors) => {
+  const byMarket = rows.reduce((acc, row) => ({ ...acc, [row.market]: (acc[row.market] || 0) + 1 }), {});
+  assert.ok(byMarket.twse >= floors.twse, `${label}: 上市只剩 ${byMarket.twse || 0} 檔（下限 ${floors.twse}）——上游中斷未被保留？`);
+  assert.ok(byMarket.tpex >= floors.tpex, `${label}: 上櫃只剩 ${byMarket.tpex || 0} 檔（下限 ${floors.tpex}）——上游中斷未被保留？`);
+};
+
+test("market-feed.json matches the expected schema", async () => {
+  const feed = await readJson("../../data/market-feed.json");
+  assert.match(feed.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(feed.tradeDate, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(feed.tradeDate <= new Date().toISOString().slice(0, 10), "交易日不得在未來");
+  assert.ok(Array.isArray(feed.stocks) && feed.stocks.length >= 1500, `expected 1500+ stocks, got ${feed.stocks.length}`);
+  assert.equal(feed.count, feed.stocks.length);
+  assert.ok(Array.isArray(feed.errors));
+  assertBothMarkets(feed.stocks, "market-feed", { twse: 800, tpex: 500 });
+
+  const codes = new Set();
+  for (const row of feed.stocks) {
+    const at = (msg) => `${row.code}: ${msg}`;
+    assert.match(row.code, /^\d{4}[A-Z]?$/, at("code shape"));
+    assert.ok(!codes.has(row.code), at("duplicate code"));
+    codes.add(row.code);
+    assert.equal(typeof row.name, "string", at("name"));
+    assert.ok(row.market === "twse" || row.market === "tpex", at("market"));
+    // close = 0 曾被當成價格寫入（9110），會讓漲跌幅與估值除以零
+    assert.ok(isNum(row.close) && row.close > 0, at("close must be a positive number"));
+    for (const key of ["change", "open", "high", "low", "volume", "pe", "dividendYield", "pbRatio", "hi52", "lo52", "fromHi"]) {
+      assert.ok(optNum(row[key]), at(`${key} must be a number or absent`));
+    }
+    if (isNum(row.hi52) && isNum(row.lo52)) assert.ok(row.hi52 >= row.lo52, at("52w high must not sit below the low"));
+  }
+});
+
 test("etf-feed.json matches the expected schema", async () => {
   const feed = await readJson("../../data/etf-feed.json");
   assert.match(feed.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.match(feed.tradeDate, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(feed.tradeDate <= new Date().toISOString().slice(0, 10), "交易日不得在未來");
   assert.ok(Array.isArray(feed.stocks) && feed.stocks.length >= 300, `expected 300+ ETFs, got ${feed.stocks.length}`);
   assert.equal(feed.count, feed.stocks.length);
   assert.ok(Array.isArray(feed.errors));
+  assertBothMarkets(feed.stocks, "etf-feed", { twse: 150, tpex: 80 });
 
   const codes = new Set();
   for (const row of feed.stocks) {

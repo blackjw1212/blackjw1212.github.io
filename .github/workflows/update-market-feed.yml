@@ -3,9 +3,14 @@ name: Update market feed
 on:
   workflow_dispatch:
   schedule:
-    # 台灣 14:30 收盤後首抓、18:15 補抓（TWSE OpenAPI 常落後）
-    - cron: "30 6 * * 1-5"
-    - cron: "15 10 * * 1-5"
+    # TWSE OpenAPI STOCK_DAY_ALL 的發佈時間不固定且可能很晚：
+    # 實測 2026-07-28T12:13Z（台灣 20:13、收盤後 6.7 小時）仍只提供 1150727 的資料，
+    # 導致該班寫出的 tradeDate 停在前一日。因此排四班，最後一班晚到台灣 22:00，
+    # 再加一班隔日早上補抓，確保前一交易日的資料一定會被收進來。
+    - cron: "30 6 * * 1-5"   # 台灣 14:30 收盤後首抓
+    - cron: "15 10 * * 1-5"  # 台灣 18:15
+    - cron: "0 14 * * 1-5"   # 台灣 22:00
+    - cron: "0 1 * * 2-6"    # 台灣次日 09:00 補抓（涵蓋週五收盤 → 週六早上）
 
 permissions:
   contents: write
@@ -31,14 +36,17 @@ jobs:
           else
             echo "Not Monday — skipping the weekly holdings scrape"
           fi
-      # ETF 引擎失敗不得連坐個股 feed：這步容錯，commit 步驟改 if: always()
+      # ETF 引擎失敗不得連坐個股 feed：這步容錯。ETF 檔案維持上次 commit 的內容，
+      # 下一步的 schema 驗證會檢查那份舊檔並通過，個股 feed 照常更新。
       - name: Generate ETF feed
         continue-on-error: true
         run: node scripts/update-etf-feed.mjs --bulk /tmp/bulk.json
-      - name: Validate data schema
+      # 驗證兩份 feed（含逐市場筆數下限）。原本 commit 步驟掛 if: always()，
+      # 驗證失敗仍會把劣化資料推上去；改為驗證是 commit 的前置條件——
+      # 失敗時什麼都不推，保留上一次的好資料，並讓這班 CI 紅燈。
+      - name: Validate feed schemas
         run: node --test backend/test/etf-schema.test.js
       - name: Commit feed updates
-        if: always()
         run: |
           # 只納入實際存在的檔案：holdings 首次執行前不存在，git diff 會報錯
           FILES=""

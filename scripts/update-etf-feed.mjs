@@ -35,10 +35,20 @@ const BROWSER_HEADERS = {
   Referer: "https://www.twse.com.tw/",
 };
 
-async function fetchJson(url) {
-  const response = await fetch(url, { headers: { Accept: "application/json", ...BROWSER_HEADERS } });
-  if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
-  return await response.json();
+// 與 update-market-feed 相同的重試策略（TPEX 在 runner 上常見連線中斷）
+export async function fetchJson(url, attempt = 1, maxAttempt = 3, baseDelayMs = 800) {
+  try {
+    const response = await fetch(url, { headers: { Accept: "application/json", ...BROWSER_HEADERS } });
+    if (response.status >= 400 && response.status < 500) {
+      throw Object.assign(new Error(`${url} returned HTTP ${response.status}`), { fatal: true });
+    }
+    if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (error.fatal || attempt >= maxAttempt) throw error;
+    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * Math.pow(2, attempt - 1)));
+    return fetchJson(url, attempt + 1, maxAttempt, baseDelayMs);
+  }
 }
 
 async function fetchText(url) {
@@ -267,6 +277,19 @@ export function classifyEtf(code, name) {
   return "主題型";
 }
 
+// 逐市場保留：原本只在「兩市場都一列沒抓到」時才回退，導致 TWSE 成功而 TPEX 中斷時
+// 上櫃 ETF 整批消失（實測 2026-07-28 由 348 檔掉到 231 檔）。改為各市場獨立判斷，
+// 比照個股引擎的 preserveMarketRows；ETF 母數小（上櫃約百檔），絕對下限取 5。
+export function preserveEtfMarketRows(previousStocks, fetchedRows, market) {
+  const prev = (Array.isArray(previousStocks) ? previousStocks : [])
+    .filter((row) => row && row.market === market)
+    .map((row) => ({ code: row.code, name: row.name, market: row.market, close: row.close, change: row.change, volume: row.volume }));
+  const fetched = Array.isArray(fetchedRows) ? fetchedRows : [];
+  if (fetched.length >= Math.max(5, prev.length * 0.5)) return { rows: fetched, preserved: false };
+  if (!prev.length) return { rows: fetched, preserved: false };
+  return { rows: prev, preserved: true };
+}
+
 // 逐欄保留：本次缺料的欄位沿用前次值（回傳保留計數）
 export function preserveEtfColumns(row, previous) {
   if (!previous) return 0;
@@ -305,17 +328,18 @@ async function main() {
   }
   let rows = [];
   for (const [key, source, label] of [["twse", SOURCES.twseEod, "TWSE OpenAPI STOCK_DAY_ALL"], ["tpex", SOURCES.tpexEod, "TPEX OpenAPI daily close quotes"]]) {
+    let fetched = [];
     try {
       const payload = bulkRaw[key] || await fetchJson(source);
-      rows = rows.concat(normalizeEtfBulkRows(payload, key));
+      fetched = normalizeEtfBulkRows(payload, key);
     } catch (error) {
       errors.push({ source: label, message: error.message });
     }
-  }
-  // 價格全失敗 → 沿用前次列（比照 preserveMarketRows 精神）
-  if (!rows.length && Object.keys(prevByCode).length) {
-    rows = Object.values(prevByCode).map((r) => ({ code: r.code, name: r.name, market: r.market, close: r.close, change: r.change, volume: r.volume }));
-    errors.push({ source: "feed-preservation", message: `kept ${rows.length} previous ETF price rows (bulk unavailable)` });
+    const kept = preserveEtfMarketRows(Object.values(prevByCode), fetched, key);
+    if (kept.preserved) {
+      errors.push({ source: "feed-preservation", message: `kept ${kept.rows.length} previous ${key.toUpperCase()} ETF rows (fetched ${fetched.length})` });
+    }
+    rows = rows.concat(kept.rows);
   }
   rows.sort((a, b) => a.code.localeCompare(b.code));
 

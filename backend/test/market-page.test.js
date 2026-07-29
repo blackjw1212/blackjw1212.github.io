@@ -125,6 +125,37 @@ test("loading the feed populates rows, stamp and 52w footnote", async () => {
   assert.match(body, /觀察台/, "watchlist codes should be badged");
 });
 
+test("the stamp separates real preservation from ordinary missing fields", async () => {
+  const { app } = await loadMarket(async () => okResponse(marketFeed()));
+  const { feedStamp } = app.helpers;
+
+  // 一切正常
+  assert.equal(feedStamp("全市場", 1936, { tradeDate: "2026-07-28", updatedAt: "2026-07-28T14:05:00.000Z", errors: [] }),
+    "全市場 1936 檔 · 交易日 2026-07-28 · 更新 07-28 22:05");
+
+  // 真的有列被保留 → 才可以說「前次保留資料」
+  const preserved = feedStamp("全市場", 1936, {
+    tradeDate: "2026-07-27",
+    updatedAt: "2026-07-28T12:13:28.967Z",
+    errors: [{ source: "TPEX OpenAPI daily close quotes", message: "terminated" },
+             { source: "feed-preservation", message: "kept 853 previous TPEX rows (fetched 0)" }],
+  });
+  assert.match(preserved, /部分為前次保留資料/);
+  assert.match(preserved, /更新 07-28 20:13/, "UTC 需換算成台灣時間，否則看起來像沒跑");
+
+  // 只有估值來源缺料、沒有任何列被保留 → 不得誇大成「上游中斷」
+  const partial = feedStamp("全市場", 1936, {
+    tradeDate: "2026-07-28", updatedAt: "2026-07-28T14:05:00.000Z",
+    errors: [{ source: "TWSE OpenAPI BWIBBU_ALL", message: "terminated" }],
+  });
+  assert.match(partial, /部分欄位缺料/);
+  assert.doesNotMatch(partial, /保留/, "沒有列被保留就不該說保留");
+
+  // 缺欄位時退成破折號，不得印出 undefined
+  assert.equal(feedStamp("ETF", 0, {}), "ETF 0 檔 · 交易日 —");
+  assert.doesNotMatch(feedStamp("ETF", 0, { updatedAt: "not-a-date" }), /Invalid|NaN|undefined/);
+});
+
 test("codes link out to the shared TradingView layout with the right exchange prefix", async () => {
   const { app, elements } = await loadMarket(dualFeedMock());
   await app.init();
