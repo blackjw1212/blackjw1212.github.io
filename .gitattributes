@@ -1,1 +1,2 @@
 .claude/hooks/*.py text eol=lf
+.claude/verify.sh text eol=lf
