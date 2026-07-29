@@ -245,7 +245,11 @@ export function isCoreEtf(row) {
   // 主動型永不擔任核心：即使規模與殖利率都符合（00403A 1,526億、00981A 2,485億
   // 都夠大），經理人風險與較高費用率不適合當作被動核心部位
   if (isActiveEtf(row)) return false;
-  return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && row.type !== "債券型");
+  // 槓反（每日重設的路徑依賴）、期貨（轉倉成本）、外幣計價（流動性低）同樣不能當核心。
+  // 原本只排除債券型，這三類是靠「沒有配息紀錄所以 yield 為 null」意外被擋住的——
+  // 00631L 規模 2,188億，只要哪天配一次息就會被標成核心。
+  const NON_CORE = new Set(["債券型", "槓桿反向", "期貨型", "外幣計價"]);
+  return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && !NON_CORE.has(row.type));
 }
 
 // 名稱規則粗分（etf-static 可覆寫）

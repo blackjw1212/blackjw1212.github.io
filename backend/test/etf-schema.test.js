@@ -137,6 +137,14 @@ test("known ETFs land in the expected quality bands", async () => {
   assert.equal(by["006208"].isCore, true, "006208 must be flagged core");
   // 長天期債 ETF 不得佔走核心位置
   assert.equal(by["00679B"].isCore, false, "a bond ETF must never be core");
+  // 槓反／期貨／外幣計價原本只是「剛好沒有配息紀錄」才沒被標成核心；
+  // 00631L 規模 2,188億，一次配息就會誤標，必須由規則而非巧合擋住
+  assert.equal(by["00631L"].isCore, false, "a leveraged ETF must never be core");
+  assert.equal(isCoreEtf({ ...by["00631L"], aum: 2188, yield: 2, isActive: false }), false,
+    "even with a qualifying size and yield, 槓桿反向 must stay out of core");
+  for (const type of ["期貨型", "外幣計價", "債券型"]) {
+    assert.equal(isCoreEtf({ type, aum: 5000, yield: 2, isActive: false, code: "0000", name: "x" }), false, `${type} must never be core`);
+  }
 
   // 穩定配息者 CV 落在安全區、劇烈者被標出來
   // 後綴家族分類（先前 29 檔 A 全被誤歸主題型並已進入產生器候選池）

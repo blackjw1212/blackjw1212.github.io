@@ -308,7 +308,7 @@
   <section aria-labelledby="suggestHeading">
     <h2 id="suggestHeading">配置產生器 <em>OPTIMIZER</em></h2>
     <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者。
-      注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。目標函數也只看配息現金流、不含資本利得——這是低配息的市值型 ETF 在「最高配息」目標下必然墊底的原因。<strong>不是投資建議</strong>。</p>
+      注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。目標函數也只看配息現金流、不含資本利得——這是低配息的市值型 ETF 在「最高配息」目標下必然墊底的原因。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
     <div class="toolbar">
       <div class="toolrow">
         <div class="presets">
@@ -978,7 +978,10 @@ const QUALITY = {maxCv:0.6, maxPremium:1};
 function isCoreHolding(row){
   if (row && row.isCoreField != null) return row.isCoreField;
   if (row && row.isActive) return false;   // 主動型永不擔任核心
-  return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && row.type !== "債券型");
+  // 與後端 isCoreEtf 同一套規則；槓反／期貨／外幣計價雖已被候選池硬排除，
+  // 這裡也要排除，否則 ETF 表上的「核心」標記會誤標
+  const nonCore = {"債券型":1, "槓桿反向":1, "期貨型":1, "外幣計價":1};
+  return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && !nonCore[row.type]);
 }
 
 // 候選池：滿一年配息歷史（yield 非 null）、規模達標、排除槓反與期貨型，
