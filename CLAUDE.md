@@ -1,52 +1,100 @@
-# Global Working Contract — blackjw
+# blackjw1212.github.io — 專案事實
 
-> 跨所有專案的行為契約。每條規則都應實際改變 Claude 的行為;沒作用的就刪。
-> 硬性保證(編譯/測試必過)由 Stop hook 強制執行,本檔只負責「行為傾向」。
-> 放置位置:`~/.claude/CLAUDE.md`(全域)。個別專案可再放各自的 `./CLAUDE.md` 覆寫。
+> 只寫「這個 repo 特有」的事。語言、四階段工作流、委派、驗證原則等**通用規則在全域
+> `~/.claude/CLAUDE.md` 已生效，這裡不重抄**（重抄會分叉：全域改了專案層還留舊版）。
 
-## 語言與溝通
-- 一律以繁體中文(台灣)回覆說明;程式碼與註解依該專案既有慣例,不擅自改語言。
-- 風格:精簡、直接、可直接上線。少來回確認,一次給完整、可交付的成品。
-- 不客套、不複述需求、不為湊字數而展開。要問就一次問完關鍵問題。
+## 這是什麼
 
-## 四階段工作流(非小改一律遵守)
-1. **探索 Explore** — 先用 grep/讀檔找出根因,**先不要動任何程式碼**;回報 Root Cause。
-2. **計劃 Plan** — 列出要改哪個檔、哪個函式、預估行數;謹守「極簡優先」與外科手術式修改。
-   非小改時把此計劃寫進 `.claude/plan.md`;它會被 Codex 跨模型互審閘門把關,未在末端取得
-   `[REVIEW_PASSED_MARKER]` 前不得宣告完成(見 `codex-review` skill / `plan-review.py`)。
-3. **實作 Implement** — 僅在計劃範圍內改動。未提及的程式碼、註解、排版 **100% 保持原樣**,嚴禁順手重構。
-4. **驗證 Verify** — 改完必須讓專案編譯/測試通過(見驗證標準)才可宣告完成。
-- **例外**:若能用一句話描述 diff(改錯字、加 log、改變數名),跳過 1–2 直接做。過度計劃和不計劃一樣浪費時間。
+GitHub Pages 靜態站 + GitHub Actions ETL。**沒有建置步驟、沒有打包器、沒有 TypeScript。**
+頁面是手寫 HTML + 行內 `<script>`，工具是原生 ESM `.mjs`。這是刻意的，不要引入工具鏈。
 
-## 驗證標準(Definition of Done)— 依產物類型,不是只有「編譯」
-原則(對齊 Anthropic):每種產物各有「可驗證的綠燈」,完成前要讓對應檢查回 OK/FAIL,而非自我宣稱。
-- 韌體 → 建置 exit 0:ESP-IDF `idf.py build` / PlatformIO `pio run` / Arduino `arduino-cli compile`。
-- Hackintosh OpenCore → `plutil -lint`(語法)+ `ocvalidate`(語意,**版本須對應 OC release**)。
-- ACPI/SSDT → `iasl <file>.dsl` 可編譯成 .aml。
-- Gmail 過濾 / 其他 XML → well-formed(無未閉合標籤)+ 無重複/衝突 entry。
-- AdGuard / adblock 規則 → `aglint` 通過;必要時 `dead-domains-linter` 查死網域。
-- Excel xlsx → 可被 openpyxl 載入(不損毀);版面/列印正確仍需人工或 PDF 渲染確認。
-- iOS 套件源 → control 檔合法、`Packages`/`Release` metadata 一致。
-- Shell → `shellcheck`;Python → `py_compile`(+ 有測試則 `pytest`);Node → `npm test`/`build`。
-- **每個專案可在 `.claude/verify`(可執行腳本)自訂自己的 DoD**,該腳本 exit 0 才算完成 —— 標準不被上面這份清單綁死。
-- **共通鐵則**:
-  - 「檢查過 ≠ 行為對」。涉及硬體/外部行為(顯示、藍牙手把、GPS、IR 收送、Wi-Fi、實際過濾效果)時,明確列出「還需人工上機/實測的項目」,不要假裝已驗證。
-  - **不要捏造檢查結果**。沒跑就說沒跑;失敗就貼重點錯誤。
+型別檢查的替代品是 **schema 測試**（`backend/test/etf-schema.test.js` 驗 `data/*.json` 的
+結構與衍生欄位一致性）。加欄位就加斷言。
 
-## 嵌入式硬性紀律(踩過的雷,每個 session 都要記得)
-- **不要假設驅動或腳位**。動到顯示或周邊前,先從官方文件 / 原廠 datasheet 確認晶片型號與 pin 定義
-  (例:Waveshare AMOLED 用的是 **CO5300**,不是 RM67162;弄錯整個顯示層白做)。
-- **ESP32 BT + Wi-Fi 同時開會吃爆 RAM**。沿用既有的雙模式架構(AP 設定模式 / 正常執行模式),
-  不要把兩者塞進同一條啟動路徑。
-- 設定值走**資料驅動 + NVS 映射**,不要散落硬編碼常數。
-- 中文顯示要確認字型資源與編碼(UTF-8 / 字型檔是否包含所需字集)。
+## 完成標準（DoD）
 
-## 安全(既有防護不得在重構中被弱化)
-- 絕不硬編碼密碼、API key、token、Wi-Fi 憑證 → 走設定檔 / NVS / 環境變數,並確認 `.gitignore` 已排除。
-- 既有的 HTTP Basic Auth、CSRF 防護、captive portal 驗證,不得被「順手簡化」掉。
-- 祕密不得寫進 commit、log 或 URL query string。
+```
+sh .claude/verify.sh
+```
 
-## Git / 交付
-- commit 訊息具體(做了什麼 + 為什麼),一個邏輯變更一個 commit。
-- 任務完成後給一段簡短 diff 摘要:動了哪些檔、各檔重點一行。
-- 同一問題若已被我糾正超過兩次,代表 context 已髒 → 主動建議 `/clear` 重開,而不是硬湊。
+**`package.json` 只在 `backend/`，repo 根目錄沒有。** claude-verify-kit 的 `verify.py`
+偵測 Node 專案時看的是根目錄，所以少了 `.claude/verify.sh` 這個 override，
+Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪。
+
+它跑三件事，與 CI 對齊：
+1. `cd backend && npm test` — `node --test test/*.test.js`
+2. `node scripts/check-static-site.mjs` — 靜態契約
+3. `data/market-feed.json`、`data/etf-feed.json` 的 JSON 合法性與 `tradeDate` 格式
+
+## 靜態契約 `scripts/check-static-site.mjs`
+
+比一般 lint 嚴格很多，改頁面前先知道它管什麼，否則 CI 會紅：
+
+- **首頁主要入口被釘死**為 `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/`，
+  順序與 href 都要一致。
+- **各頁的 `<title>`、`canonical`、`theme-color`、CTA 文案逐字比對**。改標題要同步改這支腳本。
+- **禁詞**：首頁與 `/market/` 不得出現 `保證`、`可放心`、`買進(訊號)`、`賣出(訊號)`、
+  `投資建議`、`實領淨收益`。**註解也算**——曾因為程式碼註解寫了「保證」而 CI 紅。
+- **所有 `/` 開頭的 href/src/srcset/url() 必須指向真實存在的檔案**。
+- **天氣頁呼叫的每個 endpoint 都必須在 `weather-proxy/src/index.js` 的白名單裡**，
+  且頁面不得出現 CWA API key。
+
+## 部署：`pages-deploy.yml` 的 allowlist
+
+```
+cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather data assets dist/
+```
+
+**新增頂層頁面目錄一定要加進這行。** 否則 Site check 會過、Pages deploy 會失敗 ——
+兩個 workflow 檢查的東西不同，綠燈不代表上線成功。
+
+## 前端測試的硬性前提
+
+`backend/test/market-page.test.js` / `frontend-smoke.test.js` 是用 `vm` 載入頁面的
+**行內 `<script>`** 來測的，抓法是這個正則：
+
+```js
+html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)
+```
+
+所以 **`market/index.html` 的主 script 必須是最後一個、且緊貼 `</body>`**。
+在它後面插任何東西，測試會抓不到 script 而整批失敗。
+函式要能被測到就掛進 `MarketApp.helpers`。
+
+## 資料管線：踩過的坑
+
+工具在 `scripts/`，由 `update-market-feed.yml`（每日四班）與 `update-stock-risk-feed.yml` 驅動。
+
+- **上市收盤用 `MI_INDEX`，不要用 `openapi` 的 `STOCK_DAY_ALL`。**
+  後者當日不發佈（實測收盤後 8 小時仍是前一日），會讓頁面價比券商帳面舊一天。
+  `STOCK_DAY_ALL` 保留為 fallback，因為 TWSE 曾對 GitHub runner IP 回 HTML 錯誤頁。
+- **MI_INDEX 的漲跌方向藏在 HTML 顏色裡**（`color:red>+` 漲、`color:green>-` 跌），
+  「漲跌價差」欄是**絕對值**——只讀該欄會讓當日近千檔下跌股全變上漲。除權息（`X`）記 `null`。
+- **`tradeDate` 不可取「全體列的最大日期」。** 兩市場發佈時間不同步時，會讓一千多檔
+  上市股掛著它們沒有的日期。取最小值，並輸出 `marketDates:{twse,tpex}`。
+- **TPEX 回 10,000+ 列、耗時近 1 秒，runner 上常被中斷（undici `"terminated"`）。**
+  兩個引擎都有 3 次指數退避重試（4xx 不重試）。
+- **上游失敗絕不可歸零**：`preserveMarketRows` / `preserveEtfMarketRows` **逐市場**保留，
+  `applyValuation` 逐欄保留。保留時要寫進 `errors[]`，讓畫面說得出來。
+- **成分股是解析 MoneyDJ 的 HTML**（官方無此資料），每週一跑。成功率約 202/347，
+  失敗大多是債券型（結構上沒有股票成分股頁），不是解析壞掉。
+  `isDegraded()` 會在成功數掉到前次 70% 以下時**拒絕覆寫**。
+- **驗資料正確性用 TWSE MIS**（`mis.twse.com.tw/stock/api/getStockInfo.jsp`，
+  `z`=今收、`y`=昨收）當獨立來源，它與券商帳面一致。
+
+## data/ 是 CI 寫的
+
+`data/*.json` 由 Actions 自動 commit。本機重跑工具後要 push 之前先 `git pull --rebase`，
+CI 的 commit 只動 `data/`，通常不衝突。feed 是 minified（`market-52w.json` 640KB），
+壞掉時肉眼看不出來——靠 schema 測試擋。
+
+## Cloudflare Workers
+
+`weather-proxy/`（天氣）與 `backend/`（stock-risk）各是一個 Worker，
+由 `deploy-weather-proxy.yml` / `deploy-stock-risk-worker.yml` 部署。
+**API key 走 Worker secret，永遠不進頁面、不進 repo。** 靜態契約會檢查這件事。
+
+## 計劃審查閘門
+
+`.claude/plan.md` 一存在就會觸發 `plan-review.py`，要求 Codex 跨模型審核通過才放行。
+不需要審查時**刪掉該檔**解除，不要偽造 marker。
