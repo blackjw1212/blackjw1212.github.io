@@ -267,9 +267,16 @@ test("root index is a status overview entry console", async () => {
   assert.match(html, /股票投資觀察台/);
   assert.doesNotMatch(html, /href="\/ai\/"|data-primary-entry="ai"|AI Feed/);
   assert.match(html, /BJKW 天氣觀察台/);
-  for (const id of ["stockFeedStatus", "stockFeedMeta", "yieldStatus", "yieldMeta", "weatherStatus", "weatherMeta", "deployStatus", "deployMeta"]) {
+  for (const id of ["stockFeedStatus", "stockFeedMeta", "yieldStatus", "yieldMeta", "weatherStatus", "weatherMeta"]) {
     assert.match(html, new RegExp(`id="${id}"`), `${id} should be present`);
   }
+  // 「Static Site：可進入」是永不改變的常數——上游全掛時它照樣說可進入，
+  // 讀得到這頁本身就已經證明靜態站活著。零資訊量，已移除，不要再加回來。
+  assert.doesNotMatch(html, /id="deployStatus"|id="deployMeta"/, "the tautological Static Site card must stay gone");
+  // 遷移期留下的空洞數字（4 保留工具 / 0 舊站入口 / 1 click）也不要回來
+  assert.doesNotMatch(html, /保留工具|舊站入口|1 click/, "migration-era vanity metrics must stay gone");
+  // 憑證設定狀態是內部資訊，不對訪客揭露
+  assert.doesNotMatch(html, /CWA secret/, "credential state must not be published");
   assert.match(html, /aria-label="輕量資料狀態"/);
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /focus-visible/);
@@ -302,7 +309,7 @@ test("root status overview renders mocked feed and weather health", async () => 
   assert.match(document.getElementById("yieldMeta").textContent, /Mock Treasury/);
   assert.equal(document.getElementById("weatherStatus").textContent, "可查詢");
   assert.match(document.getElementById("weatherStatus").className, /ok/);
-  assert.equal(document.getElementById("deployStatus").textContent, "可進入");
+  assert.equal(document.getElementById("weatherMeta").textContent, "天氣代理服務正常", "面向訪客的說法，不提憑證");
   assert.deepEqual(calls, [
     "/data/stock-risk-feed.json",
     "https://bjkw-weather-proxy.a0926043323.workers.dev/health",
@@ -319,7 +326,6 @@ test("root status overview fails soft while keeping entries usable", async () =>
   assert.equal(document.getElementById("stockFeedStatus").textContent, "待更新");
   assert.equal(document.getElementById("yieldStatus").textContent, "待更新");
   assert.equal(document.getElementById("weatherStatus").textContent, "待更新");
-  assert.equal(document.getElementById("deployStatus").textContent, "可進入");
   assert.match(html, /data-primary-entry="stocks" href="\/stocks\/"/);
   assert.match(html, /data-primary-entry="weather" href="\/weather\/"/);
 });
