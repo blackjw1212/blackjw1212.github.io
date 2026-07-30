@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-30T09:55:40.817Z",
-  "eodUpdatedAt": "2026-07-30T09:55:40.817Z",
+  "updatedAt": "2026-07-30T11:45:37.459Z",
+  "eodUpdatedAt": "2026-07-30T11:45:37.459Z",
   "eodTradingDate": "2026-07-30",
   "holdings": [
     "2330",
@@ -167,9 +167,9 @@
     },
     "3324": {
       "code": "3324",
-      "pe": 24.68,
-      "dividendYield": 1.39,
-      "pbRatio": 5.93
+      "pe": 23.67,
+      "dividendYield": 1.45,
+      "pbRatio": 5.69
     },
     "3661": {
       "code": "3661",
@@ -196,5 +196,10 @@
     "updatedAt": "2026-07-28T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    }
+  ]
 }
