@@ -36,6 +36,20 @@ jobs:
           else
             echo "Not Monday — skipping the weekly holdings scrape"
           fi
+      # 配息歷史增量刷新。官方來源涵蓋不全（實測 2026-07-30：TWSE etfDiv 只有 95 檔、
+      # 且 00888 這種有配息的上市 ETF 不在內；TPEX 預告表只 21 筆），
+      # 207 檔有配息紀錄的 ETF 裡 112 檔完全靠 Yahoo。這支工具原本只能手動跑，
+      # 那 112 檔的配息就凍結在最後一次手動執行、並隨 13 個月窗逐筆消失。
+      # 一天跑一班（台灣 22:00）就夠——配息都是提前公告的。必須排在 ETF feed 之前，
+      # 否則新事件要等下一班才會進 feed 的 dps/殖利率。
+      - name: Refresh ETF dividend history (once daily)
+        continue-on-error: true
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
+            node scripts/seed-etf-div-history.mjs --incremental
+          else
+            echo "Not the 22:00 slot — skipping the daily dividend refresh"
+          fi
       # ETF 引擎失敗不得連坐個股 feed：這步容錯。ETF 檔案維持上次 commit 的內容，
       # 下一步的 schema 驗證會檢查那份舊檔並通過，個股 feed 照常更新。
       - name: Generate ETF feed

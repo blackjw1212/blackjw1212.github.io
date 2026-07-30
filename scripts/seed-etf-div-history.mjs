@@ -1,5 +1,15 @@
-// 一次性本機工具（不進 GitHub Actions）：用 Yahoo 配息事件回填 data/etf-div-history.json，
-// 讓「近 12 月殖利率」上線即可用，不必等官方 etfDiv 累積滿一年。
+// 用 Yahoo 配息事件補 data/etf-div-history.json，讓「近 12 月殖利率」不必等官方源累積。
+//
+// 兩種模式：
+//   （無旗標）  首次回填：只處理尚未 seeded 的檔，range=2y 抓滿兩年歷史。
+//   --incremental  每日增量：所有檔都用 range=3mo 重抓最近事件。
+//
+// 為什麼增量模式必須存在（實測 2026-07-30）：官方來源涵蓋不全 ——
+// TWSE etfDiv 只有 95 檔（且 00888 這種有配息的上市 ETF 竟不在內），
+// TPEX 的除權除息預告表只涵蓋 21 筆上櫃 ETF。
+// 結果是 207 檔有配息紀錄的 ETF 裡，112 檔的事件全部來自 Yahoo。
+// 這支工具原本只能手動跑，等於那 112 檔的配息資料凍結在最後一次手動執行的時間點，
+// 且會隨 13 個月窗剪枝逐筆消失 —— 畫面上就是「殖利率沒有及時更新」。
 //
 // 交叉驗證結論（2026-07-27 實測 0056/00878/0050/00919 共 9 筆重疊事件）：
 // - Yahoo 的日期是「除息日」，與官方 etfDiv 的除息日 100% 吻合，金額亦完全一致
@@ -65,6 +75,14 @@ export function hasNearbyEvent(events, ex, windowDays = DEDUPE_WINDOW_DAYS) {
   return null;
 }
 
+// 首次回填只挑沒 seeded 過的（缺 coverFrom 的舊資料視為未完成，自動重抓）；
+// 增量模式要處理全部，因為新配息可能發生在任何一檔——包含至今從未配息的新 ETF。
+export function selectTargets(feedStocks, store, incremental) {
+  const rows = Array.isArray(feedStocks) ? feedStocks : [];
+  if (incremental) return rows.slice();
+  return rows.filter((row) => !(store[row.code] && store[row.code].seeded && store[row.code].coverFrom));
+}
+
 // 只補官方沒有的除息日；回傳新增筆數
 export function mergeYahooEvents(entry, yahooEvents, lagDays) {
   let added = 0;
@@ -100,9 +118,12 @@ async function main() {
   const globalLag = allLags.length ? allLags[Math.floor(allLags.length / 2)] : DEFAULT_LAG_DAYS;
   console.log(`global median ex→pay lag: ${globalLag} days (from ${allLags.length} etfs)`);
 
-  // 缺 coverFrom 的舊資料視為未完成回填，自動重抓（自我修復，不需 --force）
-  const pending = feed.stocks.filter((row) => !(store[row.code] && store[row.code].seeded && store[row.code].coverFrom));
-  console.log(`seeding ${pending.length} / ${feed.stocks.length} etfs (delay ${DELAY_MS}ms)`);
+  const incremental = process.argv.includes("--incremental");
+  const pending = selectTargets(feed.stocks, store, incremental);
+  // 增量用 6mo 而非 3mo：季配標的若上次除息在 3.5 個月前，3mo 窗會剛好落空；
+  // 同一個請求拿 6 個月不多花成本，也讓排程斷幾天仍補得回來。
+  const range = incremental ? "6mo" : "2y";
+  console.log(`${incremental ? "incremental refresh" : "seeding"} ${pending.length} / ${feed.stocks.length} etfs (range ${range}, delay ${DELAY_MS}ms)`);
 
   let ok = 0;
   let failed = 0;
@@ -111,7 +132,7 @@ async function main() {
   for (const row of pending) {
     const symbol = row.code + (row.market === "tpex" ? ".TWO" : ".TW");
     try {
-      const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=2y&interval=1d&events=div`, {
+      const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=1d&events=div`, {
         headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
       });
       if (!response.ok) throw new Error("HTTP " + response.status);
@@ -124,10 +145,12 @@ async function main() {
       if (events.length) {
         const earliestEx = events[0].ex;
         if (!entry.coverFrom || earliestEx < entry.coverFrom) entry.coverFrom = earliestEx;
-      } else if (!entry.coverFrom) {
+      } else if (!entry.coverFrom && !incremental) {
         entry.coverFrom = tradeDate; // 完全無配息紀錄：視為零覆蓋，殖利率不發布
       }
-      entry.seeded = true;
+      // 只有跑滿 2 年的完整回填才算 seeded。增量模式若在此標記，新上市 ETF 會以
+      // 僅 6 個月的歷史被判定「已回填」，之後永遠拿不到完整兩年區間。
+      if (!incremental) entry.seeded = true;
       ok += 1;
     } catch (error) {
       failed += 1;

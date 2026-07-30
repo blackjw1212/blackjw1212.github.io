@@ -308,6 +308,7 @@
   <section aria-labelledby="suggestHeading">
     <h2 id="suggestHeading">配置產生器 <em>OPTIMIZER</em></h2>
     <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
+      <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。配息波動同樣只看近 12 個月的那幾次。
       注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。目標函數也只看配息現金流、不含資本利得——這是低配息的市值型 ETF 在「最高配息」目標下必然墊底的原因。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
     <div class="toolbar">
       <div class="toolrow">
@@ -331,6 +332,7 @@
   <footer>
     資料來源：<b>TWSE OpenAPI</b>（上市收盤／本益比）與 <b>TPEx OpenAPI</b>（上櫃收盤／本益比），每交易日收盤後自動更新。
     52 週高低由本站每日快照滾動累積，<span id="hiSince"></span>起算；上游延遲或暫時中斷時會保留前一份資料並標示。
+ETF 殖利率為<b>滾動 12 個月已除息配息 ÷ 當日收盤</b>，與他站常用的「年度殖利率（年度配息 ÷ 年均價）」定義不同，數字不可直接互比；配息歷史逐檔保留近 13 個月。
     成交額為<b>當日</b>收盤價 × 成交股數，只是流動性的粗略代理，單日可能因事件而失真。
     低估值也可能是獲利一次性、產業衰退或流動性不足所致，<b>低本益比不等於便宜</b>。
     本頁為資料篩選工具，<b>不是投資建議</b>；估值為官方揭露值，與個別公司財報認定期間可能不同。
@@ -729,8 +731,11 @@ async function loadEtf(){
     etfLoaded = true;
     recomputeEtf();
     renderOvList();
+    // 原本這裡印 payload.divHistoryStart（＝全部 350 檔的最早事件日），但配息歷史是
+    // 逐檔保留 13 個月窗，單一檔的實際起點通常晚得多——寫「配息史起算 2024-08-01」
+    // 對任何一檔都不成立。改印真正的計算基準。
     if (stamp) stamp.textContent = feedStamp("ETF", allEtfs.length, payload)
-      + " · 配息史起算 " + (payload.divHistoryStart || "—");
+      + " · 殖利率基準：滾動 12 個月";
     return "etf feed ok";
   } catch (error) {
     if (stamp) stamp.textContent = "ETF 清單載入失敗：" + error.message;
@@ -1497,7 +1502,7 @@ function runSuggest(){
   };
   box.innerHTML = '<div class="table-scroll" style="margin-top:10px"><table style="min-width:680px"><thead><tr>'
       + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th>'
-      + '<th>殖利率%</th><th>配息波動</th><th>折溢價%</th><th>規模(億)</th><th>發放月</th></tr></thead><tbody>'
+      + '<th>近12月殖利率%</th><th>近12月配息波動</th><th>折溢價%</th><th>規模(億)</th><th>發放月</th></tr></thead><tbody>'
       + out.picks.map(function(pick){
           return '<tr><td style="text-align:left">' + codeLink(pick.code, pick.etf.market, pick.name) + '</td>'
             + '<td style="text-align:left"><span class="nm">' + escapeHtml(pick.name) + '</span>'

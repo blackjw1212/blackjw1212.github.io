@@ -24,7 +24,15 @@ const SOURCES = {
   tpexEod: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
   allEtf: "https://mis.twse.com.tw/stock/data/all_etf.txt",
   etfDiv: "https://www.twse.com.tw/rwd/zh/ETF/etfDiv?response=json",
+  // etfDiv 只涵蓋 95 檔上市 ETF，上櫃是 0 檔（實測 2026-07-30：feed 內 116 檔上櫃 ETF
+  // 在 etfDiv 一筆都查不到）。上櫃的官方配息只能從除權除息預告表拿，該表有現金股利
+  // 金額但沒有發放日，需以量到的 ex→pay 中位間隔推估。
+  tpexExright: "https://www.tpex.org.tw/openapi/v1/tpex_exright_prepost",
 };
+
+// 285 筆官方事件實測：ex→pay 中位 24 天（四分位 23–27、全距 17–36）。
+// 只在來源沒有發放日時使用，並標記 payEstimated 讓畫面說得出來。
+export const MEDIAN_EX_TO_PAY_DAYS = 24;
 
 export const ETF_CODE_RE = /^00\d{2,4}[A-Z]?$/;
 const PREMIUM_SANITY_PP = 0.5;
@@ -139,6 +147,64 @@ export function normalizeEtfDivRows(data) {
   return out;
 }
 
+export function addDays(isoDate, days) {
+  const date = new Date(isoDate + "T00:00:00Z");
+  if (Number.isNaN(date.getTime())) return null;
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+// 上櫃除權除息預告表 → 配息事件。只收「息」（除權沒有現金流）、只收 ETF 代號。
+// 該表沒有發放日欄位，以中位間隔推估並標記 payEstimated。
+export function normalizeTpexExrightRows(rows) {
+  if (!Array.isArray(rows)) throw new Error("tpex exright payload is not an array");
+  const out = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const code = String(row.SecuritiesCompanyCode || "").trim().toUpperCase();
+    if (!ETF_CODE_RE.test(code)) continue;
+    // 「除權」「除權息」也可能出現；只有現金股利部分算配息，除權沒有現金流
+    if (!/息/.test(String(row.ExRrightsExDividend || ""))) continue;
+    const ex = rocToIsoOrPlain(row.ExRrightsExDividendDate);
+    const dps = parseNumber(row.CashDividend);
+    if (!ex || dps == null || dps <= 0) continue;
+    out.push({
+      code,
+      ex,
+      pay: addDays(ex, MEDIAN_EX_TO_PAY_DAYS) || ex,
+      dps: roundNumber(dps, 4),
+      payEstimated: true,
+      src: "tpex-exright",
+    });
+  }
+  return out;
+}
+
+// 同一次配息在不同來源之間可能差 1 天，只比對完全相同的日期會把同一筆算兩次
+// （實測 00917 官方 01-19 / Yahoo 01-20，3.5 元灌成 7 元、殖利率爆成 29.66%）。
+// 合法 ETF 不可能 7 天內配息兩次，故以 ±7 天視為同一事件。
+export const DEDUPE_WINDOW_DAYS = 7;
+
+export function findNearbyEx(events, ex, windowDays = DEDUPE_WINDOW_DAYS) {
+  const target = new Date(ex + "T00:00:00Z").getTime();
+  if (Number.isNaN(target)) return null;
+  for (const existing of Object.keys(events || {})) {
+    const diff = Math.abs(new Date(existing + "T00:00:00Z").getTime() - target) / 86400000;
+    if (diff <= windowDays) return existing;
+  }
+  return null;
+}
+
+// 來源可信度。低分不得覆蓋高分的既有事件，同分則保留先到者（避免每天互相蓋來蓋去）。
+//   3 官方金額 + 官方發放日（TWSE etfDiv）
+//   2 官方金額 + 推估發放日（除權除息預告表；該表沒有發放日欄位）
+//   1 第三方（Yahoo 回填）—— 金額實測與官方一致，但仍應讓交易所自己的數字優先
+export function srcRank(event) {
+  if (!event) return 0;
+  if (event.src === "yahoo") return 1;
+  return event.payEstimated ? 2 : 3;
+}
+
 // 配息歷史累積：events 以除息日為 key（冪等），13 個月窗 + lastSeen 剪枝
 export function accumulateDivHistory(history, events, universeCodes, tradeDate) {
   const acc = history && typeof history === "object" ? history : {};
@@ -150,7 +216,20 @@ export function accumulateDivHistory(history, events, universeCodes, tradeDate) 
   let earliest = acc.start || null;
   for (const event of events) {
     const entry = store[event.code] || (store[event.code] = { events: {} });
-    entry.events[event.ex] = { pay: event.pay, dps: event.dps };
+    const incoming = { pay: event.pay, dps: event.dps };
+    if (event.payEstimated) incoming.payEstimated = true;
+    if (event.src) incoming.src = event.src;
+    // ±7 天內已有同一次配息 → 只有在新來源可信度更高時才取代（並沿用原本的日期 key，
+    // 避免同一筆配息以兩個相鄰日期各存一份而被重複計入殖利率）
+    const nearby = findNearbyEx(entry.events, event.ex);
+    if (nearby) {
+      if (srcRank(incoming) > srcRank(entry.events[nearby])) {
+        delete entry.events[nearby];
+        entry.events[event.ex] = incoming;
+      }
+    } else {
+      entry.events[event.ex] = incoming;
+    }
     if (!earliest || event.ex < earliest) earliest = event.ex; // 覆蓋起點取最早事件，不是累積檔建立日
   }
   const universe = new Set(universeCodes);
@@ -364,6 +443,17 @@ async function main() {
   } catch (error) {
     errors.push({ source: "TWSE rwd etfDiv", message: error.message });
   }
+  // 上櫃 ETF 在 etfDiv 一筆都沒有，官方覆蓋率為 0；補上櫃的除權除息預告表。
+  // 兩來源之間以 ±7 天去重，且有確定發放日的 etfDiv 優先（見 accumulateDivHistory）。
+  let tpexDivCount = 0;
+  try {
+    const exright = await fetchJson(SOURCES.tpexExright);
+    const tpexEvents = normalizeTpexExrightRows(exright);
+    tpexDivCount = tpexEvents.length;
+    events = events.concat(tpexEvents);
+  } catch (error) {
+    errors.push({ source: "TPEX exright prepost", message: error.message });
+  }
   const historyRaw = await readJsonOr(HISTORY_FILE, {});
   const history = accumulateDivHistory(historyRaw, events, rows.map((r) => r.code), tradeDate);
 
@@ -440,7 +530,7 @@ async function main() {
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
   await writeFile(HISTORY_FILE, JSON.stringify({ start: history.start, updatedAt: now, stocks: history.stocks }), "utf8");
-  console.log(`etf-feed: ${rows.length} rows, tradeDate ${tradeDate}, errors ${errors.length}`);
+  console.log(`etf-feed: ${rows.length} rows, tradeDate ${tradeDate}, div events ${events.length} (tpex-exright ${tpexDivCount}), errors ${errors.length}`);
   if (errors.length) console.warn(JSON.stringify(errors, null, 2));
 }
 

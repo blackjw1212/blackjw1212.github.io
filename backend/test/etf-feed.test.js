@@ -15,8 +15,138 @@ import {
   isCoreEtf,
   estimateYield,
   isActiveEtf,
+  normalizeTpexExrightRows,
+  findNearbyEx,
+  addDays,
+  srcRank,
+  MEDIAN_EX_TO_PAY_DAYS,
 } from "../../scripts/update-etf-feed.mjs";
 import { rocToIso } from "../../scripts/update-market-feed.mjs";
+import { selectTargets } from "../../scripts/seed-etf-div-history.mjs";
+
+// ── 補上官方配息來源的覆蓋缺口 ─────────────────────────────────────
+// 實測 2026-07-30：TWSE etfDiv 只涵蓋 95 檔上市 ETF，上櫃 116 檔一筆都沒有，
+// 且 00888（永豐台灣ESG，2026 年已配息 3 次）這種上市 ETF 竟然也不在內。
+// 結果 207 檔有配息紀錄的 ETF 裡，112 檔的事件全部來自手動跑的 Yahoo 回填 ——
+// 那些檔的殖利率會凍結在最後一次手動執行，並隨 13 個月窗剪枝逐筆消失。
+// 除權除息預告表（掛在 tpex 網域，實際是跨市場）補得到這些檔，取自真實回應：
+const EXRIGHT_ROWS = [
+  { ExRrightsExDividendDate: "1150727", SecuritiesCompanyCode: "00888", CompanyName: "永豐台灣ESG", ExRrightsExDividend: "除息", CashDividend: "1.75300000", StockDividendRatio: "0.00000000" },
+  { ExRrightsExDividendDate: "1150721", SecuritiesCompanyCode: "00719B", CompanyName: "元大美債1-3", ExRrightsExDividend: "除息", CashDividend: "0.27000000", StockDividendRatio: "0.00000000" },
+  { ExRrightsExDividendDate: "1150721", SecuritiesCompanyCode: "00981B", CompanyName: "第一金優選非投債", ExRrightsExDividend: "除息", CashDividend: "0.06300000", StockDividendRatio: "0.00000000" },
+  // 一般個股：不是 ETF，必須濾掉
+  { ExRrightsExDividendDate: "1150720", SecuritiesCompanyCode: "2640", CompanyName: "大車隊", ExRrightsExDividend: "除息", CashDividend: "8.00000000", StockDividendRatio: "0.00000000" },
+  // 純除權：沒有現金流
+  { ExRrightsExDividendDate: "1150722", SecuritiesCompanyCode: "00939", CompanyName: "只除權", ExRrightsExDividend: "除權", CashDividend: "0.00000000", StockDividendRatio: "0.05000000" },
+  // 金額為 0（待公告）→ 不可寫入，否則殖利率會被灌水成 0 元事件
+  { ExRrightsExDividendDate: "1150723", SecuritiesCompanyCode: "00940", CompanyName: "待公告", ExRrightsExDividend: "除息", CashDividend: "0.00000000", StockDividendRatio: "0.00000000" },
+];
+
+test("normalizeTpexExrightRows fills the gap the official etfDiv leaves", () => {
+  const events = normalizeTpexExrightRows(EXRIGHT_ROWS);
+  assert.equal(events.length, 3, "只收 ETF 且有現金股利的除息事件");
+  assert.deepEqual(events.map((e) => e.code).sort(), ["00719B", "00888", "00981B"]);
+
+  const etf888 = events.find((e) => e.code === "00888");
+  // 與 WantGoo 對照過：2026/07/27 除息 1.75 元（1.753 是未四捨五入的真值）
+  assert.equal(etf888.ex, "2026-07-27", "民國日期要轉成 ISO");
+  assert.equal(etf888.dps, 1.753);
+  // 該表沒有發放日欄位 → 用量到的中位間隔推估，並且必須標記出來
+  assert.equal(etf888.pay, addDays("2026-07-27", MEDIAN_EX_TO_PAY_DAYS));
+  assert.equal(etf888.payEstimated, true);
+  assert.equal(etf888.src, "tpex-exright");
+
+  assert.deepEqual(normalizeTpexExrightRows([]), []);
+  assert.throws(() => normalizeTpexExrightRows(null), /not an array/);
+});
+
+test("dividend accumulation is idempotent and dedupes across sources", () => {
+  const events = normalizeTpexExrightRows(EXRIGHT_ROWS);
+  const universe = ["00888", "00719B", "00981B"];
+  let history = accumulateDivHistory({ stocks: {} }, events, universe, "2026-07-30");
+  const count = () => Object.keys(history.stocks["00888"].events).length;
+  assert.equal(count(), 1);
+
+  // 同一批再灌一次：不得增加
+  history = accumulateDivHistory(history, events, universe, "2026-07-30");
+  assert.equal(count(), 1, "以除息日為 key，重跑必須冪等");
+
+  // 相鄰一天的同一筆配息（不同來源常見的 UTC 位移）：不得各存一份
+  // 這正是 00917 把 3.5 元灌成 7 元、殖利率爆成 29.66% 的成因
+  const shifted = events.filter((e) => e.code === "00888").map((e) => ({ ...e, ex: addDays(e.ex, 1) }));
+  history = accumulateDivHistory(history, shifted, universe, "2026-07-30");
+  assert.equal(count(), 1, "±7 天內視為同一次配息");
+
+  // 真正的下一次配息（3 個月後）要收
+  const next = [{ code: "00888", ex: "2026-10-27", pay: "2026-11-20", dps: 1.2 }];
+  history = accumulateDivHistory(history, next, universe, "2026-07-30");
+  assert.equal(count(), 2, "季配的下一筆不可被去重誤殺");
+});
+
+test("a source without a real pay date never overwrites the official one", () => {
+  const official = [{ code: "00719B", ex: "2026-07-21", pay: "2026-08-14", dps: 0.27 }];
+  let history = accumulateDivHistory({ stocks: {} }, official, ["00719B"], "2026-07-30");
+  const estimated = [{ code: "00719B", ex: "2026-07-21", pay: "2026-08-13", dps: 0.27, payEstimated: true, src: "tpex-exright" }];
+  history = accumulateDivHistory(history, estimated, ["00719B"], "2026-07-30");
+  const kept = history.stocks["00719B"].events["2026-07-21"];
+  assert.equal(kept.pay, "2026-08-14", "官方確定的發放日不得被推估值取代");
+  assert.equal(kept.payEstimated, undefined);
+
+  // 反向：先有推估，官方到位時要升級
+  let h2 = accumulateDivHistory({ stocks: {} }, estimated, ["00719B"], "2026-07-30");
+  assert.equal(h2.stocks["00719B"].events["2026-07-21"].payEstimated, true);
+  h2 = accumulateDivHistory(h2, official, ["00719B"], "2026-07-30");
+  const upgraded = h2.stocks["00719B"].events["2026-07-21"];
+  assert.equal(upgraded.pay, "2026-08-14");
+  assert.equal(upgraded.payEstimated, undefined, "官方資料到位要覆蓋推估值");
+});
+
+test("the exchange's own figure outranks the third-party backfill", () => {
+  // Yahoo 的金額實測與官方一致，但交易所自己的數字仍應優先——否則新接的官方來源
+  // 會被先到的 Yahoo 事件永久擋在門外（實測：15 筆只有 1 筆進得去）
+  assert.ok(srcRank({ src: "yahoo", payEstimated: true }) < srcRank({ src: "tpex-exright", payEstimated: true }));
+  assert.ok(srcRank({ src: "tpex-exright", payEstimated: true }) < srcRank({ pay: "2026-08-14" }));
+
+  const yahoo = [{ code: "00888", ex: "2026-07-27", pay: "2026-08-20", dps: 1.753, payEstimated: true, src: "yahoo" }];
+  let history = accumulateDivHistory({ stocks: {} }, yahoo, ["00888"], "2026-07-30");
+  assert.equal(history.stocks["00888"].events["2026-07-27"].src, "yahoo");
+
+  const exright = normalizeTpexExrightRows(EXRIGHT_ROWS).filter((e) => e.code === "00888");
+  history = accumulateDivHistory(history, exright, ["00888"], "2026-07-30");
+  const events = history.stocks["00888"].events;
+  assert.equal(Object.keys(events).length, 1, "升級不可變成兩筆");
+  assert.equal(events["2026-07-27"].src, "tpex-exright", "官方金額要取代 Yahoo");
+
+  // 反向不成立：Yahoo 不得把官方蓋回去
+  history = accumulateDivHistory(history, yahoo, ["00888"], "2026-07-30");
+  assert.equal(history.stocks["00888"].events["2026-07-27"].src, "tpex-exright");
+});
+
+test("findNearbyEx and addDays handle boundaries and junk", () => {
+  const events = { "2026-07-21": {}, "2026-10-27": {} };
+  assert.equal(findNearbyEx(events, "2026-07-22"), "2026-07-21");
+  assert.equal(findNearbyEx(events, "2026-07-28"), "2026-07-21", "恰好 7 天仍算同一筆");
+  assert.equal(findNearbyEx(events, "2026-07-29"), null, "第 8 天是新事件");
+  assert.equal(findNearbyEx({}, "2026-07-21"), null);
+  assert.equal(findNearbyEx(events, "not-a-date"), null);
+  assert.equal(addDays("2026-07-27", 24), "2026-08-20");
+  assert.equal(addDays("2026-12-31", 1), "2027-01-01", "跨年");
+  assert.equal(addDays("junk", 1), null);
+});
+
+test("the dividend refresh picks the right targets in each mode", () => {
+  const stocks = [{ code: "0056" }, { code: "00888" }, { code: "00999" }];
+  const store = {
+    "0056": { seeded: true, coverFrom: "2024-10-17", events: {} },
+    "00888": { seeded: true, events: {} },   // 缺 coverFrom＝上次回填沒跑完
+  };
+  // 首次回填只補沒完成的
+  assert.deepEqual(selectTargets(stocks, store, false).map((r) => r.code), ["00888", "00999"]);
+  // 增量模式要掃全部：新配息可能出現在任何一檔，包含至今從未配息的
+  assert.deepEqual(selectTargets(stocks, store, true).map((r) => r.code), ["0056", "00888", "00999"]);
+  assert.deepEqual(selectTargets([], store, true), []);
+  assert.deepEqual(selectTargets(null, store, false), []);
+});
 
 test("ETF code regex accepts letter suffixes and rejects stocks/warrants", () => {
   for (const ok of ["0050", "0056", "00878", "006208", "00679B", "00631L", "00632R", "00635U"]) {
