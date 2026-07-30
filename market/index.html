@@ -286,9 +286,11 @@
       <div class="toolrow">
         <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
         <button class="btn" id="simAdd" type="button">＋ 加入標的</button>
+        <button class="btn" id="simOptimize" type="button" title="以投入總額窮舉計算上方這些標的的權重組合，取扣費後年配息最高者">最佳分配</button>
         <button class="btn" id="simUseHoldings" type="button" title="把投入總額設為目前所有持股的市值合計，讓比例%以實際持股為基準">總額＝目前持股市值</button>
         <span class="count" id="simPctSum"></span>
       </div>
+      <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
       <div class="sim-rows" id="simRows"></div>
       <div class="toolrow">
         <div class="presets">
@@ -296,7 +298,6 @@
           <button class="btn" id="s80" type="button">保守 −20%</button>
           <button class="btn" id="s60" type="button">極端 −40%</button>
         </div>
-        <button class="btn" id="simRun" type="button">試算</button>
       </div>
     </div>
     <div class="sim-summary" id="simSummary"></div>
@@ -319,7 +320,6 @@
           <button class="btn" id="gMonthly" type="button">補滿 12 個月（計算）</button>
           <button class="btn" id="gLowOverlap" type="button">分散類型（計算）</button>
         </div>
-        <button class="btn" id="gRun" type="button">產生組合</button>
       </div>
       <div class="toolrow">
         <label class="fld" style="cursor:pointer"><input type="checkbox" id="gActive" style="accent-color:var(--amber)" /> 納入主動型 ETF（經理人選股，費用率較高；預設不含，且一律不列為核心）</label>
@@ -819,7 +819,9 @@ function lookupSecurity(code){
   if (!cleaned) return null;
   const etf = allEtfs.find(function(row){return row.code === cleaned;});
   if (etf) {
-    return {code:etf.code, name:etf.name, kind:"etf", price:etf.close, events:etf.dps, note:etf.dps.length ? null : "無配息紀錄（" + etf.type + "）"};
+    // 帶上配息波動：模擬器要能對「使用者自己填但沒過品質門檻」的標的提出警示
+    return {code:etf.code, name:etf.name, kind:"etf", price:etf.close, events:etf.dps, cv:etfCv(etf),
+      note:etf.dps.length ? null : "無配息紀錄（" + etf.type + "）"};
   }
   const stock = allStocks.find(function(row){return row.code === cleaned;});
   if (stock) {
@@ -1237,24 +1239,29 @@ function renderSimRows(){
       const pctIdx = input.dataset && input.dataset.simPct;
       const sharesIdx = input.dataset && input.dataset.simShares;
       const monthIdx = input.dataset && input.dataset.simMonth;
-      if (codeIdx != null) input.addEventListener("input", function(){simAllocations[codeIdx].code = input.value; updateSimNames();});
+      if (codeIdx != null) input.addEventListener("input", function(){simAllocations[codeIdx].code = input.value; updateSimNames(); runSim();});
       // 雙向連動：每次編輯只單向更新另一欄，不再回頭重算自己——
       // 否則 floor() 會讓股數在反覆換算中逐次縮水
       if (pctIdx != null) input.addEventListener("input", function(){
         simAllocations[pctIdx].pct = input.value === "" ? null : Number(input.value);
         syncSharesFromPct(pctIdx);
         updateSimPctSum();
+        runSim();
       });
       if (sharesIdx != null) input.addEventListener("input", function(){
         simAllocations[sharesIdx].shares = input.value === "" ? null : Number(input.value);
         syncPctFromShares(sharesIdx);
         updateSimPctSum();
+        runSim();
       });
-      if (monthIdx != null) input.addEventListener("input", function(){simAllocations[monthIdx].month = input.value === "" ? null : Number(input.value);});
+      if (monthIdx != null) input.addEventListener("input", function(){
+        simAllocations[monthIdx].month = input.value === "" ? null : Number(input.value);
+        runSim();
+      });
     }
     for (const button of box.querySelectorAll("button")) {
       const delIdx = button.dataset && button.dataset.simDel;
-      if (delIdx != null) button.addEventListener("click", function(){simAllocations.splice(Number(delIdx), 1); renderSimRows();});
+      if (delIdx != null) button.addEventListener("click", function(){simAllocations.splice(Number(delIdx), 1); renderSimRows(); runSim();});
     }
   }
   updateSimNames();
@@ -1355,6 +1362,83 @@ function loadSimState(){
     if (Array.isArray(saved.rows)) simAllocations = saved.rows.slice(0, 10);
     if (saved.stress === 0.8 || saved.stress === 0.6 || saved.stress === 1) simStress = saved.stress;
   } catch (error) {}
+}
+
+// 依「投入總額」把上方這些標的的權重窮舉算到最佳。
+// 與配置產生器不同的是：這裡不挑標的，使用者填什麼就用什麼；只決定各佔多少 %。
+// 目標函數直接用 simulate()——它含零股、發放月分攤與二代健保單筆門檻，
+// 用簡化的「殖利率加權和」會在門檻附近給出錯的答案。
+function simWeightBounds(count){
+  if (!(count >= 1)) return null;
+  const step = 5;
+  // 邊界必須可行：minW*n ≤ 100 ≤ maxW*n。標的少時要放寬上限（2 檔時 40% 湊不到 100），
+  // 標的多時要降低下限（11 檔時 10% 起跳就超過 100）。
+  const minW = count * 10 <= 100 ? 10 : 5;
+  if (minW * count > 100) return null;
+  const maxW = Math.max(40, Math.ceil(100 / count / step) * step);
+  return {minW:minW, maxW:maxW, step:step};
+}
+
+function optimizeSimAllocations(){
+  const total = Number(($("simTotal") || {}).value) || 0;
+  const rows = simAllocations
+    .map(function(allocation, index){return {index:index, security:lookupSecurity(allocation.code), month:allocation.month};})
+    .filter(function(row){return row.security && row.security.price > 0;});
+  if (!(total > 0)) return {ok:false, reason:"請先輸入投入總額"};
+  if (!rows.length) return {ok:false, reason:"沒有可辨識的標的"};
+  const bounds = simWeightBounds(rows.length);
+  if (!bounds) return {ok:false, reason:"標的數量超出可配置範圍（上限 20 檔）"};
+
+  const compositions = weightCompositions(rows.length, bounds.minW, bounds.maxW, bounds.step);
+  let best = null;
+  let evaluated = 0;
+  for (const weights of compositions) {
+    const result = simulate({
+      total:total,
+      stress:simStress,
+      nhi:NHI,
+      allocations:rows.map(function(row, i){
+        return {code:row.security.code, pct:weights[i], shares:null, month:row.month, security:row.security};
+      }),
+    });
+    evaluated += 1;
+    if (!best || result.totalNet > best.result.totalNet) best = {weights:weights.slice(), result:result};
+  }
+  if (!best) return {ok:false, reason:"找不到可行的權重組合"};
+
+  // 寫回：先清掉所有列的股數，再由 pct 推股數，避免舊股數殘留把比例蓋回去
+  simAllocations.forEach(function(allocation){allocation.pct = null; allocation.shares = null;});
+  rows.forEach(function(row, i){simAllocations[row.index].pct = best.weights[i];});
+  renderSimRows();
+  rows.forEach(function(row){syncSharesFromPct(row.index);});
+  updateSimPctSum();
+  return {ok:true, evaluated:evaluated, weights:best.weights, net:best.result.totalNet,
+          months:best.result.monthsWithCash, skipped:simAllocations.length - rows.length};
+}
+
+function runSimOptimize(){
+  const outcome = optimizeSimAllocations();
+  const note = $("simOptimizeNote");
+  if (!outcome.ok) {
+    if (note) note.textContent = outcome.reason;
+    return outcome;
+  }
+  if (note) {
+    // 這裡刻意不替使用者換標的——但他自己填的標的若沒過品質門檻，必須講出來，
+    // 否則「最佳分配」會讓一檔配息波動 0.89 的標的吃到 40% 而毫無警示
+    const flagged = simAllocations.map(function(allocation){
+      if (!(allocation.pct > 0)) return null;
+      const security = lookupSecurity(allocation.code);
+      if (!security || security.kind !== "etf" || security.cv == null) return null;
+      return security.cv > QUALITY.maxCv ? allocation.code + "（近24月配息波動 " + security.cv + "）" : null;
+    }).filter(Boolean);
+    note.textContent = "已計算 " + fmt(outcome.evaluated, 0) + " 組權重"
+      + (outcome.skipped ? "（略過 " + outcome.skipped + " 個無法辨識的代碼）" : "")
+      + "。只決定權重，不替你換標的。"
+      + (flagged.length ? "　⚠ 配息波動超過 " + QUALITY.maxCv + " 門檻：" + flagged.join("、") : "");
+  }
+  runSim();
+  return outcome;
 }
 
 function setStress(value, buttonId){
@@ -1706,9 +1790,10 @@ function bind(){
     if (simAllocations.length >= 10) return;
     simAllocations.push({code:"", pct:null, shares:null, month:null});
     renderSimRows();
+    runSim();
   });
-  const simRun = $("simRun");
-  if (simRun) simRun.addEventListener("click", runSim);
+  const simOptimize = $("simOptimize");
+  if (simOptimize) simOptimize.addEventListener("click", runSimOptimize);
   const useHoldings = $("simUseHoldings");
   if (useHoldings) useHoldings.addEventListener("click", function(){
     // 已持有者的比例基準若沿用舊總額會失真，這裡把總額對齊到實際持股市值
@@ -1732,7 +1817,16 @@ function bind(){
   const s60 = $("s60");
   if (s60) s60.addEventListener("click", function(){setStress(0.6, "s60");});
   const simTotal = $("simTotal");
-  if (simTotal) simTotal.addEventListener("input", function(){saveSimState();});
+  // 總額變動要連帶更新股數（比例%是以總額為基準），並即時重算——
+  // 「試算」按鈕已移除，所有輸入都必須自己觸發重算
+  if (simTotal) simTotal.addEventListener("input", function(){
+    simAllocations.forEach(function(allocation, index){
+      if (allocation.pct != null) syncSharesFromPct(index);
+    });
+    updateSimPctSum();
+    saveSimState();
+    runSim();
+  });
 
   /* --- 配置產生器 --- */
   for (const pair of [["gBalanced", "balanced"], ["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"]]) {
@@ -1747,8 +1841,6 @@ function bind(){
       runSuggest();
     });
   }
-  const gRun = $("gRun");
-  if (gRun) gRun.addEventListener("click", runSuggest);
   const gActive = $("gActive");
   if (gActive) gActive.addEventListener("change", runSuggest);
 }
@@ -1780,6 +1872,7 @@ const marketApp = {
   syncPctFromShares:syncPctFromShares,
   syncSharesFromPct:syncSharesFromPct,
   runSim:runSim,
+  runSimOptimize:runSimOptimize,
   helpers:{
     normalizeFeed:normalizeFeed,
     applyFilters:applyFilters,
@@ -1802,6 +1895,7 @@ const marketApp = {
     isCoreHolding:isCoreHolding,
     weightCompositions:weightCompositions,
     simulate:simulate,
+    simWeightBounds:simWeightBounds,
     lookupSecurity:lookupSecurity,
     etfFeedUrl:etfFeedUrl,
     feedStamp:feedStamp,

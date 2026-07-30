@@ -467,6 +467,108 @@ test("simulator month input is auto-filled for ETFs and editable only for stocks
   assert.equal(elements.get("simMonth2").disabled, true, "empty row stays disabled");
 });
 
+test("the redundant 試算 / 產生組合 buttons are gone and every input recomputes itself", async () => {
+  const { html, app, document } = await loadMarket(dualFeedMock());
+  await app.init();
+  // 情境按鈕與四個目標按鈕本來就各自觸發重算，這兩顆只是重複入口
+  assert.doesNotMatch(html, /id="simRun"/, "試算 按鈕已移除");
+  assert.doesNotMatch(html, /id="gRun"/, "產生組合 按鈕已移除");
+  assert.match(html, /id="simOptimize"/, "改為提供最佳分配");
+
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  app.setSimAllocations([{ code: "0056", pct: 50, shares: null, month: null }]);
+
+  // 總額輸入是直接 addEventListener，可以用行為驗：改總額要重推股數並即時重算
+  const totalNode = document.getElementById("simTotal");
+  totalNode.value = "2000000";
+  totalNode.fire("input");
+  assert.equal(app.getSimAllocations()[0].shares, Math.floor(2000000 * 0.5 / 50.2 + 1e-9), "總額變動要重推股數");
+  assert.match(document.getElementById("simSummary").innerHTML, /年配息/, "改總額即重算，不需按鈕");
+
+  // 列內的比例/股數/代碼/月份輸入是用 innerHTML 產生後再掛監聽的，
+  // 本測試的 FakeElement 不解析 innerHTML（querySelectorAll 只支援 "th"），
+  // 因此改用原始碼檢查：每個列內輸入的 handler 都必須自己呼叫 runSim()。
+  const rowHandlers = html.match(/data-sim-(?:code|pct|shares|month)[\s\S]*?updateSimPctSum|input\.addEventListener\("input"[\s\S]{0,320}?\}\);/g) || [];
+  const wiring = html.slice(html.indexOf("function renderSimRows"), html.indexOf("function syncSharesFromPct"));
+  for (const key of ["codeIdx", "pctIdx", "sharesIdx", "monthIdx"]) {
+    const at = wiring.indexOf(key + " != null");
+    assert.ok(at >= 0, key + " 的監聽必須存在");
+    assert.match(wiring.slice(at, at + 340), /runSim\(\)/, key + " 的 handler 必須自己觸發重算");
+  }
+  assert.ok(rowHandlers.length >= 1);
+  // 刪除列也要重算，否則移除標的後 KPI 會停在舊值
+  assert.match(wiring.slice(wiring.indexOf("simDel")), /renderSimRows\(\); runSim\(\)/);
+});
+
+test("最佳分配 fills weights that maximise net income for the listed holdings", async () => {
+  const { app, document } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  document.getElementById("simTotal").value = "1500000";
+  // 使用者自己填的三檔：這裡只決定各佔多少 %，不替他換標的
+  app.setSimAllocations([
+    { code: "0056", pct: null, shares: null, month: null },
+    { code: "0050", pct: null, shares: null, month: null },
+    { code: "006208", pct: null, shares: null, month: null },
+  ]);
+  const outcome = app.runSimOptimize();
+  assert.equal(outcome.ok, true, outcome.reason || "");
+  const allocations = app.getSimAllocations();
+  const sum = allocations.reduce((acc, row) => acc + (row.pct || 0), 0);
+  assert.equal(sum, 100, "權重必須剛好用完投入總額");
+  allocations.forEach((row) => {
+    assert.ok(row.pct >= 10 && row.pct <= 40, `${row.code} 權重 ${row.pct} 應落在分散區間內`);
+    assert.ok(row.shares > 0, `${row.code} 應換算出股數`);
+  });
+  assert.ok(outcome.evaluated > 10, `應真的窮舉過（實得 ${outcome.evaluated} 組）`);
+
+  // 「最佳」要可驗證：不得輸給平均分配
+  const even = app.helpers.simulate({
+    total: 1500000, stress: 1, nhi: app.helpers.NHI,
+    allocations: ["0056", "0050", "006208"].map((code) => ({
+      code, pct: 100 / 3, shares: null, month: null, security: app.helpers.lookupSecurity(code),
+    })),
+  });
+  assert.ok(outcome.net >= even.totalNet, `最佳解 ${outcome.net} 不得低於平均分配 ${even.totalNet}`);
+});
+
+test("最佳分配 keeps the weight bounds feasible for any holding count", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { simWeightBounds } = app.helpers;
+  for (let count = 1; count <= 20; count += 1) {
+    const bounds = simWeightBounds(count);
+    assert.ok(bounds, `${count} 檔應有可行邊界`);
+    assert.ok(bounds.minW * count <= 100, `${count} 檔：下限總和不得超過 100`);
+    assert.ok(bounds.maxW * count >= 100, `${count} 檔：上限總和必須湊得到 100`);
+    assert.equal(100 % bounds.step, 0, "步長要能整除 100");
+  }
+  // 2 檔時 40% 上限湊不到 100，必須自動放寬
+  assert.ok(simWeightBounds(2).maxW >= 50);
+  // 11 檔時 10% 下限會超過 100，必須自動降低
+  assert.equal(simWeightBounds(11).minW, 5);
+  assert.equal(simWeightBounds(0), null);
+});
+
+test("最佳分配 refuses to guess when the inputs are not usable", async () => {
+  const { app, document } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  document.getElementById("simTotal").value = "";
+  app.setSimAllocations([{ code: "0056", pct: null, shares: null, month: null }]);
+  assert.equal(app.runSimOptimize().ok, false, "沒有總額不能算");
+
+  document.getElementById("simTotal").value = "1000000";
+  app.setSimAllocations([{ code: "不存在", pct: null, shares: null, month: null }]);
+  const bad = app.runSimOptimize();
+  assert.equal(bad.ok, false, "查不到標的就要說，不可硬填權重");
+  assert.match(document.getElementById("simOptimizeNote").textContent, /標的/);
+});
+
 test("simulate: explicit shares take precedence over the percentage", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
