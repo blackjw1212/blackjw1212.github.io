@@ -620,23 +620,37 @@ test("dividendCv measures payout volatility and needs at least two events", asyn
 test("quality gate drops volatile payers and premium buys but keeps steady growers", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
+  // 波動度由資料層以近 24 個月的窗算好寫進 dividendCv，前端不再由 dps 就地重算
+  // （dps 只有近 12 月，硬算會給出另一個窗的數字混在同一欄）。
   const mk = (code, extra) => Object.assign({
     code, name: code, type: "高股息", close: 10, aum: 500, yield: 8, discountPremium: 0,
-    dps: [{ m: 2, a: 1 }, { m: 8, a: 1 }], payMonths: [2, 8], topHoldings: [],
+    dps: [{ m: 2, a: 1 }, { m: 8, a: 1 }], payMonths: [2, 8], dividendCv: 0.05, topHoldings: [],
   }, extra);
-  const pool = app.helpers.buildCandidatePool([
-    mk("00S1"),
-    mk("00V1", { dps: [{ m: 2, a: 0.1 }, { m: 5, a: 0.2 }, { m: 8, a: 2.5 }], payMonths: [2, 5, 8] }), // CV 過高
-    mk("00P1", { discountPremium: 3.22 }),                                                            // 溢價過高
-    // 配息成長但穩定（006208 那類 0.989→3.448→4.75 的政策調整）不得被誤殺
-    mk("00G1", { dps: [{ m: 2, a: 0.989 }, { m: 5, a: 3.448 }, { m: 8, a: 4.75 }], payMonths: [2, 5, 8] }),
-  ], {});
+  // 走真正的 normalizeEtfFeed，順便涵蓋 dividendCv → dividendCvField 的欄位映射
+  const universe = app.helpers.normalizeEtfFeed({
+    tradeDate: "2026-07-29",
+    stocks: [
+      mk("00S1"),
+      mk("00V1", { dividendCv: 1.04 }),          // 配息忽高忽低
+      mk("00P1", { discountPremium: 3.22 }),     // 溢價過高
+      // 溫和成長仍要過關：實測 00713（0.26）、00918（0.29）、00919（0.19）都在安全區
+      mk("00G1", { dividendCv: 0.29 }),
+      // 但大幅水準跳升會被標出來——006208 由 0.989 漲到 4.75，24 月窗算出 0.65。
+      // 這是本輪刻意的行為改變（12 月窗只算 0.16，把跳升藏起來了）。
+      mk("00J1", { dividendCv: 0.65 }),
+      // 資料層沒給就是無從判斷 → 放行，不可猜
+      mk("00N1", { dividendCv: undefined }),
+    ],
+  });
+  const pool = app.helpers.buildCandidatePool(universe, {});
   const codes = pool.map((row) => row.code);
   assert.ok(codes.includes("00S1"));
-  assert.ok(codes.includes("00G1"), "a growing-but-steady payer must survive the gate");
+  assert.ok(codes.includes("00G1"), "溫和成長不得被誤殺");
+  assert.ok(codes.includes("00N1"), "無波動度資料時放行，而非當成不合格");
   assert.ok(!codes.includes("00V1"), "spiky payout excluded");
+  assert.ok(!codes.includes("00J1"), "大幅水準跳升要被門檻擋下");
   assert.ok(!codes.includes("00P1"), "buying at a premium excluded");
-  assert.equal(pool.rejected.cv, 1);
+  assert.equal(pool.rejected.cv, 2);
   assert.equal(pool.rejected.premium, 1);
 });
 

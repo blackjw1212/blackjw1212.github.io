@@ -34,6 +34,15 @@ const SOURCES = {
 // 只在來源沒有發放日時使用，並標記 payEstimated 讓畫面說得出來。
 export const MEDIAN_EX_TO_PAY_DAYS = 24;
 
+// 配息歷史保留 25 個月，讓波動度能看兩個完整年度（比 CV 窗多 1 個月當緩衝）。
+// 原本是 13 個月，於是季配標的的 CV 只用 4 筆算——實測那會系統性低估波動：
+// 89 檔母體中「12 月窗過關但 24 月窗不過」有 6 檔，反向（被短窗誤殺）0 檔，
+// 短窗從來不會誤殺，只會藏。例：006208 配息 0.989→3.448→4.75，
+// cv12 僅 0.16 而 cv24 是 0.65；00888 從 0.22 漲到 1.753，cv12 0.54 / cv24 0.89。
+// 這種水準跳升對「以近 12 月配息推估未來年配息」正是最該被標出來的風險。
+export const DIV_RETENTION_MONTHS = 25;
+export const CV_WINDOW_MONTHS = 24;
+
 export const ETF_CODE_RE = /^00\d{2,4}[A-Z]?$/;
 const PREMIUM_SANITY_PP = 0.5;
 
@@ -210,7 +219,7 @@ export function accumulateDivHistory(history, events, universeCodes, tradeDate) 
   const acc = history && typeof history === "object" ? history : {};
   const store = acc.stocks && typeof acc.stocks === "object" ? acc.stocks : {};
   const cutoff = new Date(tradeDate + "T00:00:00Z");
-  cutoff.setUTCMonth(cutoff.getUTCMonth() - 13);
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - DIV_RETENTION_MONTHS);
   const minDate = cutoff.toISOString().slice(0, 10);
 
   let earliest = acc.start || null;
@@ -288,6 +297,21 @@ export function deriveDividend(entry, historyStart, tradeDate) {
   const covered = Math.min(12, (Number(nowMonth.slice(0, 4)) - Number(startMonth.slice(0, 4))) * 12
     + (Number(nowMonth.slice(5, 7)) - Number(startMonth.slice(5, 7))) + 1);
   return { dps, totalDps: total, count, frequency, divMonthsCovered: Math.max(1, covered) };
+}
+
+// 波動度用的事件金額：取近 CV_WINDOW_MONTHS 個月，而不是殖利率用的近 12 月。
+// 殖利率必須是滾動 12 月（那是「一年能領多少」的定義），但波動度用 12 月只有 4 筆，
+// 看不出水準跳升；兩者刻意用不同窗，欄位標題也分別標明。
+export function cvWindowAmounts(entry, tradeDate, months = CV_WINDOW_MONTHS) {
+  if (!entry || !entry.events) return [];
+  const from = new Date(tradeDate + "T00:00:00Z");
+  if (Number.isNaN(from.getTime())) return [];
+  from.setUTCMonth(from.getUTCMonth() - months);
+  const minIso = from.toISOString().slice(0, 10);
+  return Object.entries(entry.events)
+    .filter(([ex]) => ex >= minIso && ex <= tradeDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, e]) => ({ a: e.dps }));
 }
 
 // 配息變異係數 = 標準差 / 平均。少於 2 筆無從判斷，回 null。
@@ -517,7 +541,9 @@ async function main() {
     // 明確旗標：前端據此判斷「實質曝險算不算得出來」，不要用 length 猜
     row.hasHoldingsData = Boolean(row.topHoldings && row.topHoldings.length);
     // 品質與分類指標寫入資料層（原本只在前端算，消費原始 JSON 者拿不到）
-    const cv = dividendCv(row.dps);
+    // 波動度看近 24 個月（殖利率仍是近 12 個月）——用同一個 12 月窗只有 4 筆，
+    // 看不出 006208 那種 0.989→4.75 的水準跳升
+    const cv = dividendCv(cvWindowAmounts(history.stocks[row.code], tradeDate));
     if (cv != null) row.dividendCv = cv;
     row.isActive = isActiveEtf(row);
     row.isCore = isCoreEtf(row);

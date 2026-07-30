@@ -1,8 +1,9 @@
 // 用 Yahoo 配息事件補 data/etf-div-history.json，讓「近 12 月殖利率」不必等官方源累積。
 //
-// 兩種模式：
+// 三種模式：
 //   （無旗標）  首次回填：只處理尚未 seeded 的檔，range=2y 抓滿兩年歷史。
-//   --incremental  每日增量：所有檔都用 range=3mo 重抓最近事件。
+//   --incremental  每日增量：所有檔都用短窗重抓最近事件（進 workflow 排程）。
+//   --refill       全部重抓 2 年：保留窗改長後要用它把被剪掉的舊事件取回。
 //
 // 為什麼增量模式必須存在（實測 2026-07-30）：官方來源涵蓋不全 ——
 // TWSE etfDiv 只有 95 檔（且 00888 這種有配息的上市 ETF 竟不在內），
@@ -83,6 +84,14 @@ export function selectTargets(feedStocks, store, incremental) {
   return rows.filter((row) => !(store[row.code] && store[row.code].seeded && store[row.code].coverFrom));
 }
 
+// --refill 與 --incremental 都要掃全部，差別只在抓多長的區間
+export function resolveMode(argv) {
+  const args = Array.isArray(argv) ? argv : [];
+  if (args.includes("--refill")) return { all: true, range: "2y", markSeeded: true, label: "refill" };
+  if (args.includes("--incremental")) return { all: true, range: "6mo", markSeeded: false, label: "incremental refresh" };
+  return { all: false, range: "2y", markSeeded: true, label: "seeding" };
+}
+
 // 只補官方沒有的除息日；回傳新增筆數
 export function mergeYahooEvents(entry, yahooEvents, lagDays) {
   let added = 0;
@@ -118,12 +127,13 @@ async function main() {
   const globalLag = allLags.length ? allLags[Math.floor(allLags.length / 2)] : DEFAULT_LAG_DAYS;
   console.log(`global median ex→pay lag: ${globalLag} days (from ${allLags.length} etfs)`);
 
-  const incremental = process.argv.includes("--incremental");
-  const pending = selectTargets(feed.stocks, store, incremental);
   // 增量用 6mo 而非 3mo：季配標的若上次除息在 3.5 個月前，3mo 窗會剛好落空；
   // 同一個請求拿 6 個月不多花成本，也讓排程斷幾天仍補得回來。
-  const range = incremental ? "6mo" : "2y";
-  console.log(`${incremental ? "incremental refresh" : "seeding"} ${pending.length} / ${feed.stocks.length} etfs (range ${range}, delay ${DELAY_MS}ms)`);
+  const mode = resolveMode(process.argv);
+  const incremental = !mode.markSeeded;
+  const pending = selectTargets(feed.stocks, store, mode.all);
+  const range = mode.range;
+  console.log(`${mode.label} ${pending.length} / ${feed.stocks.length} etfs (range ${range}, delay ${DELAY_MS}ms)`);
 
   let ok = 0;
   let failed = 0;

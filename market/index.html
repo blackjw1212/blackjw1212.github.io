@@ -308,7 +308,8 @@
   <section aria-labelledby="suggestHeading">
     <h2 id="suggestHeading">配置產生器 <em>OPTIMIZER</em></h2>
     <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
-      <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。配息波動同樣只看近 12 個月的那幾次。
+      <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
+      <strong>配息波動改看近 24 個月</strong>（殖利率仍是近 12 個月）：只看 12 個月的季配標的僅有 4 筆，會系統性低估波動——實測 006208 配息由 0.989 漲到 4.75，12 月窗算出 0.16、24 月窗才是 0.65。水準跳升對「用近 12 月配息推估未來」正是最該標出來的風險。
       注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。目標函數也只看配息現金流、不含資本利得——這是低配息的市值型 ETF 在「最高配息」目標下必然墊底的原因。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
     <div class="toolbar">
       <div class="toolrow">
@@ -965,12 +966,13 @@ function evaluatePortfolio(total, picks, weights, stress, nhi){
 }
 
 // 配息波動度（變異係數 = 標準差/平均）。少於 2 筆無從判斷，回 null。
-// 刻意不用「首筆→末筆變化率」：實測 006208（0.989→3.448→4.75）會被判 +380% 誤殺，
-// 但那是正常的配息政策調整；而只有 1 筆配息的標的反而算出 0%「最穩定」。
-// 取用順序：資料層已算好的 dividendCv → 否則就地由 dps 計算（兩者同規則，測試互驗）
+// 刻意不用「首筆→末筆變化率」：只有 1 筆配息的標的會算出 0%「最穩定」。
+// 資料層算的是近 24 個月的窗，前端拿不到那段歷史（feed 的 dps 只有近 12 月），
+// 所以缺欄位時回 null 而不是就地用 dps 硬算——那會給出另一個窗的數字，
+// 混在同一欄裡比沒有數字更糟。null 在品質門檻等同「無從判斷、放行」。
 function etfCv(row){
   if (row && row.dividendCvField != null) return row.dividendCvField;
-  return dividendCv(row && row.dps);
+  return null;
 }
 
 function dividendCv(dps){
@@ -1502,7 +1504,7 @@ function runSuggest(){
   };
   box.innerHTML = '<div class="table-scroll" style="margin-top:10px"><table style="min-width:680px"><thead><tr>'
       + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th>'
-      + '<th>近12月殖利率%</th><th>近12月配息波動</th><th>折溢價%</th><th>規模(億)</th><th>發放月</th></tr></thead><tbody>'
+      + '<th>近12月殖利率%</th><th>近24月配息波動</th><th>折溢價%</th><th>規模(億)</th><th>發放月</th></tr></thead><tbody>'
       + out.picks.map(function(pick){
           return '<tr><td style="text-align:left">' + codeLink(pick.code, pick.etf.market, pick.name) + '</td>'
             + '<td style="text-align:left"><span class="nm">' + escapeHtml(pick.name) + '</span>'

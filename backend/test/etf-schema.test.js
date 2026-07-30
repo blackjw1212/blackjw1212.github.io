@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { classifyEtf, dividendCv, isCoreEtf } from "../../scripts/update-etf-feed.mjs";
+import { classifyEtf, cvWindowAmounts, dividendCv, isCoreEtf } from "../../scripts/update-etf-feed.mjs";
 
 const readJson = async (rel) => JSON.parse(await readFile(fileURLToPath(new URL(rel, import.meta.url)), "utf8"));
 
@@ -112,13 +112,21 @@ test("derived fields agree with the pipeline's own formulas", async () => {
   const feed = await readJson("../../data/etf-feed.json");
   let checkedCv = 0;
   let checkedCore = 0;
+  // CV 的窗（24 月）比 dps 的窗（12 月）長，所以不能用 dps 回推。
+  // 改為從版控中的配息歷史重算——這是真正的端到端一致性檢查。
+  const history = await readJson("../../data/etf-div-history.json");
   for (const row of feed.stocks) {
-    const expectedCv = dividendCv(row.dps);
+    const expectedCv = dividendCv(cvWindowAmounts(history.stocks[row.code], feed.tradeDate));
     if (expectedCv == null) {
       assert.equal(row.dividendCv, undefined, `${row.code}: cv must be absent when it cannot be computed`);
     } else {
       assert.equal(row.dividendCv, expectedCv, `${row.code}: stored cv drifted from the formula`);
       checkedCv += 1;
+    }
+    // 波動度必須真的用比殖利率更長的窗，否則這次改動等於沒生效
+    const window = cvWindowAmounts(history.stocks[row.code], feed.tradeDate);
+    if (row.dps && row.dps.length) {
+      assert.ok(window.length >= row.dps.length, `${row.code}: CV 窗不得短於 dps 窗`);
     }
     assert.equal(row.isCore, isCoreEtf(row), `${row.code}: stored isCore drifted from the rule`);
     if (row.isCore) checkedCore += 1;
@@ -166,8 +174,16 @@ test("known ETFs land in the expected quality bands", async () => {
     assert.ok(feed.stocks.some((row) => row.type === type), `feed 應涵蓋 ${type}`);
   }
 
+  // 波動度改看 24 個月後的實際落點（與 Yahoo 2 年資料獨立算過、逐檔相符）。
+  // 大型穩配標的仍在安全區——核心部位不會因為換窗而消失：
   assert.ok(by["0050"].dividendCv < 0.6, `0050 cv ${by["0050"].dividendCv} should be safe`);
-  assert.ok(by["006208"].dividendCv < 0.6, `006208 cv ${by["006208"].dividendCv} should be safe`);
+  assert.ok(by["0056"].dividendCv < 0.3, `0056 cv ${by["0056"].dividendCv} should be very safe`);
+  assert.ok(by["00878"].dividendCv < 0.3, `00878 cv ${by["00878"].dividendCv} should be very safe`);
+  assert.ok(by["00919"].dividendCv < 0.3, `00919 cv ${by["00919"].dividendCv} should be very safe`);
+  // 006208 的配息由 0.989 跳到 4.75。12 個月窗只看到 4.75 那一段而算出 0.16，
+  // 24 個月窗才看得到跳升（0.65）。這是刻意的行為改變：本工具用近 12 月配息推估
+  // 未來年配息，水準跳升正是該被標出來的推估風險，不是「誤殺成長股」。
+  assert.ok(by["006208"].dividendCv > 0.6, `006208 cv ${by["006208"].dividendCv} should now surface the level shift`);
   assert.ok(by["00905"].dividendCv > 0.6, `00905 cv ${by["00905"].dividendCv} should be flagged volatile`);
 });
 
