@@ -1,0 +1,69 @@
+{
+  "rocYear": 115,
+  "appliesTo": "115 年度（2026 年）所得，於 116 年 5 月申報",
+  "publishedAt": "2025-11-27",
+  "note": "數字一律人工填寫並附出處。scripts/update-tax-params.mjs 只偵測是否過期，永不改寫這裡的稅率。",
+  "brackets": [
+    {
+      "upTo": 610000,
+      "rate": 0.05,
+      "quickDeduction": 0
+    },
+    {
+      "upTo": 1380000,
+      "rate": 0.12,
+      "quickDeduction": 42700
+    },
+    {
+      "upTo": 2770000,
+      "rate": 0.2,
+      "quickDeduction": 153100
+    },
+    {
+      "upTo": 5190000,
+      "rate": 0.3,
+      "quickDeduction": 430100
+    },
+    {
+      "upTo": null,
+      "rate": 0.4,
+      "quickDeduction": 949100
+    }
+  ],
+  "dividend": {
+    "creditRate": 0.085,
+    "creditCap": 80000,
+    "separateRate": 0.28
+  },
+  "deductions": {
+    "personalExemption": 101000,
+    "standardDeduction": 136000,
+    "salarySpecialDeduction": 227000,
+    "singleStandardThreshold": 464000
+  },
+  "nhi": {
+    "rate": 0.0211,
+    "singlePaymentThreshold": 20000,
+    "reformStatus": "年度結算制改革已暫緩，尚未上路；現行仍為單筆門檻制"
+  },
+  "amt": {
+    "offshoreIncomeInclusionFrom": 1000000,
+    "basicIncomeDeduction": 7500000,
+    "rate": 0.2,
+    "note": "115 年度所得基本稅額相關金額未達調整標準、免予調整（財政部 2025-11-27 公告）"
+  },
+  "sources": [
+    {
+      "label": "財政部：公告115年度綜合所得稅及所得基本稅額相關免稅額、扣除額、課稅級距及計算退職所得定額免稅之金額",
+      "url": "https://www.mof.gov.tw/singlehtml/384fb3077bb349ea973e7fc6f13b6974?cntId=34b463dc8f1b49f29d440d92a6fd5139",
+      "publishedAt": "2025-11-27"
+    },
+    {
+      "label": "財政部賦稅署：103-114年度綜合所得稅課稅級距一覽表（歷年對照）",
+      "url": "https://www.dot.gov.tw/singlehtml/ch_65?cntId=dot_201708070011_65"
+    }
+  ],
+  "checkedAt": "2026-07-30T15:33:40.583Z",
+  "latestAnnouncedYear": 115,
+  "stale": false
+}

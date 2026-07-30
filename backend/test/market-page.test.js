@@ -569,6 +569,127 @@ test("最佳分配 refuses to guess when the inputs are not usable", async () =>
   assert.match(document.getElementById("simOptimizeNote").textContent, /標的/);
 });
 
+// ── 年度所得稅估算 ────────────────────────────────────────────────
+// 對居住者，國內 ETF 配息發放時「不扣繳所得稅」，只扣二代健保；真正的稅是隔年 5 月
+// 申報的綜所稅。以下數字全部取自財政部 115 年度公告（2025-11-27），並以獨立實作
+// 反算過四個級距交界點。
+
+test("progressiveTax reproduces the official 115 quick-calculation table", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { progressiveTax, TAX_FALLBACK } = app.helpers;
+  const t = (net) => progressiveTax(net, TAX_FALLBACK.brackets);
+  // 每個級距上緣的稅額，必須等於「該級距以下全額課稅」——這是速算公式的定義性檢查
+  assert.equal(t(610000), 30500);
+  assert.equal(t(1380000), 122900);
+  assert.equal(t(2770000), 400900);
+  assert.equal(t(5190000), 1126900);
+  // 級距內線性
+  assert.equal(t(1000000), 77300);
+  assert.equal(t(1200000), 101300);
+  // 邊界外
+  assert.equal(t(0), 0);
+  assert.equal(t(-100), 0, "負所得不得算出負稅");
+  assert.equal(t(NaN), 0);
+  assert.ok(t(6000000) > t(5190000), "最高級距要繼續往上");
+});
+
+test("estimateDividendTax runs both regimes and takes the cheaper one", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { estimateDividendTax, TAX_FALLBACK } = app.helpers;
+  const P = TAX_FALLBACK;
+
+  // 12% 級距：稅額增量 101,300 − 77,300 = 24,000；抵減 200,000×8.5% = 17,000
+  const mid = estimateDividendTax({ taxableDividend: 200000, netIncome: 1000000, params: P });
+  assert.equal(mid.combined, 7000, "24,000 − 17,000");
+  assert.equal(mid.separate, 56000, "200,000 × 28%");
+  assert.equal(mid.credit, 17000);
+  assert.equal(mid.tax, 7000);
+  assert.equal(mid.regime, "合併計稅");
+
+  // 高級距：分開計稅才划算
+  const high = estimateDividendTax({ taxableDividend: 2000000, netIncome: 6000000, params: P });
+  assert.equal(high.separate, 560000);
+  assert.ok(high.combined > high.separate, "40% 級距下合併計稅應較貴");
+  assert.equal(high.tax, high.separate);
+  assert.equal(high.regime, "分開計稅");
+
+  // 抵減有 80,000／戶／年 上限，不可隨股利無限放大
+  const capped = estimateDividendTax({ taxableDividend: 1200000, netIncome: 1000000, params: P });
+  assert.equal(capped.credit, 80000, "1,200,000 × 8.5% = 102,000 必須被 80,000 夾住");
+
+  // 低級距的抵減大於稅額 → 整體為負（可退稅）。夾成 0 會抹掉存股族最重要的效果
+  const low = estimateDividendTax({ taxableDividend: 100000, netIncome: 300000, params: P });
+  assert.equal(low.combined, -3500);
+  assert.equal(low.tax, -3500, "負數代表可退稅，不可夾成 0");
+  assert.equal(low.regime, "合併計稅");
+
+  // 沒有所得淨額就不能猜
+  assert.equal(estimateDividendTax({ taxableDividend: 200000, netIncome: null, params: P }), null);
+  assert.equal(estimateDividendTax({ taxableDividend: 200000, netIncome: NaN, params: P }), null);
+  assert.equal(estimateDividendTax({ taxableDividend: 0, netIncome: 1000000, params: P }), null);
+});
+
+test("taxableRatio infers the taxable share and always says why", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { taxableRatio } = app.helpers;
+  const etf = (name, type) => ({ kind: "etf", name, type });
+
+  // 國內股票型 → 54C 國內股利，全額應稅
+  for (const row of [etf("元大高股息", "高股息"), etf("元大台灣50", "市值型"), etf("中信關鍵半導體", "主題型")]) {
+    const out = taxableRatio(row);
+    assert.equal(out.ratio, 1, row.name);
+    assert.ok(out.reason, "一定要附推定理由");
+  }
+  // 債券型／外幣計價 → 境外所得，走最低稅負制，實質免稅
+  assert.equal(taxableRatio(etf("元大美債20年", "債券型")).ratio, 0);
+  assert.equal(taxableRatio(etf("第一金優選非投債", "債券型")).ratio, 0);
+  assert.equal(taxableRatio(etf("富邦上證180+R", "外幣計價")).ratio, 0);
+  // 型別是國內但投資海外：只看 type 會判錯，要靠名稱補
+  assert.equal(taxableRatio(etf("國泰費城半導體", "主題型")).ratio, 0, "費城半導體是美股");
+  assert.equal(taxableRatio(etf("元大S&P500", "主題型")).ratio, 0);
+  assert.equal(taxableRatio(etf("富邦NASDAQ", "主題型")).ratio, 0);
+  assert.equal(taxableRatio(etf("富邦越南", "主題型")).ratio, 0);
+  // 個股與查無標的
+  assert.equal(taxableRatio({ kind: "stock", name: "台積電" }).ratio, 1);
+  assert.equal(taxableRatio(null).ratio, 0);
+});
+
+test("simulate reports tax only when the user supplies their net income", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { simulate, TAX_FALLBACK, NHI } = app.helpers;
+  const domestic = { code: "0056", name: "元大高股息", kind: "etf", type: "高股息", price: 50, events: [{ m: 2, a: 2 }, { m: 8, a: 2 }] };
+  const bond = { code: "00679B", name: "元大美債20年", kind: "etf", type: "債券型", price: 25, events: [{ m: 2, a: 0.5 }, { m: 8, a: 0.5 }] };
+  const run = (security, netIncome) => simulate({
+    total: 1000000, stress: 1, nhi: NHI, netIncome, taxParams: TAX_FALLBACK,
+    allocations: [{ code: security.code, pct: 100, shares: null, month: null, security }],
+  });
+
+  // 未填所得淨額：不估稅，既有欄位不受影響
+  const noIncome = run(domestic, null);
+  assert.equal(noIncome.tax, null);
+  assert.equal(noIncome.afterTaxNet, null);
+  assert.ok(noIncome.totalNet > 0, "既有的扣費後估算照常");
+  assert.ok(noIncome.taxableDividend > 0, "應稅配息仍要算出來，供畫面提示");
+
+  // 國內高股息：全額應稅
+  const taxed = run(domestic, 1000000);
+  assert.equal(taxed.taxableDividend, taxed.totalGross);
+  assert.ok(taxed.tax !== null);
+  assert.equal(taxed.afterTaxNet, taxed.totalNet - taxed.tax);
+  assert.equal(taxed.holdings[0].taxableRatio, 1);
+
+  // 債券型：配息屬海外所得，稅基為 0 → 估算稅為 0，且不可變成 null
+  const bondRun = run(bond, 1000000);
+  assert.equal(bondRun.taxableDividend, 0, "境外債息不計入應稅配息");
+  assert.equal(bondRun.holdings[0].taxableRatio, 0);
+  assert.ok(bondRun.totalGross > 0, "配息本身照算，只是不課稅");
+  assert.equal(bondRun.tax, null, "沒有應稅所得就沒有稅可估");
+});
+
 test("simulate: explicit shares take precedence over the percentage", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

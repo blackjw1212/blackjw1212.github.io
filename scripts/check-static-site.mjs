@@ -62,6 +62,7 @@ for (const rel of [
   "data/market-feed.json",
   "data/etf-feed.json",
   "data/etf-static.json",
+  "data/tax-params.json",
   "weather/index.html",
   "esp32/index.html",
   "forscan/index.html",
@@ -164,6 +165,10 @@ if (has("market/index.html")) {
   assertMatch("market/index.html", html, /new URL\("https:\/\/tw\.tradingview\.com\/chart\/"\)/, "plain TradingView chart URL");
   assertMatch("market/index.html", html, /保守上限/, "simulator must frame NHI deduction as a conservative upper bound");
   assertMatch("market/index.html", html, /未查證/, "simulator must disclose the unverified NHI basis");
+  // 稅務估算的三件必要揭露：發放時不扣繳、應稅比例是推定的、這不是稅務建議
+  assertMatch("market/index.html", html, /發放時不扣繳所得稅/, "must distinguish withholding from the annual return");
+  assertMatch("market/index.html", html, /應稅比例是推定的/, "must disclose the composition is inferred");
+  assertMatch("market/index.html", html, /不是稅務建議/, "tax estimate must carry a non-advice disclaimer");
   assertNoMatch("market/index.html", html, /保證|可放心|買進訊號|賣出訊號|實領淨收益/);
 }
 

@@ -187,6 +187,91 @@ test("known ETFs land in the expected quality bands", async () => {
   assert.ok(by["00905"].dividendCv > 0.6, `00905 cv ${by["00905"].dividendCv} should be flagged volatile`);
 });
 
+test("tax params carry their source and stay internally consistent", async () => {
+  const params = await readJson("../../data/tax-params.json");
+  assert.equal(params.rocYear, 115, "115 年度＝2026 年所得，正是模擬對象");
+  assert.ok(Array.isArray(params.sources) && params.sources.length, "稅率數字必須附出處");
+  assert.ok(params.sources.every((s) => /^https:\/\//.test(s.url)), "出處要是可查證的連結");
+
+  // 級距必須遞增、最後一級無上限，否則速算公式會選錯級距
+  const ups = params.brackets.map((b) => b.upTo);
+  assert.equal(ups[ups.length - 1], null, "最高級距不得有上限");
+  const finite = ups.slice(0, -1);
+  assert.deepEqual(finite, [...finite].sort((a, b) => a - b), "級距上緣必須遞增");
+  assert.deepEqual(finite, [610000, 1380000, 2770000, 5190000]);
+
+  // 累進差額的定義性檢查：在每個交界點，速算結果必須等於下一級距算出來的同一個數。
+  // 這條會擋住「抄錯一個累進差額」——那種錯誤肉眼很難看出來。
+  const quick = (net) => {
+    for (const band of params.brackets) {
+      if (band.upTo == null || net <= band.upTo) return net * band.rate - band.quickDeduction;
+    }
+    return 0;
+  };
+  for (let i = 0; i < params.brackets.length - 1; i += 1) {
+    const edge = params.brackets[i].upTo;
+    const next = params.brackets[i + 1];
+    assert.ok(Math.abs(quick(edge) - (edge * next.rate - next.quickDeduction)) < 0.01,
+      `級距 ${edge} 的交界處兩式不相等——累進差額抄錯了`);
+  }
+  assert.equal(Math.round(quick(610000)), 30500, "對照財政部速算表");
+  assert.equal(Math.round(quick(5190000)), 1126900);
+
+  assert.equal(params.dividend.creditRate, 0.085);
+  assert.equal(params.dividend.creditCap, 80000);
+  assert.equal(params.dividend.separateRate, 0.28);
+  // 免稅額＋標準扣除＋薪資特扣，UI 用它當「年薪 −N」的提示
+  const d = params.deductions;
+  assert.equal(d.personalExemption + d.standardDeduction + d.salarySpecialDeduction, d.singleStandardThreshold);
+});
+
+test("the inline tax fallback never drifts from data/tax-params.json", async () => {
+  // 頁面在載不到 JSON 時要能算稅，所以內建了一份備援。兩份各改一邊就會給出不同稅額，
+  // 而使用者不會知道自己看到的是哪一份——這條測試就是為了讓分叉當場失敗。
+  const params = await readJson("../../data/tax-params.json");
+  const html = await readFile(fileURLToPath(new URL("../../market/index.html", import.meta.url)), "utf8");
+  const block = html.slice(html.indexOf("const TAX_FALLBACK = {"), html.indexOf("let taxParams"));
+  assert.ok(block, "找不到內建備援");
+
+  assert.match(block, new RegExp(`rocYear:${params.rocYear}\\b`));
+  for (const band of params.brackets) {
+    const upTo = band.upTo == null ? "null" : String(band.upTo);
+    assert.ok(block.includes(`{upTo:${upTo}, rate:${band.rate}, quickDeduction:${band.quickDeduction}}`),
+      `備援缺少級距 upTo=${upTo} rate=${band.rate} quickDeduction=${band.quickDeduction}`);
+  }
+  assert.ok(block.includes(`creditRate:${params.dividend.creditRate}`));
+  assert.ok(block.includes(`creditCap:${params.dividend.creditCap}`));
+  assert.ok(block.includes(`separateRate:${params.dividend.separateRate}`));
+  assert.ok(block.includes(`singleStandardThreshold:${params.deductions.singleStandardThreshold}`));
+});
+
+test("tax params freshness is detected, never silently guessed", async () => {
+  const { assessFreshness, incomeRocYear, latestAnnouncedYear } = await import("../../scripts/update-tax-params.mjs");
+
+  // 民國所得年度：2026 年的所得屬 115 年度，116 年 5 月申報
+  assert.equal(incomeRocYear(new Date("2026-07-30T00:00:00Z")), 115);
+  assert.equal(incomeRocYear(new Date("2027-01-02T00:00:00Z")), 116);
+  assert.equal(incomeRocYear("not-a-date"), null);
+
+  // 只讀公告標題，不碰 PDF 附件
+  assert.equal(latestAnnouncedYear("…公告115年度綜合所得稅及所得基本稅額相關…"), 115);
+  assert.equal(latestAnnouncedYear("公告114年度綜合所得稅…公告116年度綜合所得稅…"), 116, "取最新的年度");
+  assert.equal(latestAnnouncedYear("完全無關的內容"), null);
+
+  const now = new Date("2026-07-30T00:00:00Z");
+  assert.equal(assessFreshness({ rocYear: 115 }, now, 115).stale, false);
+  // 所得年度已經走到下一年，參數還沒更新
+  const rolled = assessFreshness({ rocYear: 115 }, new Date("2027-03-01T00:00:00Z"), 115);
+  assert.equal(rolled.stale, true);
+  assert.match(rolled.reasons.join(""), /116/);
+  // 財政部已公告新年度
+  const announced = assessFreshness({ rocYear: 115 }, now, 116);
+  assert.equal(announced.stale, true);
+  assert.match(announced.reasons.join(""), /已公告 116/);
+  // 缺欄位要當成過期，不可當作通過
+  assert.equal(assessFreshness({}, now, 115).stale, true);
+});
+
 test("holdings parser is anchored on header labels, not CSS classes", async () => {
   const { parseHoldings, parseAsOf } = await import("../../scripts/fetch-etf-holdings.mjs");
 

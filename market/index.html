@@ -281,7 +281,9 @@
   <div id="simPanel" hidden>
   <section aria-labelledby="simHeading">
     <h2 id="simHeading">資金月現金流模擬 <em>SIMULATOR</em></h2>
-    <p class="hint">ETF 依實際配息的發放月自動分攤（不需自行填月份），非年收益÷12；個股無公開配息日曆，以歷史殖利率推估、發放月預設 8 月可自行修改。扣費為簡化估算之保守上限，僅供參考，不是投資建議。</p>
+    <p class="hint">ETF 依實際配息的發放月自動分攤（不需自行填月份），非年收益÷12；個股無公開配息日曆，以歷史殖利率推估、發放月預設 8 月可自行修改。扣費為簡化估算之保守上限，僅供參考，不是投資建議。
+      <br><strong>所得稅估算</strong>：對居住者而言，國內 ETF 配息<strong>發放時不扣繳所得稅</strong>，只扣二代健保；真正的稅是隔年 5 月申報的綜所稅，本工具估的是那個。合併計稅（8.5% 抵減、上限 80,000／戶／年）與分開計稅（28%）兩制都算、取較低者；低級距時抵減大於稅額會呈現為<strong>可退稅</strong>。稅率級距採 115 年度（財政部 2025-11-27 公告）。
+      <br><strong>應稅比例是推定的</strong>：ETF 收益分配只有 54C 國內股利與 5A 國內利息課稅，71 海外所得走最低稅負制、76W 與收益平準金免稅；但這個組成沒有任何可自動取得的來源，因此依標的性質推定（債券型／外幣計價／投資海外者視為海外所得），每列都會標明推定理由。實際請以收益分配通知書為準。最低稅負制假設個人海外所得遠低於 750 萬扣除額而估為 0。<strong>本工具不是稅務建議。</strong></p>
     <div class="toolbar">
       <div class="toolrow">
         <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
@@ -289,6 +291,10 @@
         <button class="btn" id="simOptimize" type="button" title="以投入總額窮舉計算上方這些標的的權重組合，取扣費後年配息最高者">最佳分配</button>
         <button class="btn" id="simUseHoldings" type="button" title="把投入總額設為目前所有持股的市值合計，讓比例%以實際持股為基準">總額＝目前持股市值</button>
         <span class="count" id="simPctSum"></span>
+      </div>
+      <div class="toolrow">
+        <span class="fld">綜合所得淨額 <input id="simNetIncome" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="綜合所得淨額（元）" placeholder="不填則不估稅" /> 元</span>
+        <span class="hint" style="margin:0">已扣除免稅額與扣除額後的金額；單身標準情境約為年薪 −464,000（115 年度）。留空則只估補充保費。</span>
       </div>
       <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
       <div class="sim-rows" id="simRows"></div>
@@ -583,6 +589,23 @@ function feedUrl(){
 const ETF_FEED_URL = "/data/etf-feed.json";
 // 二代健保補充保費（簡化估算之保守上限；單次給付上限金額未查證，cap 預留停用）
 const NHI = {rate:0.0211, threshold:20000, cap:null};
+const TAX_PARAMS_URL = "/data/tax-params.json";
+// 115 年度（2026 年所得，116 年 5 月申報）。來源：財政部 2025-11-27 公告。
+// 這份是 data/tax-params.json 的內建備援——載不到檔案時仍要能算。
+// 測試會斷言兩者完全一致，避免各改一邊而分叉。
+const TAX_FALLBACK = {
+  rocYear:115,
+  brackets:[
+    {upTo:610000, rate:0.05, quickDeduction:0},
+    {upTo:1380000, rate:0.12, quickDeduction:42700},
+    {upTo:2770000, rate:0.2, quickDeduction:153100},
+    {upTo:5190000, rate:0.3, quickDeduction:430100},
+    {upTo:null, rate:0.4, quickDeduction:949100},
+  ],
+  dividend:{creditRate:0.085, creditCap:80000, separateRate:0.28},
+  deductions:{singleStandardThreshold:464000},
+};
+let taxParams = TAX_FALLBACK;
 const LS_SIM = "bjkw-market-sim-v1";
 
 let activeTab = "stock";
@@ -721,6 +744,24 @@ function setEtfSort(key){
   recomputeEtf();
 }
 
+// 稅參數與 ETF feed 一起載。載不到就沿用內建的 TAX_FALLBACK——
+// 稅率算錯比算不出來嚴重，所以備援值與 data/tax-params.json 由測試鎖住一致。
+async function loadTaxParams(){
+  try {
+    const response = await fetch(TAX_PARAMS_URL, {cache:"no-store", headers:{Accept:"application/json"}});
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const payload = await response.json();
+    if (payload && Array.isArray(payload.brackets) && payload.brackets.length && payload.dividend) {
+      taxParams = payload;
+      return "tax params ok";
+    }
+    throw new Error("tax params payload incomplete");
+  } catch (error) {
+    taxParams = TAX_FALLBACK;
+    return "tax params fallback";
+  }
+}
+
 async function loadEtf(){
   if (etfLoaded) return "etf cached";
   const stamp = $("etfStamp");
@@ -819,8 +860,9 @@ function lookupSecurity(code){
   if (!cleaned) return null;
   const etf = allEtfs.find(function(row){return row.code === cleaned;});
   if (etf) {
-    // 帶上配息波動：模擬器要能對「使用者自己填但沒過品質門檻」的標的提出警示
-    return {code:etf.code, name:etf.name, kind:"etf", price:etf.close, events:etf.dps, cv:etfCv(etf),
+    // 帶上配息波動與類型：模擬器要能對「沒過品質門檻」的標的提出警示，
+    // 也要能依類型推定配息的應稅比例
+    return {code:etf.code, name:etf.name, kind:"etf", price:etf.close, events:etf.dps, cv:etfCv(etf), type:etf.type,
       note:etf.dps.length ? null : "無配息紀錄（" + etf.type + "）"};
   }
   const stock = allStocks.find(function(row){return row.code === cleaned;});
@@ -829,6 +871,63 @@ function lookupSecurity(code){
     return {code:stock.code, name:stock.name, kind:"stock", price:stock.close, annualDps:annual, note:annual ? "歷史殖利率推估" : "無殖利率資料，年配以 0 計"};
   }
   return null;
+}
+
+// 綜所稅速算公式：稅額 = 淨額 × 稅率 − 累進差額
+function progressiveTax(net, brackets){
+  const income = Number(net);
+  if (!Number.isFinite(income) || income <= 0) return 0;
+  const table = Array.isArray(brackets) && brackets.length ? brackets : TAX_FALLBACK.brackets;
+  for (const band of table) {
+    if (band.upTo == null || income <= band.upTo) {
+      return Math.max(0, income * band.rate - band.quickDeduction);
+    }
+  }
+  const last = table[table.length - 1];
+  return Math.max(0, income * last.rate - last.quickDeduction);
+}
+
+// 配息裡有多少比例會被課到綜所稅。
+// ETF 收益分配只有 54C（國內股利）與 5A（國內利息）課稅；71（海外所得）走最低稅負制、
+// 對一般人實質為 0；76W／收益平準金／資本利得完全免稅。
+// 但這個組成比例沒有任何可自動取得的來源（TWSE etfDiv 與 TPEX 除權息預告表都只有金額，
+// SITCA 公告頁是 postback-only），所以只能依標的性質推定——一律附上理由讓畫面說得出來。
+const OVERSEAS_NAME_RE = /美國|美債|NASDAQ|那斯達克|S&P|標普|費城|全球|世界|歐洲|日本|印度|越南|中國|陸股|滬深|新興|已開發|成熟市場/i;
+function taxableRatio(security){
+  if (!security) return {ratio:0, reason:"查無標的"};
+  if (security.kind !== "etf") return {ratio:1, reason:"個股配息為國內股利所得"};
+  const name = String(security.name || "");
+  const type = String(security.type || "");
+  if (type === "債券型") return {ratio:0, reason:"債券型：境外債息屬海外所得，走最低稅負制"};
+  if (type === "外幣計價") return {ratio:0, reason:"外幣計價：配息屬海外所得"};
+  if (OVERSEAS_NAME_RE.test(name)) return {ratio:0, reason:"投資海外市場：配息屬海外所得"};
+  return {ratio:1, reason:"國內股票型：配息以國內股利所得推定"};
+}
+
+// 這筆股利造成的「稅負增量」。合併與分開兩制都算，取較低者。
+// 合併計稅的抵減可以退稅，低級距時整體為負是真實效果，不可夾成 0。
+function estimateDividendTax(input){
+  const params = (input && input.params) || taxParams || TAX_FALLBACK;
+  const dividend = Math.max(0, Number(input && input.taxableDividend) || 0);
+  // 沒填就是沒填：Number(null) 與 Number("") 都是 0，若不先擋掉，
+  // 「未提供所得」會被當成「所得為 0」而算出一筆退稅
+  const rawNet = input ? input.netIncome : null;
+  if (rawNet == null || rawNet === "") return null;
+  const net = Number(rawNet);
+  if (!Number.isFinite(net) || net < 0 || dividend <= 0) return null;
+  const div = (params.dividend || TAX_FALLBACK.dividend);
+  const brackets = params.brackets || TAX_FALLBACK.brackets;
+  const credit = Math.min(dividend * div.creditRate, div.creditCap);
+  const combined = progressiveTax(net + dividend, brackets) - progressiveTax(net, brackets) - credit;
+  const separate = dividend * div.separateRate;
+  const useCombined = combined <= separate;
+  return {
+    combined:Math.round(combined),
+    separate:Math.round(separate),
+    credit:Math.round(credit),
+    tax:Math.round(useCombined ? combined : separate),
+    regime:useCombined ? "合併計稅" : "分開計稅",
+  };
 }
 
 // 純函式：零股 floor、發放月分攤、壓力乘數先於門檻、單筆 >= 門檻扣補充保費
@@ -844,6 +943,7 @@ function simulate(input){
   let totalFee = 0;
   let pctSum = 0;
   let maxSingle = 0;   // 單次最大給付：用來說明補充保費為何是 0，以及離門檻多遠
+  let taxableDividend = 0;  // 只累計會被課到綜所稅的部分（海外所得與平準金不計）
 
   for (const allocation of (input.allocations || [])) {
     const security = allocation.security;
@@ -889,7 +989,10 @@ function simulate(input){
       monthlyNet[event.m - 1] += net;
       outEvents.push({m:event.m, gross:gross, fee:fee, net:net});
     }
-    holdings.push({code:security.code, name:security.name, shares:shares, spent:spent, marketValue:spent, price:security.price, leftover:leftover, annualGross:annualGross, annualNet:annualNet, events:outEvents, note:security.note || null});
+    const taxable = taxableRatio(security);
+    taxableDividend += annualGross * taxable.ratio;
+    holdings.push({code:security.code, name:security.name, shares:shares, spent:spent, marketValue:spent, price:security.price, leftover:leftover, annualGross:annualGross, annualNet:annualNet, events:outEvents,
+      taxableRatio:taxable.ratio, taxableReason:taxable.reason, note:security.note || null});
   }
   cashPool += Math.max(0, total - allocated); // 未配置比例 → 現金池；現金池不產生配息
   // 實際資產比：以各檔市值佔總市值計算，與「配置比例%」不同——
@@ -901,9 +1004,14 @@ function simulate(input){
   const totalGross = monthlyGross.reduce(function(sum, value){return sum + value;}, 0);
   const totalNet = monthlyNet.reduce(function(sum, value){return sum + value;}, 0);
   const monthsWithCash = monthlyGross.filter(function(value){return value > 0;}).length;
+  // 稅是年度、以戶為單位，不能像補充保費那樣逐筆算——所以放在迴圈之後。
+  // 沒填綜合所得淨額就不估稅（tax 為 null），既有的 KPI 完全不受影響。
+  const tax = estimateDividendTax({taxableDividend:taxableDividend, netIncome:input.netIncome, params:input.taxParams});
   return {holdings:holdings, cashPool:cashPool, monthlyGross:monthlyGross, monthlyNet:monthlyNet,
     totalGross:totalGross, totalFee:totalFee, totalNet:totalNet, pctSum:pctSum, overAllocated:pctSum > 100.0001,
     totalMarketValue:totalMarketValue,
+    taxableDividend:taxableDividend, tax:tax ? tax.tax : null, taxRegime:tax ? tax.regime : null, taxDetail:tax,
+    afterTaxNet:tax ? totalNet - tax.tax : null,
     maxSingle:maxSingle, nhiThreshold:nhi.threshold, monthsWithCash:monthsWithCash,
     emptyMonths:monthlyGross.map(function(value, index){return value > 0 ? null : index + 1;}).filter(Boolean)};
 }
@@ -1349,7 +1457,7 @@ function updateSimPctSum(){
 function saveSimState(){
   const store = storage();
   if (!store) return;
-  try { store.setItem(LS_SIM, JSON.stringify({total:($("simTotal") || {}).value || "", rows:simAllocations, stress:simStress})); } catch (error) {}
+  try { store.setItem(LS_SIM, JSON.stringify({total:($("simTotal") || {}).value || "", netIncome:($("simNetIncome") || {}).value || "", rows:simAllocations, stress:simStress})); } catch (error) {}
 }
 
 function loadSimState(){
@@ -1359,6 +1467,7 @@ function loadSimState(){
     const saved = JSON.parse(store.getItem(LS_SIM) || "null");
     if (!saved) return;
     if ($("simTotal") && saved.total) $("simTotal").value = saved.total;
+    if ($("simNetIncome") && saved.netIncome) $("simNetIncome").value = saved.netIncome;
     if (Array.isArray(saved.rows)) simAllocations = saved.rows.slice(0, 10);
     if (saved.stress === 0.8 || saved.stress === 0.6 || saved.stress === 1) simStress = saved.stress;
   } catch (error) {}
@@ -1450,16 +1559,45 @@ function setStress(value, buttonId){
   runSim();
 }
 
+// 稅的 KPI。沒填綜合所得淨額就完全不顯示——不要用 0 冒充「不用繳稅」。
+function taxBoxes(result){
+  if (!result.taxDetail) {
+    // 稅基為 0 時要講清楚原因。整塊消失會讓人以為壞了——
+    // 這與「補充保費 0 要說明未達門檻」是同一個教訓。
+    if (!(result.taxableDividend > 0)) {
+      if (!(result.totalGross > 0)) return "";
+      return '<div class="sim-kpi"><b>應稅配息</b><span style="font-size:14px">0</span>'
+        + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">配息推定為海外所得或平準金，走最低稅負制／免稅</span></div>';
+    }
+    return '<div class="sim-kpi"><b>應稅配息</b><span>' + fmt(Math.round(result.taxableDividend), 0) + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">填綜合所得淨額可估所得稅</span></div>';
+  }
+  const detail = result.taxDetail;
+  const negative = detail.tax < 0;
+  return '<div class="sim-kpi"><b>應稅配息</b><span>' + fmt(Math.round(result.taxableDividend), 0) + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">海外所得與平準金不計入</span></div>'
+    + '<div class="sim-kpi"><b>估算所得稅（' + detail.regime + '）</b>'
+      + '<span class="' + (negative ? "pos" : "neg") + '">' + (negative ? "+" : "−") + fmt(Math.abs(detail.tax), 0) + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">合併 ' + fmt(detail.combined, 0)
+      + ' ／ 分開 ' + fmt(detail.separate, 0) + (negative ? '，抵減後可退稅' : '') + '</span></div>'
+    + '<div class="sim-kpi"><b>稅後估算</b><span class="pos">' + fmt(Math.round(result.afterTaxNet), 0) + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">月均 ' + fmt(Math.round(result.afterTaxNet / 12), 0) + '</span></div>';
+}
+
 function runSim(){
   const summary = $("simSummary");
   const chart = $("simChart");
   const detail = $("simDetail");
   if (!summary || !chart) return;
   const total = Number(($("simTotal") || {}).value) || 0;
+  const netIncomeRaw = ($("simNetIncome") || {}).value;
+  const netIncome = String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw);
   const result = simulate({
     total:total,
     stress:simStress,
     nhi:NHI,
+    netIncome:netIncome,
+    taxParams:taxParams,
     allocations:simAllocations.map(function(allocation){
       return {code:allocation.code, pct:allocation.pct, shares:allocation.shares, month:allocation.month, security:lookupSecurity(allocation.code)};
     }),
@@ -1485,6 +1623,7 @@ function runSim(){
     + '<div class="sim-kpi"><b>月均（扣費後）</b><span>' + fmt(Math.round(result.totalNet / 12), 0) + '</span></div>'
     + '<div class="sim-kpi"><b>有現金流月數</b><span>' + result.monthsWithCash + ' / 12</span>'
       + (result.emptyMonths.length ? '<span style="display:block;font-size:11px;color:var(--amber);font-family:inherit">空窗 ' + result.emptyMonths.join("·") + ' 月</span>' : '') + '</div>'
+    + taxBoxes(result)
     + '<div class="sim-kpi"><b>總市值（實際持股）</b><span>' + fmt(Math.round(result.totalMarketValue), 0) + '</span></div>'
     + '<div class="sim-kpi"><b>現金池（未投入）</b><span>' + fmt(Math.round(result.cashPool), 0) + '</span></div>';
   const peak = Math.max.apply(null, result.monthlyNet.concat([1]));
@@ -1493,7 +1632,7 @@ function runSim(){
     return '<div class="sim-col"><b>' + (value ? fmt(Math.round(value / 1000), 0) + "k" : "") + '</b><div class="sim-bar" style="height:' + height + '%"></div><span>' + (index + 1) + '月</span></div>';
   }).join("");
   if (detail) {
-    detail.innerHTML = '<div class="table-scroll" style="margin-top:14px"><table style="min-width:680px"><thead><tr><th style="text-align:left">標的</th><th>收盤</th><th>股數</th><th>市值</th><th>實際佔比%</th><th>年配息</th><th>扣費後</th><th>備註</th></tr></thead><tbody>'
+    detail.innerHTML = '<div class="table-scroll" style="margin-top:14px"><table style="min-width:760px"><thead><tr><th style="text-align:left">標的</th><th>收盤</th><th>股數</th><th>市值</th><th>實際佔比%</th><th>年配息</th><th>扣費後</th><th>應稅比例</th><th>備註</th></tr></thead><tbody>'
       + result.holdings.map(function(holding){
           const holdingMarket = (allEtfs.find(function(row){return row.code === holding.code;})
             || allStocks.find(function(row){return row.code === holding.code;}) || {}).market;
@@ -1504,7 +1643,9 @@ function runSim(){
             + '<td class="num"><b>' + fmt(holding.weight, 1) + '</b></td>'
             + '<td class="num">' + fmt(Math.round(holding.annualGross), 0) + '</td>'
             + '<td class="num">' + fmt(Math.round(holding.annualNet), 0) + '</td>'
-            + '<td style="font-size:11px;color:var(--faint)">' + escapeHtml(holding.note || "") + '</td></tr>';
+            + '<td class="num" title="' + escapeHtml(holding.taxableReason || "") + '">'
+              + (holding.taxableRatio == null ? "—" : Math.round(holding.taxableRatio * 100) + "%") + '</td>'
+            + '<td style="font-size:11px;color:var(--faint)">' + escapeHtml(holding.taxableReason || holding.note || "") + '</td></tr>';
         }).join("")
       + '</tbody></table></div>';
   }
@@ -1646,7 +1787,10 @@ function showTab(name){
       if (tab.setAttribute) tab.setAttribute("aria-selected", key === name ? "true" : "false");
     }
   }
-  if (name === "etf" || name === "sim") loadEtf().then(function(){if (name === "sim") { renderSimRows(); runSim(); }});
+  if (name === "etf" || name === "sim") {
+    Promise.all([loadEtf(), name === "sim" ? loadTaxParams() : Promise.resolve()])
+      .then(function(){if (name === "sim") { renderSimRows(); runSim(); }});
+  }
 }
 
 async function load(){
@@ -1817,6 +1961,8 @@ function bind(){
   const s60 = $("s60");
   if (s60) s60.addEventListener("click", function(){setStress(0.6, "s60");});
   const simTotal = $("simTotal");
+  const simNetIncome = $("simNetIncome");
+  if (simNetIncome) simNetIncome.addEventListener("input", function(){ saveSimState(); runSim(); });
   // 總額變動要連帶更新股數（比例%是以總額為基準），並即時重算——
   // 「試算」按鈕已移除，所有輸入都必須自己觸發重算
   if (simTotal) simTotal.addEventListener("input", function(){
@@ -1896,6 +2042,10 @@ const marketApp = {
     weightCompositions:weightCompositions,
     simulate:simulate,
     simWeightBounds:simWeightBounds,
+    progressiveTax:progressiveTax,
+    taxableRatio:taxableRatio,
+    estimateDividendTax:estimateDividendTax,
+    TAX_FALLBACK:TAX_FALLBACK,
     lookupSecurity:lookupSecurity,
     etfFeedUrl:etfFeedUrl,
     feedStamp:feedStamp,

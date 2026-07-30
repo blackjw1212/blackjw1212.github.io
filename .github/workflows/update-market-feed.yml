@@ -50,6 +50,17 @@ jobs:
           else
             echo "Not the 22:00 slot — skipping the daily dividend refresh"
           fi
+      # 稅參數只做「過期偵測」，不自動改寫數字——財政部每年 11 月底公告，實際數字在
+      # PDF 附件裡，解析政府 CMS 附件比解析 MoneyDJ 更脆弱，而稅率算錯的後果更嚴重。
+      # 這步偵測到過期會 exit 1，但不擋 feed 更新（容錯），由 log 提醒人工填新數字。
+      - name: Check tax params freshness
+        continue-on-error: true
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
+            node scripts/update-tax-params.mjs
+          else
+            echo "Not the 22:00 slot — skipping the tax params freshness check"
+          fi
       # ETF 引擎失敗不得連坐個股 feed：這步容錯。ETF 檔案維持上次 commit 的內容，
       # 下一步的 schema 驗證會檢查那份舊檔並通過，個股 feed 照常更新。
       - name: Generate ETF feed
@@ -64,7 +75,7 @@ jobs:
         run: |
           # 只納入實際存在的檔案：holdings 首次執行前不存在，git diff 會報錯
           FILES=""
-          for f in data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json data/etf-holdings.json; do
+          for f in data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json data/etf-holdings.json data/tax-params.json; do
             [ -f "$f" ] && FILES="$FILES $f"
           done
           if git diff --quiet -- $FILES; then
