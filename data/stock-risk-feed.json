@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-31T05:24:49.570Z",
-  "eodUpdatedAt": "2026-07-31T05:24:49.570Z",
+  "updatedAt": "2026-07-31T08:13:59.289Z",
+  "eodUpdatedAt": "2026-07-31T08:13:59.289Z",
   "eodTradingDate": "2026-07-31",
   "holdings": [
     "2330",
@@ -21,43 +21,43 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 663,
-      "change": -5,
-      "date": "2026-07-30"
+      "close": 705,
+      "change": 42,
+      "date": "2026-07-31"
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1530,
-      "change": 35,
-      "date": "2026-07-30"
+      "close": 1640,
+      "change": 110,
+      "date": "2026-07-31"
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 229.5,
-      "change": -7.5,
-      "date": "2026-07-30"
+      "close": 250.5,
+      "change": 21,
+      "date": "2026-07-31"
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2205,
-      "change": 5,
-      "date": "2026-07-30"
+      "close": 2425,
+      "change": 220,
+      "date": "2026-07-31"
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 57.5,
-      "change": -2.8,
-      "date": "2026-07-30"
+      "close": 61.8,
+      "change": 4.3,
+      "date": "2026-07-31"
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 337.5,
-      "change": 19,
+      "close": 336.5,
+      "change": 18,
       "date": "2026-07-31"
     },
     {
@@ -77,9 +77,9 @@
     {
       "code": "3231",
       "name": "緯創",
-      "close": 160,
-      "change": -9.5,
-      "date": "2026-07-30"
+      "close": 176,
+      "change": 16,
+      "date": "2026-07-31"
     },
     {
       "code": "3324",
@@ -91,23 +91,23 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 2785,
-      "change": -20,
-      "date": "2026-07-30"
+      "close": 3060,
+      "change": 275,
+      "date": "2026-07-31"
     },
     {
       "code": "6239",
       "name": "力成",
-      "close": 214.5,
-      "change": 0,
-      "date": "2026-07-30"
+      "close": 235.5,
+      "change": 21,
+      "date": "2026-07-31"
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 4900,
-      "change": -235,
-      "date": "2026-07-30"
+      "close": 5390,
+      "change": 490,
+      "date": "2026-07-31"
     }
   ],
   "valuation": {
