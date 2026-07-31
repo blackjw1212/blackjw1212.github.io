@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-07-30T23:17:53.142Z",
+  "updatedAt": "2026-07-31T01:49:49.841Z",
   "eodUpdatedAt": "2026-07-30T23:17:53.142Z",
-  "eodTradingDate": "2026-07-30",
+  "eodTradingDate": "2026-07-31",
   "holdings": [
     "2330",
     "2317",
@@ -49,23 +49,23 @@
     {
       "code": "2356",
       "name": "英業達",
-      "close": 57.5,
-      "change": -2.8,
-      "date": "2026-07-30"
+      "close": 60.8,
+      "change": 3.3,
+      "date": "2026-07-31"
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 318.5,
-      "change": -3,
-      "date": "2026-07-30"
+      "close": 329,
+      "change": 10.5,
+      "date": "2026-07-31"
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 279,
-      "change": -30.5,
-      "date": "2026-07-30"
+      "close": 287.5,
+      "change": 8.5,
+      "date": "2026-07-31"
     },
     {
       "code": "3017",
@@ -105,9 +105,9 @@
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 4900,
-      "change": -235,
-      "date": "2026-07-30"
+      "close": 5390,
+      "change": 490,
+      "date": "2026-07-31"
     }
   ],
   "valuation": {
@@ -196,5 +196,14 @@
     "updatedAt": "2026-07-29T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
