@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-31T01:49:49.841Z",
-  "eodUpdatedAt": "2026-07-30T23:17:53.142Z",
+  "updatedAt": "2026-07-31T05:24:49.570Z",
+  "eodUpdatedAt": "2026-07-31T05:24:49.570Z",
   "eodTradingDate": "2026-07-31",
   "holdings": [
     "2330",
@@ -49,30 +49,30 @@
     {
       "code": "2356",
       "name": "英業達",
-      "close": 60.8,
-      "change": 3.3,
-      "date": "2026-07-31"
+      "close": 57.5,
+      "change": -2.8,
+      "date": "2026-07-30"
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 329,
-      "change": 10.5,
+      "close": 337.5,
+      "change": 19,
       "date": "2026-07-31"
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 287.5,
-      "change": 8.5,
+      "close": 291.5,
+      "change": 12.5,
       "date": "2026-07-31"
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2110,
-      "change": 15,
-      "date": "2026-07-30"
+      "close": 2320,
+      "change": 210,
+      "date": "2026-07-31"
     },
     {
       "code": "3231",
@@ -84,9 +84,9 @@
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 820,
-      "change": -35,
-      "date": "2026-07-30"
+      "close": 902,
+      "change": 82,
+      "date": "2026-07-31"
     },
     {
       "code": "3661",
@@ -105,9 +105,9 @@
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 5390,
-      "change": 490,
-      "date": "2026-07-31"
+      "close": 4900,
+      "change": -235,
+      "date": "2026-07-30"
     }
   ],
   "valuation": {
@@ -196,14 +196,5 @@
     "updatedAt": "2026-07-29T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
