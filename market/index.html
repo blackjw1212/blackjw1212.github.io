@@ -317,6 +317,7 @@
     <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
       <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
       <strong>配息波動改看近 24 個月</strong>（殖利率仍是近 12 個月）：只看 12 個月的季配標的僅有 4 筆，會系統性低估波動——實測 006208 配息由 0.989 漲到 4.75，12 月窗算出 0.16、24 月窗才是 0.65。水準跳升對「用近 12 月配息推估未來」正是最該標出來的風險。
+      <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息，需先在上方模擬器填綜合所得淨額。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>；其餘四個目標一律不計稅。
       注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。目標函數也只看配息現金流、不含資本利得——這是低配息的市值型 ETF 在「最高配息」目標下必然墊底的原因。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
     <div class="toolbar">
       <div class="toolrow">
@@ -325,6 +326,7 @@
           <button class="btn" id="gYield" type="button">最高配息（計算）</button>
           <button class="btn" id="gMonthly" type="button">補滿 12 個月（計算）</button>
           <button class="btn" id="gLowOverlap" type="button">分散類型（計算）</button>
+          <button class="btn" id="gAfterTax" type="button" title="以扣費並扣掉估算所得稅後的年配息為目標；需先在上方模擬器填綜合所得淨額">稅後配息最大化（計算）</button>
         </div>
       </div>
       <div class="toolrow">
@@ -1045,23 +1047,33 @@ function effectiveExposure(allocations){
 
 // 輕量精確評估器：與 simulate() 同一套規則（零股 floor、發放月分攤、
 // 壓力乘數先套用、單筆 ≥ 門檻課補充保費），但去掉 UI 欄位供最佳化內圈快速呼叫。
-function evaluatePortfolio(total, picks, weights, stress, nhi){
+// ETF feed 的列沒有 security 的 kind 欄位，補上再問應稅比例。
+// 這個換算刻意獨立成函式：最佳化器內圈跑數十萬次，正規表示式只能在池子建好時算一次。
+function etfTaxableRatio(row){
+  return taxableRatio({kind:"etf", name:row && row.name, type:row && row.type});
+}
+
+function evaluatePortfolio(total, picks, weights, stress, nhi, tax){
   const fee_ = nhi || NHI;
   const monthlyNet = new Array(12).fill(0);
   let totalGross = 0;
   let totalFee = 0;
   let cashPool = 0;
+  let taxableGross = 0;
   for (let index = 0; index < picks.length; index += 1) {
     const etf = picks[index];
     const budget = total * weights[index] / 100;
     const shares = Math.floor(budget / etf.close);
     cashPool += budget - shares * etf.close;
+    // 未標註者視為全額應稅（保守），不要因為缺欄位就少算稅
+    const ratio = etf.taxableRatio == null ? 1 : etf.taxableRatio;
     for (const event of etf.dps) {
       const gross = shares * event.a * (stress || 1);
       if (!(gross > 0)) continue;
       const fee = gross >= fee_.threshold ? gross * fee_.rate : 0;
       totalGross += gross;
       totalFee += fee;
+      taxableGross += gross * ratio;
       monthlyNet[event.m - 1] += gross - fee;
     }
   }
@@ -1071,8 +1083,14 @@ function evaluatePortfolio(total, picks, weights, stress, nhi){
     if (value > 0) monthsWithCash += 1;
     if (value < minMonth) minMonth = value;
   }
-  return {totalNet:totalGross - totalFee, totalGross:totalGross, totalFee:totalFee,
-    monthlyNet:monthlyNet, monthsWithCash:monthsWithCash, minMonth:minMonth, cashPool:cashPool};
+  const totalNet = totalGross - totalFee;
+  const taxInfo = tax ? estimateDividendTax({taxableDividend:taxableGross, netIncome:tax.netIncome, params:tax.params}) : null;
+  return {totalNet:totalNet, totalGross:totalGross, totalFee:totalFee,
+    monthlyNet:monthlyNet, monthsWithCash:monthsWithCash, minMonth:minMonth, cashPool:cashPool,
+    taxableGross:taxableGross,
+    tax:taxInfo ? taxInfo.tax : null, taxRegime:taxInfo ? taxInfo.regime : null,
+    // 稅基為 0 時 estimateDividendTax 回 null，稅後＝扣費後，不可留成 null 讓比較失效
+    afterTaxNet:tax ? totalNet - (taxInfo ? taxInfo.tax : 0) : null};
 }
 
 // 配息波動度（變異係數 = 標準差/平均）。少於 2 筆無從判斷，回 null。
@@ -1233,8 +1251,20 @@ function optimizeAllocation(etfs, options){
   const stress = opts.stress || 1;
   const nhi = opts.nhi || NHI;
 
+  // 稅後目標需要使用者的綜合所得淨額才算得出來——沒有就明講，不要偷偷退回稅前排序
+  let taxCtx = null;
+  if (goal === "afterTax") {
+    const rawNet = opts.netIncome;
+    if (rawNet == null || rawNet === "" || !Number.isFinite(Number(rawNet)) || Number(rawNet) < 0) {
+      return {picks:[], reason:"稅後配息最大化需要「綜合所得淨額」，請先在上方模擬器填入"};
+    }
+    taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
+  }
+
   const pool = buildCandidatePool(etfs, {goal:goal, minAum:opts.minAum, poolCap:opts.poolCap, includeActive:opts.includeActive});
   if (!pool.length) return {picks:[], reason:"沒有符合基本門檻的 ETF（需滿一年配息歷史、規模 ≥50 億、非槓反/期貨）"};
+  // 應稅比例在這裡算一次就好；放進內圈會讓正規表示式跑數十萬次
+  if (taxCtx) pool.forEach(function(row){ row.taxableRatio = etfTaxableRatio(row).ratio; });
 
   // 單檔上限 × 最少檔數必須湊得到 100%（例：上限 30% 時 3 檔最多 90%，需 4 檔起跳）
   const feasibleMin = Math.max(minPicks, Math.ceil(100 / maxW));
@@ -1251,6 +1281,7 @@ function optimizeAllocation(etfs, options){
       if (candidate.monthsWithCash !== incumbent.monthsWithCash) return candidate.monthsWithCash > incumbent.monthsWithCash;
       if (candidate.minMonth !== incumbent.minMonth) return candidate.minMonth > incumbent.minMonth;
     }
+    if (goal === "afterTax") return candidate.afterTaxNet > incumbent.afterTaxNet;
     return candidate.totalNet > incumbent.totalNet;
   };
 
@@ -1280,7 +1311,7 @@ function optimizeAllocation(etfs, options){
             if (coreWeight < minCoreW || highYieldWeight > maxHighYieldW) continue;
           }
           evaluated += 1;
-          const result = evaluatePortfolio(total, subset, weights, stress, nhi);
+          const result = evaluatePortfolio(total, subset, weights, stress, nhi, taxCtx);
           if (better(result, best && best.result)) {
             best = {funds:subset.slice(), weights:weights.slice(), result:result};
           }
@@ -1299,7 +1330,7 @@ function optimizeAllocation(etfs, options){
 
   // 等權重基準（同一子集）：證明權重是算出來的、不是排版出來的。
   // 等權組合本身也在搜尋空間內，因此 gainVsEqual 恆 ≥ 0。
-  const baseline = evaluatePortfolio(total, best.funds, equalStepWeights(best.funds.length, step), stress, nhi);
+  const baseline = evaluatePortfolio(total, best.funds, equalStepWeights(best.funds.length, step), stress, nhi, taxCtx);
   const months = {};
   best.funds.forEach(function(row){row.dps.forEach(function(event){months[event.m] = true;});});
 
@@ -1316,9 +1347,12 @@ function optimizeAllocation(etfs, options){
     rejected:pool.rejected || {cv:0, premium:0},
     baselineNet:baseline.totalNet,
     baselineMinMonth:baseline.minMonth,
+    baselineAfterTaxNet:baseline.afterTaxNet,
     // netYield/diverse 下等權在搜尋空間內，此值恆 ≥ 0；
     // monthly 是字典序目標（可能犧牲總額換最弱月），此值可為負，UI 依 goal 呈現。
-    gainVsEqual:best.result.totalNet - baseline.totalNet,
+    gainVsEqual:goal === "afterTax"
+      ? best.result.afterTaxNet - baseline.afterTaxNet
+      : best.result.totalNet - baseline.totalNet,
     evaluated:evaluated,
     poolSize:pool.length,
     coveredMonths:Object.keys(months).map(Number).sort(function(a, b){return a - b;}),
@@ -1715,7 +1749,10 @@ function runSuggest(){
   if (!total) { box.innerHTML = '<p class="hint">請先在上方輸入投入總額。</p>'; return; }
   const started = Date.now();
   const includeActive = Boolean(($("gActive") || {}).checked);
-  const out = optimizeAllocation(allEtfs, {total:total, goal:suggestGoal, stress:simStress, nhi:NHI, includeActive:includeActive});
+  // 稅後目標沿用模擬器那格「綜合所得淨額」，不另開一個輸入——兩格會分叉
+  const netIncomeRaw = ($("simNetIncome") || {}).value;
+  const out = optimizeAllocation(allEtfs, {total:total, goal:suggestGoal, stress:simStress, nhi:NHI, includeActive:includeActive,
+    netIncome:String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw), taxParams:taxParams});
   const elapsed = Date.now() - started;
   if (!out.picks.length) { box.innerHTML = '<p class="hint">' + escapeHtml(out.reason || "找不到組合") + '</p>'; return; }
   const result = out.result;
@@ -1745,6 +1782,13 @@ function runSuggest(){
     + '</tbody></table></div>'
     + '<div class="sim-summary">'
       + '<div class="sim-kpi"><b>扣費後年配息（壓力 ×' + simStress + '）</b><span>' + fmt(Math.round(result.totalNet), 0) + '</span></div>'
+      + (suggestGoal === "afterTax"
+        ? '<div class="sim-kpi"><b>估算所得稅（' + escapeHtml(result.taxRegime || "無應稅所得") + '）</b>'
+            + '<span class="' + (result.tax < 0 ? "pos" : "neg") + '">' + (result.tax == null ? "0" : (result.tax < 0 ? "+" : "−") + fmt(Math.abs(result.tax), 0)) + '</span>'
+            + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">應稅配息 ' + fmt(Math.round(result.taxableGross), 0) + '</span></div>'
+          + '<div class="sim-kpi"><b>稅後年配息</b><span class="pos">' + fmt(Math.round(result.afterTaxNet), 0) + '</span>'
+            + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">稅後殖利率 ' + fmt(result.afterTaxNet / total * 100, 2) + '%</span></div>'
+        : '')
       + '<div class="sim-kpi"><b>整體殖利率（扣費後）</b><span>' + fmt(result.totalNet / total * 100, 2) + '%</span></div>'
       + '<div class="sim-kpi"><b>有現金流月數</b><span' + (result.monthsWithCash === 12 ? ' class="pos"' : '') + '>' + result.monthsWithCash + ' / 12</span>'
         + (missing.length ? '<span style="display:block;font-size:11px;color:var(--amber);font-family:inherit">缺 ' + missing.join("·") + ' 月</span>' : '') + '</div>'
@@ -1757,6 +1801,10 @@ function runSuggest(){
         ? '<div class="sim-kpi"><b>最弱月（扣費後）</b><span class="pos">' + fmt(Math.round(result.minMonth), 0) + '</span>'
           + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重最弱月 ' + fmt(Math.round(out.baselineMinMonth), 0)
           + (out.gainVsEqual < 0 ? '；為墊高最弱月，年總額較等權少 ' + fmt(Math.round(-out.gainVsEqual), 0) : '') + '</span></div>'
+        : suggestGoal === "afterTax"
+        // 稅後目標的等權基準也要用稅後，否則比的是兩個不同的東西
+        ? '<div class="sim-kpi"><b>較等權重多（稅後）</b><span' + (out.gainVsEqual > 0 ? ' class="pos"' : '') + '>+' + fmt(Math.round(out.gainVsEqual), 0) + ' /年</span>'
+          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重稅後為 ' + fmt(Math.round(out.baselineAfterTaxNet), 0) + '</span></div>'
         : '<div class="sim-kpi"><b>較等權重多</b><span' + (out.gainVsEqual > 0 ? ' class="pos"' : '') + '>+' + fmt(Math.round(out.gainVsEqual), 0) + ' /年</span>'
           + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重為 ' + fmt(Math.round(out.baselineNet), 0) + '</span></div>')
     + '</div>'
@@ -1962,7 +2010,12 @@ function bind(){
   if (s60) s60.addEventListener("click", function(){setStress(0.6, "s60");});
   const simTotal = $("simTotal");
   const simNetIncome = $("simNetIncome");
-  if (simNetIncome) simNetIncome.addEventListener("input", function(){ saveSimState(); runSim(); });
+  if (simNetIncome) simNetIncome.addEventListener("input", function(){
+    saveSimState();
+    runSim();
+    // 稅後目標的結果直接取決於這個數字，改了就要重算，否則畫面停在舊稅率下的組合
+    if (suggestGoal === "afterTax" && $("suggestResult") && $("suggestResult").innerHTML) runSuggest();
+  });
   // 總額變動要連帶更新股數（比例%是以總額為基準），並即時重算——
   // 「試算」按鈕已移除，所有輸入都必須自己觸發重算
   if (simTotal) simTotal.addEventListener("input", function(){
@@ -1975,14 +2028,15 @@ function bind(){
   });
 
   /* --- 配置產生器 --- */
-  for (const pair of [["gBalanced", "balanced"], ["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"]]) {
+  const goalButtons = [["gBalanced", "balanced"], ["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"], ["gAfterTax", "afterTax"]];
+  for (const pair of goalButtons) {
     const node = $(pair[0]);
     if (!node) continue;
     node.addEventListener("click", function(){
       suggestGoal = pair[1];
-      for (const id of ["gBalanced", "gYield", "gMonthly", "gLowOverlap"]) {
-        const button = $(id);
-        if (button) button.className = id === pair[0] ? "btn on" : "btn";
+      for (const entry of goalButtons) {
+        const button = $(entry[0]);
+        if (button) button.className = entry[0] === pair[0] ? "btn on" : "btn";
       }
       runSuggest();
     });
@@ -2044,6 +2098,7 @@ const marketApp = {
     simWeightBounds:simWeightBounds,
     progressiveTax:progressiveTax,
     taxableRatio:taxableRatio,
+    etfTaxableRatio:etfTaxableRatio,
     estimateDividendTax:estimateDividendTax,
     TAX_FALLBACK:TAX_FALLBACK,
     lookupSecurity:lookupSecurity,

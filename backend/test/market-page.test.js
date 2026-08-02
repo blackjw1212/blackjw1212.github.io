@@ -690,6 +690,87 @@ test("simulate reports tax only when the user supplies their net income", async 
   assert.equal(bondRun.tax, null, "沒有應稅所得就沒有稅可估");
 });
 
+test("the after-tax goal optimises net-of-tax income and refuses to guess the bracket", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { optimizeAllocation, TAX_FALLBACK } = app.helpers;
+  // 同殖利率的兩組：一組國內（全額應稅）、一組債券型（推定海外所得、免稅）。
+  // 稅前完全打平，只有把稅算進去才分得出高下——這樣才測得到目標函數真的換了。
+  const mk = (code, name, type, months) => ({
+    code, name, type, close: 20, aum: 800, yield: 8, discountPremium: 0, dividendCv: 0.1,
+    dps: months.map((m) => ({ m, a: 0.8 })), payMonths: months, topHoldings: [],
+  });
+  const universe = app.helpers.normalizeEtfFeed({ tradeDate: "2026-07-29", stocks: [
+    mk("00D1", "國內高息一", "高股息", [1, 7]),
+    mk("00D2", "國內高息二", "高股息", [2, 8]),
+    mk("00D3", "國內高息三", "高股息", [3, 9]),
+    mk("00B1", "元大美債20年", "債券型", [1, 7]),
+    mk("00B2", "國泰投資級公司債", "債券型", [2, 8]),
+    mk("00B3", "群益ESG投等債", "債券型", [3, 9]),
+  ]});
+  const opts = { total: 2000000, stress: 1, nhi: app.helpers.NHI, taxParams: TAX_FALLBACK };
+
+  // 沒有綜合所得淨額就不能算——不可偷偷退回稅前排序
+  const noIncome = optimizeAllocation(universe, { ...opts, goal: "afterTax" });
+  assert.equal(noIncome.picks.length, 0);
+  assert.match(noIncome.reason, /綜合所得淨額/);
+  assert.equal(optimizeAllocation(universe, { ...opts, goal: "afterTax", netIncome: "" }).picks.length, 0);
+
+  // 稅前目標：兩組等價，結果不保證偏向哪邊
+  const pre = optimizeAllocation(universe, { ...opts, goal: "netYield" });
+  assert.ok(pre.picks.length >= 3);
+  assert.equal(pre.result.tax, null, "其餘目標一律不計稅");
+  assert.equal(pre.result.afterTaxNet, null);
+
+  // 稅後目標：債券型免稅 → 應該全部選債券型
+  const post = optimizeAllocation(universe, { ...opts, goal: "afterTax", netIncome: 2000000 });
+  assert.ok(post.picks.length >= 3, post.reason || "");
+  assert.equal(post.picks.every((p) => p.code.startsWith("00B")), true,
+    `稅後目標應偏向免稅標的，實得 ${post.picks.map((p) => p.code).join(",")}`);
+  assert.equal(post.result.taxableGross, 0, "全為推定海外所得，應稅配息為 0");
+  assert.equal(post.result.afterTaxNet, post.result.totalNet, "沒有應稅所得時稅後＝扣費後");
+  assert.equal(post.goal, "afterTax");
+
+  // 只有國內標的可選時：稅要真的被扣掉，且與等權基準比的是稅後
+  const domesticOnly = universe.filter((row) => row.code.startsWith("00D"));
+  const taxed = optimizeAllocation(domesticOnly, { ...opts, goal: "afterTax", netIncome: 2000000 });
+  assert.ok(taxed.result.taxableGross > 0);
+  assert.ok(taxed.result.tax > 0, "20% 級距下國內股利要課到稅");
+  assert.equal(taxed.result.afterTaxNet, taxed.result.totalNet - taxed.result.tax);
+  assert.ok(taxed.result.afterTaxNet < taxed.result.totalNet);
+  assert.ok(taxed.baselineAfterTaxNet > 0, "等權基準也要用稅後，否則比的是兩個不同的東西");
+  assert.ok(taxed.gainVsEqual >= 0, "等權組合本身在搜尋空間內，最佳解不得更差");
+});
+
+test("etfTaxableRatio adapts feed rows, which carry no kind field", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { etfTaxableRatio } = app.helpers;
+  // feed 的列沒有 kind，直接餵給 taxableRatio 會被當成個股而全額課稅
+  assert.equal(etfTaxableRatio({ name: "元大高股息", type: "高股息" }).ratio, 1);
+  assert.equal(etfTaxableRatio({ name: "元大美債20年", type: "債券型" }).ratio, 0);
+  assert.equal(etfTaxableRatio({ name: "國泰費城半導體", type: "主題型" }).ratio, 0);
+  assert.ok(etfTaxableRatio({ name: "x", type: "高股息" }).reason);
+});
+
+test("evaluatePortfolio treats an unlabelled fund as fully taxable", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { evaluatePortfolio, TAX_FALLBACK, NHI } = app.helpers;
+  const fund = (extra) => Object.assign({ code: "00X", close: 20, dps: [{ m: 3, a: 1 }] }, extra);
+  const tax = { netIncome: 2000000, params: TAX_FALLBACK };
+  // 缺 taxableRatio 欄位時要保守地全額課稅，不可因為缺料而少算
+  const unlabelled = evaluatePortfolio(1000000, [fund({})], [100], 1, NHI, tax);
+  assert.equal(unlabelled.taxableGross, unlabelled.totalGross);
+  const exempt = evaluatePortfolio(1000000, [fund({ taxableRatio: 0 })], [100], 1, NHI, tax);
+  assert.equal(exempt.taxableGross, 0);
+  // 不傳 tax 就完全不算，既有四個目標的行為不變
+  const noTax = evaluatePortfolio(1000000, [fund({})], [100], 1, NHI);
+  assert.equal(noTax.tax, null);
+  assert.equal(noTax.afterTaxNet, null);
+  assert.equal(noTax.totalNet, unlabelled.totalNet, "加了稅參數不得改動扣費後的數字");
+});
+
 test("simulate: explicit shares take precedence over the percentage", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
