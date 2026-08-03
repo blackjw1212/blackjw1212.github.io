@@ -16,7 +16,7 @@
       "domesticRatio": 0.5,
       "domicileBasis": "臺韓混合：前十大中台股 34.92%、韓股 36.61%（Samsung、SK Hynix），約各半。前十大僅覆蓋 71.53%，故取 0.5 為推定值而非精算。依據 MoneyDJ 成分股 2026-07-24。",
       "domicileAsOf": "2026-07-31",
-      "_todo": "待以實際收益分配通知書取代：把 composition 填成 {\"54C\":x,\"5A\":y,\"71\":z,\"76W\":w,\"asOf\":\"2026-07-16\"}（每受益權單位金額），domesticRatio 會被自動算出的值覆蓋。已查證無法自動取得：國泰官網為 Angular SPA、SITCA 公告為 CID 編碼 PDF、CMoney 為 Nuxt SPA。"
+      "_todo": "待以實際收益分配通知書取代：把 composition 填成 {\"54C\":x,\"5A\":y,\"71\":z,\"76W\":w,\"asOf\":\"2026-07-16\"}（每受益權單位金額），domesticRatio 會被自動算出的值覆蓋。已用瀏覽器逐頁查證（2026-08-03）：國泰投信的公開頁面全都沒有所得類別——配息資訊頁只有時程與金額、收益平準金專區只有觀念說明、ETF 配息總覽只有配息率；組成只在『ETF 客戶配息查詢』(cathaysite.com.tw/ETF/dividend-income)，需身分證字號＋生日＋集保帳號＋OTP，只有本人查得到。SITCA 公告為 CID 編碼 PDF、CMoney 為 Nuxt SPA。結論：只能由使用者提供，不要再重走一次。"
     },
     "00771": {
       "domesticRatio": 0,
