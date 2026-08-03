@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-07-31T23:14:57.902Z",
-  "eodUpdatedAt": "2026-07-31T23:14:57.902Z",
-  "eodTradingDate": "2026-07-31",
+  "updatedAt": "2026-08-03T01:49:50.788Z",
+  "eodUpdatedAt": "2026-08-03T01:49:50.788Z",
+  "eodTradingDate": "2026-08-03",
   "holdings": [
     "2330",
     "2317",
@@ -35,9 +35,9 @@
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 250.5,
-      "change": 21,
-      "date": "2026-07-31"
+      "close": 246,
+      "change": -4.5,
+      "date": "2026-08-03"
     },
     {
       "code": "2330",
