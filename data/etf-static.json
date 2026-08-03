@@ -1,7 +1,47 @@
 {
-  "updatedAt": "2026-07-27",
-  "note": "人工維護精選檔。topHoldings 來源 MoneyDJ 公開頁（權重%）；expenseRatio 無可靠機器可讀源，暫留 null。",
+  "updatedAt": "2026-07-31",
+  "note": "人工維護精選檔。topHoldings 來源 MoneyDJ 公開頁（權重%）；expenseRatio 無可靠機器可讀源，暫留 null。domesticRatio 是配息中『國內來源』的推定佔比，用於稅務估算：名稱看不出投資地區的標的只能人工判定，每筆都附 domicileBasis 說明依據與資料日。沒有這個欄位的標的一律回退到名稱推定。",
   "etfs": {
+    "00712": {
+      "domesticRatio": 0,
+      "domicileBasis": "前十大成分股 78.57% 全為美國 REITs（安納利資本管理、AGNC投資、史塔屋資產信託、Rithm資本…），配息屬海外所得。中文譯名讓名稱推定完全看不出來，故人工建表。依據 MoneyDJ 成分股 2026-07-24。",
+      "domicileAsOf": "2026-07-31"
+    },
+    "00770": {
+      "domesticRatio": 0,
+      "domicileBasis": "前十大成分股 55.31% 全為美股（NVIDIA、Apple、Broadcom、Microsoft…），配息屬海外所得。依據 MoneyDJ 成分股 2026-07-24。",
+      "domicileAsOf": "2026-07-31"
+    },
+    "00735": {
+      "domesticRatio": 0.5,
+      "domicileBasis": "臺韓混合：前十大中台股 34.92%、韓股 36.61%（Samsung、SK Hynix），約各半。前十大僅覆蓋 71.53%，故取 0.5 為推定值而非精算。依據 MoneyDJ 成分股 2026-07-24。",
+      "domicileAsOf": "2026-07-31"
+    },
+    "00771": {
+      "domesticRatio": 0,
+      "domicileBasis": "美國特別股，前十大 78% 為外國標的；餘額如「C 10.295」為特別股代號而非台股。依據 MoneyDJ 成分股 2026-07-24。",
+      "domicileAsOf": "2026-07-31"
+    },
+    "00908": {
+      "domesticRatio": 0,
+      "domicileBasis": "全球 REITs，前十大 100% 為境外不動產信託（含領展房產基金等）。依據 MoneyDJ 成分股 2026-07-24。",
+      "domicileAsOf": "2026-07-31"
+    },
+    "00909": {
+      "domesticRatio": 0,
+      "domicileBasis": "全球數位支付企業，前十大 100% 為外國公司。依據 MoneyDJ 成分股 2026-07-24。",
+      "domicileAsOf": "2026-07-31"
+    },
+    "00982D": {
+      "domesticRatio": 0,
+      "domicileBasis": "主動式複合債，前十大 85% 為外國標的；餘額如「C 8 1/8 07/15/39」為外國債券代號而非台股。依據 MoneyDJ 成分股 2026-07-24。",
+      "domicileAsOf": "2026-07-31"
+    },
+    "00983D": {
+      "domesticRatio": 0,
+      "domicileBasis": "主動式複合收益，前十大 92% 為外國標的；餘額為外國債券代號。依據 MoneyDJ 成分股 2026-07-24。",
+      "domicileAsOf": "2026-07-31"
+    },
     "0050": {
       "type": "市值型",
       "expenseRatio": null,

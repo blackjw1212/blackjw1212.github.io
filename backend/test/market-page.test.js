@@ -742,6 +742,52 @@ test("the after-tax goal optimises net-of-tax income and refuses to guess the br
   assert.ok(taxed.gainVsEqual >= 0, "等權組合本身在搜尋空間內，最佳解不得更差");
 });
 
+test("a curated domicile ratio overrides the name heuristic", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { taxableRatio, etfTaxableRatio } = app.helpers;
+
+  // 00712 復華富時不動產：中文譯名的美國 REITs，名稱推定完全看不出來 →
+  // 若沒有人工表就會被當成國內全額應稅
+  const reit = { kind: "etf", name: "復華富時不動產", type: "主題型" };
+  assert.equal(taxableRatio(reit).ratio, 1, "沒建表時名稱推定判為國內（這正是要修的問題）");
+  const curated = taxableRatio({ ...reit, domesticRatio: 0 });
+  assert.equal(curated.ratio, 0);
+  assert.equal(curated.curated, true, "要標明這是人工查核而非推定");
+  assert.match(curated.reason, /人工查核/);
+
+  // 部分比例（00735 臺韓混合）
+  const mixed = taxableRatio({ kind: "etf", name: "國泰臺韓科技", type: "主題型", domesticRatio: 0.5 });
+  assert.equal(mixed.ratio, 0.5);
+  assert.match(mixed.reason, /50%/);
+
+  // 人工表也能把「名稱看似海外但其實國內」的標的拉回來
+  assert.equal(taxableRatio({ kind: "etf", name: "某全球名稱", type: "主題型", domesticRatio: 1 }).ratio, 1);
+
+  // null / undefined 一律回退到推定，不可當成 0（那等於全部免稅）
+  assert.equal(taxableRatio({ ...reit, domesticRatio: null }).ratio, 1);
+  assert.equal(etfTaxableRatio({ name: "復華富時不動產", type: "主題型", domesticRatio: null }).ratio, 1);
+  assert.equal(etfTaxableRatio({ name: "復華富時不動產", type: "主題型", domesticRatio: 0 }).ratio, 0);
+});
+
+test("the name heuristic covers the regions it previously missed", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { taxableRatio } = app.helpers;
+  const etf = (name) => taxableRatio({ kind: "etf", name, type: "主題型" }).ratio;
+  // 這些原本會被判成國內全額應稅
+  assert.equal(etf("國泰北美科技"), 0, "北美");
+  assert.equal(etf("國泰臺韓科技"), 0, "韓");
+  assert.equal(etf("某某亞太成長"), 0);
+  assert.equal(etf("某某東協精選"), 0);
+  assert.equal(etf("某某港股高息"), 0);
+  // 不可誤傷：這些是真正的國內標的
+  assert.equal(etf("元大高股息"), 1);
+  assert.equal(etf("中信綠能及電動車"), 1, "前十大 51% 全為台股，確實是國內型");
+  assert.equal(etf("中信關鍵半導體"), 1);
+  assert.equal(etf("元大臺灣ESG永續"), 1);
+});
+
 test("etfTaxableRatio adapts feed rows, which carry no kind field", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

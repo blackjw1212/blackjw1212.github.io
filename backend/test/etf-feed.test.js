@@ -435,6 +435,9 @@ test("etf-static.json is well formed so the overlap calculator cannot silently l
   assert.ok(data.etfs && typeof data.etfs === "object", "etfs map required");
   for (const [code, entry] of Object.entries(data.etfs)) {
     assert.ok(ETF_CODE_RE.test(code), `${code} must be a valid ETF code`);
+    // 這個檔現在也放「只人工判定配息來源地」的條目（domesticRatio），
+    // 那種條目沒有成分股要維護——不要逼它掛一個空陣列充數，那只會引來複製貼上的錯誤
+    if (entry.topHoldings === undefined && typeof entry.domesticRatio === "number") continue;
     assert.ok(Array.isArray(entry.topHoldings), `${code} topHoldings must be an array`);
     let sum = 0;
     for (const holding of entry.topHoldings) {

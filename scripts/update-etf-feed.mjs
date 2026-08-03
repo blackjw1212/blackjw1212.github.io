@@ -548,6 +548,13 @@ async function main() {
     row.isActive = isActiveEtf(row);
     row.isCore = isCoreEtf(row);
     if (curated.domicileNote) row.domicileNote = curated.domicileNote;
+    // 配息的國內來源佔比（稅務估算用）。名稱推定看不出投資地區時只能人工判定——
+    // 例：00712 復華富時不動產前十大全是美國 REITs，但中文譯名完全看不出來。
+    // 沒建表的標的不寫這個欄位，前端會回退到名稱推定。
+    if (typeof curated.domesticRatio === "number" && curated.domesticRatio >= 0 && curated.domesticRatio <= 1) {
+      row.domesticRatio = curated.domesticRatio;
+      if (curated.domicileBasis) row.domicileBasis = curated.domicileBasis;
+    }
   }
   if (premiumMismatch) errors.push({ source: "premium-sanity", message: `${premiumMismatch} row(s) premium mismatch >${PREMIUM_SANITY_PP}pp vs MIS official; column suppressed` });
   if (navPreserved) errors.push({ source: "feed-preservation", message: `kept previous nav/premium/aum for ${navPreserved} column value(s)` });

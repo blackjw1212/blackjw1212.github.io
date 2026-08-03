@@ -649,6 +649,10 @@ function normalizeEtfFeed(payload){
       dps:Array.isArray(row.dps) ? row.dps.filter(function(d){return d && Number.isFinite(Number(d.m)) && Number.isFinite(Number(d.a));}) : [],
       divMonthsCovered:parseNumber(row.divMonthsCovered),
       expenseRatio:parseNumber(row.expenseRatio),
+      // 人工查核的配息來源地佔比（稅務估算用）。沒建表的標的維持 null，
+      // taxableRatio 會回退到名稱推定——不可用 0 當預設，那等於全部免稅。
+      domesticRatio:typeof row.domesticRatio === "number" ? row.domesticRatio : null,
+      domicileBasis:row.domicileBasis || null,
       // 品質/分類指標優先取資料層（pipeline 已算好）；舊 feed 沒有時退回前端計算
       dividendCvField:parseNumber(row.dividendCv),
       isCoreField:typeof row.isCore === "boolean" ? row.isCore : null,
@@ -865,6 +869,7 @@ function lookupSecurity(code){
     // 帶上配息波動與類型：模擬器要能對「沒過品質門檻」的標的提出警示，
     // 也要能依類型推定配息的應稅比例
     return {code:etf.code, name:etf.name, kind:"etf", price:etf.close, events:etf.dps, cv:etfCv(etf), type:etf.type,
+      domesticRatio:etf.domesticRatio, domicileBasis:etf.domicileBasis,
       note:etf.dps.length ? null : "無配息紀錄（" + etf.type + "）"};
   }
   const stock = allStocks.find(function(row){return row.code === cleaned;});
@@ -894,12 +899,19 @@ function progressiveTax(net, brackets){
 // 對一般人實質為 0；76W／收益平準金／資本利得完全免稅。
 // 但這個組成比例沒有任何可自動取得的來源（TWSE etfDiv 與 TPEX 除權息預告表都只有金額，
 // SITCA 公告頁是 postback-only），所以只能依標的性質推定——一律附上理由讓畫面說得出來。
-const OVERSEAS_NAME_RE = /美國|美債|NASDAQ|那斯達克|S&P|標普|費城|全球|世界|歐洲|日本|印度|越南|中國|陸股|滬深|新興|已開發|成熟市場/i;
+const OVERSEAS_NAME_RE = /美國|北美|美債|NASDAQ|那斯達克|S&P|標普|費城|全球|世界|歐洲|日本|韓|印度|越南|中國|陸股|滬深|新興|已開發|成熟市場|亞太|東協|德國|英國|加拿大|澳洲|巴西|港股|新加坡/i;
 function taxableRatio(security){
   if (!security) return {ratio:0, reason:"查無標的"};
   if (security.kind !== "etf") return {ratio:1, reason:"個股配息為國內股利所得"};
   const name = String(security.name || "");
   const type = String(security.type || "");
+  // 人工建表優先於任何推定：名稱看不出投資地區的標的只有這條路。
+  // 例：00712 復華富時不動產前十大全是美國 REITs，但中文譯名讓名稱推定完全失效。
+  if (typeof security.domesticRatio === "number") {
+    return {ratio:security.domesticRatio,
+      reason:"人工查核" + (security.domesticRatio === 0 ? "：配息屬海外所得" : security.domesticRatio === 1 ? "：配息屬國內所得" : "：國內來源約 " + Math.round(security.domesticRatio * 100) + "%"),
+      curated:true};
+  }
   if (type === "債券型") return {ratio:0, reason:"債券型：境外債息屬海外所得，走最低稅負制"};
   if (type === "外幣計價") return {ratio:0, reason:"外幣計價：配息屬海外所得"};
   if (OVERSEAS_NAME_RE.test(name)) return {ratio:0, reason:"投資海外市場：配息屬海外所得"};
@@ -1050,7 +1062,8 @@ function effectiveExposure(allocations){
 // ETF feed 的列沒有 security 的 kind 欄位，補上再問應稅比例。
 // 這個換算刻意獨立成函式：最佳化器內圈跑數十萬次，正規表示式只能在池子建好時算一次。
 function etfTaxableRatio(row){
-  return taxableRatio({kind:"etf", name:row && row.name, type:row && row.type});
+  return taxableRatio({kind:"etf", name:row && row.name, type:row && row.type,
+    domesticRatio:row && row.domesticRatio});
 }
 
 function evaluatePortfolio(total, picks, weights, stress, nhi, tax){

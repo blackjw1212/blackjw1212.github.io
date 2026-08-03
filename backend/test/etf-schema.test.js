@@ -187,6 +187,59 @@ test("known ETFs land in the expected quality bands", async () => {
   assert.ok(by["00905"].dividendCv > 0.6, `00905 cv ${by["00905"].dividendCv} should be flagged volatile`);
 });
 
+test("curated domicile entries carry evidence and reach the feed", async () => {
+  const staticData = await readJson("../../data/etf-static.json");
+  const feed = await readJson("../../data/etf-feed.json");
+  const by = Object.fromEntries(feed.stocks.map((row) => [row.code, row]));
+
+  const curated = Object.entries(staticData.etfs).filter(([, v]) => typeof v.domesticRatio === "number");
+  assert.ok(curated.length >= 3, `expected curated domicile entries, got ${curated.length}`);
+  for (const [code, entry] of curated) {
+    assert.ok(entry.domesticRatio >= 0 && entry.domesticRatio <= 1, `${code}: ratio 必須在 0..1`);
+    // 人工判定一定要留下依據與日期，否則沒人敢動它、也無從複查
+    assert.ok(entry.domicileBasis && entry.domicileBasis.length > 20, `${code}: 必須寫明判定依據`);
+    assert.match(entry.domicileAsOf || "", /^\d{4}-\d{2}-\d{2}$/, `${code}: 必須有資料日`);
+    if (by[code]) assert.equal(by[code].domesticRatio, entry.domesticRatio, `${code}: 人工值必須進到 feed`);
+  }
+
+  // 沒建表的標的不得被寫入這個欄位——前端要靠 undefined 才會回退到名稱推定，
+  // 若誤寫成 0 等於讓全市場配息變免稅
+  const uncurated = feed.stocks.filter((row) => row.domesticRatio != null && !staticData.etfs[row.code]);
+  assert.deepEqual(uncurated.map((r) => r.code), [], "只有人工表裡的標的可以有 domesticRatio");
+});
+
+test("holdings expose overseas funds the name cannot reveal", async () => {
+  // 這條是「表格別腐爛」的護欄：只要成分股顯示某檔幾乎全是外國公司，
+  // 但名稱推定又認定它是國內、且沒有人工建表，就要當場失敗提醒補表。
+  // 00712 復華富時不動產就是這樣被抓出來的——中文譯名（安納利資本管理公司…）
+  // 完全看不出那是美國 REITs。
+  const feed = await readJson("../../data/etf-feed.json");
+  const staticData = await readJson("../../data/etf-static.json");
+  const OVERSEAS = /美國|北美|美債|NASDAQ|那斯達克|S&P|標普|費城|全球|世界|歐洲|日本|韓|印度|越南|中國|陸股|滬深|新興|已開發|成熟市場|亞太|東協|德國|英國|加拿大|澳洲|巴西|港股|新加坡/i;
+  // 外國公司的線索：拉丁字母，或中文譯名常見的公司型態後綴
+  const looksForeign = (name) => /[A-Za-z]{3,}/.test(name)
+    || /資本管理公司|投資公司|資產信託|不動產投資信託公司|抵押信託|房產基金|環球公司|數位公司/.test(name);
+
+  const missing = [];
+  for (const row of feed.stocks) {
+    if (!row.topHoldings || row.topHoldings.length < 5) continue;
+    if (row.domesticRatio != null || staticData.etfs[row.code]) continue;   // 已建表
+    if (row.type === "債券型" || row.type === "外幣計價") continue;             // 型別已判定
+    if (OVERSEAS.test(row.name)) continue;                                  // 名稱已看得出來
+    // 不配息的標的產生不出應稅所得，判定它的來源地沒有意義——
+    // 硬要建表只會養出一張沒人維護得動的表
+    if (!(row.dps && row.dps.length)) continue;
+    const foreignWeight = row.topHoldings.filter((h) => looksForeign(h.name))
+      .reduce((sum, h) => sum + h.weight, 0);
+    const total = row.topHoldings.reduce((sum, h) => sum + h.weight, 0);
+    if (total > 0 && foreignWeight / total > 0.7) {
+      missing.push(`${row.code} ${row.name}（前十大外國成分 ${Math.round(foreignWeight / total * 100)}%）`);
+    }
+  }
+  assert.deepEqual(missing, [],
+    `這些標的的成分股看起來是海外，但名稱推定會當成國內全額應稅——請在 etf-static.json 補 domesticRatio：\n  ${missing.join("\n  ")}`);
+});
+
 test("tax params carry their source and stay internally consistent", async () => {
   const params = await readJson("../../data/tax-params.json");
   assert.equal(params.rocYear, 115, "115 年度＝2026 年所得，正是模擬對象");
