@@ -427,6 +427,40 @@ test("yahooDividends parses the chart events payload and drops junk", async () =
   assert.deepEqual(yahooDividends({}), []);
 });
 
+test("domesticRatioFromComposition derives the taxable share from a real notice", async () => {
+  const { domesticRatioFromComposition } = await import("../../scripts/update-etf-feed.mjs");
+  // 收益分配通知書的格式：每受益權單位的各類所得金額。
+  // 只有 54C 國內股利與 5A 國內利息課綜所稅；71 海外走最低稅負、76W 與平準金免稅。
+  const out = domesticRatioFromComposition({ "54C": 1.2, "5A": 0.3, "71": 1.0, "76W": 0.5, asOf: "2026-07-16" });
+  assert.equal(out.ratio, 0.5, "(1.2+0.3) / 3.0");
+  assert.match(out.basis, /依收益分配通知書/);
+  assert.match(out.basis, /54C 1\.2/);
+  assert.match(out.basis, /50\.00%/);
+  assert.match(out.basis, /2026-07-16/, "組成逐期會變，期別一定要記");
+
+  // 全海外 → 0；全國內股利 → 1
+  assert.equal(domesticRatioFromComposition({ "71": 4 }).ratio, 0);
+  assert.equal(domesticRatioFromComposition({ "54C": 4 }).ratio, 1);
+  // 收益平準金是資本返還，不是所得 → 拉低應稅比例
+  assert.equal(domesticRatioFromComposition({ "54C": 1, "76W": 3 }).ratio, 0.25);
+  // 大小寫不敏感
+  assert.equal(domesticRatioFromComposition({ "54c": 1, "71": 1 }).ratio, 0.5);
+
+  // 填錯寧可不用，也不要算出假比例
+  assert.equal(domesticRatioFromComposition(null), null);
+  assert.equal(domesticRatioFromComposition({}), null);
+  assert.equal(domesticRatioFromComposition({ asOf: "2026-07-16" }), null, "只有 asOf 沒有金額不算數");
+  assert.equal(domesticRatioFromComposition({ "54C": 0, "71": 0 }), null, "全 0 無從計算");
+  assert.equal(domesticRatioFromComposition({ "54C": -1, "71": 2 }), null, "負數必是填錯");
+  assert.equal(domesticRatioFromComposition({ "54C": "abc" }), null);
+
+  // 浮點殘留不得漏進依據文字（1.12+0.08 在二進位下是 1.2000000000000002）
+  const float = domesticRatioFromComposition({ "54C": 1.12, "5A": 0.08, "71": 1.95, "76W": 0.85 });
+  assert.equal(float.ratio, 0.3);
+  assert.doesNotMatch(float.basis, /0000000/, "依據文字看起來不能像資料髒掉");
+  assert.match(float.basis, /1\.2 ÷ 合計 4 /);
+});
+
 test("etf-static.json is well formed so the overlap calculator cannot silently lie", async () => {
   const { readFile } = await import("node:fs/promises");
   const { fileURLToPath } = await import("node:url");

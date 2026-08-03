@@ -751,15 +751,26 @@ test("a curated domicile ratio overrides the name heuristic", async () => {
   // 若沒有人工表就會被當成國內全額應稅
   const reit = { kind: "etf", name: "復華富時不動產", type: "主題型" };
   assert.equal(taxableRatio(reit).ratio, 1, "沒建表時名稱推定判為國內（這正是要修的問題）");
-  const curated = taxableRatio({ ...reit, domesticRatio: 0 });
+  const curated = taxableRatio({ ...reit, domesticRatio: 0, domicileSource: "成分股推定" });
   assert.equal(curated.ratio, 0);
-  assert.equal(curated.curated, true, "要標明這是人工查核而非推定");
-  assert.match(curated.reason, /人工查核/);
+  assert.equal(curated.curated, true, "要標明這是建表值而非名稱推定");
+  assert.match(curated.reason, /成分股推定/);
 
-  // 部分比例（00735 臺韓混合）
-  const mixed = taxableRatio({ kind: "etf", name: "國泰臺韓科技", type: "主題型", domesticRatio: 0.5 });
+  // 部分比例（00735 臺韓混合）——目前是成分股推定，畫面必須說是「推定」
+  const mixed = taxableRatio({ kind: "etf", name: "國泰臺韓科技", type: "主題型", domesticRatio: 0.5, domicileSource: "成分股推定" });
   assert.equal(mixed.ratio, 0.5);
+  assert.match(mixed.reason, /成分股推定/);
   assert.match(mixed.reason, /50%/);
+  assert.equal(mixed.fromNotice, false);
+
+  // 拿到實際收益分配通知書後，同一個欄位要標成「依收益分配通知書」——
+  // 實際數字與推定值不可在畫面上長得一樣
+  const notice = taxableRatio({ kind: "etf", name: "國泰臺韓科技", type: "主題型", domesticRatio: 0.3742, domicileSource: "收益分配通知書" });
+  assert.equal(notice.ratio, 0.3742);
+  assert.match(notice.reason, /依收益分配通知書/);
+  assert.doesNotMatch(notice.reason, /推定/);
+  assert.equal(notice.fromNotice, true);
+  assert.match(notice.reason, /37\.4%/, "非整數比例要看得出來");
 
   // 人工表也能把「名稱看似海外但其實國內」的標的拉回來
   assert.equal(taxableRatio({ kind: "etf", name: "某全球名稱", type: "主題型", domesticRatio: 1 }).ratio, 1);

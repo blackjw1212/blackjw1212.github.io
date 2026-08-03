@@ -397,6 +397,37 @@ export function preserveEtfMarketRows(previousStocks, fetchedRows, market) {
   return { rows: prev, preserved: true };
 }
 
+// 收益分配通知書的所得類別 → 應稅（國內來源）佔比。
+// 只有 54C 國內股利與 5A 國內利息課綜所稅；71 海外所得走最低稅負制、
+// 76W 財產交易所得與收益平準金免稅。金額用「每受益權單位」或總額都可以，
+// 因為算的是比例。任一期都填同一份 composition 即可——組成逐期會變，
+// 所以 asOf 一定要記，讓人知道這份數字是哪一次配息的。
+const TAXABLE_CATEGORIES = ["54C", "5A"];
+export function domesticRatioFromComposition(composition) {
+  if (!composition || typeof composition !== "object") return null;
+  const entries = Object.entries(composition)
+    .filter(([key, value]) => key !== "asOf" && key !== "note" && Number.isFinite(Number(value)));
+  if (!entries.length) return null;
+  let taxable = 0;
+  let total = 0;
+  for (const [key, value] of entries) {
+    const amount = Number(value);
+    if (amount < 0) return null;                       // 負數＝填錯，寧可不用也不要算出假比例
+    total += amount;
+    if (TAXABLE_CATEGORIES.includes(key.toUpperCase())) taxable += amount;
+  }
+  if (!(total > 0)) return null;
+  const ratio = Math.round(taxable / total * 10000) / 10000;
+  const parts = entries.map(([key, value]) => `${key} ${value}`).join("、");
+  // 0.1+0.2 那類浮點殘留會讓依據文字出現 1.2000000000000002，看起來像資料髒掉
+  const tidy = (value) => Math.round(value * 10000) / 10000;
+  return {
+    ratio,
+    basis: `依收益分配通知書：${parts}；應稅（54C＋5A）${tidy(taxable)} ÷ 合計 ${tidy(total)} = ${(ratio * 100).toFixed(2)}%`
+      + (composition.asOf ? `。配息期別 ${composition.asOf}。` : "。"),
+  };
+}
+
 // 逐欄保留：本次缺料的欄位沿用前次值（回傳保留計數）
 export function preserveEtfColumns(row, previous) {
   if (!previous) return 0;
@@ -551,9 +582,19 @@ async function main() {
     // 配息的國內來源佔比（稅務估算用）。名稱推定看不出投資地區時只能人工判定——
     // 例：00712 復華富時不動產前十大全是美國 REITs，但中文譯名完全看不出來。
     // 沒建表的標的不寫這個欄位，前端會回退到名稱推定。
-    if (typeof curated.domesticRatio === "number" && curated.domesticRatio >= 0 && curated.domesticRatio <= 1) {
+    //
+    // 兩種來源，收益分配通知書優先：
+    //   composition（實際通知書的各類所得金額）→ 算出來的比例，最準
+    //   domesticRatio（依成分股推定）          → 退而求其次
+    const fromNotice = domesticRatioFromComposition(curated.composition);
+    if (fromNotice) {
+      row.domesticRatio = fromNotice.ratio;
+      row.domicileBasis = fromNotice.basis;
+      row.domicileSource = "收益分配通知書";
+    } else if (typeof curated.domesticRatio === "number" && curated.domesticRatio >= 0 && curated.domesticRatio <= 1) {
       row.domesticRatio = curated.domesticRatio;
       if (curated.domicileBasis) row.domicileBasis = curated.domicileBasis;
+      row.domicileSource = "成分股推定";
     }
   }
   if (premiumMismatch) errors.push({ source: "premium-sanity", message: `${premiumMismatch} row(s) premium mismatch >${PREMIUM_SANITY_PP}pp vs MIS official; column suppressed` });
