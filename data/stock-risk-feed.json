@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-03T05:31:06.497Z",
-  "eodUpdatedAt": "2026-08-03T05:31:06.497Z",
+  "updatedAt": "2026-08-03T09:19:54.643Z",
+  "eodUpdatedAt": "2026-08-03T09:19:54.643Z",
   "eodTradingDate": "2026-08-03",
   "holdings": [
     "2330",
@@ -70,9 +70,9 @@
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2320,
-      "change": 210,
-      "date": "2026-07-31"
+      "close": 2550,
+      "change": 230,
+      "date": "2026-08-03"
     },
     {
       "code": "3231",
@@ -196,10 +196,5 @@
     "updatedAt": "2026-07-30T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    }
-  ]
+  "errors": []
 }
