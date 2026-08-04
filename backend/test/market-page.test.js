@@ -631,6 +631,48 @@ test("estimateDividendTax runs both regimes and takes the cheaper one", async ()
   assert.equal(estimateDividendTax({ taxableDividend: 0, netIncome: 1000000, params: P }), null);
 });
 
+test("estimateNetIncome turns a salary into a usable 綜合所得淨額", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { estimateNetIncome, TAX_FALLBACK } = app.helpers;
+  const P = TAX_FALLBACK;
+  // 115 年度：免稅額 101,000 + 標準扣除 136,000 + 薪資特扣 227,000 = 464,000
+  const single = estimateNetIncome({ salary: 1000000, filing: "single", dependents: 0, params: P });
+  assert.equal(single.net, 1000000 - 464000, "單身標準情境＝年薪 −464,000");
+  assert.equal(single.breakdown.exemption, 101000);
+  assert.equal(single.breakdown.standard, 136000);
+  assert.equal(single.breakdown.salaryDeduction, 227000);
+  assert.ok(single.note, "必須說明這是標準扣除額情境");
+
+  // 有配偶：免稅額 ×2、標準扣除加倍
+  const joint2 = estimateNetIncome({ salary: 2000000, filing: "joint2", dependents: 0, params: P });
+  assert.equal(joint2.breakdown.exemption, 202000);
+  assert.equal(joint2.breakdown.standard, 272000, "有配偶者標準扣除額加倍");
+  assert.equal(joint2.breakdown.salaryDeduction, 454000, "雙薪則薪資特扣兩份");
+  assert.equal(joint2.net, 2000000 - 202000 - 272000 - 454000);
+
+  // 單薪家庭只有一份薪資特扣
+  const joint1 = estimateNetIncome({ salary: 2000000, filing: "joint1", dependents: 0, params: P });
+  assert.equal(joint1.breakdown.salaryDeduction, 227000);
+  assert.ok(joint1.net > joint2.net, "少一份薪資特扣，淨額較高");
+
+  // 扶養親屬每人一個免稅額
+  const withDeps = estimateNetIncome({ salary: 1000000, filing: "single", dependents: 2, params: P });
+  assert.equal(withDeps.breakdown.exemption, 303000);
+  assert.equal(withDeps.net, single.net - 202000);
+
+  // 薪資特扣不得超過薪資本身，否則低薪會算出負的扣除額
+  const lowPay = estimateNetIncome({ salary: 150000, filing: "single", dependents: 0, params: P });
+  assert.equal(lowPay.breakdown.salaryDeduction, 150000, "特扣以薪資封頂");
+  assert.equal(lowPay.net, 0, "扣完不得為負");
+
+  // 沒填或填錯就不猜
+  assert.equal(estimateNetIncome({ salary: null, params: P }), null);
+  assert.equal(estimateNetIncome({ salary: 0, params: P }), null);
+  assert.equal(estimateNetIncome({ salary: -5, params: P }), null);
+  assert.equal(estimateNetIncome({ salary: "abc", params: P }), null);
+});
+
 test("taxableRatio infers the taxable share and always says why", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

@@ -294,7 +294,19 @@
       </div>
       <div class="toolrow">
         <span class="fld">綜合所得淨額 <input id="simNetIncome" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="綜合所得淨額（元）" placeholder="不填則不估稅" /> 元</span>
-        <span class="hint" style="margin:0">已扣除免稅額與扣除額後的金額；單身標準情境約為年薪 −464,000（115 年度）。留空則只估補充保費。</span>
+        <span class="hint" style="margin:0">留空則只估補充保費。<b>不知道這個數字？</b>它在你去年綜所稅申報書上，或用下面這排由年薪換算。</span>
+      </div>
+      <div class="toolrow">
+        <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
+        <span class="fld">申報方式
+          <select id="simFiling" aria-label="申報方式">
+            <option value="single">單身</option>
+            <option value="joint2">夫妻合併·雙薪</option>
+            <option value="joint1">夫妻合併·單薪</option>
+          </select>
+        </span>
+        <span class="fld">扶養親屬 <input id="simDependents" type="number" min="0" max="10" step="1" inputmode="numeric" style="width:56px" aria-label="扶養親屬人數" value="0" /> 人</span>
+        <span class="hint" style="margin:0" id="simNetIncomeHint"></span>
       </div>
       <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
       <div class="sim-rows" id="simRows"></div>
@@ -923,6 +935,32 @@ function taxableRatio(security){
   return {ratio:1, reason:"國內股票型：配息以國內股利所得推定"};
 }
 
+// 由年薪粗估「綜合所得淨額」。多數人不知道自己的淨額——那是申報書上的數字、
+// 不是薪水；這裡用 115 年度的免稅額與標準扣除額回推，讓人至少填得出一個合理值。
+// 刻意只算標準扣除額情境：列舉扣除（房貸利息、保險費、捐贈）與幼兒學前、長照等
+// 特別扣除額都會再壓低淨額，所以本估算偏高——偏高會高估稅率級距，是保守方向。
+function estimateNetIncome(input){
+  const params = (input && input.params) || taxParams || TAX_FALLBACK;
+  const d = params.deductions || TAX_FALLBACK.deductions;
+  const salary = Number(input && input.salary);
+  if (!Number.isFinite(salary) || salary <= 0) return null;
+  const filing = (input && input.filing) || "single";
+  const dependents = Math.max(0, Math.floor(Number(input && input.dependents) || 0));
+  const married = filing !== "single";
+  const exemption = (d.personalExemption || 101000) * (1 + (married ? 1 : 0) + dependents);
+  const standard = (d.standardDeduction || 136000) * (married ? 2 : 1);   // 有配偶者加倍扣除
+  // 薪資特扣是「每有薪資所得的人」各一份，且不得超過其薪資所得；
+  // 這裡只有家庭合計數，故以合計數封頂
+  const earners = filing === "joint2" ? 2 : 1;
+  const salaryDeduction = Math.min((d.salarySpecialDeduction || 227000) * earners, salary);
+  const net = Math.max(0, salary - exemption - standard - salaryDeduction);
+  return {
+    net:Math.round(net),
+    breakdown:{exemption:exemption, standard:standard, salaryDeduction:Math.round(salaryDeduction)},
+    note:"標準扣除額情境；列舉扣除與幼兒學前／長照等特別扣除額會再降低淨額",
+  };
+}
+
 // 這筆股利造成的「稅負增量」。合併與分開兩制都算，取較低者。
 // 合併計稅的抵減可以退稅，低級距時整體為負是真實效果，不可夾成 0。
 function estimateDividendTax(input){
@@ -1509,7 +1547,9 @@ function updateSimPctSum(){
 function saveSimState(){
   const store = storage();
   if (!store) return;
-  try { store.setItem(LS_SIM, JSON.stringify({total:($("simTotal") || {}).value || "", netIncome:($("simNetIncome") || {}).value || "", rows:simAllocations, stress:simStress})); } catch (error) {}
+  try { store.setItem(LS_SIM, JSON.stringify({total:($("simTotal") || {}).value || "", netIncome:($("simNetIncome") || {}).value || "",
+    salary:($("simSalary") || {}).value || "", filing:($("simFiling") || {}).value || "", dependents:($("simDependents") || {}).value || "",
+    rows:simAllocations, stress:simStress})); } catch (error) {}
 }
 
 function loadSimState(){
@@ -1520,6 +1560,9 @@ function loadSimState(){
     if (!saved) return;
     if ($("simTotal") && saved.total) $("simTotal").value = saved.total;
     if ($("simNetIncome") && saved.netIncome) $("simNetIncome").value = saved.netIncome;
+    if ($("simSalary") && saved.salary) $("simSalary").value = saved.salary;
+    if ($("simFiling") && saved.filing) $("simFiling").value = saved.filing;
+    if ($("simDependents") && saved.dependents) $("simDependents").value = saved.dependents;
     if (Array.isArray(saved.rows)) simAllocations = saved.rows.slice(0, 10);
     if (saved.stress === 0.8 || saved.stress === 0.6 || saved.stress === 1) simStress = saved.stress;
   } catch (error) {}
@@ -2028,12 +2071,40 @@ function bind(){
   if (s60) s60.addEventListener("click", function(){setStress(0.6, "s60");});
   const simTotal = $("simTotal");
   const simNetIncome = $("simNetIncome");
-  if (simNetIncome) simNetIncome.addEventListener("input", function(){
+  const afterNetIncomeChanged = function(){
     saveSimState();
     runSim();
     // 稅後目標的結果直接取決於這個數字，改了就要重算，否則畫面停在舊稅率下的組合
     if (suggestGoal === "afterTax" && $("suggestResult") && $("suggestResult").innerHTML) runSuggest();
+  };
+  if (simNetIncome) simNetIncome.addEventListener("input", function(){
+    // 手動改淨額就視為使用者自己決定，清掉換算列避免兩個數字互相打架
+    const hint = $("simNetIncomeHint");
+    if (hint) hint.textContent = "";
+    afterNetIncomeChanged();
   });
+  // 由年薪換算淨額：多數人不知道自己的綜合所得淨額，但都知道年薪
+  const recalcNetIncome = function(){
+    const out = estimateNetIncome({
+      salary:Number(($("simSalary") || {}).value),
+      filing:($("simFiling") || {}).value,
+      dependents:Number(($("simDependents") || {}).value),
+      params:taxParams,
+    });
+    const hint = $("simNetIncomeHint");
+    if (!out) { if (hint) hint.textContent = ""; return; }
+    if (simNetIncome) simNetIncome.value = out.net;
+    if (hint) {
+      const b = out.breakdown;
+      hint.textContent = "＝ 年薪 − 免稅額 " + fmt(b.exemption, 0) + " − 標準扣除 " + fmt(b.standard, 0)
+        + " − 薪資特扣 " + fmt(b.salaryDeduction, 0) + " → 淨額 " + fmt(out.net, 0) + "（" + out.note + "）";
+    }
+    afterNetIncomeChanged();
+  };
+  for (const id of ["simSalary", "simFiling", "simDependents"]) {
+    const node = $(id);
+    if (node) node.addEventListener(id === "simFiling" ? "change" : "input", recalcNetIncome);
+  }
   // 總額變動要連帶更新股數（比例%是以總額為基準），並即時重算——
   // 「試算」按鈕已移除，所有輸入都必須自己觸發重算
   if (simTotal) simTotal.addEventListener("input", function(){
@@ -2115,6 +2186,7 @@ const marketApp = {
     simulate:simulate,
     simWeightBounds:simWeightBounds,
     progressiveTax:progressiveTax,
+    estimateNetIncome:estimateNetIncome,
     taxableRatio:taxableRatio,
     etfTaxableRatio:etfTaxableRatio,
     estimateDividendTax:estimateDividendTax,
