@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-08-04T01:25:13.767Z",
-  "eodUpdatedAt": "2026-08-04T01:25:13.767Z",
-  "eodTradingDate": "2026-08-04",
+  "updatedAt": "2026-08-04T04:37:45.096Z",
+  "eodUpdatedAt": "2026-08-04T04:37:45.096Z",
+  "eodTradingDate": "2026-08-03",
   "holdings": [
     "2330",
     "2317",
@@ -42,9 +42,9 @@
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2325,
-      "change": -45,
-      "date": "2026-08-04"
+      "close": 2370,
+      "change": -55,
+      "date": "2026-08-03"
     },
     {
       "code": "2356",
