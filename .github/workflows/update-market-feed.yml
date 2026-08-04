@@ -50,16 +50,17 @@ jobs:
           else
             echo "Not the 22:00 slot — skipping the daily dividend refresh"
           fi
-      # 稅參數只做「過期偵測」，不自動改寫數字——財政部每年 11 月底公告，實際數字在
-      # PDF 附件裡，解析政府 CMS 附件比解析 MoneyDJ 更脆弱，而稅率算錯的後果更嚴重。
-      # 這步偵測到過期會 exit 1，但不擋 feed 更新（容錯），由 log 提醒人工填新數字。
-      - name: Check tax params freshness
+      # 課稅級距自動抓取（台北國稅局「適用稅率」是真的 HTML 表格，非 PDF 附件），
+      # 寫入前必須通過定義性驗證：每個級距交界處兩式必須算出同一個數。
+      # 抵減率、免稅額／扣除額、二代健保、最低稅負仍為人工維護，不在該表內。
+      # 驗證不過或線上與現存衝突會 exit 1，但不擋 feed 更新（容錯），由 log 提醒。
+      - name: Refresh tax brackets (once daily)
         continue-on-error: true
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
             node scripts/update-tax-params.mjs
           else
-            echo "Not the 22:00 slot — skipping the tax params freshness check"
+            echo "Not the 22:00 slot — skipping the tax bracket refresh"
           fi
       # ETF 引擎失敗不得連坐個股 feed：這步容錯。ETF 檔案維持上次 commit 的內容，
       # 下一步的 schema 驗證會檢查那份舊檔並通過，個股 feed 照常更新。

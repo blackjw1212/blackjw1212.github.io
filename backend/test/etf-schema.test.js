@@ -298,6 +298,66 @@ test("the inline tax fallback never drifts from data/tax-params.json", async () 
   assert.ok(block.includes(`singleStandardThreshold:${params.deductions.singleStandardThreshold}`));
 });
 
+test("the rate table is parsed by label and self-validated before it can overwrite", async () => {
+  const { parseRateTables, validateBrackets, sameBrackets } = await import("../../scripts/update-tax-params.mjs");
+  // 取自台北國稅局「適用稅率」頁的真實結構：年度標籤在表格前，表格是真的 <table>
+  const table = (rows) => `<table><tbody>
+    <tr><th>級距</th><th>綜合所得淨額</th><th>乘法</th><th>稅率</th><th>減法</th><th>累進差額</th><th>等於</th><th>全年應納稅額</th></tr>
+    ${rows.map(([r, rate, qd], i) => `<tr><td>${i + 1}</td><td>${r}</td><td>×</td><td>${rate}</td><td>－</td><td>${qd}</td><td>=</td><td></td></tr>`).join("")}
+  </tbody></table>`;
+  const html = `<p>► 115年度累進稅率：</p>${table([
+    ["0~610,000", "5%", "0"], ["610,001~1,380,000", "12%", "42,700"], ["1,380,001~2,770,000", "20%", "153,100"],
+    ["2,770,001~5,190,000", "30%", "430,100"], ["5,190,001以上", "40%", "949,100"]])}
+    <p>► 113至114年度累進稅率：</p>${table([
+    ["0~590,000", "5%", "0"], ["590,001~1,330,000", "12%", "41,300"], ["1,330,001~2,660,000", "20%", "147,700"],
+    ["2,660,001~4,980,000", "30%", "413,700"], ["4,980,001以上", "40%", "911,700"]])}`;
+
+  const parsed = parseRateTables(html);
+  assert.equal(parsed.length, 2);
+  assert.deepEqual(parsed[0].years, [115]);
+  assert.deepEqual(parsed[1].years, [113, 114], "「113至114年度」要展開成兩個年度");
+  assert.deepEqual(parsed[0].brackets, [
+    { upTo: 610000, rate: 0.05, quickDeduction: 0 },
+    { upTo: 1380000, rate: 0.12, quickDeduction: 42700 },
+    { upTo: 2770000, rate: 0.2, quickDeduction: 153100 },
+    { upTo: 5190000, rate: 0.3, quickDeduction: 430100 },
+    { upTo: null, rate: 0.4, quickDeduction: 949100 },
+  ]);
+  // 解析結果必須與版控中的值一致——不一致代表解析器或資料其一失準
+  const stored = await readJson("../../data/tax-params.json");
+  assert.ok(sameBrackets(parsed[0].brackets, stored.brackets), "解析值與 tax-params.json 必須相同");
+
+  // 沒有年度標籤的表格不得被誤收
+  assert.equal(parseRateTables(table([["0~610,000", "5%", "0"]])).length, 0);
+  assert.equal(parseRateTables("").length, 0);
+});
+
+test("validateBrackets is the only licence to auto-write tax rates", async () => {
+  const { validateBrackets } = await import("../../scripts/update-tax-params.mjs");
+  const good = [
+    { upTo: 610000, rate: 0.05, quickDeduction: 0 },
+    { upTo: 1380000, rate: 0.12, quickDeduction: 42700 },
+    { upTo: 2770000, rate: 0.2, quickDeduction: 153100 },
+    { upTo: 5190000, rate: 0.3, quickDeduction: 430100 },
+    { upTo: null, rate: 0.4, quickDeduction: 949100 },
+  ];
+  assert.equal(validateBrackets(good).ok, true);
+
+  // 累進差額抄錯一位 → 定義性檢查必須抓到。這是自動化最危險的失效模式：
+  // 數字看起來很正常，但稅全錯。
+  const off = good.map((b, i) => (i === 1 ? { ...b, quickDeduction: 42800 } : b));
+  const bad = validateBrackets(off);
+  assert.equal(bad.ok, false);
+  assert.match(bad.reasons.join(""), /42700/, "要指出正確值是多少");
+
+  // 其他失效型態
+  assert.equal(validateBrackets(good.map((b, i) => (i === 0 ? { ...b, quickDeduction: 5 } : b))).ok, false, "首級距差額必須為 0");
+  assert.equal(validateBrackets(good.map((b, i) => (i === 4 ? { ...b, upTo: 9999999 } : b))).ok, false, "最高級距不得有上限");
+  assert.equal(validateBrackets(good.slice(0, 2).map((b, i) => (i === 1 ? { ...b, rate: 0.05 } : b))).ok, false, "稅率必須遞增");
+  assert.equal(validateBrackets([]).ok, false);
+  assert.equal(validateBrackets(null).ok, false);
+});
+
 test("tax params freshness is detected, never silently guessed", async () => {
   const { assessFreshness, incomeRocYear, latestAnnouncedYear } = await import("../../scripts/update-tax-params.mjs");
 
