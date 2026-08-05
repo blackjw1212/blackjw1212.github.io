@@ -147,6 +147,19 @@
   .score-strip{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
   .data-line{font-size:11px;color:var(--faint);margin-top:8px}
 
+  .watch-editor{border:1px solid var(--line2);border-radius:8px;background:var(--panel);padding:12px;margin:10px 0 12px}
+  .watch-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .watch-row .fld{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--soft)}
+  .watch-row input,.watch-row select{font-family:"Roboto Mono",monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:7px 9px;font-size:13px}
+  .watch-row .count{margin-left:auto;font-family:"Roboto Mono",monospace;font-size:12px;color:var(--soft)}
+  .watch-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .watch-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);border-radius:999px;padding:3px 6px 3px 10px;font-family:"Roboto Mono",monospace;font-size:12px;background:var(--panel2)}
+  .watch-chip.custom{border-style:dashed}
+  .watch-chip .wt{font-size:10px;color:var(--faint)}
+  .watch-chip button{background:none;border:none;color:var(--faint);cursor:pointer;font-size:14px;line-height:1;padding:2px 6px;min-height:28px}
+  .watch-chip button:hover{color:var(--red)}
+  .watch-chip select{font-size:10px;padding:1px 3px;background:transparent;border:none;color:var(--faint);cursor:pointer}
+
   footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
   footer b{color:var(--soft)}
 
@@ -220,7 +233,25 @@
 
   <section aria-labelledby="scoreHeading">
     <h2 id="scoreHeading">股票觀察清單 <em>SCORECARD</em></h2>
-    <p class="hint">系統觀察價由收盤與 13:30 快照自動估算，是觀察基準而非目標價；點代碼開 TradingView。</p>
+    <p class="hint">系統觀察價由收盤與 13:30 快照自動估算，是觀察基準而非目標價；點代碼開 TradingView。
+      清單可自行增刪：內建 13 檔附人工整理的六維評估，<b>自行加入的標的只帶客觀數據、標示「未評分」</b>，不會替它產生看起來像分析的評分。</p>
+    <div class="watch-editor">
+      <div class="watch-row">
+        <span class="fld">加入代碼 <input id="watchAdd" type="text" inputmode="numeric" maxlength="6" style="width:92px" placeholder="如 2454" aria-label="要加入觀察清單的股票代碼" /></span>
+        <select id="watchTier" aria-label="加入時的分層">
+          <option value="core">核心觀察</option>
+          <option value="sat" selected>衛星觀察</option>
+          <option value="wait">等待冷卻</option>
+        </select>
+        <button class="btn" id="watchAddBtn" type="button">加入</button>
+        <button class="btn" id="watchReset" type="button" title="回到內建的 13 檔">重設為預設</button>
+        <button class="btn" id="watchExport" type="button" title="複製目前清單的 JSON">匯出</button>
+        <button class="btn" id="watchImport" type="button" title="貼上先前匯出的 JSON">匯入</button>
+        <span class="count" id="watchCount"></span>
+      </div>
+      <div id="watchChips" class="watch-chips"></div>
+      <div class="data-line" id="watchNote"></div>
+    </div>
     <div class="table-scroll">
       <table id="scoreTable">
         <thead><tr>
@@ -277,7 +308,10 @@ const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY
 const STATIC_STOCK_FEED_URL = "/data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
 
-const STOCKS = [
+// 內建的人工整理清單。tier／theme／role／s（六維評分）都是人工判斷，
+// 不是算出來的——使用者自行加入的標的不會有這些欄位，畫面會標示「未評分」，
+// 絕不替它們生成看起來像分析的數字。
+const BUILT_INS = [
   {code:"2330",name:"台積電",tier:"core",theme:"foundry",role:"先進製程與封裝，AI 供應鏈核心底座；估值合理，但目前位階偏高、回檔最淺。",pe:"~32",base:2310,s:["m","h","h","m","h","h"]},
   {code:"2317",name:"鴻海",tier:"core",theme:"server",role:"AI 伺服器與整機平台；估值偏低、股價淨值比貼近淨值，核心裡估值最扎實的一檔。",pe:"~19",base:260.5,s:["mh","mh","mh","m","m","h"]},
   {code:"2382",name:"廣達",tier:"sat",theme:"server",role:"AI 伺服器 ODM 與雲端大客戶；估值便宜、殖利率為清單最高，前段衛星首選。",pe:"~19",base:372,s:["mh","mh","h","mh","m","h"]},
@@ -317,7 +351,46 @@ const THEME_NAMES = {foundry:"晶圓代工",server:"伺服器 ODM／系統",cool
 
 const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
 const TONE_WORD = {g:"綠燈",a:"黃燈",r:"紅燈"};
-const STOCK_CODES = STOCKS.map(function(stock){return stock.code;});
+const BUILT_IN_BY_CODE = {};
+BUILT_INS.forEach(function(stock){ BUILT_IN_BY_CODE[stock.code] = stock; });
+const DEFAULT_WATCHLIST = BUILT_INS.map(function(stock){return {code:stock.code, tier:stock.tier};});
+const MAX_WATCHLIST = 40;
+
+// 觀察清單是可定義的：預設等於內建清單，使用者可增刪與改分層。
+// STOCKS 由 rebuildStocks() 依 watchlist 組出來，內建欄位用 code 對回去，
+// 自行加入的只帶 code/tier，其餘（名稱、收盤、PE）由 market-feed 補。
+let watchlist = DEFAULT_WATCHLIST.slice();
+let STOCKS = [];
+let marketRows = {};        // code → market-feed 的列，供自行加入的標的取名稱與估值
+let marketFeedMeta = null;
+let marketFeedTradeDate = "";
+
+function rebuildStocks(){
+  STOCKS = watchlist.map(function(entry){
+    const builtIn = BUILT_IN_BY_CODE[entry.code];
+    const row = marketRows[entry.code] || null;
+    if (builtIn) return Object.assign({}, builtIn, {tier:entry.tier || builtIn.tier});
+    return {
+      code:entry.code,
+      name:(row && row.name) || entry.name || entry.code,
+      tier:entry.tier || "sat",
+      theme:"other",
+      role:"自行加入的觀察標的，未做人工評估。",
+      pe:row && row.pe != null ? "~" + Math.round(row.pe) : null,
+      base:null,
+      s:null,          // 六維是人工判斷，不替使用者生成
+      custom:true,
+    };
+  });
+  return STOCKS;
+}
+
+function stockCodes(){ return STOCKS.map(function(stock){return stock.code;}); }
+function builtInCodes(){ return BUILT_INS.map(function(stock){return stock.code;}); }
+
+// 模組載入時就要有值：測試與其他呼叫端可能不經過 init() 就直接用 STOCKS，
+// 留成空陣列會讓覆蓋率算出 0/0
+rebuildStocks();
 const TRADINGVIEW_SYMBOLS = {
   "2330":"TWSE:2330",
   "2317":"TWSE:2317",
@@ -333,7 +406,10 @@ const TRADINGVIEW_SYMBOLS = {
   "2376":"TWSE:2376",
   "6239":"TWSE:6239",
 };
-const EOD_CACHE_KEY = LS + ":eod:" + STOCK_CODES.join(",");
+// 快取鍵綁內建清單而非使用者清單：Worker 與 stock-risk-feed 只涵蓋內建那幾檔，
+// 使用者增刪標的不該讓收盤快取失效。自行加入的標的走 market-feed，不進這個快取。
+const EOD_CACHE_KEY = LS + ":eod:" + builtInCodes().join(",");
+const MARKET_FEED_URL = "/data/market-feed.json";
 const MARKET_INDEXES = [
   {id:"taiex",label:"加權",dom:"Taiex"},
   {id:"tpex",label:"櫃買",dom:"Tpex"},
@@ -352,7 +428,26 @@ function storage(){
 }
 
 function defaultState(){
-  return {cond:{},condSource:{},base:{},today:{},yieldManual:false,eodMeta:null,yieldMeta:null};
+  return {cond:{},condSource:{},base:{},today:{},watchlist:null,yieldManual:false,eodMeta:null,yieldMeta:null};
+}
+
+// 觀察清單的清洗：代碼格式、分層合法性、去重、上限。
+// 回 null 代表「使用者沒自訂」→ 用預設清單，而不是空清單。
+function sanitizeWatchlist(raw){
+  if (!Array.isArray(raw)) return null;
+  const seen = {};
+  const out = [];
+  for (const item of raw) {
+    const code = String((item && item.code) || item || "").trim().toUpperCase();
+    if (!/^\d{4}[A-Z]?$/.test(code) || seen[code]) continue;
+    seen[code] = true;
+    const tier = item && TIERS[item.tier] ? item.tier : (BUILT_IN_BY_CODE[code] ? BUILT_IN_BY_CODE[code].tier : "sat");
+    const entry = {code:code, tier:tier};
+    if (item && item.name) entry.name = clampText(item.name, 20);
+    out.push(entry);
+    if (out.length >= MAX_WATCHLIST) break;
+  }
+  return out.length ? out : null;
 }
 
 function clampText(value, max){
@@ -377,15 +472,21 @@ function sanitizeState(raw){
     }
   }
 
+  // 清單可由使用者定義，因此這裡不能只認內建代碼——改為驗證代碼格式，
+  // 否則使用者自行加入的標的一存檔就被清掉
+  const isCode = function(value){ return /^\d{4}[A-Z]?$/.test(String(value)); };
+
   if (raw.base && typeof raw.base === "object") {
-    for (const code of STOCK_CODES) {
+    for (const code of Object.keys(raw.base)) {
+      if (!isCode(code)) continue;
       const value = parseNumber(raw.base[code]);
       if (value != null) next.base[code] = value;
     }
   }
 
   if (raw.today && typeof raw.today === "object") {
-    for (const code of STOCK_CODES) {
+    for (const code of Object.keys(raw.today)) {
+      if (!isCode(code)) continue;
       const row = raw.today[code] || {};
       const close = parseNumber(row.close);
       const change = parseNumber(row.change);
@@ -404,6 +505,7 @@ function sanitizeState(raw){
     }
   }
 
+  next.watchlist = sanitizeWatchlist(raw.watchlist);
   next.yieldManual = Boolean(raw.yieldManual);
   if (raw.eodMeta && typeof raw.eodMeta === "object") next.eodMeta = sanitizeMeta(raw.eodMeta);
   if (raw.yieldMeta && typeof raw.yieldMeta === "object") next.yieldMeta = sanitizeMeta(raw.yieldMeta);
@@ -731,10 +833,54 @@ async function loadStaticFeed(){
   return staticFeedPromise;
 }
 
+// 用已載入的 market-feed 補價格。只補「還沒有價格」的代碼，不覆蓋 13:30 快照那份較精準的資料。
+// 這支要能被單獨呼叫：使用者是在 feed 載入之後才加入標的，
+// 只在 loadMarketFeed 裡填會讓新加入的那檔永遠顯示「收盤待更新」。
+function fillFromMarketRows(){
+  let filled = 0;
+  for (const stock of STOCKS) {
+    if (state.today[stock.code] && state.today[stock.code].close != null) continue;
+    const row = marketRows[stock.code];
+    if (!row || row.close == null) continue;
+    const clean = {close:roundNumber(row.close,2), change:roundNumber(row.change,2)};
+    if (row.open != null) clean.open = roundNumber(row.open,2);
+    if (row.high != null) clean.high = roundNumber(row.high,2);
+    if (row.low != null) clean.low = roundNumber(row.low,2);
+    if (row.close != null && row.change != null) clean.previousClose = roundNumber(row.close - row.change, 2);
+    clean.time = marketFeedTradeDate;
+    state.today[stock.code] = clean;
+    filled += 1;
+  }
+  return filled;
+}
+
+// 自行加入的標的不在 Worker 與 stock-risk-feed 的涵蓋範圍，改由全市場 feed 補。
+// market-feed 有 open/high/low，所以觀察價一樣算得出來，不是只有收盤價。
+async function loadMarketFeed(){
+  try {
+    const response = await fetch(MARKET_FEED_URL + "?v=" + encodeURIComponent(new Date().toISOString().slice(0,10)),
+      {cache:"no-store", headers:{Accept:"application/json"}});
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const payload = await response.json();
+    const rows = Array.isArray(payload.stocks) ? payload.stocks : [];
+    marketRows = {};
+    for (const row of rows) if (row && row.code) marketRows[row.code] = row;
+    marketFeedTradeDate = payload.tradeDate || "";
+    rebuildStocks();
+    const filled = fillFromMarketRows();
+    marketFeedMeta = {tradeDate:marketFeedTradeDate, count:rows.length, filled:filled};
+    saveState();
+    return filled ? ("全市場 feed 補 " + filled + " 檔") : "全市場 feed 已載入";
+  } catch (error) {
+    marketFeedMeta = null;
+    return "全市場 feed 讀取失敗";
+  }
+}
+
 function sanitizeValuation(raw){
   const out = {};
   if (!raw || typeof raw !== "object") return out;
-  for (const code of STOCK_CODES) {
+  for (const code of builtInCodes()) {
     const entry = raw[code];
     if (!entry || typeof entry !== "object") continue;
     const pe = parseNumber(entry.pe);
@@ -798,7 +944,7 @@ function loadEodCache(){
 }
 
 function applyEod(result){
-  const wanted = new Set(STOCK_CODES);
+  const wanted = new Set(builtInCodes());
   const byCode = {};
   for (const row of result.rows) {
     if (!wanted.has(row.code)) continue;
@@ -830,7 +976,7 @@ function normalizeClosingQuoteRows(payload){
     const high = parseNumber(field(row, ["high","h"]));
     const low = parseNumber(field(row, ["low","l"]));
     const open = parseNumber(field(row, ["open","o"]));
-    if (!STOCK_CODES.includes(code) || close == null || !/T13:30:00\+08:00$/.test(time)) return null;
+    if (!builtInCodes().includes(code) || close == null || !/T13:30:00\+08:00$/.test(time)) return null;
     const out = {
       code:code,
       name:String(field(row, ["name","n"]) || "").trim(),
@@ -849,10 +995,11 @@ function normalizeClosingQuoteRows(payload){
 async function loadClosingQuotes(){
   const base = proxyBase();
   if (!base) throw new Error("Worker quote backend is not configured");
-  const result = await fetchJson(base + "/quote?codes=" + encodeURIComponent(STOCK_CODES.join(",")));
+  const codes = builtInCodes();
+  const result = await fetchJson(base + "/quote?codes=" + encodeURIComponent(codes.join(",")));
   const rows = normalizeClosingQuoteRows(result.data);
   if (!rows.length) throw new Error("MIS quote has no 13:30 closing rows");
-  if (rows.length < STOCK_CODES.length) throw new Error("MIS quote has incomplete 13:30 closing rows");
+  if (rows.length < codes.length) throw new Error("MIS quote has incomplete 13:30 closing rows");
   const latest = rows.map(function(row){return row.time;}).filter(Boolean).sort().pop() || "";
   return {
     rows:rows,
@@ -1519,6 +1666,74 @@ function observationCellHtml(observation){
   return '<span class="' + observationToneClass(observation) + '">' + escapeHtml(text) + '</span><div class="data-line">' + escapeHtml(observationMetaText(observation)) + '</div>';
 }
 
+/* ---------- 可定義觀察清單 ---------- */
+
+function applyWatchlist(next){
+  watchlist = sanitizeWatchlist(next) || DEFAULT_WATCHLIST.slice();
+  state.watchlist = watchlist;
+  rebuildStocks();
+  fillFromMarketRows();   // 新加入的標的要立刻有價格，不必等下一次 refresh
+  saveState();
+  renderWatchEditor();
+  renderScore();
+  renderConds();
+}
+
+// 加入前先確認這個代碼真的存在於全市場 feed，否則使用者會加到一個永遠沒資料的空列
+function addWatch(code, tier){
+  const clean = String(code || "").trim().toUpperCase();
+  const note = $("watchNote");
+  const say = function(text){ if (note) note.textContent = text; };
+  if (!/^\d{4}[A-Z]?$/.test(clean)) return say("代碼格式不對，要 4 位數字（如 2454）。"), false;
+  if (watchlist.some(function(entry){return entry.code === clean;})) return say(clean + " 已經在清單裡。"), false;
+  if (watchlist.length >= MAX_WATCHLIST) return say("清單上限 " + MAX_WATCHLIST + " 檔。"), false;
+  const row = marketRows[clean];
+  if (!row) return say(clean + " 不在全市場清單裡（可能是 ETF、權證或已下市）——ETF 請用 /market/ 的 ETF 分頁。"), false;
+  applyWatchlist(watchlist.concat([{code:clean, tier:TIERS[tier] ? tier : "sat"}]));
+  say("已加入 " + clean + " " + (row.name || "") + "。");
+  return true;
+}
+
+function removeWatch(code){
+  applyWatchlist(watchlist.filter(function(entry){return entry.code !== code;}));
+  const note = $("watchNote");
+  if (note) note.textContent = "已移除 " + code + "。";
+}
+
+function setWatchTier(code, tier){
+  applyWatchlist(watchlist.map(function(entry){
+    return entry.code === code ? {code:entry.code, tier:tier, name:entry.name} : entry;
+  }));
+}
+
+function renderWatchEditor(){
+  const chips = $("watchChips");
+  const count = $("watchCount");
+  if (count) {
+    const custom = watchlist.filter(function(e){return !BUILT_IN_BY_CODE[e.code];}).length;
+    count.textContent = watchlist.length + " 檔" + (custom ? "（自行加入 " + custom + "）" : "") + " / 上限 " + MAX_WATCHLIST;
+  }
+  if (!chips) return;
+  chips.innerHTML = watchlist.map(function(entry){
+    const stock = STOCKS.find(function(s){return s.code === entry.code;}) || {};
+    const isCustom = !BUILT_IN_BY_CODE[entry.code];
+    const options = Object.keys(TIERS).map(function(key){
+      return '<option value="' + key + '"' + (entry.tier === key ? " selected" : "") + '>' + TIERS[key].name + '</option>';
+    }).join("");
+    return '<span class="watch-chip' + (isCustom ? " custom" : "") + '">'
+      + '<b>' + escapeHtml(entry.code) + '</b> ' + escapeHtml(stock.name || "")
+      + '<select data-watch-tier="' + escapeHtml(entry.code) + '" aria-label="' + escapeHtml(entry.code) + ' 分層">' + options + '</select>'
+      + '<button type="button" data-watch-del="' + escapeHtml(entry.code) + '" aria-label="移除 ' + escapeHtml(entry.code) + '">✕</button>'
+      + '</span>';
+  }).join("");
+  for (const node of chips.querySelectorAll("button[data-watch-del]")) {
+    node.addEventListener("click", function(){ removeWatch(node.getAttribute("data-watch-del")); });
+  }
+  for (const node of chips.querySelectorAll("select[data-watch-tier]")) {
+    node.addEventListener("change", function(){ setWatchTier(node.getAttribute("data-watch-tier"), node.value); });
+  }
+}
+
 function renderScore(){
   const tbody = $("scoreBody");
   const cards = $("stockCards");
@@ -1530,9 +1745,12 @@ function renderScore(){
     const observation = snapshot.observation;
     const observationText = observationMainText(observation);
     const observationMeta = observationMetaText(observation);
-    const scoreCells = stock.s.map(function(value, index){
-      return '<td><span class="sc ' + scoreClass(value, index) + '">' + STXT[value] + '</span></td>';
-    }).join("");
+    // 六維是人工判斷，自行加入的標的沒有——顯示「未評分」而不是生一個看起來像分析的值
+    const scoreCells = stock.s
+      ? stock.s.map(function(value, index){
+          return '<td><span class="sc ' + scoreClass(value, index) + '">' + STXT[value] + '</span></td>';
+        }).join("")
+      : '<td colspan="' + SCORE_LABELS.length + '" style="color:var(--faint);font-size:11px">未評分（自行加入）</td>';
     const tr = document.createElement("tr");
     tr.innerHTML = '<td>' + stockTradingViewLink(stock, false) + '</td>'
       + scoreCells
@@ -1543,9 +1761,11 @@ function renderScore(){
 
     const card = document.createElement("div");
     card.className = "stock-card";
-    const scoreStrip = stock.s.map(function(value, index){
-      return '<span class="sc ' + scoreClass(value, index) + '">' + escapeHtml(SCORE_LABELS[index]) + ' ' + STXT[value] + '</span>';
-    }).join("");
+    const scoreStrip = stock.s
+      ? stock.s.map(function(value, index){
+          return '<span class="sc ' + scoreClass(value, index) + '">' + escapeHtml(SCORE_LABELS[index]) + ' ' + STXT[value] + '</span>';
+        }).join("")
+      : '<span class="sc" style="color:var(--faint)">未評分（自行加入）</span>';
     card.innerHTML = '<div class="stock-card-head"><div>' + stockTradingViewLink(stock, true) + '</div><span class="tier ' + TIERS[stock.tier].cls + '">' + stock.tier.toUpperCase() + '</span></div>'
       + '<div class="stock-meta"><div><b>收盤</b>' + (close != null ? fmt(close, 2) : '待更新') + '</div><div><b>距離觀察基準</b>' + escapeHtml(observationText) + '</div><div><b>參考 PE</b>' + escapeHtml(peLabel(stock)) + '</div><div><b>定位</b>' + escapeHtml(TIERS[stock.tier].name) + '</div></div>'
       + '<div class="score-strip">' + scoreStrip + '</div><div class="data-line">' + escapeHtml(observationMeta) + '</div><div class="data-line">' + escapeHtml(stock.role) + '</div><div class="data-line">' + escapeHtml(dataLabel()) + '</div>';
@@ -1558,20 +1778,71 @@ async function refresh(){
   $("stamp").textContent = "更新中...";
   const messages = [];
   messages.push(await loadEod());
+  // market-feed 要排在 loadEod 之後：它只補「還沒有價格」的代碼，
+  // 不覆蓋 13:30 快照那份較精準的資料
+  messages.push(await loadMarketFeed());
   messages.push(await loadYield10y());
   messages.push(await loadMarketIndices());
   messages.push(await loadValuation());
+  renderWatchEditor();
   renderConds();
   $("stamp").textContent = messages.join(" · ") + " · " + new Date().toLocaleString("zh-TW");
 }
 
+function bindWatchEditor(){
+  const addBtn = $("watchAddBtn");
+  const input = $("watchAdd");
+  const tier = $("watchTier");
+  if (addBtn && input) {
+    const submit = function(){
+      if (addWatch(input.value, tier ? tier.value : "sat")) input.value = "";
+    };
+    addBtn.addEventListener("click", submit);
+    input.addEventListener("keydown", function(event){ if (event.key === "Enter") submit(); });
+  }
+  const reset = $("watchReset");
+  if (reset) reset.addEventListener("click", function(){
+    applyWatchlist(null);
+    const note = $("watchNote");
+    if (note) note.textContent = "已重設為內建的 " + BUILT_INS.length + " 檔。";
+  });
+  const exportBtn = $("watchExport");
+  if (exportBtn) exportBtn.addEventListener("click", function(){
+    const json = JSON.stringify(watchlist);
+    const note = $("watchNote");
+    const done = function(ok){ if (note) note.textContent = ok ? ("已複製清單 JSON（" + watchlist.length + " 檔）") : ("複製失敗，請手動複製：" + json); };
+    try {
+      if (ROOT.navigator && ROOT.navigator.clipboard) ROOT.navigator.clipboard.writeText(json).then(function(){done(true);}, function(){done(false);});
+      else done(false);
+    } catch (error) { done(false); }
+  });
+  const importBtn = $("watchImport");
+  if (importBtn) importBtn.addEventListener("click", function(){
+    const note = $("watchNote");
+    let text = null;
+    try { text = ROOT.prompt ? ROOT.prompt("貼上先前匯出的清單 JSON") : null; } catch (error) { text = null; }
+    if (!text) return;
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch (error) { if (note) note.textContent = "JSON 格式不對，未變更。"; return; }
+    const cleaned = sanitizeWatchlist(parsed);
+    if (!cleaned) { if (note) note.textContent = "沒有可用的代碼，未變更。"; return; }
+    applyWatchlist(cleaned);
+    if (note) note.textContent = "已匯入 " + cleaned.length + " 檔。";
+  });
+}
+
 async function init(){
   state = sanitizeState(state);
+  // 使用者自訂的清單優先；沒有就用內建
+  watchlist = state.watchlist || DEFAULT_WATCHLIST.slice();
+  rebuildStocks();
   loadValuation();
   renderConds();
   renderBuckets();
+  renderWatchEditor();
   renderScore();
   renderMarketIndexes(marketIndexRows, marketIndexMeta, "市場指數待更新", false);
+  bindWatchEditor();
 
   $("refresh").addEventListener("click", function(){refresh().catch(function(error){
     $("stamp").textContent = "更新失敗，保留既有畫面：" + error.message;
@@ -1593,6 +1864,13 @@ const portfolioApp = {
     parseNumber:parseNumber,
     proxyBase:proxyBase,
     sanitizeState:sanitizeState,
+    sanitizeWatchlist:sanitizeWatchlist,
+    rebuildStocks:rebuildStocks,
+    builtInCodes:builtInCodes,
+    stockCodes:stockCodes,
+    getStocks:function(){return STOCKS;},
+    setWatchlistForTest:function(next){ watchlist = sanitizeWatchlist(next) || DEFAULT_WATCHLIST.slice(); return rebuildStocks(); },
+    setMarketRowsForTest:function(rows){ marketRows = rows || {}; return rebuildStocks(); },
     deriveAutoSignals:deriveAutoSignals,
     condColor:condColor,
     tradingViewUrl:tradingViewUrl,

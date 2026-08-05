@@ -687,6 +687,93 @@ test("page renders automated checklist, cards, and source labels from static fal
   assert.ok(calls.some((href) => href.startsWith("/data/stock-risk-feed.json")));
 });
 
+test("the watchlist is user-definable and defaults to the built-in list", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const h = context.window.PortfolioConsoleApp.helpers;
+
+  // 預設等於內建清單
+  const builtIn = h.builtInCodes();
+  assert.equal(builtIn.length, 13);
+  assert.deepEqual(h.stockCodes(), builtIn, "未自訂時清單＝內建");
+
+  // 自訂清單：可增、可刪、可改分層
+  h.setMarketRowsForTest({ "2454": { code: "2454", name: "聯發科", close: 3865, pe: 64.57 } });
+  const stocks = h.setWatchlistForTest([
+    { code: "2330", tier: "core" },
+    { code: "2454", tier: "sat" },
+  ]);
+  assert.deepEqual(Array.from(h.stockCodes()), ["2330", "2454"]);
+  const custom = stocks.find((s) => s.code === "2454");
+  assert.equal(custom.name, "聯發科", "名稱由 market-feed 補");
+  assert.equal(custom.custom, true);
+  assert.equal(custom.s, null, "六維是人工判斷，自行加入的不得生成評分");
+  assert.equal(custom.pe, "~65", "PE 由 market-feed 帶入");
+  const kept = stocks.find((s) => s.code === "2330");
+  assert.ok(Array.isArray(kept.s) && kept.s.length === 6, "內建標的保留人工評分");
+  assert.equal(kept.tier, "core");
+
+  // 分層可覆寫內建值
+  assert.equal(h.setWatchlistForTest([{ code: "2330", tier: "wait" }])[0].tier, "wait");
+});
+
+test("sanitizeWatchlist rejects junk and never silently empties the list", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const { sanitizeWatchlist } = context.window.PortfolioConsoleApp.helpers;
+
+  // 非陣列或全部無效 → 回 null，代表「沒自訂」而非「空清單」，
+  // 否則使用者存到壞資料就會看到一張空表
+  assert.equal(sanitizeWatchlist(null), null);
+  assert.equal(sanitizeWatchlist("2330"), null);
+  assert.equal(sanitizeWatchlist([]), null);
+  assert.equal(sanitizeWatchlist([{ code: "abc" }, { code: "12" }, { code: "" }]), null);
+
+  // 去重、代碼格式、分層合法性
+  const out = sanitizeWatchlist([
+    { code: "2330", tier: "core" },
+    { code: "2330", tier: "wait" },          // 重複 → 丟掉
+    { code: "2454", tier: "不存在的層" },      // 非法分層 → 退回預設
+    { code: "00878", tier: "sat" },          // 5 碼 ETF → 不是個股代碼，丟掉
+    "3231",                                   // 純字串也接受
+  ]);
+  assert.deepEqual(Array.from(out).map((e) => e.code), ["2330", "2454", "3231"]);
+  assert.equal(out[0].tier, "core");
+  assert.equal(out[1].tier, "sat", "非法分層退回 sat");
+  assert.equal(out[2].tier, "sat", "內建 3231 的分層是 sat");
+
+  // 上限保護
+  const many = Array.from({ length: 80 }, (_, i) => ({ code: String(1000 + i) }));
+  assert.ok(sanitizeWatchlist(many).length <= 40, "清單要有上限");
+});
+
+test("a user-added stock still gets a system observation price from the market feed", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const h = context.window.PortfolioConsoleApp.helpers;
+  // market-feed 有 open/high/low，所以自行加入的標的不是只有收盤價——
+  // 觀察價一樣算得出來
+  h.setMarketRowsForTest({ "2454": { code: "2454", name: "聯發科", close: 3865, pe: 64.57 } });
+  const stock = h.setWatchlistForTest([{ code: "2454", tier: "sat" }])[0];
+  const observation = h.suggestObservationPrice(stock, {
+    code: "2454", close: 3865, high: 3900, low: 3800, hasPrice: true,
+  }, { defense: false, fallbackBase: null });
+  assert.ok(observation.price > 0, "有高低點就要算得出觀察價");
+  assert.equal(observation.mode, "auto");
+  assert.ok(observation.price <= 3865, "觀察價不得高於收盤");
+});
+
+test("watchlist state survives a save/load round trip", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const { sanitizeState } = context.window.PortfolioConsoleApp.helpers;
+  const saved = sanitizeState({
+    watchlist: [{ code: "2330", tier: "core" }, { code: "2454", tier: "sat" }],
+    today: { "2454": { close: 3865, change: 10 } },
+    base: { "2454": 3600 },
+  });
+  assert.deepEqual(Array.from(saved.watchlist).map((e) => e.code), ["2330", "2454"]);
+  // 自行加入的代碼其價格與觀察價也要留得住——早期版本只認內建代碼，一存檔就被清掉
+  assert.equal(saved.today["2454"].close, 3865);
+  assert.equal(saved.base["2454"], 3600);
+});
+
 test("scorecard PE prefers feed valuation and falls back to built-in", async () => {
   // (1) feed carries valuation → PE comes from feed, not the built-in static label
   const withVal = await loadApp(async (url) => {
