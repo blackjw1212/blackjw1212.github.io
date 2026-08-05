@@ -186,6 +186,10 @@
     .stock-cards{display:block}
     .stock-card .stock-tv-link{min-height:44px}
     .btn{min-height:44px}
+    /* 標籤上的移除鈕與分層選單不是 .btn，會漏掉觸控目標尺寸 */
+    .watch-chip button,.watch-chip select{min-height:44px}
+    .watch-chip{padding:2px 4px 2px 10px}
+    .watch-row .count{margin-left:0;width:100%}
   }
 </style>
 </head>
@@ -1362,23 +1366,43 @@ function satelliteSignal(snapshots, priceSource){
   };
 }
 
+// 題材集中度只能用「已分類」的標的算。自行加入的沒有題材分類，
+// 若把它們全算成 other 會有兩個錯：
+//   1. 加到 7 檔以上時最大「題材」變成「其他」——但那不是題材，是未分類
+//   2. 更糟的是加 5 檔就會把佔比稀釋成綠燈，給出假的「已分散」訊號
+// 因此只判斷分類得出來的部分，未分類的另外揭露、不計入分母。
 function concentrationSignal(){
   const counts = {};
+  let unclassified = 0;
   STOCKS.forEach(function(stock){
-    const key = stock.theme || "other";
+    const key = stock.theme;
+    if (!key || key === "other") { unclassified += 1; return; }
     counts[key] = (counts[key] || 0) + 1;
   });
   const themes = Object.keys(counts);
-  const total = STOCKS.length || 1;
+  const classified = STOCKS.length - unclassified;
+  const tail = unclassified ? "另有 " + unclassified + " 檔自行加入、未做題材分類，不計入分散度判斷。" : "";
+
+  if (classified < 3 || !themes.length) {
+    return {
+      id:"concentration",
+      tone:"a",
+      value:classified + " 檔可判斷",
+      detail:"已分類標的只有 " + classified + " 檔，樣本不足以判斷題材分散度。" + tail,
+      source:"清單組成自動計算",
+    };
+  }
+
   let topKey = themes[0];
   themes.forEach(function(key){ if (counts[key] > counts[topKey]) topKey = key; });
-  const topShare = counts[topKey] / total;
+  const topShare = counts[topKey] / classified;
   const tone = (themes.length >= 5 && topShare <= 0.35) ? "g"
     : (themes.length < 3 || topShare > 0.5) ? "r" : "a";
   const pct = Math.round(topShare * 100);
-  const detail = "清單共 " + themes.length + " 個子題材，最大集中於「" + (THEME_NAMES[topKey] || topKey) + "」"
-    + counts[topKey] + "/" + total + " 檔（" + pct + "%）。"
-    + (tone === "g" ? "分散度尚可。" : tone === "a" ? "單一題材偏重，留意同向回檔。" : "高度集中於單一題材，分散明顯不足。");
+  const detail = "已分類 " + classified + " 檔共 " + themes.length + " 個子題材，最大集中於「" + (THEME_NAMES[topKey] || topKey) + "」"
+    + counts[topKey] + "/" + classified + " 檔（" + pct + "%）。"
+    + (tone === "g" ? "分散度尚可。" : tone === "a" ? "單一題材偏重，留意同向回檔。" : "高度集中於單一題材，分散明顯不足。")
+    + (tail ? " " + tail : "");
   return {
     id:"concentration",
     tone:tone,
@@ -1871,6 +1895,7 @@ const portfolioApp = {
     getStocks:function(){return STOCKS;},
     setWatchlistForTest:function(next){ watchlist = sanitizeWatchlist(next) || DEFAULT_WATCHLIST.slice(); return rebuildStocks(); },
     setMarketRowsForTest:function(rows){ marketRows = rows || {}; return rebuildStocks(); },
+    concentrationSignal:concentrationSignal,
     deriveAutoSignals:deriveAutoSignals,
     condColor:condColor,
     tradingViewUrl:tradingViewUrl,

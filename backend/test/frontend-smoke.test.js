@@ -774,6 +774,42 @@ test("watchlist state survives a save/load round trip", async () => {
   assert.equal(saved.base["2454"], 3600);
 });
 
+test("concentration judges only classified stocks, never counts 未分類 as a theme", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const h = context.window.PortfolioConsoleApp.helpers;
+
+  // 預設清單：全部有題材分類
+  h.setWatchlistForTest(null);
+  const base = h.concentrationSignal();
+  assert.match(base.detail, /已分類 13 檔/);
+  assert.doesNotMatch(base.detail, /其他/, "內建清單沒有未分類標的");
+
+  // 加入未分類標的：不得稀釋分母造出假的「已分散」，也不得把「其他」當成題材
+  h.setMarketRowsForTest(Object.fromEntries(
+    ["2412", "2603", "1301", "5871", "2801", "9910", "2915"].map((c) => [c, { code: c, name: c, close: 100 }])));
+  const many = h.setWatchlistForTest(
+    h.builtInCodes().map((code) => ({ code })).concat(
+      ["2412", "2603", "1301", "5871", "2801", "9910", "2915"].map((code) => ({ code, tier: "sat" }))));
+  assert.equal(many.length, 20);
+
+  const withCustom = h.concentrationSignal();
+  // 分母仍是已分類的 13 檔——最大題材佔比不因為加了 7 檔未分類就變好看
+  assert.match(withCustom.detail, /已分類 13 檔/);
+  assert.equal(withCustom.value, base.value, "加未分類標的不得改變集中度數字");
+  assert.equal(withCustom.tone, base.tone, "也不得改變燈號");
+  assert.match(withCustom.detail, /另有 7 檔自行加入、未做題材分類/, "未分類要揭露而不是混進題材");
+  assert.doesNotMatch(withCustom.detail, /最大集中於「其他」/, "「其他」不是題材");
+
+  // 已分類不足 3 檔時要說樣本不夠，不可硬給一個百分比
+  const thin = h.setWatchlistForTest([{ code: "2412" }, { code: "2603" }, { code: "1301" }]);
+  assert.equal(thin.length, 3);
+  const thinSignal = h.concentrationSignal();
+  assert.match(thinSignal.detail, /樣本不足以判斷/);
+  assert.equal(thinSignal.tone, "a");
+
+  h.setWatchlistForTest(null);
+});
+
 test("scorecard PE prefers feed valuation and falls back to built-in", async () => {
   // (1) feed carries valuation → PE comes from feed, not the built-in static label
   const withVal = await loadApp(async (url) => {
