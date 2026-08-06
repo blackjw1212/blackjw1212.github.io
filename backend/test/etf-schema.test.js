@@ -97,6 +97,26 @@ test("etf-feed.json matches the expected schema", async () => {
     }
   }
 
+  // 產業集中度：比對不到的權重必須獨立計數，不可被吞掉或攤進其他產業。
+  // 實測 00712 復華富時不動產前十大 78.6% 全是美國 REITs、比對到 0%——
+  // 若被吞掉，它會顯示成「完全沒有產業集中度」，那是最危險的誤導。
+  const withMix = feed.stocks.filter((row) => row.sectorMix);
+  assert.ok(withMix.length >= 150, `expected 150+ ETFs with sectorMix, got ${withMix.length}`);
+  for (const row of withMix) {
+    const at = (msg) => `${row.code}: ${msg}`;
+    const m = row.sectorMix;
+    assert.ok(Array.isArray(m.sectors), at("sectors 必須是陣列"));
+    for (const s of m.sectors) {
+      assert.ok(s.name && s.weight > 0, at("產業列要有名稱與正權重"));
+      assert.notEqual(s.name, "未分類", at("未分類不是產業，不可混進 sectors"));
+    }
+    const sectorTotal = m.sectors.reduce((sum, s) => sum + s.weight, 0);
+    assert.ok(Math.abs(sectorTotal - m.matchedWeight) < 0.35, at(`產業合計 ${sectorTotal} 與 matchedWeight ${m.matchedWeight} 不符`));
+    assert.ok(Math.abs(m.matchedWeight + m.unclassifiedWeight - m.coveredWeight) < 0.35,
+      at("matched + unclassified 必須等於 covered，否則有權重憑空消失"));
+    assert.ok(m.coveredWeight > 0 && m.coveredWeight <= 100.5, at(`coveredWeight ${m.coveredWeight} 超出範圍`));
+  }
+
   // 近一年總報酬。配息只會讓總報酬高於價格報酬，所以 total < price 一定是算錯了——
   // 實測 0052 沒做分割校正時就是 −73%（真值 +117.7%），這條會當場擋下。
   const withReturn = feed.stocks.filter((row) => row.totalReturn1y != null);

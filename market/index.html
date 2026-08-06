@@ -259,8 +259,11 @@
   <section aria-labelledby="etfListHeading">
     <h2 id="etfListHeading">ETF 清單 <em>LIST</em></h2>
     <div class="stamp" id="etfStamp">切換到此頁籤時載入</div>
+    <div class="backtest-warn">總報酬、價差、波動與最大回撤為<b>近一年回測</b>，不是預測。
+      與殖利率並列是為了讓「配得多」與「賺得多」能同時被看到——一檔配 10% 而淨值跌 12% 的 ETF
+      殖利率很漂亮，但那一年是在賠錢。滿一年歷史不足的標的顯示「—」，不以 0 充數。</div>
     <div class="table-scroll">
-      <table id="etfTable">
+      <table id="etfTable" style="min-width:1240px">
         <thead><tr>
           <th data-etf-sort="code">代碼</th>
           <th data-etf-sort="name">名稱</th>
@@ -270,6 +273,11 @@
           <th data-etf-sort="discountPremium">折溢價%</th>
           <th data-etf-sort="aum">規模(億)</th>
           <th data-etf-sort="yield">近12月殖利率%</th>
+          <th data-etf-sort="totalReturn1y" title="價差＋配息。與殖利率並列才看得出「配得多」是不是「賺得多」">近1年總報酬</th>
+          <th data-etf-sort="priceReturn1y" title="總報酬中不含配息的部分">其中價差</th>
+          <th data-etf-sort="volatility1y" title="日報酬標準差年化">年化波動</th>
+          <th data-etf-sort="maxDrawdown1y" title="近一年峰谷最大跌幅">最大回撤</th>
+          <th data-etf-sort="dividendCvField" title="近24月配息變異係數，越小越穩">配息穩定度</th>
           <th data-etf-sort="frequency">頻率</th>
         </tr></thead>
         <tbody id="etfBody"></tbody>
@@ -813,6 +821,9 @@ function normalizeEtfFeed(payload){
       maxDrawdown1y:parseNumber(row.maxDrawdown1y),
       returnFrom:row.returnFrom || null,
       returnTo:row.returnTo || null,
+      // 前十大成分股的產業分佈。未分類的權重要原樣帶進來，
+      // 不可在前端補成 0 或攤進其他產業——那會讓集中度看起來比實際低。
+      sectorMix:(row.sectorMix && Array.isArray(row.sectorMix.sectors)) ? row.sectorMix : null,
       isActive:typeof row.isActive === "boolean"
         ? row.isActive
         : (/[AD]$/.test(String(row.code || "").toUpperCase()) || /^主動/.test(String(row.name || ""))),
@@ -866,8 +877,23 @@ function etfRowHtml(row){
     + '<td class="num ' + toneClass(row.discountPremium) + '">' + (row.discountPremium == null ? "—" : signed(row.discountPremium, 2) + "%") + '</td>'
     + '<td class="num">' + (row.aum == null ? "—" : fmt(row.aum, 1)) + '</td>'
     + '<td class="num">' + yieldCell(row) + '</td>'
+    // 報酬與風險：資料層早就算好了，先前只出現在配置產生器的結果表。
+    // 殖利率旁邊沒有總報酬，等於讓人只看得到「配得多」而看不到「賺得多」。
+    // 58 檔沒有滿一年歷史 → 顯示「—」而非 0，0 會被讀成「完全不波動」。
+    + '<td class="num ' + toneClass(row.totalReturn1y) + '">' + (row.totalReturn1y == null ? "—" : signed(row.totalReturn1y, 1) + "%") + '</td>'
+    + '<td class="num ' + toneClass(row.priceReturn1y) + '">' + (row.priceReturn1y == null ? "—" : signed(row.priceReturn1y, 1) + "%") + '</td>'
+    + '<td class="num">' + (row.volatility1y == null ? "—" : fmt(row.volatility1y, 1) + "%") + '</td>'
+    + '<td class="num ' + toneClass(row.maxDrawdown1y) + '">' + (row.maxDrawdown1y == null ? "—" : fmt(row.maxDrawdown1y, 1) + "%") + '</td>'
+    + '<td class="num">' + etfCvCell(row) + '</td>'
     + '<td class="num">' + (row.frequency ? escapeHtml(row.frequency) : "—") + '</td>'
     + '</tr>';
+}
+
+// 配息穩定度：與配置產生器結果表同一套三段配色，缺樣本時說出樣本數而不是印 0
+function etfCvCell(row){
+  const cv = etfCv(row);
+  if (cv == null) return '<span class="stale">樣本' + ((row.dps || []).length) + '筆</span>';
+  return '<span class="' + (cv <= 0.3 ? "pos" : (cv <= 0.6 ? "" : "neg")) + '">' + fmt(cv, 2) + '</span>';
 }
 
 function renderEtfHead(){
@@ -981,6 +1007,60 @@ function renderOvList(){
   }).join("") || '<div class="empty">尚無精選成分股資料。</div>';
 }
 
+// 合併多檔 ETF 的產業曝險（等權平均）。重疊看的是「同一檔股票被重複持有」，
+// 產業集中度看的是「不同股票其實同一個產業」——後者是前者看不出來的那一半風險。
+//
+// 未分類**獨立成一列**，不併進任何產業也不從分母剔除。00712 復華富時不動產
+// 前十大 78.6% 全是美國 REITs、中文譯名比對不到，若把它吞掉，這檔會顯示成
+// 「完全沒有產業集中度」，那是最危險的誤導。
+function combineSectorMix(selected){
+  const funds = (selected || []).filter(function(r){return r && r.sectorMix;});
+  if (!funds.length) return null;
+  const acc = {};
+  let covered = 0;
+  let unclassified = 0;
+  funds.forEach(function(row){
+    const m = row.sectorMix;
+    const share = 1 / funds.length;   // 等權：這裡回答「這組標的的產業樣貌」，不是某個配置
+    m.sectors.forEach(function(s){ acc[s.name] = (acc[s.name] || 0) + s.weight * share; });
+    covered += m.coveredWeight * share;
+    unclassified += m.unclassifiedWeight * share;
+  });
+  const round = function(v){ return Math.round(v * 10) / 10; };
+  const sectors = Object.keys(acc).map(function(name){ return {name:name, weight:round(acc[name])}; })
+    .sort(function(a, b){ return b.weight - a.weight || a.name.localeCompare(b.name); });
+  return {
+    sectors: sectors,
+    coveredWeight: round(covered),
+    unclassifiedWeight: round(unclassified),
+    withMix: funds.length,
+    withoutMix: (selected || []).length - funds.length,
+  };
+}
+
+function sectorMixHtml(selected){
+  const mix = combineSectorMix(selected);
+  if (!mix) return '<p class="hint" style="margin-top:12px">所選標的都沒有成分股資料，無法計算產業集中度。</p>';
+  const top = mix.sectors[0];
+  const rows = mix.sectors.map(function(s){
+    return '<tr><td style="text-align:left">' + escapeHtml(s.name) + '</td>'
+      + '<td class="num">' + fmt(s.weight, 1) + '%</td></tr>';
+  }).join("")
+    // 未分類永遠列在最後，且用 stale 樣式標示這是「不知道」不是「其他產業」
+    + (mix.unclassifiedWeight > 0
+      ? '<tr><td style="text-align:left"><span class="stale">未分類（名稱比對不到，多為海外持股）</span></td>'
+        + '<td class="num"><span class="stale">' + fmt(mix.unclassifiedWeight, 1) + '%</span></td></tr>'
+      : "");
+  return '<h3 style="font-size:14px;margin-top:18px">產業集中度</h3>'
+    + '<p class="hint">只看得到<b>前十大成分股</b>：所選標的平均涵蓋 ' + fmt(mix.coveredWeight, 1) + '%，'
+    + '其餘持股無公開資料。' + (mix.withoutMix ? '有 ' + mix.withoutMix + ' 檔完全沒有成分股資料，未納入計算。' : '')
+    + (top ? '最大產業為<b>' + escapeHtml(top.name) + ' ' + fmt(top.weight, 1) + '%</b>——'
+      + '這是重疊分析看不出來的那一半：不同股票也可能是同一個產業。' : '') + '</p>'
+    + '<div class="table-scroll"><table style="min-width:360px"><thead><tr>'
+    + '<th style="text-align:left">產業</th><th>平均權重</th></tr></thead><tbody>'
+    + rows + '</tbody></table></div>';
+}
+
 function runOverlap(){
   const box = $("ovList");
   const result = $("ovResult");
@@ -1011,7 +1091,8 @@ function runOverlap(){
           + '<td>' + (entry.inAll ? "✓" : "") + '</td></tr>';
       }).join("")
     + '</tbody></table></div>'
-    + '<p class="hint" style="margin-top:8px">合計曝險為各檔前十大權重直接相加（未按投入比例加權）；前十大以外持股不在計算內。</p>';
+    + '<p class="hint" style="margin-top:8px">合計曝險為各檔前十大權重直接相加（未按投入比例加權）；前十大以外持股不在計算內。</p>'
+    + sectorMixHtml(selected);
 }
 
 /* ===================== 現金流模擬 ===================== */
@@ -2552,6 +2633,7 @@ const marketApp = {
     feedStamp:feedStamp,
     etfScores:etfScores,
     profileToConstraints:profileToConstraints,
+    combineSectorMix:combineSectorMix,
     NHI:NHI,
   },
 };

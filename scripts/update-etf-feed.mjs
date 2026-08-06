@@ -21,6 +21,9 @@ const HOLDINGS_FILE = new URL("../data/etf-holdings.json", import.meta.url);
 // 近一年總報酬（update-etf-returns.mjs 產出）。配置產生器要以「最終賺多少」
 // 為目標就需要價差那一半——feed 自己只有配息。
 const RETURNS_FILE = new URL("../data/etf-returns.json", import.meta.url);
+// 個股 → 產業別（update-industry-map.mjs 產出）。topHoldings 只有名稱與權重，
+// 沒有這張表就算不出「看起來分散、實際上全押同一個產業」。
+const INDUSTRY_FILE = new URL("../data/industry-map.json", import.meta.url);
 
 const SOURCES = {
   // 上市收盤主來源必須是 MI_INDEX。openapi 的 STOCK_DAY_ALL 當日不發佈——
@@ -100,6 +103,51 @@ export function toBulkRows(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && typeof payload === "object") return normalizeMiIndex(payload).rows;
   return payload;
+}
+
+// 前十大成分股的產業分佈。
+//
+// 誠實揭露是這個欄位的重點，不是附註：
+//   coveredWeight  = 前十大權重合計（通常 60~80%，不是 100%）
+//   matchedWeight  = 其中比對得到產業別的權重
+//   比對不到的（海外持股、帶星號的簡稱、名稱不一致）獨立成「未分類」，
+//   **絕不併進其他產業、也絕不當成 0**——那會讓集中度看起來比實際低。
+export function deriveSectorMix(topHoldings, byName) {
+  const holdings = Array.isArray(topHoldings) ? topHoldings : [];
+  if (!holdings.length) return null;
+  const map = byName && typeof byName === "object" ? byName : {};
+  const acc = {};
+  let covered = 0;
+  let matched = 0;
+  let unclassified = 0;
+  for (const h of holdings) {
+    const weight = Number(h && h.weight);
+    if (!Number.isFinite(weight) || weight <= 0) continue;
+    covered += weight;
+    // MoneyDJ 的簡稱偶爾帶星號（國巨*）等標記，去掉再比一次
+    const raw = String((h && h.name) || "").trim();
+    const industry = map[raw] || map[raw.replace(/[*＊\s]/g, "")] || null;
+    if (industry) {
+      acc[industry] = (acc[industry] || 0) + weight;
+      matched += weight;
+    } else {
+      unclassified += weight;
+    }
+  }
+  if (!(covered > 0)) return null;
+  // 取兩位小數：部分 ETF 的成分股權重本來就很小（實測 00728 台積電 0.26%），
+  // 只留一位會把它們捨成 0，產生「權重 0 的產業」這種沒有意義的列。
+  const round = (v) => Math.round(v * 100) / 100;
+  const sectors = Object.keys(acc)
+    .map((name) => ({ name, weight: round(acc[name]) }))
+    .filter((s) => s.weight > 0)
+    .sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name));
+  return {
+    sectors,
+    coveredWeight: round(covered),
+    matchedWeight: round(matched),
+    unclassifiedWeight: round(unclassified),
+  };
 }
 
 // bulk（TWSE MI_INDEX / STOCK_DAY_ALL、TPEX daily close）→ ETF 價格列
@@ -563,6 +611,11 @@ async function main() {
   const holdingsEtfs = (holdingsData && holdingsData.etfs) || {};
   const returnsData = await readJsonOr(RETURNS_FILE, {});
   const returnsByCode = (returnsData && returnsData.stocks) || {};
+  const industryData = await readJsonOr(INDUSTRY_FILE, {});
+  const industryByName = (industryData && industryData.byName) || {};
+  if (!Object.keys(industryByName).length) {
+    errors.push({ source: "industry-map", message: "data/industry-map.json 缺漏或為空——sectorMix 不會產生" });
+  }
 
   // 5) 合成
   let premiumMismatch = 0;
@@ -617,6 +670,8 @@ async function main() {
     }
     // 明確旗標：前端據此判斷「實質曝險算不算得出來」，不要用 length 猜
     row.hasHoldingsData = Boolean(row.topHoldings && row.topHoldings.length);
+    const mix = deriveSectorMix(row.topHoldings, industryByName);
+    if (mix) row.sectorMix = mix;
     // 品質與分類指標寫入資料層（原本只在前端算，消費原始 JSON 者拿不到）
     // 波動度看近 24 個月（殖利率仍是近 12 個月）——用同一個 12 月窗只有 4 筆，
     // 看不出 006208 那種 0.989→4.75 的水準跳升

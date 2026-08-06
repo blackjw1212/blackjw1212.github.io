@@ -62,6 +62,18 @@ jobs:
           else
             echo "Not the 22:00 slot — skipping the tax bracket refresh"
           fi
+      # 個股 → 產業別對照（TWSE ISIN，Big5）。ETF 的 topHoldings 只有名稱與權重，
+      # 沒有這張表就算不出產業集中度。產業別月頻變動，一天一次即可；
+      # 必須排在 ETF feed 之前，當班才併得進 sectorMix。
+      # 解析列數低於前次 70% 時腳本自己拒絕覆寫，上游改版不會洗掉好資料。
+      - name: Refresh industry map (once daily)
+        continue-on-error: true
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
+            node scripts/update-industry-map.mjs
+          else
+            echo "Not the 22:00 slot — skipping the daily industry map refresh"
+          fi
       # ETF 近一年總報酬（Yahoo adjclose）。配置產生器要以「最終賺多少」為目標
       # 就需要價差那一半——feed 自己只有配息。一天一次即可（報酬是年度尺度），
       # 排在 ETF feed 之前讓當班就併得進去。351 檔 × ~120ms 約 2 分鐘。
@@ -88,7 +100,7 @@ jobs:
         run: |
           # 只納入實際存在的檔案：holdings 首次執行前不存在，git diff 會報錯
           FILES=""
-          for f in data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json data/etf-holdings.json data/etf-returns.json data/tax-params.json; do
+          for f in data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json data/etf-holdings.json data/etf-returns.json data/industry-map.json data/tax-params.json; do
             [ -f "$f" ] && FILES="$FILES $f"
           done
           if git diff --quiet -- $FILES; then
