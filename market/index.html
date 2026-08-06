@@ -373,6 +373,7 @@
         </span>
         <label class="fld" style="cursor:pointer"><input type="checkbox" id="pfCashflow" style="accent-color:var(--amber)" /> 需要月月有現金流</label>
         <label class="fld" style="cursor:pointer"><input type="checkbox" id="pfActive" style="accent-color:var(--amber)" /> 納入主動型</label>
+        <label class="fld" style="cursor:pointer" title="正向槓桿（代碼 L 結尾）。反向 ETF 恆不納入。回撤閘門仍優先——00631L 近一年回撤 −31.3%，忍受度選 30% 以內仍會被排除"><input type="checkbox" id="pfLeveraged" style="accent-color:var(--amber)" /> 納入槓桿正2</label>
         <button class="btn" id="pfRun" type="button">依我的情況計算</button>
       </div>
       <div class="profile-note" id="pfNote"></div>
@@ -1271,7 +1272,8 @@ function evaluatePortfolio(total, picks, weights, stress, nhi, tax){
     else priceGain += shares * etf.close * etf.priceReturn1y / 100;
     // 未標註者視為全額應稅（保守），不要因為缺欄位就少算稅
     const ratio = etf.taxableRatio == null ? 1 : etf.taxableRatio;
-    for (const event of etf.dps) {
+    // 無配息標的（正向槓桿、部分成長型）在 netTotal 目標下是合格的，dps 可能不存在
+    for (const event of (etf.dps || [])) {
       const gross = shares * event.a * (stress || 1);
       if (!(gross > 0)) continue;
       const fee = gross >= fee_.threshold ? gross * fee_.rate : 0;
@@ -1407,6 +1409,7 @@ function profileToConstraints(profile){
   if (Number.isFinite(years) && years < 3 && out.maxDrawdownPct == null) out.maxDrawdownPct = 15;
 
   if (p.includeActive) out.includeActive = true;
+  if (p.includeLeveraged) out.includeLeveraged = true;
   if (p.netIncome != null && p.netIncome !== "") out.netIncome = p.netIncome;
   return out;
 }
@@ -1424,7 +1427,13 @@ function buildCandidatePool(etfs, options){
   const opts = options || {};
   const minAum = opts.minAum == null ? 50 : opts.minAum;
   const cap = opts.poolCap || 9;
-  const rejected = {cv:0, premium:0, active:0, drawdown:0};
+  const rejected = {cv:0, premium:0, active:0, drawdown:0, leveraged:0};
+  // 正向槓桿（代碼 L 結尾）改為可選：報酬不差——00631L 近一年 +208.9%，是 0050
+  // 的 2.04 倍——原本被 type 一刀切掉。真正該把關的是回撤（−31.3%），而問卷的
+  // 「可接受虧損」閘門已經在做那件事，不需要再用身分標籤擋一次。
+  // 反向（R 結尾）維持恆排除：那是方向性放空，結構上不適合長期配置，
+  // 不能靠「反正它報酬會輸」來擋。實測 21 檔 L／19 檔 R，後綴分得乾淨無例外。
+  const includeLeveraged = Boolean(opts.includeLeveraged);
   // 問卷的「可接受虧損」：用近一年最大回撤當閘門。缺回撤資料的標的一併排除——
   // 使用者說了能忍受多少，就不該把「不知道跌多深」的標的塞給他。
   const maxDrawdownPct = Number(opts.maxDrawdownPct);
@@ -1432,12 +1441,21 @@ function buildCandidatePool(etfs, options){
   // 主動型預設不納入：經理人風險與較高費用率，性質與被動指數 ETF 不同
   const includeActive = Boolean(opts.includeActive);
   const base = (etfs || []).filter(function(row){
-    // 槓反有每日重設的路徑依賴、期貨有轉倉成本、外幣計價版規模與流動性極低——
-    // 三者皆不適合長期配置，恆排除
-    if (row.type === "槓桿反向" || row.type === "期貨型" || row.type === "外幣計價") return false;
+    // 期貨有轉倉成本、外幣計價版規模與流動性極低，兩者恆排除
+    if (row.type === "期貨型" || row.type === "外幣計價") return false;
+    if (row.type === "槓桿反向") {
+      // 反向恆排除；正向槓桿要明確勾選才納入，沒勾就記下來讓 UI 說得出來
+      if (!/L$/.test(String(row.code || "").toUpperCase())) return false;
+      if (!includeLeveraged) { rejected.leveraged += 1; return false; }
+    }
     if (row.isActive && !includeActive) { rejected.active += 1; return false; }
-    if (!(row.dps && row.dps.length && row.yield != null && row.aum != null && row.aum >= minAum
-      && row.close > 0)) return false;
+    if (!(row.aum != null && row.aum >= minAum && row.close > 0)) return false;
+    // 配息歷史：只有「以配息現金流為目標」的四個目標才該要求。
+    // netTotal 的目標是總報酬，不配息的標的其配息貢獻就是 0，不是不合格——
+    // 這條原本一律套用，於是 21 檔正向槓桿（全部無配息）連勾選了也進不來，
+    // 另有 26 檔成長／主題型（00877 +151.3%、00876 +134.9%…）也一直被擋在門外。
+    // 這與「目標改成總報酬卻仍用配息當篩選條件」是同一類錯誤。
+    if (opts.goal !== "netTotal" && !(row.dps && row.dps.length && row.yield != null)) return false;
     const cv = etfCv(row);
     if (cv != null && cv > QUALITY.maxCv) { rejected.cv += 1; return false; }
     if (row.discountPremium != null && row.discountPremium > QUALITY.maxPremium) { rejected.premium += 1; return false; }
@@ -1497,7 +1515,7 @@ function buildCandidatePool(etfs, options){
   };
   if (opts.goal === "monthly") {
     // 確保每種發放月組合的最高殖利率檔入池，湊月份才有材料
-    takeFirstBy(function(row){return row.payMonths.join(",");});
+    takeFirstBy(function(row){return (row.payMonths || []).join(",");});
   } else if (opts.goal === "diverse") {
     takeFirstBy(function(row){return row.type;});
   }
@@ -1570,7 +1588,7 @@ function optimizeAllocation(etfs, options){
   }
 
   const pool = buildCandidatePool(etfs, {goal:goal, minAum:opts.minAum, poolCap:opts.poolCap,
-    includeActive:opts.includeActive, maxDrawdownPct:opts.maxDrawdownPct});
+    includeActive:opts.includeActive, includeLeveraged:opts.includeLeveraged, maxDrawdownPct:opts.maxDrawdownPct});
   if (!pool.length) return {picks:[], reason:"沒有符合基本門檻的 ETF（需滿一年配息歷史、規模 ≥50 億、非槓反/期貨）"};
   // 應稅比例在這裡算一次就好；放進內圈會讓正規表示式跑數十萬次
   if (taxCtx) pool.forEach(function(row){ row.taxableRatio = etfTaxableRatio(row).ratio; });
@@ -1635,7 +1653,7 @@ function optimizeAllocation(etfs, options){
   // 等權組合本身也在搜尋空間內，因此 gainVsEqual 恆 ≥ 0。
   const baseline = evaluatePortfolio(total, best.funds, equalStepWeights(best.funds.length, step), stress, nhi, taxCtx);
   const months = {};
-  best.funds.forEach(function(row){row.dps.forEach(function(event){months[event.m] = true;});});
+  best.funds.forEach(function(row){(row.dps || []).forEach(function(event){months[event.m] = true;});});
 
   return {
     picks:best.funds.map(function(row, index){
@@ -2096,8 +2114,18 @@ function runSuggest(){
       + '<td class="num ' + toneClass(etf.priceReturn1y) + '">' + signed(etf.priceReturn1y, 1) + '%</td>'
       + '<td class="num">' + signed(divPart, 1) + '%</td>';
   };
+  // 槓桿警語與回測警語講的是不同的事：回測警語是「過去不代表未來」，
+  // 這一條是「這個商品的結構讓它連過去都不能線性外推」。含 L 標的才顯示。
+  const levPicks = out.picks.filter(function(p){return /L$/.test(String(p.code).toUpperCase());});
+  const leverageWarn = levPicks.length
+    ? '<div class="backtest-warn">⚠ 這組配置含<b>槓桿 ETF</b>（' + levPicks.map(function(p){return escapeHtml(p.code);}).join("、")
+      + '）。槓桿 ETF <b>每日重設</b>，不是年度報酬的 2 倍：去年 00631L +208.9%、標的 0050 +102.5%，'
+      + '那是<b>持續上漲的最佳情境</b>；震盪盤會因波動損耗持續侵蝕淨值，跌時同樣是兩倍。'
+      + '近一年波動 56%、最大回撤 −31%，都是 0050 的兩倍。</div>'
+    : '';
   box.innerHTML = '<div class="backtest-warn">近一年<b>回測</b>數字，不是預測。過去漲得多不代表接下來會漲——'
       + '以總報酬為目標等於「買去年表現最好的」，請把它當成比較的起點而不是結論。</div>'
+    + leverageWarn
     + '<div class="table-scroll" style="margin-top:10px"><table style="min-width:860px"><thead><tr>'
       + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th>'
       + '<th>近1年總報酬</th><th>其中價差</th><th>其中配息</th><th>年化波動</th><th>最大回撤</th>'
@@ -2116,7 +2144,7 @@ function runSuggest(){
             + '<td class="num">' + cvText(pick.etf) + '</td>'
             + '<td class="num ' + toneClass(pick.etf.discountPremium) + '">' + (pick.etf.discountPremium == null ? "—" : signed(pick.etf.discountPremium, 2)) + '</td>'
             + '<td class="num">' + (pick.etf.aum == null ? "—" : fmt(pick.etf.aum, 0)) + '</td>'
-            + '<td class="num">' + (pick.etf.payMonths.length ? pick.etf.payMonths.join("·") : "—") + '</td></tr>';
+            + '<td class="num">' + ((pick.etf.payMonths || []).length ? pick.etf.payMonths.join("·") : "—") + '</td></tr>';
         }).join("")
     + '</tbody></table></div>'
     + '<div class="sim-summary">'
@@ -2166,8 +2194,10 @@ function runSuggest(){
         + (out.rejected.active ? '、主動型 ' + out.rejected.active + ' 檔' : '')
         // 回撤閘門是問卷唯一真正在過濾標的的條件，擋掉幾檔一定要講——
         // 不講的話使用者不知道自己的「可接受虧損」把多少選項排除了
-        + (out.rejected.drawdown ? '、超過可接受虧損 ' + out.rejected.drawdown + ' 檔' : '') + '）'
-        + '<span style="display:block">恆不納入：槓桿／反向（每日重設有路徑依賴）、期貨型（轉倉成本）、外幣計價（規模與流動性極低）</span></span></div>';
+        + (out.rejected.drawdown ? '、超過可接受虧損 ' + out.rejected.drawdown + ' 檔' : '')
+        + (out.rejected.leveraged ? '、未勾選槓桿 ' + out.rejected.leveraged + ' 檔' : '') + '）'
+        + '<span style="display:block">恆不納入：反向 ETF（方向性放空，不適合長期配置）、期貨型（轉倉成本）、外幣計價（規模與流動性極低）。'
+        + '正向槓桿需在上方問卷明確勾選，且仍受可接受虧損閘門限制。</span></span></div>';
   const apply = $("applySuggest");
   if (apply) apply.addEventListener("click", function(){
     simAllocations = out.picks.map(function(pick){return {code:pick.code, pct:pick.pct, month:null};});
@@ -2327,6 +2357,7 @@ function bind(){
       maxWeightPct: val("pfMaxW"),
       needCashflow: Boolean(($("pfCashflow") || {}).checked),
       includeActive: Boolean(($("pfActive") || {}).checked),
+      includeLeveraged: Boolean(($("pfLeveraged") || {}).checked),
     });
     // 問卷同時決定目標，按鈕的高亮要跟著動，否則畫面顯示的目標是假的
     suggestGoal = activeProfile.goal;

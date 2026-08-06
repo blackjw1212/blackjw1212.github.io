@@ -93,6 +93,30 @@ test("an unexplained jump is skipped rather than guessed", () => {
   assert.match(out.skip, /unexplained/);
 });
 
+// 同一組資料、兩種門檻，判定必須不同。這是整個 bug 的核心：
+// 2026-07-31 台股 0050 漲停 +10.00%，四檔正2 同步 +18.2~18.8%——對一般 ETF
+// 那是不可能的行情（必為分割），對 2x 槓桿卻是設計行為。舊版只有一組門檻，
+// 把規模 2,690 億的 00631L 整檔丟掉。
+test("an 18.75% day is a split for a normal ETF but normal action for a 2x fund", () => {
+  const series = [100, 100, 118.75, 120];   // 實測 00631L 28.38 → 33.70 的比值
+  const asNormal = yahooReturns(chart(series, { adj: series }));
+  assert.ok(asNormal.skip, "一般 ETF：超出 ±10% 漲跌幅，必須當成分割處理");
+  assert.match(asNormal.skip, /unexplained/);
+
+  const asLeveraged = yahooReturns(chart(series, { adj: series }), { leveraged: true });
+  assert.ok(!asLeveraged.skip, "2x 槓桿：+18.75% 是追蹤指數 +9.4% 的兩倍，正常行情");
+  assert.equal(asLeveraged.splitsApplied, undefined, "不得誤套用分割校正");
+  assert.equal(asLeveraged.priceReturn1y, 20);
+});
+
+// 放寬門檻不得讓槓桿標的漏掉真正的分割
+test("the wider leveraged band still catches a real split", () => {
+  const series = [100, 105, 52.5, 55];   // 1:2 分割
+  const out = yahooReturns(chart(series, { adj: series }), { leveraged: true });
+  assert.equal(out.splitsApplied, 1);
+  assert.ok(out.priceReturn1y > 0, "分割不得被讀成腰斬");
+});
+
 test("normal daily moves inside the 10% limit are never treated as splits", () => {
   // 台股漲跌幅 ±10%：連續跌停也不該觸發分割偵測
   const out = yahooReturns(chart([100, 90, 81, 72.9]));

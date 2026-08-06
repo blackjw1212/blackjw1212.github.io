@@ -20,9 +20,15 @@ const FEED_FILE = new URL("../data/etf-feed.json", import.meta.url);
 const RETURNS_FILE = new URL("../data/etf-returns.json", import.meta.url);
 const DELAY_MS = 120;
 
-// 漲跌幅限制 10%，兩側各留緩衝（除息日、興櫃轉上市首日等會略超）
-const STEP_LO = 0.85;
-const STEP_HI = 1.18;
+// 合法的單日變動區間。原本只有一組 [0.85, 1.18]，理由是「台股 ±10% 漲跌幅限制」——
+// **那個前提對槓桿 ETF 不成立**：2x 追蹤指數當日報酬的兩倍，單日合法區間是 ±20%。
+// 實測 2026-07-31：0050 漲停 +10.00%、2330 +9.98%，四檔台股正2 同步 +18.2~18.8%，
+// 全部被舊門檻判成「無法解釋的跳動」而整檔丟棄——含規模 2,690 億的 00631L。
+// 放寬後 0052 的 1:7 分割（0.1431）與 00738U 的 0.6885 仍照樣擋得住。
+const STEP_BANDS = {
+  normal: { lo: 0.85, hi: 1.18 },
+  leveraged: { lo: 0.75, hi: 1.28 },
+};
 // 區間必須真的接近一年，否則「近一年報酬」其實是近七個月，會系統性低估波動大的標的
 const MIN_SPAN_DAYS = 330;
 
@@ -57,7 +63,10 @@ async function readJson(fileUrl, fallback) {
 // 回傳 {from,to,spanDays,priceReturn1y,totalReturn1y?,splitsApplied} 或
 // {skip:"原因"}。校正方式：偵測到分割後，把該點之前的所有價格乘上分割比例，
 // 讓整段序列回到同一個股數基準；raw 與 adj 套用同一組係數。
-export function yahooReturns(payload) {
+// options.leveraged 由呼叫端依 feed 的 type 決定，不在這裡重新猜——
+// 猜錯的代價是整檔資料消失，而呼叫端本來就拿得到正確的型別。
+export function yahooReturns(payload, options) {
+  const band = (options && options.leveraged) ? STEP_BANDS.leveraged : STEP_BANDS.normal;
   const result = payload && payload.chart && Array.isArray(payload.chart.result) ? payload.chart.result[0] : null;
   if (!result || !Array.isArray(result.timestamp) || result.timestamp.length < 2) return { skip: "no price points" };
 
@@ -85,7 +94,7 @@ export function yahooReturns(payload) {
   let splitsApplied = 0;
   for (let i = points.length - 1; i >= 1; i -= 1) {
     const step = points[i].raw / points[i - 1].raw;
-    if (step < STEP_LO || step > STEP_HI) {
+    if (step < band.lo || step > band.hi) {
       const snapped = snapSplitRatio(step);
       // 跳動超出漲跌幅限制、又不貼近任何乾淨的分割比例 → 不猜，整檔不發布
       if (snapped == null) return { skip: `unexplained ${step.toFixed(4)}x jump on ${points[i].date}` };
@@ -164,7 +173,7 @@ async function main() {
         { headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" } },
       );
       if (!response.ok) throw new Error("HTTP " + response.status);
-      const entry = yahooReturns(await response.json());
+      const entry = yahooReturns(await response.json(), { leveraged: row.type === "槓桿反向" });
       if (entry.skip) { skipped[row.code] = entry.skip; continue; }
       if (!hasFullYear(entry)) { skipped[row.code] = `only ${entry.spanDays} days of history`; continue; }
       if (entry.splitsApplied) splitFixed += 1;

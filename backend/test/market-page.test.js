@@ -1334,6 +1334,50 @@ test("a tighter loss tolerance actually removes deep-drawdown funds", async () =
   assert.notDeepEqual(loose.picks.map((p) => p.code).sort(), tight.picks.map((p) => p.code).sort());
 });
 
+// 正向槓桿（L）改為可選：報酬不差——00631L 近一年 +208.9%、是 0050 的 2.04 倍——
+// 原本被 type 一刀切掉。真正該把關的是回撤，而問卷的可接受虧損閘門已在做那件事。
+// 反向（R）維持恆排除：方向性放空，不能靠「反正它報酬會輸」來擋。
+test("leveraged long funds are opt-in; inverse funds are never eligible", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const lev = (code, dd, tr) => mkFund(code, {
+    type: "槓桿反向", aum: 2690, totalReturn1y: tr, priceReturn1y: tr - 1,
+    volatility1y: 56, maxDrawdown1y: dd, yield: 1,
+    dps: [{ m: 3, a: 0.05 }], payMonths: [3],
+  });
+  const plain = (code, dd, tr) => mkFund(code, {
+    totalReturn1y: tr, priceReturn1y: tr - 3, volatility1y: 20, maxDrawdown1y: dd,
+    yield: 5, dps: [{ m: 3, a: 0.25 }, { m: 9, a: 0.25 }],
+  });
+  const universe = [
+    lev("00631L", -31.3, 208.9), lev("00632R", -53.1, -49.8),
+    plain("00A", -9, 30), plain("00B", -8, 25), plain("00C", -10, 22), plain("00D", -7, 18),
+  ];
+
+  // 預設：正向槓桿不進池，且要記錄下來供 UI 揭露；反向永遠不進
+  const off = app.helpers.buildCandidatePool(universe, { goal: "netTotal" });
+  assert.ok(!off.some((r) => r.code === "00631L"), "沒勾選就不納入正向槓桿");
+  assert.ok(!off.some((r) => r.code === "00632R"), "反向永遠不納入");
+  assert.equal(off.rejected.leveraged, 1, "被槓桿規則擋掉的檔數要記錄（只算 L，R 不算）");
+
+  // 勾選後正向槓桿進得來，反向仍然不行
+  const on = app.helpers.buildCandidatePool(universe, { goal: "netTotal", includeLeveraged: true });
+  assert.ok(on.some((r) => r.code === "00631L"), "勾選後正向槓桿要進得來");
+  assert.ok(!on.some((r) => r.code === "00632R"), "勾選也不得讓反向進來");
+
+  // 關鍵：回撤閘門優先於勾選。00631L 回撤 −31.3%，忍受度 30% 仍該被排除，
+  // 否則問卷的「可接受虧損」就是騙人的。
+  const gated = app.helpers.buildCandidatePool(universe,
+    { goal: "netTotal", includeLeveraged: true, maxDrawdownPct: 30 });
+  assert.ok(!gated.some((r) => r.code === "00631L"), "回撤超過忍受度時，勾選也不能讓它進來");
+
+  // 不設限 + 勾選 → 端到端真的選得到，且它會是最大權重（去年報酬最高）
+  const picked = app.helpers.optimizeAllocation(universe,
+    Object.assign({ total: 2000000, netIncome: 500000 },
+      app.helpers.profileToConstraints({ horizonYears: "15", maxLossPct: "", maxWeightPct: "30", includeLeveraged: true })));
+  assert.ok(picked.picks.some((p) => p.code === "00631L"), picked.reason || "不設限＋勾選時應選得到");
+});
+
 // 候選池必須依報酬排序。依殖利率截斷會讓 0050（殖利率 91 檔中倒數第一、
 // 近一年總報酬 +106.7%）永遠進不了搜尋空間——這正是「核心保送」原本想解決
 // 卻解錯的問題：真正該保送的判準是報酬，不是規模。
