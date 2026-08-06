@@ -261,7 +261,10 @@
     <div class="stamp" id="etfStamp">切換到此頁籤時載入</div>
     <div class="backtest-warn">總報酬、價差、波動與最大回撤為<b>近一年回測</b>，不是預測。
       與殖利率並列是為了讓「配得多」與「賺得多」能同時被看到——一檔配 10% 而淨值跌 12% 的 ETF
-      殖利率很漂亮，但那一年是在賠錢。滿一年歷史不足的標的顯示「—」，不以 0 充數。</div>
+      殖利率很漂亮，但那一年是在賠錢。滿一年歷史不足的標的顯示「—」，不以 0 充數。
+      <br><b>應稅比例是推定值</b>：配息組成（54C 國內股利／5A 國內利息／71 海外／76W 平準金）的實際金額
+      <b>沒有任何公開來源</b>——TWSE 與 TPEX 的公告都只有總金額，SITCA 頁面是 postback-only，
+      唯一權威來源是你自己的收益分配通知書。標「推定」的是依標的性質估的，只有標「通知書」的才是實際數字。</div>
     <div class="table-scroll">
       <table id="etfTable" style="min-width:1240px">
         <thead><tr>
@@ -278,6 +281,7 @@
           <th data-etf-sort="volatility1y" title="日報酬標準差年化">年化波動</th>
           <th data-etf-sort="maxDrawdown1y" title="近一年峰谷最大跌幅">最大回撤</th>
           <th data-etf-sort="dividendCvField" title="近24月配息變異係數，越小越穩">配息穩定度</th>
+          <th title="配息中要課綜所稅的比例。54C／5A／71／76W 的實際金額沒有公開來源，這裡是依標的性質推定">應稅比例</th>
           <th data-etf-sort="frequency">頻率</th>
         </tr></thead>
         <tbody id="etfBody"></tbody>
@@ -885,8 +889,26 @@ function etfRowHtml(row){
     + '<td class="num">' + (row.volatility1y == null ? "—" : fmt(row.volatility1y, 1) + "%") + '</td>'
     + '<td class="num ' + toneClass(row.maxDrawdown1y) + '">' + (row.maxDrawdown1y == null ? "—" : fmt(row.maxDrawdown1y, 1) + "%") + '</td>'
     + '<td class="num">' + etfCvCell(row) + '</td>'
+    + '<td class="num">' + taxableCell(row) + '</td>'
     + '<td class="num">' + (row.frequency ? escapeHtml(row.frequency) : "—") + '</td>'
     + '</tr>';
+}
+
+// 配息來源（54C 國內股利／5A 國內利息／71 海外／76W 平準金）的**實際金額沒有任何
+// 公開來源**：TWSE etfDiv 與 TPEX 預告表都只有總金額，SITCA 是 postback-only ASP.NET，
+// 唯一權威來源是個人的收益分配通知書（需身分證字號與 OTP）。
+//
+// 所以這一欄只能給「應稅比例」的推定。etfTaxableRatio 本來就在算，但先前只被稅務
+// 計算吃掉，畫面上完全看不到。攤開來並標明依據——推定與通知書必須分得出來，
+// 否則使用者會把估的當成官方的。
+function taxableCell(row){
+  const t = etfTaxableRatio(row);
+  const pct = Math.round(t.ratio * 1000) / 10;
+  const solid = t.fromNotice === true;
+  return '<span class="' + (solid ? "" : "stale") + '" title="' + escapeHtml(t.reason) + '">'
+    + fmt(pct, 1) + '%</span>'
+    + '<span style="display:block;font-size:10px;color:var(--faint)">'
+    + escapeHtml(solid ? "通知書" : "推定") + '</span>';
 }
 
 // 配息穩定度：與配置產生器結果表同一套三段配色，缺樣本時說出樣本數而不是印 0

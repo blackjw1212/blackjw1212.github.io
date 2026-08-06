@@ -1239,6 +1239,36 @@ test("funds without return data are excluded from the total-return goal", async 
   assert.ok(!out.picks.some((pick) => pick.code === "00NEW"));
 });
 
+// 配息來源的實際金額沒有公開來源，只能給推定。推定與通知書必須在畫面上分得出來，
+// 否則使用者會把估的當成官方的。
+test("the taxable-ratio column separates an estimate from an actual notice", async () => {
+  const { app, html } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { taxableRatio } = app.helpers;
+
+  // 依標的性質推定
+  const guess = taxableRatio({ kind: "etf", name: "元大高股息", type: "高股息" });
+  assert.equal(guess.ratio, 1);
+  assert.ok(!guess.fromNotice, "名稱推定不得被標成通知書");
+
+  // 人工建表（成分股推定）——仍不是通知書
+  const curated = taxableRatio({ kind: "etf", name: "復華富時不動產", type: "主題型",
+    domesticRatio: 0.22, domicileSource: "成分股推定" });
+  assert.equal(curated.ratio, 0.22);
+  assert.ok(!curated.fromNotice, "成分股推定不是通知書");
+  assert.match(curated.reason, /成分股推定/);
+
+  // 通知書才是實際數字
+  const notice = taxableRatio({ kind: "etf", name: "某ETF", type: "主題型",
+    domesticRatio: 0.63, domicileSource: "收益分配通知書" });
+  assert.equal(notice.fromNotice, true);
+  assert.match(notice.reason, /收益分配通知書/);
+
+  // 畫面必須講明白沒有公開來源，不可留一個看起來權威的數字
+  assert.match(html, /沒有任何公開來源/);
+  assert.match(html, /應稅比例是推定值/);
+});
+
 test("etfScores ranks by percentile within the universe and keeps 'unknown' distinct from 'bad'", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
