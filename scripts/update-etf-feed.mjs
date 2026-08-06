@@ -12,7 +12,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { field, parseNumber, roundNumber } from "./update-stock-risk-feed.mjs";
-import { rocToIso, monthKey } from "./update-market-feed.mjs";
+import { rocToIso, monthKey, normalizeMiIndex } from "./update-market-feed.mjs";
 
 const FEED_FILE = new URL("../data/etf-feed.json", import.meta.url);
 const HISTORY_FILE = new URL("../data/etf-div-history.json", import.meta.url);
@@ -23,6 +23,12 @@ const HOLDINGS_FILE = new URL("../data/etf-holdings.json", import.meta.url);
 const RETURNS_FILE = new URL("../data/etf-returns.json", import.meta.url);
 
 const SOURCES = {
+  // 上市收盤主來源必須是 MI_INDEX。openapi 的 STOCK_DAY_ALL 當日不發佈——
+  // 實測 2026-08-06 台灣 22:15（收盤後 8.75 小時）仍只有 08-05 的資料，
+  // 於是 232 檔上市 ETF 顯示昨收、116 檔上櫃顯示今收，價格比券商帳面舊一天
+  // （00631L 本站 34.15 vs MIS 今收 33.85）。market-feed 早就改用 MI_INDEX，
+  // 這支一直沒跟上。STOCK_DAY_ALL 保留為 fallback：TWSE 曾對 runner IP 回 HTML 錯誤頁。
+  twseEodFast: "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=ALLBUT0999&response=json",
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
   tpexEod: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
   allEtf: "https://mis.twse.com.tw/stock/data/all_etf.txt",
@@ -85,7 +91,18 @@ export function rocTextToIso(value) {
   return `${year}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
 }
 
-// bulk（TWSE STOCK_DAY_ALL / TPEX daily close）→ ETF 價格列
+// 上市收盤有兩種 payload：MI_INDEX 是物件（{stat, tables:[…]}），
+// STOCK_DAY_ALL 是陣列。normalizeMiIndex 吐出的列已經是 Code/ClosingPrice 相容形狀，
+// 所以在這裡統一成陣列即可，下游不必為來源開特例。
+// 原本只認陣列，於是 market-feed --emit-bulk 落下的 MI_INDEX 物件會直接拋
+// 「bulk payload is not an array」，CI 靜靜退回自己抓 STOCK_DAY_ALL 的昨收。
+export function toBulkRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === "object") return normalizeMiIndex(payload).rows;
+  return payload;
+}
+
+// bulk（TWSE MI_INDEX / STOCK_DAY_ALL、TPEX daily close）→ ETF 價格列
 export function normalizeEtfBulkRows(rows, market) {
   if (!Array.isArray(rows)) throw new Error(`${market} bulk payload is not an array`);
   const out = [];
@@ -471,7 +488,18 @@ async function main() {
   for (const [key, source, label] of [["twse", SOURCES.twseEod, "TWSE OpenAPI STOCK_DAY_ALL"], ["tpex", SOURCES.tpexEod, "TPEX OpenAPI daily close quotes"]]) {
     let fetched = [];
     try {
-      const payload = bulkRaw[key] || await fetchJson(source);
+      let payload = bulkRaw[key] ? toBulkRows(bulkRaw[key]) : null;
+      // 上市沒有 bulk 就自己抓：先 MI_INDEX（當日就有），失敗才退回 STOCK_DAY_ALL（可能舊一天）
+      if (!payload && key === "twse") {
+        try {
+          payload = toBulkRows(await fetchJson(SOURCES.twseEodFast));
+          if (!Array.isArray(payload) || !payload.length) throw new Error("MI_INDEX returned no usable rows");
+        } catch (fastError) {
+          errors.push({ source: "twse-eod-fallback", message: `${fastError.message}; fell back to STOCK_DAY_ALL (may lag one trading day)` });
+          payload = null;
+        }
+      }
+      if (!payload) payload = toBulkRows(await fetchJson(source));
       fetched = normalizeEtfBulkRows(payload, key);
     } catch (error) {
       errors.push({ source: label, message: error.message });
@@ -493,7 +521,20 @@ async function main() {
   }
 
   // 3) 配息公告 → 歷史累積
-  const tradeDate = rows.map((r) => r.date).filter(Boolean).sort().pop() || previousFeed.tradeDate || now.slice(0, 10);
+  // 交易日必須逐市場算並取**最小值**。原本取全體最大：上市 232 檔停在 08-05、
+  // 上櫃 116 檔已是 08-06 時，整份被標成 08-06，讓那 232 檔掛著它們沒有的日期。
+  // 這與 market-feed 當初的修法同一套（那裡的註解記著同一個教訓）。
+  const marketDate = (m) => rows.filter((r) => r.market === m).map((r) => r.date).filter(Boolean).sort().pop() || null;
+  const marketDates = {};
+  const twseDate = marketDate("twse");
+  const tpexDate = marketDate("tpex");
+  if (twseDate) marketDates.twse = twseDate;
+  if (tpexDate) marketDates.tpex = tpexDate;
+  const knownDates = [twseDate, tpexDate].filter(Boolean).sort();
+  const tradeDate = knownDates[0] || previousFeed.tradeDate || now.slice(0, 10);
+  if (twseDate && tpexDate && twseDate !== tpexDate) {
+    errors.push({ source: "stale-market", message: `TWSE ${twseDate} vs TPEX ${tpexDate} — feed dated to the older one` });
+  }
   let events = [];
   try {
     const div = JSON.parse(await fetchText(SOURCES.etfDiv));
@@ -617,7 +658,7 @@ async function main() {
   if (premiumMismatch) errors.push({ source: "premium-sanity", message: `${premiumMismatch} row(s) premium mismatch >${PREMIUM_SANITY_PP}pp vs MIS official; column suppressed` });
   if (navPreserved) errors.push({ source: "feed-preservation", message: `kept previous nav/premium/aum for ${navPreserved} column value(s)` });
 
-  const feed = { updatedAt: now, tradeDate, count: rows.length, divHistoryStart: history.start, stocks: rows, errors };
+  const feed = { updatedAt: now, tradeDate, marketDates, count: rows.length, divHistoryStart: history.start, stocks: rows, errors };
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
   await writeFile(HISTORY_FILE, JSON.stringify({ start: history.start, updatedAt: now, stocks: history.stocks }), "utf8");

@@ -78,6 +78,25 @@ test("etf-feed.json matches the expected schema", async () => {
   assert.ok(Array.isArray(feed.stocks) && feed.stocks.length >= 300, `expected 300+ ETFs, got ${feed.stocks.length}`);
   assert.equal(feed.count, feed.stocks.length);
 
+  // 交易日必須逐市場算並取最小值。實測 2026-08-06：上市 232 檔停在 08-05
+  // （openapi STOCK_DAY_ALL 當日不發佈）、上櫃 116 檔已是 08-06，整份卻被標成
+  // 08-06——那 232 檔掛著它們沒有的日期，00631L 顯示 34.15 而券商是 33.85。
+  assert.equal(typeof feed.marketDates, "object", "必須逐市場輸出日期，否則落差無從得知");
+  for (const market of Object.keys(feed.marketDates)) {
+    assert.ok(market === "twse" || market === "tpex", `marketDates 只該有 twse/tpex，出現 ${market}`);
+    assert.match(feed.marketDates[market], /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(feed.tradeDate <= feed.marketDates[market], "tradeDate 必須是各市場的最舊者，不可取最大值");
+  }
+  // 每一列的日期不得比 tradeDate 新——新的話代表 tradeDate 又取回最大值了
+  for (const row of feed.stocks) {
+    if (!row.date) continue;
+    assert.ok(row.date >= feed.tradeDate, `${row.code}: 列日期 ${row.date} 比 tradeDate ${feed.tradeDate} 舊`);
+    const market = row.market === "tpex" ? "tpex" : "twse";
+    if (feed.marketDates[market]) {
+      assert.ok(row.date <= feed.marketDates[market], `${row.code}: 列日期超出該市場的 ${feed.marketDates[market]}`);
+    }
+  }
+
   // 近一年總報酬。配息只會讓總報酬高於價格報酬，所以 total < price 一定是算錯了——
   // 實測 0052 沒做分割校正時就是 −73%（真值 +117.7%），這條會當場擋下。
   const withReturn = feed.stocks.filter((row) => row.totalReturn1y != null);
