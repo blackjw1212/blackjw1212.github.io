@@ -18,6 +18,9 @@ const FEED_FILE = new URL("../data/etf-feed.json", import.meta.url);
 const HISTORY_FILE = new URL("../data/etf-div-history.json", import.meta.url);
 const STATIC_FILE = new URL("../data/etf-static.json", import.meta.url);
 const HOLDINGS_FILE = new URL("../data/etf-holdings.json", import.meta.url);
+// 近一年總報酬（update-etf-returns.mjs 產出）。配置產生器要以「最終賺多少」
+// 為目標就需要價差那一半——feed 自己只有配息。
+const RETURNS_FILE = new URL("../data/etf-returns.json", import.meta.url);
 
 const SOURCES = {
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
@@ -517,6 +520,8 @@ async function main() {
   const staticEtfs = (staticData && staticData.etfs) || {};
   const holdingsData = await readJsonOr(HOLDINGS_FILE, {});
   const holdingsEtfs = (holdingsData && holdingsData.etfs) || {};
+  const returnsData = await readJsonOr(RETURNS_FILE, {});
+  const returnsByCode = (returnsData && returnsData.stocks) || {};
 
   // 5) 合成
   let premiumMismatch = 0;
@@ -578,6 +583,15 @@ async function main() {
     if (cv != null) row.dividendCv = cv;
     row.isActive = isActiveEtf(row);
     row.isCore = isCoreEtf(row);
+    // 近一年總報酬／價格報酬（回測）。抓不到就整組不寫，讓前端以「無資料」處理——
+    // 缺一半的報酬比沒有報酬更危險：只有配息會讓賠價差的高配息標的看起來最好。
+    const ret = returnsByCode[row.code];
+    if (ret && ret.totalReturn1y != null && ret.priceReturn1y != null) {
+      row.totalReturn1y = ret.totalReturn1y;
+      row.priceReturn1y = ret.priceReturn1y;
+      row.returnFrom = ret.from;
+      row.returnTo = ret.to;
+    }
     if (curated.domicileNote) row.domicileNote = curated.domicileNote;
     // 配息的國內來源佔比（稅務估算用）。名稱推定看不出投資地區時只能人工判定——
     // 例：00712 復華富時不動產前十大全是美國 REITs，但中文譯名完全看不出來。

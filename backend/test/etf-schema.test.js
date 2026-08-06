@@ -77,6 +77,23 @@ test("etf-feed.json matches the expected schema", async () => {
   assert.ok(feed.tradeDate <= new Date().toISOString().slice(0, 10), "交易日不得在未來");
   assert.ok(Array.isArray(feed.stocks) && feed.stocks.length >= 300, `expected 300+ ETFs, got ${feed.stocks.length}`);
   assert.equal(feed.count, feed.stocks.length);
+
+  // 近一年總報酬。配息只會讓總報酬高於價格報酬，所以 total < price 一定是算錯了——
+  // 實測 0052 沒做分割校正時就是 −73%（真值 +117.7%），這條會當場擋下。
+  const withReturn = feed.stocks.filter((row) => row.totalReturn1y != null);
+  assert.ok(withReturn.length >= 200, `expected 200+ ETFs with 1y return, got ${withReturn.length}`);
+  for (const row of withReturn) {
+    const at = (msg) => `${row.code}: ${msg}`;
+    assert.ok(isNum(row.priceReturn1y), at("有總報酬就必須有價格報酬"));
+    assert.ok(row.totalReturn1y >= row.priceReturn1y - 0.5,
+      at(`總報酬 ${row.totalReturn1y}% 低於價格報酬 ${row.priceReturn1y}% —— 配息不可能是負貢獻`));
+    // 台股一年不可能翻 10 倍或跌到剩 5%：這種數字只會來自沒校正的分割
+    assert.ok(row.totalReturn1y > -95 && row.totalReturn1y < 900, at(`總報酬 ${row.totalReturn1y}% 超出常理`));
+    assert.match(row.returnFrom, /^\d{4}-\d{2}-\d{2}$/, at("returnFrom"));
+    assert.match(row.returnTo, /^\d{4}-\d{2}-\d{2}$/, at("returnTo"));
+    const span = (Date.parse(row.returnTo) - Date.parse(row.returnFrom)) / 86400000;
+    assert.ok(span >= 330, at(`區間只有 ${Math.round(span)} 天，不足以稱為「近一年」`));
+  }
   assert.ok(Array.isArray(feed.errors));
   assertBothMarkets(feed.stocks, "etf-feed", { twse: 150, tpex: 80 });
 
