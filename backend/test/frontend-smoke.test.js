@@ -375,8 +375,9 @@ test("legacy weather redirect preserves query string and hash", async () => {
 test("index.html keeps required static DOM ids and global helper contract", async () => {
   const { context, html } = await loadApp(async () => response(staticFeed()));
   const requiredIds = [
-    "verdictLight", "verdictTitle", "verdictDesc", "actionNext", "actionAvoid",
-    "signalSummary", "refresh", "conds", "stamp", "buckets", "scoreTable", "scoreBody", "stockCards",
+    "refresh", "stamp", "scoreTable", "scoreBody", "stockCards", "dataSource",
+    "watchAdd", "watchTier", "watchAddBtn", "watchReset", "watchShare",
+    "watchCount", "watchShared", "watchNote",
     "headerMarketQuotes", "headerQuoteTaiex", "headerQuoteTaiexValue", "headerQuoteTaiexChange",
     "headerQuoteTaiexStatus", "headerQuoteTpex", "headerQuoteTpexValue", "headerQuoteTpexChange",
     "headerQuoteTpexStatus", "headerQuoteStatus",
@@ -384,6 +385,19 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
 
   for (const id of requiredIds) {
     assert.match(html, new RegExp(`id=["']${id}["']`), `${id} should exist in static HTML`);
+  }
+  // 頁面已收斂成「頁首指數卡 + 觀察清單」：決策卡、自動檢核表、配置分層區
+  // 全部移除。留著任何一個 id 就代表死碼又長回來了。
+  for (const gone of [
+    "verdictLight", "verdictTitle", "verdictDesc", "actionNext", "actionAvoid",
+    "signalSummary", "conds", "buckets", "watchChips",
+  ]) {
+    assert.doesNotMatch(html, new RegExp(`id=["']${gone}["']`), `${gone} should be gone`);
+  }
+  // 欄位與 /market/ 對齊，且每個數值欄都可點表頭排序
+  for (const key of ["code", "name", "tier", "close", "dayPct", "pe", "pbRatio",
+    "dividendYield", "fromHi", "turnover", "pctFromObservation"]) {
+    assert.match(html, new RegExp(`data-sort="${key}"`), `${key} column should be sortable`);
   }
   assert.match(html, /rel="icon" href="\/assets\/images\/favicon\.ico"/);
   assert.match(html, /rel="icon" href="\/assets\/images\/favicon\.svg" type="image\/svg\+xml"/);
@@ -393,26 +407,28 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
   assert.match(html, /\.header-shell\{display:flex/);
   assert.match(html, /\.header-markets\{width:min\(360px,100%\)/);
   assert.match(html, /\.market-card\{/);
-  assert.match(html, /@media \(max-width:760px\)[\s\S]*\.header-shell\{flex-direction:column/);
   assert.match(html, /aria-label="市場指數"/);
-  assert.match(html, /aria-live="polite"/);
+  assert.match(html, /@media \(max-width:760px\)[\s\S]*\.header-shell\{flex-direction:column/);
+  // 分層與移除鈕不是 .btn，窄螢幕的 44px 觸控目標要另外補
+  assert.match(html, /@media \(max-width:760px\)[\s\S]*\.tier-pick,\.row-del\{min-height:44px\}/);
   assert.match(html, /距離觀察基準/);
+  // 分層直接改在資料列上，提示要說清楚它會改變觀察價
+  assert.match(html, /分層會改變觀察價的算法/);
   assert.doesNotMatch(html, /vs 個人參考基準|個人參考基準/);
 
   assert.equal(typeof context.window.PortfolioConsoleApp.init, "function");
   assert.equal(typeof context.window.PortfolioConsoleApp.refresh, "function");
   assert.equal(typeof context.window.PortfolioConsoleApp.getState, "function");
   for (const name of [
-    "aggregateVerdict",
     "normalizeClosingQuoteRows",
     "normalizeEodPayload",
     "normalizeMarketIndexPayload",
-    "normalizeYieldPayload",
     "parseNumber",
     "proxyBase",
     "sanitizeState",
-    "deriveAutoSignals",
-    "condColor",
+    "sanitizeWatchlist",
+    "parseWatchParam",
+    "watchlistToParam",
     "tradingViewUrl",
     "suggestObservationPrice",
     "roundObservationPrice",
@@ -430,99 +446,25 @@ test("index.html keeps required static DOM ids and global helper contract", asyn
 });
 
 
-test("verdict aggregation uses automated observation and risk language", async () => {
+// 大盤指數已不顯示，但仍必須抓：它唯一的用途是把弱勢盤的觀察價再壓一段。
+// 這條擋住「反正畫面上看不到，順手把 loadMarketIndices 也刪掉」。
+test("market indices still drive defense mode even though no card shows them", async () => {
   const { context } = await loadApp(async () => response(staticFeed()));
-  const { aggregateVerdict } = context.window.PortfolioConsoleApp.helpers;
+  const { marketDefenseMode } = context.window.PortfolioConsoleApp.helpers;
 
-  assert.equal(aggregateVerdict(["r", "r", "g", "a"]).tone, "r");
-  assert.match(aggregateVerdict(["r", "r", "g", "a"]).title, /風險升高觀察/);
-  assert.equal(aggregateVerdict(["r", "a", "a", "a"]).tone, "r");
-  assert.equal(aggregateVerdict(["g", "g", "g", "g"]).tone, "g");
-  assert.match(aggregateVerdict(["g", "g", "g", "g"]).title, /條件接近觀察/);
-  assert.equal(aggregateVerdict(["g", "a", "r", "a"]).tone, "a");
-});
-
-test("auto signal helper gates entry, waiting, and exit observation states", async () => {
-  const { context } = await loadApp(async () => response(staticFeed()));
-  const { deriveAutoSignals, aggregateVerdict } = context.window.PortfolioConsoleApp.helpers;
-  const fresh = new Date().toISOString();
-  const entryState = {
-    cond: { yield: 4.12 },
-    condSource: {},
-    base: {},
-    today: {
-      "2330": { close: 2400, change: 5, high: 2420, low: 2350 },
-      "2317": { close: 300, change: 3, high: 305, low: 292 },
-      "6669": { close: 5600, change: 20, high: 5660, low: 5450 },
-      "3017": { close: 2650, change: 10, high: 2700, low: 2580 },
-      "3324": { close: 1300, change: 5, high: 1325, low: 1240 },
-      "2382": { close: 350, change: 2, high: 355, low: 342 },
-      "1519": { close: 900, change: 5, high: 918, low: 872 },
-      "2308": { close: 2200, change: 4, high: 2230, low: 2140 },
-      "2356": { close: 64, change: 1, high: 67, low: 62 },
-      "2376": { close: 325, change: 5, high: 330, low: 318 },
-      "6239": { close: 288, change: 2, high: 292, low: 284 },
-    },
-    eodMeta: { source: "Worker mock EOD", updatedAt: fresh },
-    yieldMeta: { source: "mock 10Y", updatedAt: fresh },
-  };
-  const exitState = {
-    ...entryState,
-    cond: { yield: 4.85 },
-    today: {
-      "2330": { close: 2300, change: -50 },
-      "2317": { close: 270, change: -8 },
-      "6669": { close: 6600, change: -150 },
-      "3017": { close: 3100, change: -70 },
-      "3324": { close: 1500, change: -60 },
-      "2382": { close: 410, change: -10 },
-      "1519": { close: 1050, change: -20 },
-      "2308": { close: 2600, change: -50 },
-    },
-  };
-  const fallbackOnlyState = {
-    ...entryState,
-    today: Object.fromEntries(Object.entries(entryState.today).map(([code, row]) => [code, { close: row.close, change: row.change }])),
-  };
-
-  assert.match(aggregateVerdict(deriveAutoSignals(entryState)).title, /條件接近觀察/);
-  assert.equal(deriveAutoSignals(fallbackOnlyState).find((signal) => signal.id === "data").tone, "a");
-  assert.match(aggregateVerdict(deriveAutoSignals(fallbackOnlyState)).title, /等待/);
-  assert.match(aggregateVerdict(deriveAutoSignals({ cond: { yield: 4.12 }, today: {} })).title, /等待/);
-  assert.match(aggregateVerdict(deriveAutoSignals(exitState)).title, /風險升高觀察/);
-});
-
-test("weak market defense blocks automated entry observation", async () => {
-  const { context } = await loadApp(async () => response(staticFeed()));
-  const { deriveAutoSignals, aggregateVerdict, marketDefenseMode } = context.window.PortfolioConsoleApp.helpers;
-  const fresh = new Date().toISOString();
-  const weakMarketState = {
-    cond: { yield: 4.12 },
-    condSource: {},
-    today: {
-      "2330": { close: 2400, change: 5, high: 2420, low: 2350 },
-      "2317": { close: 300, change: 3, high: 305, low: 292 },
-      "6669": { close: 5600, change: 20, high: 5660, low: 5450 },
-      "3017": { close: 2650, change: 10, high: 2700, low: 2580 },
-      "3324": { close: 1300, change: 5, high: 1325, low: 1240 },
-      "2382": { close: 350, change: 2, high: 355, low: 342 },
-      "1519": { close: 900, change: 5, high: 918, low: 872 },
-      "2308": { close: 2200, change: 4, high: 2230, low: 2140 },
-    },
-    eodMeta: { source: "Worker mock EOD", updatedAt: fresh },
-    yieldMeta: { source: "mock 10Y", updatedAt: fresh },
+  assert.equal(marketDefenseMode({
     marketIndexRows: [
       { id: "taiex", label: "加權", price: 42000, pctChange: -2.8 },
       { id: "tpex", label: "櫃買", price: 390, pctChange: -3.2 },
     ],
-  };
-
-  const signals = deriveAutoSignals(weakMarketState);
-  assert.equal(marketDefenseMode(weakMarketState), true);
-  assert.equal(signals.find((signal) => signal.id === "market").tone, "r");
-  assert.match(signals.find((signal) => signal.id === "market").detail, /等待跌勢收斂/);
-  assert.doesNotMatch(aggregateVerdict(signals).title, /條件接近觀察/);
-  assert.match(aggregateVerdict(signals).title, /等待/);
+  }), true);
+  assert.equal(marketDefenseMode({
+    marketIndexRows: [
+      { id: "taiex", label: "加權", price: 42000, pctChange: 0.4 },
+      { id: "tpex", label: "櫃買", price: 390, pctChange: 0.2 },
+    ],
+  }), false);
+  assert.equal(marketDefenseMode({ marketIndexRows: [] }), false);
 });
 
 test("system observation price helper stays conservative by tier and market risk", async () => {
@@ -589,9 +531,9 @@ test("system observation price helper stays conservative by tier and market risk
   assert.ok(defense.price < core.price);
 });
 
-test("frontend normalizers round EOD rows and support yield payload shapes", async () => {
+test("frontend normalizers round EOD, index, and closing-quote rows", async () => {
   const { context } = await loadApp(async () => response(staticFeed()));
-  const { normalizeClosingQuoteRows, normalizeEodPayload, normalizeMarketIndexPayload, normalizeYieldPayload } = context.window.PortfolioConsoleApp.helpers;
+  const { normalizeClosingQuoteRows, normalizeEodPayload, normalizeMarketIndexPayload } = context.window.PortfolioConsoleApp.helpers;
   const plain = (value) => JSON.parse(JSON.stringify(value));
 
   assert.deepEqual(plain(normalizeEodPayload([
@@ -602,9 +544,6 @@ test("frontend normalizers round EOD rows and support yield payload shapes", asy
     { code: "2330", name: "TSMC", close: 1010.12, change: 5.26, high: 1020.25, low: 998.75, open: 1005.5 },
   ]);
 
-  assert.equal(normalizeYieldPayload({ value: "4.1234" }).value, 4.123);
-  assert.equal(normalizeYieldPayload({ body: { value: "4.5555" } }).value, 4.556);
-  assert.equal(normalizeYieldPayload({ data: { value: "4.7777" } }).value, 4.778);
   assert.deepEqual(plain(normalizeMarketIndexPayload({
     indices: [
       { id: "tpex", name: "櫃買指數", price: "397.81", change: "+33.26", pctChange: "+9.12", time: "2026-06-08T09:33:00+08:00" },
@@ -641,9 +580,9 @@ test("proxy allowlist ignores unapproved query-string proxy", async () => {
   assert.equal(proxyBase(), "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev");
 });
 
-test("page renders automated checklist, cards, and source labels from static fallback", async () => {
+test("page renders the watchlist table, cards, and source labels from static fallback", async () => {
   const calls = [];
-  const { context, document, elements } = await loadApp(async (url) => {
+  const { context, document } = await loadApp(async (url) => {
     const href = String(url);
     calls.push(href);
     if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
@@ -675,14 +614,13 @@ test("page renders automated checklist, cards, and source labels from static fal
   assert.match(scoreHtml, /target="_blank"/);
   assert.match(cardHtml, /rel="noopener noreferrer"/);
   assert.match(scoreHtml, /aria-label="在 TradingView 開啟 2330 台積電完整圖表觀察（外部連結）"/);
-  assert.match(document.getElementById("conds").innerHTML, /自動/);
-  assert.match(document.getElementById("signalSummary").innerHTML, /資料可用性/);
-  assert.match(document.getElementById("stamp").textContent, /靜態 feed/);
-  assert.match(document.getElementById("verdictTitle").textContent, /等待|風險升高|條件接近/);
-  assert.match(document.getElementById("actionAvoid").textContent, /不要/);
-  for (const id of ["c_data", "c_yield", "c_breadth", "c_core", "c_satellite", "cd_data", "src_yield"]) {
-    assert.ok(elements.has(id), `${id} should be created during init`);
-  }
+  // 分層與移除鈕在每一列上，不再是清單外的一排標籤
+  assert.match(scoreHtml, /<select class="tier-pick core" data-watch-tier="2330"/);
+  assert.match(scoreHtml, /data-watch-del="2330"/);
+  assert.match(cardHtml, /data-watch-tier="2330"/);
+  assert.match(cardHtml, /data-watch-del="2330"/);
+  assert.match(document.getElementById("stamp").textContent, /靜態 stock-risk-feed\.json/);
+  assert.match(document.getElementById("watchCount").textContent, /13 檔/);
   assert.ok(calls.includes("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"));
   assert.ok(calls.some((href) => href.startsWith("/data/stock-risk-feed.json")));
 });
@@ -706,10 +644,12 @@ test("the watchlist is user-definable and defaults to the built-in list", async 
   const custom = stocks.find((s) => s.code === "2454");
   assert.equal(custom.name, "聯發科", "名稱由 market-feed 補");
   assert.equal(custom.custom, true);
-  assert.equal(custom.s, null, "六維是人工判斷，自行加入的不得生成評分");
-  assert.equal(custom.pe, "~65", "PE 由 market-feed 帶入");
+  // 估值一律不寫進 STOCKS：PE／PB／殖利率全部在 render 時從 market-feed 取，
+  // 寫死在標的物件上只會過期
+  assert.equal(custom.pe, undefined);
   const kept = stocks.find((s) => s.code === "2330");
-  assert.ok(Array.isArray(kept.s) && kept.s.length === 6, "內建標的保留人工評分");
+  assert.equal(kept.pe, undefined);
+  assert.equal(kept.base, 2310, "內建標的保留人工的預設參考值");
   assert.equal(kept.tier, "core");
 
   // 分層可覆寫內建值
@@ -774,42 +714,6 @@ test("watchlist state survives a save/load round trip", async () => {
   assert.equal(saved.base["2454"], 3600);
 });
 
-test("concentration judges only classified stocks, never counts 未分類 as a theme", async () => {
-  const { context } = await loadApp(async () => response(staticFeed()));
-  const h = context.window.PortfolioConsoleApp.helpers;
-
-  // 預設清單：全部有題材分類
-  h.setWatchlistForTest(null);
-  const base = h.concentrationSignal();
-  assert.match(base.detail, /已分類 13 檔/);
-  assert.doesNotMatch(base.detail, /其他/, "內建清單沒有未分類標的");
-
-  // 加入未分類標的：不得稀釋分母造出假的「已分散」，也不得把「其他」當成題材
-  h.setMarketRowsForTest(Object.fromEntries(
-    ["2412", "2603", "1301", "5871", "2801", "9910", "2915"].map((c) => [c, { code: c, name: c, close: 100 }])));
-  const many = h.setWatchlistForTest(
-    h.builtInCodes().map((code) => ({ code })).concat(
-      ["2412", "2603", "1301", "5871", "2801", "9910", "2915"].map((code) => ({ code, tier: "sat" }))));
-  assert.equal(many.length, 20);
-
-  const withCustom = h.concentrationSignal();
-  // 分母仍是已分類的 13 檔——最大題材佔比不因為加了 7 檔未分類就變好看
-  assert.match(withCustom.detail, /已分類 13 檔/);
-  assert.equal(withCustom.value, base.value, "加未分類標的不得改變集中度數字");
-  assert.equal(withCustom.tone, base.tone, "也不得改變燈號");
-  assert.match(withCustom.detail, /另有 7 檔自行加入、未做題材分類/, "未分類要揭露而不是混進題材");
-  assert.doesNotMatch(withCustom.detail, /最大集中於「其他」/, "「其他」不是題材");
-
-  // 已分類不足 3 檔時要說樣本不夠，不可硬給一個百分比
-  const thin = h.setWatchlistForTest([{ code: "2412" }, { code: "2603" }, { code: "1301" }]);
-  assert.equal(thin.length, 3);
-  const thinSignal = h.concentrationSignal();
-  assert.match(thinSignal.detail, /樣本不足以判斷/);
-  assert.equal(thinSignal.tone, "a");
-
-  h.setWatchlistForTest(null);
-});
-
 test("scorecard PE prefers feed valuation and falls back to built-in", async () => {
   // (1) feed carries valuation → PE comes from feed, not the built-in static label
   const withVal = await loadApp(async (url) => {
@@ -824,11 +728,11 @@ test("scorecard PE prefers feed valuation and falls back to built-in", async () 
   });
   await withVal.context.window.PortfolioConsoleApp.init();
   const valHtml = withVal.document.getElementById("scoreBody").innerHTML;
-  assert.match(valHtml, /~25/);            // 2330 feed pe 25.3 -> ~25 (overrides static ~32)
-  assert.doesNotMatch(valHtml, /~32/);     // built-in 2330 label must not appear
-  assert.match(valHtml, /~19/);            // 2382 feed pe 18.9 -> ~19
+  assert.match(valHtml, /<td class="num">25\.3<\/td>/);   // 2330 feed pe，格式與 /market/ 同一支 fmt
+  assert.match(valHtml, /<td class="num">18\.9<\/td>/);   // 2382 feed pe
 
-  // (2) feed without valuation → built-in fallback retained
+  // (2) feed 沒有 valuation → 退回 market-feed 的 pe；沒有 market-feed 就顯示「—」，
+  //     不再退回寫死的靜態標籤（那種值只會過期）
   const noVal = await loadApp(async (url) => {
     const href = String(url);
     if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
@@ -836,10 +740,13 @@ test("scorecard PE prefers feed valuation and falls back to built-in", async () 
   });
   await noVal.context.window.PortfolioConsoleApp.init();
   const baseHtml = noVal.document.getElementById("scoreBody").innerHTML;
-  assert.match(baseHtml, /~32/);           // 2330 built-in fallback label
+  assert.doesNotMatch(baseHtml, /~32|~19/, "寫死的靜態 PE 標籤已移除");
+  assert.match(baseHtml, /<td class="num">—<\/td>/);
 });
 
-test("allocation buckets append live PE and observation distance under each role", async () => {
+// 原本 PE、觀察距離、分層與人工說明分散在配置分層區；配置區移除後，
+// 這些都必須在同一列（或同一張卡）上看得到，否則等於功能被刪掉而不是被合併。
+test("each row carries tier, live PE, observation distance, and the manual role note", async () => {
   const { context, document } = await loadApp(async (url) => {
     const href = String(url);
     if (href.startsWith("/data/stock-risk-feed.json")) {
@@ -851,11 +758,14 @@ test("allocation buckets append live PE and observation distance under each role
     throw new Error(`unavailable: ${href}`);
   });
   await context.window.PortfolioConsoleApp.init();
-  const bucketHtml = document.getElementById("buckets").innerHTML;
-  assert.match(bucketHtml, /等待冷卻/);          // WAIT tier still rendered from static config
-  assert.match(bucketHtml, /電源、散熱/);          // manual role text retained
-  assert.match(bucketHtml, /PE ~67/);            // live feed PE (66.7) wired beside the role
-  assert.match(bucketHtml, /收盤 1,905/);         // live close wired in
+  const scoreHtml = document.getElementById("scoreBody").innerHTML;
+  const cardHtml = document.getElementById("stockCards").innerHTML;
+  assert.match(scoreHtml, /<td class="num">66\.7<\/td>/);               // live feed PE
+  assert.match(scoreHtml, /1,905/);                                     // live close
+  assert.match(scoreHtml, /<select class="tier-pick wait" data-watch-tier="2308"/);
+  assert.match(cardHtml, /電源、散熱/);                                   // manual role text retained
+  assert.match(cardHtml, /等待冷卻/);                                     // tier option label
+  assert.match(cardHtml, /距離觀察基準/);
 });
 
 test("page shows observation price pending when closing data is unavailable", async () => {
@@ -873,7 +783,7 @@ test("page shows observation price pending when closing data is unavailable", as
   assert.doesNotMatch(cardHtml, /系統觀察價 ·|· 系統觀察價|預設參考值|個人參考基準/);
 });
 
-test("page uses Worker EOD and yield on GitHub Pages default proxy", async () => {
+test("page uses Worker EOD and market indices on GitHub Pages default proxy", async () => {
   const calls = [];
   const { context, document } = await loadApp(async (url) => {
     const href = String(url);
@@ -886,9 +796,6 @@ test("page uses Worker EOD and yield on GitHub Pages default proxy", async () =>
         "X-Data-Delay": "mock EOD",
         "X-Data-Updated-At": "2026-06-05T08:00:00.000Z",
       });
-    }
-    if (href.endsWith("/yield10y")) {
-      return response({ body: { value: 4.12, date: "2026-06-05" } });
     }
     if (href.includes("/quote?indices=taiex,tpex")) {
       return response({
@@ -915,17 +822,12 @@ test("page uses Worker EOD and yield on GitHub Pages default proxy", async () =>
   await context.window.PortfolioConsoleApp.init();
 
   assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/eod"));
-  assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/yield10y"));
   assert.ok(calls.includes("https://taiwan-risk-tracker-proxy.a0926043323.workers.dev/quote?indices=taiex,tpex"));
+  // 10Y 已從這頁移除：既不再打 Worker，也不再留在 state 裡
+  assert.ok(!calls.some((href) => href.endsWith("/yield10y")));
   assert.match(document.getElementById("scoreBody").innerHTML, /2,410/);
-  assert.equal(document.getElementById("headerQuoteTaiexValue").textContent, "42,686.84");
-  assert.equal(document.getElementById("headerQuoteTaiexChange").textContent, "+2,387.10 / +5.92%");
-  assert.match(document.getElementById("headerQuoteTaiexChange").className, /pos/);
-  assert.equal(document.getElementById("headerQuoteTpexValue").textContent, "397.81");
-  assert.match(document.getElementById("headerQuoteTpexChange").className, /neg/);
-  assert.match(document.getElementById("headerQuoteTaiexStatus").textContent, /TWSE MIS/);
-  assert.equal(context.window.PortfolioConsoleApp.getState().cond.yield, 4.12);
-  assert.match(document.getElementById("src_yield").textContent, /10Y.*2026/);
+  assert.equal(context.window.PortfolioConsoleApp.getState().cond, undefined);
+  assert.match(document.getElementById("stamp").textContent, /市場指數：加權 42,686\.84/);
 });
 
 test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => {
@@ -961,7 +863,8 @@ test("page prefers MIS 13:30 closing quotes when EOD OpenAPI lags", async () => 
   assert.match(scoreHtml, /2330[\s\S]*?系統觀察價 2,295 \/ 收盤貼近 0%[\s\S]*?低於觀察基準 · 系統觀察價 · 市場指數待更新，未判讀防守模式 · 低點站回確認[\s\S]*?2317/);
   assert.match(cardHtml, /2330[\s\S]*?系統觀察價 2,295 \/ 收盤貼近 0%[\s\S]*?低於觀察基準 · 系統觀察價 · 市場指數待更新，未判讀防守模式 · 低點站回確認[\s\S]*?2317/);
   assert.doesNotMatch(scoreHtml, /預設參考值/);
-  assert.match(scoreHtml, /TWSE MIS closing quote/);
+  // 收盤來源對整張表都一樣，改成放一次；不可因為「看起來重複」就整個拿掉
+  assert.match(document.getElementById("dataSource").textContent, /收盤來源：.*TWSE MIS closing quote/);
 });
 
 test("weak market defense labels observation prices in table and mobile cards", async () => {
@@ -994,7 +897,6 @@ test("weak market defense labels observation prices in table and mobile cards", 
   const cardHtml = document.getElementById("stockCards").innerHTML;
   assert.match(scoreHtml, /2330[\s\S]*?系統觀察價 2,270 \/ 收盤高出 1\.1%[\s\S]*?貼近觀察基準 · 系統觀察價 · 防守模式 · 等待跌勢收斂後再看[\s\S]*?2317/);
   assert.match(cardHtml, /2330[\s\S]*?系統觀察價 2,270 \/ 收盤高出 1\.1%[\s\S]*?貼近觀察基準 · 系統觀察價 · 防守模式 · 等待跌勢收斂後再看[\s\S]*?2317/);
-  assert.match(document.getElementById("signalSummary").innerHTML, /市場防守模式[\s\S]*等待跌勢收斂/);
 });
 
 test("incomplete MIS closing quotes fall through instead of mixing old rows", async () => {
@@ -1052,20 +954,16 @@ test("market index quote failure does not block dashboard refresh", async () => 
   await context.window.PortfolioConsoleApp.init();
 
   assert.match(document.getElementById("scoreBody").innerHTML, /2,410/);
-  assert.equal(document.getElementById("headerQuoteTaiexValue").textContent, "待更新");
-  assert.match(document.getElementById("headerQuoteTaiexStatus").textContent, /暫無法更新/);
-  assert.match(document.getElementById("headerQuoteTaiexStatus").className, /error/);
-  assert.doesNotMatch(document.getElementById("headerQuoteTaiexValue").textContent, /NaN|undefined/);
+  assert.match(document.getElementById("stamp").textContent, /市場指數：暫無法更新/);
   assert.doesNotMatch(document.getElementById("stamp").textContent, /NaN|undefined/);
 });
 
-test("legacy manual 10Y override no longer blocks automated refresh", async () => {
-  const calls = [];
-  const { context, document } = await loadApp(async (url) => {
+// 舊存檔還留著已移除的 10Y／條件欄位；sanitizeState 要把它們丟掉而不是原樣搬進來，
+// 否則死欄位會一直跟著存檔複製下去。
+test("legacy 10Y and checklist fields are dropped from stored state", async () => {
+  const { context } = await loadApp(async (url) => {
     const href = String(url);
-    calls.push(href);
     if (href.endsWith("/eod")) return response([{ code: "2330", name: "台積電", close: 2410 }]);
-    if (href.endsWith("/yield10y")) return response({ value: 4.12 });
     if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unexpected: ${href}`);
   }, {
@@ -1073,16 +971,22 @@ test("legacy manual 10Y override no longer blocks automated refresh", async () =
     localStorage: createLocalStorage({
       "bjkw-portfolio-console-v2": JSON.stringify({
         cond: { yield: 5.12 },
+        condSource: { yield: "手動" },
         yieldManual: true,
+        yieldMeta: { source: "手動" },
+        base: { "2330": 2310 },
       }),
     }),
   });
 
   await context.window.PortfolioConsoleApp.init();
 
-  assert.equal(context.window.PortfolioConsoleApp.getState().cond.yield, 4.12);
-  assert.match(document.getElementById("src_yield").textContent, /10Y/);
-  assert.ok(calls.some((href) => href.endsWith("/yield10y")));
+  const state = context.window.PortfolioConsoleApp.getState();
+  assert.equal(state.cond, undefined);
+  assert.equal(state.condSource, undefined);
+  assert.equal(state.yieldManual, undefined);
+  assert.equal(state.yieldMeta, undefined);
+  assert.equal(state.base["2330"], 2310, "還在用的欄位不能被一起清掉");
 });
 
 test("empty static EOD can fall through to localStorage cache", async () => {

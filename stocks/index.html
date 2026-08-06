@@ -34,7 +34,6 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:"Noto Sans TC",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding:0 0 56px;-webkit-font-smoothing:antialiased}
-  .mono{font-family:"Roboto Mono",monospace}
   .wrap{max-width:1080px;margin:0 auto;padding:0 18px}
   a{color:var(--teal);text-decoration:none}a:hover{text-decoration:underline}
   header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#151b20,#101418);padding:24px 0 18px}
@@ -62,67 +61,15 @@
   input,select{font-family:"Roboto Mono",monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:7px 9px;font-size:13px}
   input:focus,select:focus{outline:none;border-color:var(--amber)}
 
-  .decision-card{background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:18px;margin-top:8px}
-  .decision-top{display:flex;align-items:center;gap:15px}
-  .vlight{width:42px;height:42px;border-radius:50%;flex:none;background:var(--faint);box-shadow:0 0 0 4px rgba(255,255,255,.04)}
-  .vtext{min-width:0;flex:1}
-  .vtext .vt{font-family:"Noto Serif TC",serif;font-weight:900;font-size:23px;line-height:1.2}
-  .vtext .vd{font-size:13px;color:var(--soft);margin-top:3px}
-  .signal-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
-  .signal-chip{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:rgba(255,255,255,.025);min-width:0}
-  .signal-chip b{display:block;font-size:12px;margin-bottom:2px}
-  .signal-chip span{display:block;font-size:12px;color:var(--soft)}
-  .signal-chip.g b{color:var(--green)}
-  .signal-chip.a b{color:var(--amber)}
-  .signal-chip.r b{color:var(--red)}
-  .decision-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-  .action-box{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.025);padding:10px}
-  .action-box b{display:block;font-size:12px;color:var(--faint);margin-bottom:4px}
-  .action-box span{display:block;font-size:14px}
-  .guard-note{font-size:12px;color:var(--faint);border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
-  .decision-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}
-
   .statusbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:12px 14px;margin-top:16px}
-  .statusbar .vlight{width:26px;height:26px}
-  .statusbar .vt{font-family:"Noto Serif TC",serif;font-weight:900;font-size:19px;line-height:1.2}
   .statusbar .sb-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  details.fold{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-top:10px}
-  details.fold > summary{font-family:"Noto Serif TC",serif;font-weight:700;font-size:15px;padding:11px 14px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
-  details.fold > summary::-webkit-details-marker{display:none}
-  details.fold > summary::after{content:"展開";margin-left:auto;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint)}
-  details.fold[open] > summary::after{content:"收起"}
-  details.fold > summary:hover{color:var(--amber)}
-  details.fold > summary em{font-family:"Roboto Mono",monospace;font-style:normal;font-size:11px;color:var(--amber)}
-  details.fold .fold-body{padding:0 14px 14px}
-  .cond{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px;margin-top:8px}
-  .cond .dot{width:13px;height:13px;border-radius:50%;background:var(--faint)}
-  .cond .lbl{min-width:0}
-  .cond .t{font-size:14px;font-weight:700}
-  .cond .d{font-size:12px;color:var(--faint);margin-top:2px}
-  .cond .ctrl{font-family:"Roboto Mono",monospace;color:var(--soft);font-size:12px;text-align:right}
-  .source-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px}
-  .pill-label{font-family:"Roboto Mono",monospace;font-size:10px;border:1px solid var(--line2);border-radius:8px;padding:1px 6px;color:var(--soft)}
-  .pill-label.auto{color:var(--teal)}
-  .pill-label.manual{color:var(--amber)}
-  .state-word{font-size:12px;font-weight:700;border-radius:8px;padding:2px 8px}
-  .state-word.g{background:var(--green-bg);color:var(--green)}
-  .state-word.a{background:var(--amber-bg);color:var(--amber)}
-  .state-word.r{background:var(--red-bg);color:var(--red)}
-
-  .bucket{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:10px}
-  .bucket .bh{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
-  .bucket .name{font-family:"Noto Serif TC",serif;font-weight:700;font-size:16px}
-  .bucket .role{font-size:12px;color:var(--faint)}
-  .bucket .tier{margin-left:auto;font-family:"Roboto Mono",monospace;font-size:10px;padding:2px 8px;border-radius:8px}
-  .tier.core{background:var(--green-bg);color:var(--green)}
-  .tier.sat{background:var(--amber-bg);color:var(--amber)}
-  .tier.wait{background:var(--red-bg);color:var(--red)}
-  .tier.cash{background:var(--panel2);color:var(--soft);border:1px solid var(--line2)}
 
   .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
-  table{width:100%;border-collapse:collapse;margin-top:0;font-size:13px;min-width:860px}
+  table{width:100%;border-collapse:collapse;margin-top:0;font-size:13px;min-width:1020px}
   th{font-family:"Roboto Mono",monospace;font-size:10px;font-weight:600;color:var(--faint);text-align:center;padding:8px 5px;border-bottom:1px solid var(--line2)}
   th:first-child{text-align:left}
+  th[data-sort]{cursor:pointer;user-select:none;white-space:nowrap}
+  th[data-sort]:hover{color:var(--amber)}
   td{padding:9px 5px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}
   td:first-child{text-align:left}
   tr:last-child td{border-bottom:0}
@@ -133,32 +80,35 @@
   .stock-tv-link:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
   .tv-pill{font-family:"Roboto Mono",monospace;font-size:10px;line-height:1;border:1px solid var(--line2);border-radius:8px;padding:3px 6px;color:var(--teal);background:rgba(66,184,168,.08);white-space:nowrap}
   .px{font-family:"Roboto Mono",monospace;font-weight:600}
+  .num{font-family:"Roboto Mono",monospace}
   .pos{color:var(--green)}.neg{color:var(--red)}.flat{color:var(--faint)}
-  .sc{font-family:"Roboto Mono",monospace;font-size:12px;display:inline-block;min-width:32px;text-align:center;border-radius:8px;padding:1px 5px}
-  .s-h{background:var(--green-bg);color:var(--green)}.s-m{background:var(--amber-bg);color:var(--amber)}.s-l{background:var(--red-bg);color:var(--red)}
-  .risk-h{background:var(--red-bg);color:var(--red)}.risk-m{background:var(--amber-bg);color:var(--amber)}.risk-l{background:var(--green-bg);color:var(--green)}
+  .mk{font-family:"Roboto Mono",monospace;font-size:10px;border:1px solid var(--line2);border-radius:8px;padding:1px 6px;color:var(--soft)}
   .stale{color:var(--faint);font-size:11px}
+  /* 分層直接放在資料列上：它會改變同一列右邊的觀察價，兩者要看得到彼此。
+     顏色跟著分層走，讓一整欄掃過去就知道清單的核心／衛星比重。 */
+  .tier-pick{font-family:"Roboto Mono",monospace;font-size:11px;padding:3px 4px;min-height:30px;border-radius:8px;cursor:pointer;background:var(--panel2);border:1px solid var(--line2)}
+  .tier-pick.core{color:var(--green);border-color:rgba(90,169,120,.5)}
+  .tier-pick.sat{color:var(--amber);border-color:rgba(217,166,76,.5)}
+  .tier-pick.wait{color:var(--red);border-color:rgba(196,94,90,.5)}
+  .row-del{background:none;border:1px solid transparent;border-radius:8px;color:var(--faint);cursor:pointer;font-size:13px;line-height:1;padding:6px 8px;min-height:30px}
+  .row-del:hover{color:var(--red);border-color:var(--red)}
+  .row-del:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   .stock-cards{display:none}
   .stock-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px}
   .stock-card-head{display:flex;align-items:center;gap:8px;justify-content:space-between;min-height:44px}
   .stock-main{font-weight:700}
   .stock-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:12px}
   .stock-meta b{display:block;color:var(--faint);font-weight:500}
-  .score-strip{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
   .data-line{font-size:11px;color:var(--faint);margin-top:8px}
+  .data-line b{color:var(--soft);font-weight:500}
 
   .watch-editor{border:1px solid var(--line2);border-radius:8px;background:var(--panel);padding:12px;margin:10px 0 12px}
   .watch-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .watch-row .fld{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--soft)}
   .watch-row input,.watch-row select{font-family:"Roboto Mono",monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:7px 9px;font-size:13px}
   .watch-row .count{margin-left:auto;font-family:"Roboto Mono",monospace;font-size:12px;color:var(--soft)}
-  .watch-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-  .watch-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);border-radius:999px;padding:3px 6px 3px 10px;font-family:"Roboto Mono",monospace;font-size:12px;background:var(--panel2)}
-  .watch-chip.custom{border-style:dashed}
-  .watch-chip .wt{font-size:10px;color:var(--faint)}
-  .watch-chip button{background:none;border:none;color:var(--faint);cursor:pointer;font-size:14px;line-height:1;padding:2px 6px;min-height:28px}
-  .watch-chip button:hover{color:var(--red)}
-  .watch-chip select{font-size:10px;padding:1px 3px;background:transparent;border:none;color:var(--faint);cursor:pointer}
+  .watch-shared{margin-top:10px;border:1px solid var(--amber);border-radius:8px;background:rgba(217,166,76,.08);padding:10px 12px;font-size:12px;color:var(--soft)}
+  .watch-shared .ws-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 
   footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
   footer b{color:var(--soft)}
@@ -169,26 +119,16 @@
     .header-shell{flex-direction:column;align-items:stretch}
     .header-markets{width:100%;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
     .market-card{min-height:72px}
-    .decision-top{align-items:flex-start}
-    .signal-summary{grid-template-columns:1fr}
-    .decision-actions{grid-template-columns:1fr}
-    .decision-tools{align-items:stretch}
-    .decision-tools .btn{width:100%}
     /* 資料來源字串在窄螢幕會換行多次，把狀態列撐高、擠掉觀察清單的第一屏空間 */
     .statusbar .sb-right{width:100%;margin-left:0}
     .statusbar .sb-right .btn{flex:1}
     .statusbar .stamp{width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-    .cond{grid-template-columns:auto minmax(0,1fr);align-items:start}
-    .cond .ctrl{grid-column:2}
-    .bucket .bh{flex-wrap:wrap}
-    .bucket .tier{margin-left:0}
     .table-scroll{display:none}
     .stock-cards{display:block}
     .stock-card .stock-tv-link{min-height:44px}
     .btn{min-height:44px}
-    /* 標籤上的移除鈕與分層選單不是 .btn，會漏掉觸控目標尺寸 */
-    .watch-chip button,.watch-chip select{min-height:44px}
-    .watch-chip{padding:2px 4px 2px 10px}
+    /* 列上的移除鈕與分層選單不是 .btn，會漏掉觸控目標尺寸 */
+    .tier-pick,.row-del{min-height:44px}
     .watch-row .count{margin-left:0;width:100%}
   }
 </style>
@@ -202,7 +142,6 @@
       <h1>股票投資觀察台</h1>
       <div class="profile">
         <span class="tagp">定位 <b>觀察門檻</b></span>
-        <span class="tagp">資料 <b>收盤/10Y 自動</b></span>
         <span class="tagp">圖表 <b>TradingView</b></span>
         <a href="/market/">全市場個股清單 →</a>
       </div>
@@ -227,18 +166,17 @@
 
 <main class="wrap">
   <div class="statusbar">
-    <span class="vlight" id="verdictLight"></span>
-    <div class="vt" id="verdictTitle">等待</div>
     <div class="sb-right">
-      <button class="btn" id="refresh" type="button">更新收盤 / 10Y</button>
+      <button class="btn" id="refresh" type="button">更新收盤</button>
       <div class="stamp" id="stamp">尚未更新</div>
     </div>
   </div>
 
   <section aria-labelledby="scoreHeading">
     <h2 id="scoreHeading">股票觀察清單 <em>SCORECARD</em></h2>
-    <p class="hint">系統觀察價由收盤與 13:30 快照自動估算，是觀察基準而非目標價；點代碼開 TradingView。
-      清單可自行增刪：內建 13 檔附人工整理的六維評估，<b>自行加入的標的只帶客觀數據、標示「未評分」</b>，不會替它產生看起來像分析的評分。</p>
+    <p class="hint">欄位與<a href="/market/">全市場清單</a>一致，點表頭可排序；點代碼開 TradingView。
+      收盤與漲跌%取自當日 13:30 快照或收盤資料，PE／PB／殖利率／距 52 週高／成交額取自全市場 feed。
+      <b>分層會改變觀察價的算法</b>（核心最寬、等待冷卻最保守），可在每一列直接改。</p>
     <div class="watch-editor">
       <div class="watch-row">
         <span class="fld">加入代碼 <input id="watchAdd" type="text" inputmode="numeric" maxlength="6" style="width:92px" placeholder="如 2454" aria-label="要加入觀察清單的股票代碼" /></span>
@@ -249,56 +187,37 @@
         </select>
         <button class="btn" id="watchAddBtn" type="button">加入</button>
         <button class="btn" id="watchReset" type="button" title="回到內建的 13 檔">重設為預設</button>
-        <button class="btn" id="watchExport" type="button" title="複製目前清單的 JSON">匯出</button>
-        <button class="btn" id="watchImport" type="button" title="貼上先前匯出的 JSON">匯入</button>
+        <button class="btn" id="watchShare" type="button" title="複製含目前清單的網址，貼到其他裝置即可開同一份">複製分享連結</button>
         <span class="count" id="watchCount"></span>
       </div>
-      <div id="watchChips" class="watch-chips"></div>
+      <div id="watchShared" class="watch-shared" hidden></div>
       <div class="data-line" id="watchNote"></div>
     </div>
     <div class="table-scroll">
       <table id="scoreTable">
         <thead><tr>
-          <th>股票</th><th>估值</th><th>獲利韌性</th><th>AI 槓桿</th><th>財務體質</th><th>週期風險</th><th>長抱適配</th>
-          <th>參考 PE</th><th>收盤</th><th>距離觀察基準</th>
+          <th data-sort="code">代碼</th>
+          <th data-sort="name">名稱</th>
+          <th data-sort="tier">分層</th>
+          <th data-sort="close">收盤</th>
+          <th data-sort="dayPct">漲跌%</th>
+          <th data-sort="pe">PE</th>
+          <th data-sort="pbRatio">PB</th>
+          <th data-sort="dividendYield">殖利率%</th>
+          <th data-sort="fromHi">距52週高</th>
+          <th data-sort="turnover">成交額(億)</th>
+          <th data-sort="pctFromObservation">距離觀察基準</th>
+          <th aria-label="移除"></th>
         </tr></thead>
         <tbody id="scoreBody"></tbody>
       </table>
     </div>
     <div id="stockCards" class="stock-cards"></div>
+    <div class="data-line" id="dataSource">收盤資料待更新</div>
   </section>
 
-  <details class="fold">
-    <summary>今日觀察結論 <em>DECISION</em></summary>
-    <div class="fold-body">
-      <div class="vd" id="verdictDesc">更新收盤資料與 10Y 後，這裡會自動顯示條件接近觀察、等待或風險升高觀察。</div>
-      <div class="signal-summary" id="signalSummary"></div>
-      <div class="decision-actions">
-        <div class="action-box"><b>下一步觀察</b><span id="actionNext">先更新資料，確認自動燈號。</span></div>
-        <div class="action-box"><b>先不要做</b><span id="actionAvoid">不要把收盤或快取資料當成即時訊號。</span></div>
-      </div>
-      <div class="guard-note">本頁不評估你的風險承受度、資金需求、稅務、交易成本或持股集中度。</div>
-    </div>
-  </details>
-
-  <details class="fold">
-    <summary>自動燈號檢查 <em>CHECKLIST</em></summary>
-    <div class="fold-body">
-      <p class="hint">由收盤價、10Y、分層與資料品質自動推導；資料不足時不產生條件接近觀察。</p>
-      <div id="conds"></div>
-    </div>
-  </details>
-
-  <details class="fold">
-    <summary>核心 / 衛星 / 現金 <em>ALLOCATION</em></summary>
-    <div class="fold-body">
-      <p class="hint">分清楚哪些是核心觀察、哪些只是衛星題材。</p>
-      <div id="buckets"></div>
-    </div>
-  </details>
-
   <footer>
-    本頁是決策輔助，<b>不是投資建議</b>。資料標籤會區分 Worker、TWSE 收盤、靜態備援、本機快取與 10Y 來源；延遲或快取資料不會標為即時。
+    本頁是決策輔助，<b>不是投資建議</b>。每一列都標出收盤資料的來源：Worker、TWSE 收盤、靜態備援或本機快取；延遲或快取資料不會標為即時。
   </footer>
 </main>
 
@@ -312,23 +231,24 @@ const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY
 const STATIC_STOCK_FEED_URL = "/data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
 
-// 內建的人工整理清單。tier／theme／role／s（六維評分）都是人工判斷，
-// 不是算出來的——使用者自行加入的標的不會有這些欄位，畫面會標示「未評分」，
-// 絕不替它們生成看起來像分析的數字。
+// 內建的人工整理清單。只留三樣人工判斷：tier（決定觀察價算法）、
+// role（一句話說明）、base（沒有當日高低點時的預設參考值）。
+// 估值數字一律不寫死——PE／PB／殖利率／距 52 週高全部來自 market-feed，
+// 寫死的靜態值只會過期，而 feed 對全市場 1900+ 檔都有。
 const BUILT_INS = [
-  {code:"2330",name:"台積電",tier:"core",theme:"foundry",role:"先進製程與封裝，AI 供應鏈核心底座；估值合理，但目前位階偏高、回檔最淺。",pe:"~32",base:2310,s:["m","h","h","m","h","h"]},
-  {code:"2317",name:"鴻海",tier:"core",theme:"server",role:"AI 伺服器與整機平台；估值偏低、股價淨值比貼近淨值，核心裡估值最扎實的一檔。",pe:"~19",base:260.5,s:["mh","mh","mh","m","m","h"]},
-  {code:"2382",name:"廣達",tier:"sat",theme:"server",role:"AI 伺服器 ODM 與雲端大客戶；估值便宜、殖利率為清單最高，前段衛星首選。",pe:"~19",base:372,s:["mh","mh","h","mh","m","h"]},
-  {code:"3231",name:"緯創",tier:"sat",theme:"server",role:"AI 伺服器 ODM；估值為全清單最低、營收動能強，與廣達並列前段衛星。",pe:"~16",base:156,s:["h","mh","mh","m","m","mh"]},
-  {code:"6669",name:"緯穎",tier:"sat",theme:"server",role:"高 beta AI 伺服器 ODM；估值最便宜，但近期自低點大幅反彈、波動要控管。",pe:"~17",base:4850,s:["h","m","h","h","m","m"]},
-  {code:"3017",name:"奇鋐",tier:"sat",theme:"cooling",role:"散熱主線，受 AI 平台與液冷升級拉動；惟估值已墊高、波動較高。",pe:"~39",base:2405,s:["ml","m","h","h","m","m"]},
-  {code:"3324",name:"雙鴻",tier:"sat",theme:"cooling",role:"液冷散熱衛星，題材明確但估值中性偏高、觀察位置敏感、波動大。",pe:"~31",base:1055,s:["ml","m","h","h","m","m"]},
-  {code:"3661",name:"世芯-KY",tier:"sat",theme:"asic",role:"ASIC／客製晶片設計，對應 GPU+ASIC 雙主流，但估值偏高、波動大。",pe:"~64",base:4105,s:["l","m","h","mh","m","m"]},
-  {code:"2356",name:"英業達",tier:"sat",theme:"server",role:"AI 伺服器 ODM，估值便宜、距高檔回檔深，但毛利薄、題材純度中等。",pe:"~24",base:62,s:["m","m","mh","m","m","m"]},
-  {code:"2376",name:"技嘉",tier:"sat",theme:"server",role:"AI 伺服器與板卡，AI 槓桿高、估值偏低，遊戲＋伺服器雙引擎、波動中等。",pe:"~15",base:315,s:["mh","mh","h","mh","m","mh"]},
-  {code:"6239",name:"力成",tier:"sat",theme:"test",role:"記憶體／HBM 封測測試，受 AI 記憶體需求拉動；惟估值偏高、殖利率低，且受記憶體循環波動影響大。",pe:"~34",base:280,s:["ml","m","mh","m","h","ml"]},
-  {code:"1519",name:"華城",tier:"wait",theme:"power",role:"電力建設長線，但估值與籌碼需等冷卻。",pe:"~57",base:915,s:["l","l","h","h","h","m"]},
-  {code:"2308",name:"台達電",tier:"wait",theme:"power",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。",pe:"~79",base:2215,s:["l","l","h","h","mh","mh"]},
+  {code:"2330",name:"台積電",tier:"core",role:"先進製程與封裝，AI 供應鏈核心底座；估值合理，但目前位階偏高、回檔最淺。",base:2310},
+  {code:"2317",name:"鴻海",tier:"core",role:"AI 伺服器與整機平台；估值偏低、股價淨值比貼近淨值，核心裡估值最扎實的一檔。",base:260.5},
+  {code:"2382",name:"廣達",tier:"sat",role:"AI 伺服器 ODM 與雲端大客戶；估值便宜、殖利率為清單最高，前段衛星首選。",base:372},
+  {code:"3231",name:"緯創",tier:"sat",role:"AI 伺服器 ODM；估值為全清單最低、營收動能強，與廣達並列前段衛星。",base:156},
+  {code:"6669",name:"緯穎",tier:"sat",role:"高 beta AI 伺服器 ODM；估值最便宜，但近期自低點大幅反彈、波動要控管。",base:4850},
+  {code:"3017",name:"奇鋐",tier:"sat",role:"散熱主線，受 AI 平台與液冷升級拉動；惟估值已墊高、波動較高。",base:2405},
+  {code:"3324",name:"雙鴻",tier:"sat",role:"液冷散熱衛星，題材明確但估值中性偏高、觀察位置敏感、波動大。",base:1055},
+  {code:"3661",name:"世芯-KY",tier:"sat",role:"ASIC／客製晶片設計，對應 GPU+ASIC 雙主流，但估值偏高、波動大。",base:4105},
+  {code:"2356",name:"英業達",tier:"sat",role:"AI 伺服器 ODM，估值便宜、距高檔回檔深，但毛利薄、題材純度中等。",base:62},
+  {code:"2376",name:"技嘉",tier:"sat",role:"AI 伺服器與板卡，AI 槓桿高、估值偏低，遊戲＋伺服器雙引擎、波動中等。",base:315},
+  {code:"6239",name:"力成",tier:"sat",role:"記憶體／HBM 封測測試，受 AI 記憶體需求拉動；惟估值偏高、殖利率低，且受記憶體循環波動影響大。",base:280},
+  {code:"1519",name:"華城",tier:"wait",role:"電力建設長線，但估值與籌碼需等冷卻。",base:915},
+  {code:"2308",name:"台達電",tier:"wait",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。",base:2215},
 ];
 
 const TIERS = {
@@ -337,24 +257,6 @@ const TIERS = {
   wait:{name:"等待冷卻",role:"不是否定公司，是等估值、籌碼或風險報酬更清楚。",cls:"wait"},
 };
 
-const SCLS = {h:"s-h",mh:"s-h",m:"s-m",ml:"s-l",l:"s-l"};
-const RISK_SCLS = {h:"risk-h",mh:"risk-h",m:"risk-m",ml:"risk-l",l:"risk-l"};
-const STXT = {h:"高",mh:"中高",m:"中",ml:"中低",l:"低"};
-const SCORE_LABELS = ["估值","獲利韌性","AI 槓桿","財務體質","週期風險","長抱適配"];
-
-const CONDS = [
-  {id:"data", t:"資料可用性", d:"確認收盤價來源、覆蓋率與快取狀態；資料不足時不產生條件接近觀察。"},
-  {id:"yield", t:"美債 10Y 殖利率壓力", d:"<4.5 綠 · 4.5-4.7 黃 · >4.7 紅；由 Worker 或靜態 feed 自動帶入。"},
-  {id:"breadth", t:"AI 族群收盤廣度", d:"追蹤清單今日上漲比例，取代手動判斷半導體 / AI 族群氣氛。"},
-  {id:"core", t:"核心股健康度", d:"核心股是否守住系統觀察價，且沒有同步轉弱。"},
-  {id:"satellite", t:"衛星股風險壓力", d:"衛星與等待區若遠高於觀察價後轉弱，會提高風險觀察權重。"},
-  {id:"concentration", t:"題材集中度", d:"清單同一子題材占比過高時提醒分散風險；由清單組成自動計算，不影響今日結論燈號。"},
-];
-
-const THEME_NAMES = {foundry:"晶圓代工",server:"伺服器 ODM／系統",cooling:"散熱",asic:"ASIC",power:"電源／重電",test:"封測／測試",other:"其他"};
-
-const COLORS = {r:"var(--red)",a:"var(--amber)",g:"var(--green)"};
-const TONE_WORD = {g:"綠燈",a:"黃燈",r:"紅燈"};
 const BUILT_IN_BY_CODE = {};
 BUILT_INS.forEach(function(stock){ BUILT_IN_BY_CODE[stock.code] = stock; });
 const DEFAULT_WATCHLIST = BUILT_INS.map(function(stock){return {code:stock.code, tier:stock.tier};});
@@ -378,11 +280,8 @@ function rebuildStocks(){
       code:entry.code,
       name:(row && row.name) || entry.name || entry.code,
       tier:entry.tier || "sat",
-      theme:"other",
       role:"自行加入的觀察標的，未做人工評估。",
-      pe:row && row.pe != null ? "~" + Math.round(row.pe) : null,
       base:null,
-      s:null,          // 六維是人工判斷，不替使用者生成
       custom:true,
     };
   });
@@ -432,7 +331,7 @@ function storage(){
 }
 
 function defaultState(){
-  return {cond:{},condSource:{},base:{},today:{},watchlist:null,yieldManual:false,eodMeta:null,yieldMeta:null};
+  return {base:{},today:{},watchlist:null,eodMeta:null};
 }
 
 // 觀察清單的清洗：代碼格式、分層合法性、去重、上限。
@@ -461,20 +360,6 @@ function clampText(value, max){
 function sanitizeState(raw){
   const next = defaultState();
   if (!raw || typeof raw !== "object") return next;
-
-  if (raw.cond && typeof raw.cond === "object") {
-    for (const cond of CONDS) {
-      if (raw.cond[cond.id] == null) continue;
-      next.cond[cond.id] = cond.id === "yield" ? parseNumber(raw.cond[cond.id]) : String(raw.cond[cond.id]);
-      if (next.cond[cond.id] == null) delete next.cond[cond.id];
-    }
-  }
-
-  if (raw.condSource && typeof raw.condSource === "object") {
-    for (const cond of CONDS) {
-      if (raw.condSource[cond.id]) next.condSource[cond.id] = clampText(raw.condSource[cond.id], 80);
-    }
-  }
 
   // 清單可由使用者定義，因此這裡不能只認內建代碼——改為驗證代碼格式，
   // 否則使用者自行加入的標的一存檔就被清掉
@@ -510,9 +395,7 @@ function sanitizeState(raw){
   }
 
   next.watchlist = sanitizeWatchlist(raw.watchlist);
-  next.yieldManual = Boolean(raw.yieldManual);
   if (raw.eodMeta && typeof raw.eodMeta === "object") next.eodMeta = sanitizeMeta(raw.eodMeta);
-  if (raw.yieldMeta && typeof raw.yieldMeta === "object") next.yieldMeta = sanitizeMeta(raw.yieldMeta);
   return next;
 }
 
@@ -742,21 +625,6 @@ function normalizeEodPayload(payload){
   }).filter(Boolean);
 }
 
-function normalizeYieldPayload(payload){
-  const body = payload && typeof payload.body === "object" ? payload.body : null;
-  const data = payload && typeof payload.data === "object" ? payload.data : null;
-  const feed = payload && typeof payload.yield10y === "object" ? payload.yield10y : null;
-  const source = body || data || feed || payload || {};
-  const value = parseNumber(source.value);
-  if (value == null) throw new Error("10Y yield payload has no numeric value");
-  return {
-    value: roundNumber(value, 3),
-    date: String(source.date || ""),
-    updatedAt: source.updatedAt || source.asOf || "",
-    source: String(source.source || "10Y yield feed"),
-  };
-}
-
 function normalizeMarketIndexPayload(payload){
   const rows = Array.isArray(payload && payload.indices) ? payload.indices
     : Array.isArray(payload && payload.marketIndices) ? payload.marketIndices
@@ -907,12 +775,6 @@ async function loadValuation(){
   return "本益比：沿用內建參考值";
 }
 
-function peLabel(stock){
-  const entry = feedValuation[stock.code];
-  if (entry && entry.pe != null) return "~" + Math.round(entry.pe);
-  return stock.pe;
-}
-
 function saveEodCache(result){
   const store = storage();
   if (!store || !Array.isArray(result.rows) || !result.rows.length) return;
@@ -1059,51 +921,6 @@ async function loadEod(){
   return "收盤資料未更新，保留既有畫面；失敗來源 " + errors.length + " 個";
 }
 
-function setConditionSource(id, label){
-  state.condSource[id] = label;
-  const node = $("src_" + id);
-  if (node) node.textContent = label;
-}
-
-async function loadYield10y(){
-  const base = proxyBase();
-  const attempts = [];
-  if (base) {
-    attempts.push(async function(){
-      const result = await fetchJson(base + "/yield10y");
-      const normalized = normalizeYieldPayload(result.data);
-      return {value:normalized.value,label:"Worker /yield10y",meta:normalized};
-    });
-  }
-  attempts.push(async function(){
-    const feed = await loadStaticFeed();
-    const normalized = normalizeYieldPayload(feed);
-    return {value:normalized.value,label:"靜態 feed",meta:normalized};
-  });
-
-  for (const attempt of attempts) {
-    try {
-      const result = await attempt();
-      state.cond.yield = result.value;
-      state.yieldManual = false;
-      state.yieldMeta = sanitizeMeta({
-        source:result.meta.source || result.label,
-        delay:result.meta.date ? "資料日 " + result.meta.date : result.label,
-        updatedAt:result.meta.updatedAt || result.meta.date || "",
-      });
-      const sourceLabel = result.label + (result.meta.date ? " / " + result.meta.date : "");
-      setConditionSource("yield", sourceLabel);
-      saveState();
-      paint();
-      return "10Y：" + fmt(result.value, 3) + "% " + sourceLabel;
-    } catch (error) {}
-  }
-  setConditionSource("yield", "手動/未取得");
-  saveState();
-  paint();
-  return "10Y 未自動更新，保留手動值";
-}
-
 function signedFixed(value, digits){
   const number = parseNumber(value);
   if (number == null) return "--";
@@ -1153,6 +970,7 @@ function renderMarketIndexes(rows, meta, message, isError){
   if (status) status.textContent = message || (rows && rows.length ? "市場指數已更新" : "市場指數待更新");
 }
 
+// 指數除了頁首那兩張卡，還餵 marketDefenseMode()：弱勢盤會把觀察價再壓一段。
 async function loadMarketIndices(){
   const base = proxyBase();
   if (!base) {
@@ -1179,27 +997,6 @@ async function loadMarketIndices(){
     renderScore();
     return marketIndexRows.length ? "市場指數：保留上次資料" : "市場指數：暫無法更新";
   }
-}
-
-function condValue(c){
-  const signal = deriveAutoSignals(state).find(function(item){return item.id === c.id;});
-  return signal ? signal.value : "";
-}
-
-function sourceLabelFromMeta(meta, fallback){
-  if (!meta) return fallback || "自動待更新";
-  const when = formatDateTime(meta.updatedAt);
-  const source = meta.cache ? "本機快取" : (meta.source || fallback || "自動來源");
-  return source + (when ? " / " + when : "");
-}
-
-function ageDays(value){
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const ms = Date.now() - date.getTime();
-  if (ms < 0) return null;
-  return ms / 86400000;
 }
 
 function stockSnapshot(stock, rawState){
@@ -1232,383 +1029,6 @@ function stockSnapshot(stock, rawState){
   return snapshot;
 }
 
-function average(values){
-  const clean = values.filter(function(value){return value != null && Number.isFinite(value);});
-  if (!clean.length) return null;
-  return clean.reduce(function(sum, value){return sum + value;}, 0) / clean.length;
-}
-
-function dataSignal(snapshots, rawState){
-  const current = rawState || state;
-  const priced = snapshots.filter(function(item){return item.hasPrice;});
-  const autoObserved = priced.filter(function(item){return item.observationMode === "auto";}).length;
-  const meta = current.eodMeta || null;
-  const coverage = priced.length / STOCKS.length;
-  let tone = "r";
-  let detail = "沒有取得追蹤股收盤價，不判讀條件接近觀察。";
-  if (priced.length) {
-    if (meta && meta.cache) {
-      tone = "r";
-      detail = "目前只剩本機快取，先視為資料風險。";
-    } else if (coverage >= 0.75) {
-      tone = "g";
-      detail = "追蹤股收盤價 " + priced.length + "/" + STOCKS.length + " 檔可用。";
-    } else if (coverage >= 0.4) {
-      tone = "a";
-      detail = "收盤價只取得 " + priced.length + "/" + STOCKS.length + " 檔，先等待確認。";
-    } else {
-      tone = "r";
-      detail = "收盤價只取得 " + priced.length + "/" + STOCKS.length + " 檔，資料不足。";
-    }
-  }
-  if (priced.length && tone === "g" && autoObserved < priced.length) {
-    tone = "a";
-    detail = "收盤價 " + priced.length + "/" + STOCKS.length + " 檔可用，但只有 " + autoObserved + " 檔有低點可自動估觀察價；其餘只顯示預設參考值。";
-  }
-  // 用資料所屬交易日判斷陳舊度；抓取時間每半小時就刷新，會讓這道閘門永遠不觸發。
-  const age = ageDays(meta && (meta.tradingDate || meta.updatedAt));
-  if (age != null && age > 7) {
-    tone = "r";
-    detail = "收盤資料超過 7 天，先視為資料風險。";
-  } else if (age != null && age > 3 && tone === "g") {
-    tone = "a";
-    detail = "收盤資料超過 3 天，先等待更新。";
-  }
-  if (meta && /static|GitHub Pages|靜態/i.test(meta.source || "") && tone === "g") {
-    tone = "a";
-    detail = detail + " 來源為靜態備援，不標成即時。";
-  }
-  return {
-    id:"data",
-    tone:tone,
-    value:priced.length + "/" + STOCKS.length,
-    detail:detail,
-    source:sourceLabelFromMeta(meta, "收盤資料待更新"),
-  };
-}
-
-function yieldSignal(rawState){
-  const current = rawState || state;
-  const value = parseNumber(current.cond && current.cond.yield);
-  const tone = value == null ? "a" : (value > 4.7 ? "r" : (value >= 4.5 ? "a" : "g"));
-  let detail = "10Y 待更新，先不把環境視為完整。";
-  if (value != null) {
-    detail = value > 4.7 ? "10Y 高於 4.7%，風險折現壓力偏高。"
-      : value >= 4.5 ? "10Y 位於 4.5-4.7%，環境仍需等待確認。"
-      : "10Y 低於 4.5%，利率壓力相對低。";
-  }
-  return {
-    id:"yield",
-    tone:tone,
-    value:value == null ? "待更新" : fmt(value, 3) + "%",
-    detail:detail,
-    source:sourceLabelFromMeta(current.yieldMeta, current.condSource && current.condSource.yield || "10Y 自動待更新"),
-  };
-}
-
-function breadthSignal(snapshots, priceSource){
-  const known = snapshots.filter(function(item){return item.dayPct != null;});
-  if (!known.length) {
-    return {id:"breadth",tone:"r",value:"0 檔",detail:"缺少今日漲跌資料，AI 族群廣度無法判讀。",source:priceSource};
-  }
-  const advancing = known.filter(function(item){return item.dayPct > 0;}).length;
-  const ratio = advancing / known.length;
-  const tone = ratio >= 0.6 ? "g" : (ratio >= 0.35 ? "a" : "r");
-  return {
-    id:"breadth",
-    tone:tone,
-    value:advancing + "/" + known.length,
-    detail:"追蹤清單 " + advancing + "/" + known.length + " 檔今日收紅。",
-    source:priceSource,
-  };
-}
-
-function coreSignal(snapshots, priceSource){
-  const core = snapshots.filter(function(item){return item.tier === "core";});
-  const known = core.filter(function(item){return item.hasPrice;});
-  if (!known.length) {
-    return {id:"core",tone:"r",value:"待更新",detail:"核心股收盤價不足，先不判讀條件接近觀察。",source:priceSource};
-  }
-  const weak = known.filter(function(item){
-    return (item.pctFromObservation != null && item.pctFromObservation < -3) || (item.dayPct != null && item.dayPct <= -1.5);
-  }).length;
-  const tone = weak >= known.length ? "r" : (weak > 0 || known.length < core.length ? "a" : "g");
-  return {
-    id:"core",
-    tone:tone,
-    value:known.length + "/" + core.length,
-    detail:"核心股 " + known.length + "/" + core.length + " 檔有資料，" + weak + " 檔低於觀察區或今日偏弱。",
-    source:priceSource,
-  };
-}
-
-function satelliteSignal(snapshots, priceSource){
-  const known = snapshots.filter(function(item){return item.tier !== "core" && item.hasPrice;});
-  if (!known.length) {
-    return {id:"satellite",tone:"a",value:"待更新",detail:"衛星股資料不足，先保留風險觀察。",source:priceSource};
-  }
-  const risky = known.filter(function(item){
-    const hotTurnWeak = item.pctFromObservation != null && item.pctFromObservation > 15 && item.dayPct != null && item.dayPct < 0;
-    const sharpWeak = item.dayPct != null && item.dayPct <= -2;
-    const waitHot = item.tier === "wait" && item.pctFromObservation != null && item.pctFromObservation > 10;
-    return hotTurnWeak || sharpWeak || waitHot;
-  }).length;
-  const avgDay = average(known.map(function(item){return item.dayPct;}));
-  const tone = risky >= Math.max(2, Math.ceil(known.length * 0.45)) || (avgDay != null && avgDay <= -1.5)
-    ? "r"
-    : (risky > 0 || (avgDay != null && avgDay < 0) ? "a" : "g");
-  return {
-    id:"satellite",
-    tone:tone,
-    value:risky + "/" + known.length,
-    detail:"衛星/等待區 " + risky + " 檔出現過熱轉弱或急跌壓力。",
-    source:priceSource,
-  };
-}
-
-// 題材集中度只能用「已分類」的標的算。自行加入的沒有題材分類，
-// 若把它們全算成 other 會有兩個錯：
-//   1. 加到 7 檔以上時最大「題材」變成「其他」——但那不是題材，是未分類
-//   2. 更糟的是加 5 檔就會把佔比稀釋成綠燈，給出假的「已分散」訊號
-// 因此只判斷分類得出來的部分，未分類的另外揭露、不計入分母。
-function concentrationSignal(){
-  const counts = {};
-  let unclassified = 0;
-  STOCKS.forEach(function(stock){
-    const key = stock.theme;
-    if (!key || key === "other") { unclassified += 1; return; }
-    counts[key] = (counts[key] || 0) + 1;
-  });
-  const themes = Object.keys(counts);
-  const classified = STOCKS.length - unclassified;
-  const tail = unclassified ? "另有 " + unclassified + " 檔自行加入、未做題材分類，不計入分散度判斷。" : "";
-
-  if (classified < 3 || !themes.length) {
-    return {
-      id:"concentration",
-      tone:"a",
-      value:classified + " 檔可判斷",
-      detail:"已分類標的只有 " + classified + " 檔，樣本不足以判斷題材分散度。" + tail,
-      source:"清單組成自動計算",
-    };
-  }
-
-  let topKey = themes[0];
-  themes.forEach(function(key){ if (counts[key] > counts[topKey]) topKey = key; });
-  const topShare = counts[topKey] / classified;
-  const tone = (themes.length >= 5 && topShare <= 0.35) ? "g"
-    : (themes.length < 3 || topShare > 0.5) ? "r" : "a";
-  const pct = Math.round(topShare * 100);
-  const detail = "已分類 " + classified + " 檔共 " + themes.length + " 個子題材，最大集中於「" + (THEME_NAMES[topKey] || topKey) + "」"
-    + counts[topKey] + "/" + classified + " 檔（" + pct + "%）。"
-    + (tone === "g" ? "分散度尚可。" : tone === "a" ? "單一題材偏重，留意同向回檔。" : "高度集中於單一題材，分散明顯不足。")
-    + (tail ? " " + tail : "");
-  return {
-    id:"concentration",
-    tone:tone,
-    value:pct + "%",
-    detail:detail,
-    source:"清單組成自動計算",
-  };
-}
-
-function marketSignal(rawState){
-  const rows = Array.isArray(rawState && rawState.marketIndexRows) ? rawState.marketIndexRows : marketIndexRows;
-  if (!Array.isArray(rows) || !rows.length) {
-    return {id:"market",tone:"a",value:"待更新",detail:"加權與櫃買待更新，未判讀防守模式。",source:"市場指數待更新"};
-  }
-  const defense = marketDefenseMode({marketIndexRows:rows});
-  return {
-    id:"market",
-    tone:defense ? "r" : "g",
-    value:defense ? "防守模式" : "穩定",
-    detail:defense ? "加權或櫃買跌幅過大，等待跌勢收斂後再看。" : "加權與櫃買未觸發防守模式。",
-    source:sourceLabelFromMeta(marketIndexMeta, "市場指數"),
-  };
-}
-
-function deriveAutoSignals(rawState){
-  const current = rawState || state;
-  const snapshots = STOCKS.map(function(stock){return stockSnapshot(stock, current);});
-  const priceSource = sourceLabelFromMeta(current.eodMeta, "收盤資料待更新");
-  const byId = {
-    data:dataSignal(snapshots, current),
-    yield:yieldSignal(current),
-    breadth:breadthSignal(snapshots, priceSource),
-    core:coreSignal(snapshots, priceSource),
-    satellite:satelliteSignal(snapshots, priceSource),
-    concentration:concentrationSignal(),
-    market:marketSignal(current),
-  };
-  const visible = CONDS.map(function(def){
-    return Object.assign({title:def.t,description:def.d}, byId[def.id] || {
-      id:def.id,
-      tone:"a",
-      value:"待更新",
-      detail:def.d,
-      source:"自動待更新",
-    });
-  });
-  visible.push(Object.assign({title:"市場防守模式",description:"加權或櫃買跌幅過大時，只保留等待觀察。"}, byId.market));
-  return visible;
-}
-
-function condColor(c, rawState){
-  const signal = deriveAutoSignals(rawState || state).find(function(item){return item.id === c.id;});
-  return signal ? signal.tone : "a";
-}
-
-function normalizeSignalItems(items){
-  return (items || []).map(function(item){
-    return typeof item === "string" ? {tone:item} : item;
-  }).filter(Boolean);
-}
-
-function signalById(signals, id){
-  return signals.find(function(signal){return signal.id === id;}) || null;
-}
-
-function aggregateVerdict(items){
-  // 題材集中度為結構性提示，不納入今日結論燈號（避免結構訊號被當成進出場指令）。
-  const signals = normalizeSignalItems(items).filter(function(signal){return signal.id !== "concentration";});
-  const colors = signals.map(function(signal){return signal.tone;});
-  const counts = {g:0,a:0,r:0};
-  colors.forEach(function(color){if (counts[color] != null) counts[color] += 1;});
-  const hasStructuredSignals = signals.some(function(signal){return signal.id;});
-  const data = signalById(signals, "data");
-  const yieldTone = signalById(signals, "yield");
-  const breadth = signalById(signals, "breadth");
-  const core = signalById(signals, "core");
-  const satellite = signalById(signals, "satellite");
-  const market = signalById(signals, "market");
-  const riskReds = signals.filter(function(signal){return signal.tone === "r" && signal.id !== "data";});
-
-  if (hasStructuredSignals && data && data.tone === "r") {
-    return {
-      tone:"a",
-      title:"等待",
-      desc:"資料不足或只剩快取，不產生條件接近觀察；先更新收盤資料再判讀。",
-      next:"等資料可用性至少轉黃，並重新確認核心與 10Y。",
-      avoid:"不要把快取或缺資料畫面解讀成交易訊號。",
-    };
-  }
-
-  const exitPressure = hasStructuredSignals
-    ? riskReds.length >= 2
-      || (yieldTone && yieldTone.tone === "r")
-      || (core && breadth && core.tone === "r" && breadth.tone === "r")
-      || (satellite && satellite.tone === "r" && (!yieldTone || yieldTone.tone !== "g" || (breadth && breadth.tone === "r")))
-    : counts.r >= 2 || (counts.r >= 1 && counts.g === 0);
-
-  if (exitPressure) {
-    return {
-      tone:"r",
-      title:"風險升高觀察",
-      desc:"風險觀察：風險訊號偏多，先停止新增觀察並回到風險檢查；這不是交易指令。",
-      next:"檢查紅燈來源與個人規則，等紅燈降溫再重新判讀。",
-      avoid:"不要把風險觀察解讀成交易執行，也不要用快取資料做決定。",
-    };
-  }
-
-  const entryReady = hasStructuredSignals
-    ? data && data.tone === "g" && counts.r === 0 && counts.g >= 3 && breadth && breadth.tone === "g" && core && core.tone !== "r" && (!market || market.tone !== "r")
-    : counts.g === colors.length;
-
-  if (entryReady) {
-    return {
-      tone:"g",
-      title:"條件接近觀察",
-      desc:"條件接近觀察門檻，請核對資料日、個人資金規則與風險限制。",
-      next:"若你原本就採分批策略，請先核對自己的資金規則、資料日與風險限制。",
-      avoid:"不要把條件接近觀察解讀成交易執行，也不要忽略個人風險承受度。",
-    };
-  }
-  return {
-    tone:"a",
-    title:"等待",
-    desc:"等待觀察：條件未完整，只追蹤，不解讀為新增部位或交易指令。",
-    next:"等資料可用性、核心健康或 10Y 轉明確後再觀察。",
-    avoid:"不要把黃燈當成交易訊號。",
-  };
-}
-
-function renderConds(){
-  const box = $("conds");
-  box.innerHTML = "";
-  const signals = deriveAutoSignals(state);
-  signals.forEach(function(signal){
-    const row = document.createElement("div");
-    row.className = "cond";
-    row.innerHTML = '<span class="dot" id="cd_' + signal.id + '"></span><div class="lbl"><div class="t">' + escapeHtml(signal.title) + ' <span class="state-word ' + signal.tone + '" id="cw_' + signal.id + '">' + TONE_WORD[signal.tone] + '</span></div><div class="d" id="sd_' + signal.id + '">' + escapeHtml(signal.detail) + '</div><div class="source-row"><span class="pill-label auto" id="src_' + signal.id + '">自動 · ' + escapeHtml(signal.source) + '</span></div></div><div class="ctrl" id="c_' + signal.id + '">' + escapeHtml(signal.value) + '</div>';
-    box.appendChild(row);
-    $("cd_" + signal.id);
-    $("cw_" + signal.id);
-    $("sd_" + signal.id);
-    $("src_" + signal.id);
-    $("c_" + signal.id);
-  });
-  paint(signals);
-}
-
-function renderSignalSummary(signals){
-  const box = $("signalSummary");
-  if (!box) return;
-  box.innerHTML = signals.map(function(signal){
-    return '<div class="signal-chip ' + signal.tone + '" id="sum_' + signal.id + '"><b>' + TONE_WORD[signal.tone] + '：' + escapeHtml(signal.title) + '</b><span>' + escapeHtml(signal.detail) + '</span></div>';
-  }).join("");
-}
-
-function paint(signals){
-  signals = signals || deriveAutoSignals(state);
-  signals.forEach(function(signal){
-    const dot = $("cd_" + signal.id);
-    const word = $("cw_" + signal.id);
-    const detail = $("sd_" + signal.id);
-    const source = $("src_" + signal.id);
-    const value = $("c_" + signal.id);
-    if (dot) dot.style.background = COLORS[signal.tone];
-    if (word) {
-      word.className = "state-word " + signal.tone;
-      word.textContent = TONE_WORD[signal.tone];
-    }
-    if (detail) detail.textContent = signal.detail;
-    if (source) source.textContent = "自動 · " + signal.source;
-    if (value) value.textContent = signal.value;
-  });
-  renderSignalSummary(signals);
-  const verdict = aggregateVerdict(signals);
-  $("verdictLight").style.background = COLORS[verdict.tone];
-  $("verdictTitle").textContent = verdict.title;
-  $("verdictDesc").textContent = verdict.desc;
-  $("actionNext").textContent = verdict.next;
-  $("actionAvoid").textContent = verdict.avoid;
-}
-
-function renderBuckets(){
-  const box = $("buckets");
-  box.innerHTML = "";
-  Object.keys(TIERS).forEach(function(tierKey){
-    const tier = TIERS[tierKey];
-    const list = STOCKS.filter(function(stock){return stock.tier === tierKey;});
-    const div = document.createElement("div");
-    div.className = "bucket";
-    div.innerHTML = '<div class="bh"><span class="name">' + escapeHtml(tier.name) + '</span><span class="role">' + escapeHtml(tier.role) + '</span><span class="tier ' + tier.cls + '">' + tierKey.toUpperCase() + '</span></div>'
-      + list.map(function(stock){
-        const snapshot = stockSnapshot(stock, state);
-        const obs = snapshot.observation;
-        const closeText = snapshot.close != null ? fmt(snapshot.close, 2) : "待更新";
-        const live = "PE " + peLabel(stock) + " · 收盤 " + closeText + " · " + (obs && obs.distanceText ? obs.distanceText : "距離待更新");
-        return '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line)"><span class="code">' + stock.code + '</span> <span class="nm">' + escapeHtml(stock.name) + '</span> · <span style="color:var(--soft)">' + escapeHtml(stock.role) + '</span><div class="data-line mono">' + escapeHtml(live) + '</div></div>';
-      }).join("");
-    box.appendChild(div);
-  });
-  const cash = document.createElement("div");
-  cash.className = "bucket";
-  cash.innerHTML = '<div class="bh"><span class="name">現金</span><span class="role">保留再平衡與估值重置時的彈性</span><span class="tier cash">CASH</span></div>'
-    + '<div style="font-size:13px;padding:5px 0;border-top:1px solid var(--line);color:var(--soft)">紅燈風險升高觀察，黃燈等待，綠燈仍需核對自己的資金規則、資料日與風險限制。</div>';
-  box.appendChild(cash);
-}
-
 function dataLabel(){
   const meta = state.eodMeta;
   if (!meta) return "收盤資料待更新";
@@ -1632,8 +1052,28 @@ function stockTradingViewLink(stock, card){
   return '<a class="stock-tv-link" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer" aria-label="' + escapeHtml(label) + '">' + body + '</a>';
 }
 
-function scoreClass(value, index){
-  return index === 4 ? RISK_SCLS[value] : SCLS[value];
+// 估值欄位與 /market/ 同源同算法（成交額＝收盤×成交股數／1e8），差別只在
+// 收盤與漲跌%：本頁優先用 13:30 快照／Worker 收盤，比全市場 feed 新一步，
+// 所以距 52 週高改用「本頁的收盤 vs feed 的 hi52」重算，不直接抄 feed 的 fromHi。
+function stockMetrics(stock, snapshot){
+  const row = marketRows[stock.code] || null;
+  const valuation = feedValuation[stock.code];
+  const close = snapshot && snapshot.close != null ? snapshot.close : (row ? parseNumber(row.close) : null);
+  const hi52 = row ? parseNumber(row.hi52) : null;
+  const volume = row ? parseNumber(row.volume) : null;
+  return {
+    market:row && row.market === "tpex" ? "上櫃" : (row ? "上市" : ""),
+    pe:valuation && valuation.pe != null ? valuation.pe : (row ? parseNumber(row.pe) : null),
+    pbRatio:row ? parseNumber(row.pbRatio) : null,
+    dividendYield:row ? parseNumber(row.dividendYield) : null,
+    fromHi:(close != null && hi52) ? roundNumber((close - hi52) / hi52 * 100, 1) : (row ? parseNumber(row.fromHi) : null),
+    turnover:(close != null && volume != null) ? Math.round(close * volume / 1e6) / 100 : null,
+  };
+}
+
+function toneClass(value){
+  if (value == null || value === 0) return "flat";
+  return value > 0 ? "pos" : "neg";
 }
 
 function observationToneClass(observation){
@@ -1692,15 +1132,78 @@ function observationCellHtml(observation){
 
 /* ---------- 可定義觀察清單 ---------- */
 
+// localStorage 與網址參數共存，但角色不同：
+//   localStorage = 這台裝置自己的清單，唯一會被持久化的
+//   ?watch=      = 單向匯入管道，只在載入時讀
+// 網址帶來的清單**不會自動覆蓋**本機清單——否則點到別人分享的 3 檔連結，
+// 自己養的 30 檔就沒了。要按下「套用」才取代。
+const WATCH_PARAM = "watch";
+
+// "2330:core,2454,1301:wait" → [{code,tier}]；tier 可省略
+function parseWatchParam(search){
+  let raw = null;
+  try { raw = new URLSearchParams(String(search || "")).get(WATCH_PARAM); } catch (error) { raw = null; }
+  if (!raw) return null;
+  const items = raw.split(",").map(function(part){
+    const bits = part.split(":");
+    const code = String(bits[0] || "").trim().toUpperCase();
+    const tier = String(bits[1] || "").trim().toLowerCase();
+    return TIERS[tier] ? {code:code, tier:tier} : {code:code};
+  });
+  return sanitizeWatchlist(items);
+}
+
+function watchlistToParam(list){
+  return (list || []).map(function(entry){
+    // 分層等於內建預設時就不寫，連結短一點
+    const builtIn = BUILT_IN_BY_CODE[entry.code];
+    const isDefault = builtIn ? builtIn.tier === entry.tier : entry.tier === "sat";
+    return isDefault ? entry.code : entry.code + ":" + entry.tier;
+  }).join(",");
+}
+
+function shareUrl(list){
+  const loc = ROOT.location || {};
+  const origin = (loc.origin || "") + (loc.pathname || "/stocks/");
+  return origin + "?" + WATCH_PARAM + "=" + encodeURIComponent(watchlistToParam(list));
+}
+
+
 function applyWatchlist(next){
   watchlist = sanitizeWatchlist(next) || DEFAULT_WATCHLIST.slice();
   state.watchlist = watchlist;
   rebuildStocks();
   fillFromMarketRows();   // 新加入的標的要立刻有價格，不必等下一次 refresh
   saveState();
+  sharedWatchlist = null; // 一旦寫入本機，網址那份就不再是「待決定」
+  renderSharedBanner();
   renderWatchEditor();
   renderScore();
-  renderConds();
+}
+
+// 分層與移除的控制項直接長在資料列上——分層會改變觀察價，
+// 放在看得到觀察價的地方才知道自己改了什麼。
+function tierSelectHtml(stock){
+  const options = Object.keys(TIERS).map(function(key){
+    return '<option value="' + key + '"' + (stock.tier === key ? " selected" : "") + '>' + escapeHtml(TIERS[key].name) + '</option>';
+  }).join("");
+  return '<select class="tier-pick ' + (TIERS[stock.tier] || TIERS.sat).cls + '" data-watch-tier="' + escapeHtml(stock.code) + '" aria-label="'
+    + escapeHtml(stock.code + " 分層，會改變觀察價算法") + '">' + options + '</select>';
+}
+
+function removeBtnHtml(stock){
+  return '<button type="button" class="row-del" data-watch-del="' + escapeHtml(stock.code)
+    + '" aria-label="從觀察清單移除 ' + escapeHtml(stock.code + " " + stock.name) + '" title="移除">✕</button>';
+}
+
+function bindRowControls(root){
+  if (!root || !root.querySelectorAll) return;
+  for (const node of root.querySelectorAll("select[data-watch-tier]")) {
+    node.addEventListener("change", function(){ setWatchTier(node.getAttribute("data-watch-tier"), node.value); });
+  }
+  for (const node of root.querySelectorAll("button[data-watch-del]")) {
+    node.addEventListener("click", function(){ removeWatch(node.getAttribute("data-watch-del")); });
+  }
 }
 
 // 加入前先確認這個代碼真的存在於全市場 feed，否則使用者會加到一個永遠沒資料的空列
@@ -1730,32 +1233,100 @@ function setWatchTier(code, tier){
   }));
 }
 
+// 網址帶來的清單：先預覽、不寫入，由使用者決定要不要取代本機清單
+let sharedWatchlist = null;
+
+function renderSharedBanner(){
+  const box = $("watchShared");
+  if (!box) return;
+  if (!sharedWatchlist) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  const mine = state.watchlist ? state.watchlist.length : BUILT_INS.length;
+  const codes = sharedWatchlist.map(function(e){return e.code;}).join("、");
+  box.innerHTML = '<div><b>這個網址帶了一份觀察清單（' + sharedWatchlist.length + ' 檔）</b>：'
+    + escapeHtml(codes.length > 90 ? codes.slice(0, 90) + "…" : codes) + '</div>'
+    + '<div style="margin-top:4px;color:var(--faint)">目前尚未套用。你這台裝置原本的清單有 ' + mine + ' 檔，套用會取代它。</div>'
+    + '<div class="ws-actions">'
+      + '<button class="btn" id="watchSharedApply" type="button">套用並取代我的清單</button>'
+      + '<button class="btn" id="watchSharedDismiss" type="button">保留我的清單</button>'
+    + '</div>';
+  const apply = $("watchSharedApply");
+  if (apply) apply.addEventListener("click", function(){
+    const next = sharedWatchlist;
+    sharedWatchlist = null;
+    applyWatchlist(next);
+    const note = $("watchNote");
+    if (note) note.textContent = "已套用網址帶來的清單（" + next.length + " 檔）並存到這台裝置。";
+  });
+  const dismiss = $("watchSharedDismiss");
+  if (dismiss) dismiss.addEventListener("click", function(){
+    sharedWatchlist = null;
+    watchlist = state.watchlist || DEFAULT_WATCHLIST.slice();
+    rebuildStocks();
+    fillFromMarketRows();
+    renderSharedBanner();
+    renderWatchEditor();
+    renderScore();
+    const note = $("watchNote");
+    if (note) note.textContent = "已保留這台裝置原本的清單，網址那份未寫入。";
+  });
+}
+
+// 標籤區已移除：分層與移除都改在資料列上操作，再放一排標籤只是同一件事講兩次。
+// 這裡只剩檔數統計。
 function renderWatchEditor(){
-  const chips = $("watchChips");
   const count = $("watchCount");
-  if (count) {
-    const custom = watchlist.filter(function(e){return !BUILT_IN_BY_CODE[e.code];}).length;
-    count.textContent = watchlist.length + " 檔" + (custom ? "（自行加入 " + custom + "）" : "") + " / 上限 " + MAX_WATCHLIST;
+  if (!count) return;
+  const custom = watchlist.filter(function(e){return !BUILT_IN_BY_CODE[e.code];}).length;
+  count.textContent = watchlist.length + " 檔" + (custom ? "（自行加入 " + custom + "）" : "") + " / 上限 " + MAX_WATCHLIST;
+}
+
+// 排序：預設維持使用者加入的順序（sortKey 為空）。點表頭才排。
+// 代碼／名稱／分層升冪起跳，數值欄降冪起跳，與 /market/ 一致。
+const TIER_ORDER = {core:0, sat:1, wait:2};
+let sortKey = "";
+let sortDir = 1;
+
+function setSort(key){
+  if (sortKey === key) sortDir = -sortDir;
+  else {
+    sortKey = key;
+    sortDir = (key === "code" || key === "name" || key === "tier") ? 1 : -1;
   }
-  if (!chips) return;
-  chips.innerHTML = watchlist.map(function(entry){
-    const stock = STOCKS.find(function(s){return s.code === entry.code;}) || {};
-    const isCustom = !BUILT_IN_BY_CODE[entry.code];
-    const options = Object.keys(TIERS).map(function(key){
-      return '<option value="' + key + '"' + (entry.tier === key ? " selected" : "") + '>' + TIERS[key].name + '</option>';
-    }).join("");
-    return '<span class="watch-chip' + (isCustom ? " custom" : "") + '">'
-      + '<b>' + escapeHtml(entry.code) + '</b> ' + escapeHtml(stock.name || "")
-      + '<select data-watch-tier="' + escapeHtml(entry.code) + '" aria-label="' + escapeHtml(entry.code) + ' 分層">' + options + '</select>'
-      + '<button type="button" data-watch-del="' + escapeHtml(entry.code) + '" aria-label="移除 ' + escapeHtml(entry.code) + '">✕</button>'
-      + '</span>';
-  }).join("");
-  for (const node of chips.querySelectorAll("button[data-watch-del]")) {
-    node.addEventListener("click", function(){ removeWatch(node.getAttribute("data-watch-del")); });
+  renderScore();
+}
+
+function renderSortHead(){
+  const table = $("scoreTable");
+  if (!table || !table.querySelectorAll) return;
+  for (const th of table.querySelectorAll("th")) {
+    const key = th.getAttribute("data-sort");
+    if (!key) continue;
+    const base = String(th.textContent || "").replace(/[ ▲▼]+$/, "");
+    th.textContent = key === sortKey ? base + (sortDir > 0 ? " ▲" : " ▼") : base;
+    th.setAttribute("aria-sort", key === sortKey ? (sortDir > 0 ? "ascending" : "descending") : "none");
   }
-  for (const node of chips.querySelectorAll("select[data-watch-tier]")) {
-    node.addEventListener("change", function(){ setWatchTier(node.getAttribute("data-watch-tier"), node.value); });
-  }
+}
+
+function sortViewRows(rows){
+  if (!sortKey) return rows;
+  const factor = sortDir < 0 ? -1 : 1;
+  return rows.slice().sort(function(a, b){
+    const x = sortKey === "tier" ? TIER_ORDER[a.stock.tier] : a.view[sortKey];
+    const y = sortKey === "tier" ? TIER_ORDER[b.stock.tier] : b.view[sortKey];
+    // 無資料一律沉底，不隨排序方向翻轉——否則按一下 PE 會被一排「—」蓋住畫面
+    if (x == null && y == null) return a.stock.code.localeCompare(b.stock.code);
+    if (x == null) return 1;
+    if (y == null) return -1;
+    if (typeof x === "string" || typeof y === "string") return String(x).localeCompare(String(y)) * factor;
+    if (x === y) return a.stock.code.localeCompare(b.stock.code);
+    return (x < y ? -1 : 1) * factor;
+  });
+}
+
+function numCell(value, digits, suffix, tone){
+  if (value == null) return '<td class="num' + (tone ? " flat" : "") + '">—</td>';
+  return '<td class="num' + (tone ? " " + toneClass(value) : "") + '">' + fmt(value, digits) + (suffix || "") + '</td>';
 }
 
 function renderScore(){
@@ -1763,39 +1334,73 @@ function renderScore(){
   const cards = $("stockCards");
   tbody.innerHTML = "";
   cards.innerHTML = "";
-  STOCKS.forEach(function(stock){
+
+  const rows = STOCKS.map(function(stock){
     const snapshot = stockSnapshot(stock, state);
+    const metrics = stockMetrics(stock, snapshot);
+    return {stock:stock, snapshot:snapshot, metrics:metrics, view:Object.assign({
+      code:stock.code,
+      name:stock.name,
+      close:snapshot.close,
+      dayPct:snapshot.dayPct,
+      pctFromObservation:snapshot.pctFromObservation,
+    }, metrics)};
+  });
+
+  sortViewRows(rows).forEach(function(entry){
+    const stock = entry.stock;
+    const snapshot = entry.snapshot;
+    const m = entry.metrics;
     const close = snapshot.close;
     const observation = snapshot.observation;
-    const observationText = observationMainText(observation);
-    const observationMeta = observationMetaText(observation);
-    // 六維是人工判斷，自行加入的標的沒有——顯示「未評分」而不是生一個看起來像分析的值
-    const scoreCells = stock.s
-      ? stock.s.map(function(value, index){
-          return '<td><span class="sc ' + scoreClass(value, index) + '">' + STXT[value] + '</span></td>';
-        }).join("")
-      : '<td colspan="' + SCORE_LABELS.length + '" style="color:var(--faint);font-size:11px">未評分（自行加入）</td>';
+
     const tr = document.createElement("tr");
     tr.innerHTML = '<td>' + stockTradingViewLink(stock, false) + '</td>'
-      + scoreCells
-      + '<td style="color:var(--soft)">' + escapeHtml(peLabel(stock)) + '</td>'
-      + '<td class="px">' + (close != null ? fmt(close, 2) : '<span class="stale">收盤待更新</span>') + '<div class="data-line">' + escapeHtml(dataLabel()) + '</div></td>'
-      + '<td>' + observationCellHtml(observation) + '</td>';
+      + '<td><span class="nm">' + escapeHtml(stock.name) + '</span>'
+        + (m.market ? '<span class="mk" style="margin-left:6px">' + m.market + '</span>' : '')
+        + (stock.custom ? '<span class="mk" style="margin-left:6px">自加</span>' : '')
+        + '</td>'
+      + '<td>' + tierSelectHtml(stock) + '</td>'
+      + '<td class="px">' + (close != null ? fmt(close, 2) : '<span class="stale">待更新</span>') + '</td>'
+      + '<td class="num ' + toneClass(snapshot.dayPct) + '">' + (snapshot.dayPct == null ? "—" : signedFixed(snapshot.dayPct, 1) + "%") + '</td>'
+      + numCell(m.pe, 2)
+      + numCell(m.pbRatio, 2)
+      + numCell(m.dividendYield, 2)
+      + numCell(m.fromHi, 1, "%", true)
+      + numCell(m.turnover, 2)
+      + '<td>' + observationCellHtml(observation) + '</td>'
+      + '<td>' + removeBtnHtml(stock) + '</td>';
     tbody.appendChild(tr);
+    bindRowControls(tr);
 
     const card = document.createElement("div");
     card.className = "stock-card";
-    const scoreStrip = stock.s
-      ? stock.s.map(function(value, index){
-          return '<span class="sc ' + scoreClass(value, index) + '">' + escapeHtml(SCORE_LABELS[index]) + ' ' + STXT[value] + '</span>';
-        }).join("")
-      : '<span class="sc" style="color:var(--faint)">未評分（自行加入）</span>';
-    card.innerHTML = '<div class="stock-card-head"><div>' + stockTradingViewLink(stock, true) + '</div><span class="tier ' + TIERS[stock.tier].cls + '">' + stock.tier.toUpperCase() + '</span></div>'
-      + '<div class="stock-meta"><div><b>收盤</b>' + (close != null ? fmt(close, 2) : '待更新') + '</div><div><b>距離觀察基準</b>' + escapeHtml(observationText) + '</div><div><b>參考 PE</b>' + escapeHtml(peLabel(stock)) + '</div><div><b>定位</b>' + escapeHtml(TIERS[stock.tier].name) + '</div></div>'
-      + '<div class="score-strip">' + scoreStrip + '</div><div class="data-line">' + escapeHtml(observationMeta) + '</div><div class="data-line">' + escapeHtml(stock.role) + '</div><div class="data-line">' + escapeHtml(dataLabel()) + '</div>';
+    const cell = function(label, value){ return '<div><b>' + label + '</b>' + value + '</div>'; };
+    const num = function(value, digits, suffix){ return value == null ? "—" : fmt(value, digits) + (suffix || ""); };
+    card.innerHTML = '<div class="stock-card-head"><div>' + stockTradingViewLink(stock, true)
+        + (m.market ? '<span class="mk" style="margin-left:6px">' + m.market + '</span>' : '')
+        + '</div>' + removeBtnHtml(stock) + '</div>'
+      + '<div class="stock-meta">'
+        + cell("收盤", close != null ? fmt(close, 2) : "待更新")
+        + cell("漲跌%", snapshot.dayPct == null ? "—" : '<span class="' + toneClass(snapshot.dayPct) + '">' + signedFixed(snapshot.dayPct, 1) + "%</span>")
+        + cell("PE", num(m.pe, 2))
+        + cell("PB", num(m.pbRatio, 2))
+        + cell("殖利率%", num(m.dividendYield, 2))
+        + cell("距52週高", m.fromHi == null ? "—" : '<span class="' + toneClass(m.fromHi) + '">' + fmt(m.fromHi, 1) + "%</span>")
+        + cell("成交額(億)", num(m.turnover, 2))
+        + cell("分層（會改變觀察價）", tierSelectHtml(stock))
+      + '</div>'
+      + '<div class="data-line"><b>距離觀察基準</b> ' + escapeHtml(observationMainText(observation)) + '</div>'
+      + '<div class="data-line">' + escapeHtml(observationMetaText(observation)) + '</div>'
+      + '<div class="data-line">' + escapeHtml(stock.role) + '</div>';
     cards.appendChild(card);
+    bindRowControls(card);
   });
-  renderBuckets();
+
+  // 收盤來源對整張表都一樣，放一次就好——原本每一列重複 13 次
+  const source = $("dataSource");
+  if (source) source.textContent = "收盤來源：" + dataLabel();
+  renderSortHead();
 }
 
 async function refresh(){
@@ -1805,12 +1410,20 @@ async function refresh(){
   // market-feed 要排在 loadEod 之後：它只補「還沒有價格」的代碼，
   // 不覆蓋 13:30 快照那份較精準的資料
   messages.push(await loadMarketFeed());
-  messages.push(await loadYield10y());
   messages.push(await loadMarketIndices());
   messages.push(await loadValuation());
   renderWatchEditor();
-  renderConds();
+  renderScore();
   $("stamp").textContent = messages.join(" · ") + " · " + new Date().toLocaleString("zh-TW");
+}
+
+function bindSortHead(){
+  const table = $("scoreTable");
+  if (!table || !table.querySelectorAll) return;
+  for (const th of table.querySelectorAll("th")) {
+    const key = th.getAttribute("data-sort");
+    if (key) th.addEventListener("click", function(){ setSort(key); });
+  }
 }
 
 function bindWatchEditor(){
@@ -1830,42 +1443,36 @@ function bindWatchEditor(){
     const note = $("watchNote");
     if (note) note.textContent = "已重設為內建的 " + BUILT_INS.length + " 檔。";
   });
-  const exportBtn = $("watchExport");
-  if (exportBtn) exportBtn.addEventListener("click", function(){
-    const json = JSON.stringify(watchlist);
+  // 分享連結取代了原本的 JSON 匯出／匯入：網址就是匯入管道，
+  // 也不必再用 prompt()（部分瀏覽器會擋）
+  const shareBtn = $("watchShare");
+  if (shareBtn) shareBtn.addEventListener("click", function(){
+    const url = shareUrl(watchlist);
     const note = $("watchNote");
-    const done = function(ok){ if (note) note.textContent = ok ? ("已複製清單 JSON（" + watchlist.length + " 檔）") : ("複製失敗，請手動複製：" + json); };
+    const done = function(ok){
+      if (!note) return;
+      note.textContent = ok ? ("已複製分享連結（" + watchlist.length + " 檔）：在其他裝置開啟即可套用。") : ("請手動複製這個網址：" + url);
+    };
     try {
-      if (ROOT.navigator && ROOT.navigator.clipboard) ROOT.navigator.clipboard.writeText(json).then(function(){done(true);}, function(){done(false);});
+      if (ROOT.navigator && ROOT.navigator.clipboard) ROOT.navigator.clipboard.writeText(url).then(function(){done(true);}, function(){done(false);});
       else done(false);
     } catch (error) { done(false); }
-  });
-  const importBtn = $("watchImport");
-  if (importBtn) importBtn.addEventListener("click", function(){
-    const note = $("watchNote");
-    let text = null;
-    try { text = ROOT.prompt ? ROOT.prompt("貼上先前匯出的清單 JSON") : null; } catch (error) { text = null; }
-    if (!text) return;
-    let parsed = null;
-    try { parsed = JSON.parse(text); } catch (error) { if (note) note.textContent = "JSON 格式不對，未變更。"; return; }
-    const cleaned = sanitizeWatchlist(parsed);
-    if (!cleaned) { if (note) note.textContent = "沒有可用的代碼，未變更。"; return; }
-    applyWatchlist(cleaned);
-    if (note) note.textContent = "已匯入 " + cleaned.length + " 檔。";
   });
 }
 
 async function init(){
   state = sanitizeState(state);
-  // 使用者自訂的清單優先；沒有就用內建
-  watchlist = state.watchlist || DEFAULT_WATCHLIST.slice();
+  // 網址帶來的清單只做預覽，不寫入 localStorage——要按「套用」才取代本機清單。
+  // 直接覆蓋會讓人點一個分享連結就弄丟自己養的清單。
+  sharedWatchlist = parseWatchParam((ROOT.location || {}).search);
+  watchlist = sharedWatchlist || state.watchlist || DEFAULT_WATCHLIST.slice();
   rebuildStocks();
   loadValuation();
-  renderConds();
-  renderBuckets();
+  renderSharedBanner();
   renderWatchEditor();
   renderScore();
   renderMarketIndexes(marketIndexRows, marketIndexMeta, "市場指數待更新", false);
+  bindSortHead();
   bindWatchEditor();
 
   $("refresh").addEventListener("click", function(){refresh().catch(function(error){
@@ -1880,24 +1487,21 @@ const portfolioApp = {
   refresh:refresh,
   getState:function(){return state;},
   helpers:{
-    aggregateVerdict:aggregateVerdict,
     normalizeEodPayload:normalizeEodPayload,
     normalizeClosingQuoteRows:normalizeClosingQuoteRows,
     normalizeMarketIndexPayload:normalizeMarketIndexPayload,
-    normalizeYieldPayload:normalizeYieldPayload,
     parseNumber:parseNumber,
     proxyBase:proxyBase,
     sanitizeState:sanitizeState,
     sanitizeWatchlist:sanitizeWatchlist,
+    parseWatchParam:parseWatchParam,
+    watchlistToParam:watchlistToParam,
     rebuildStocks:rebuildStocks,
     builtInCodes:builtInCodes,
     stockCodes:stockCodes,
     getStocks:function(){return STOCKS;},
     setWatchlistForTest:function(next){ watchlist = sanitizeWatchlist(next) || DEFAULT_WATCHLIST.slice(); return rebuildStocks(); },
     setMarketRowsForTest:function(rows){ marketRows = rows || {}; return rebuildStocks(); },
-    concentrationSignal:concentrationSignal,
-    deriveAutoSignals:deriveAutoSignals,
-    condColor:condColor,
     tradingViewUrl:tradingViewUrl,
     suggestObservationPrice:suggestObservationPrice,
     roundObservationPrice:roundObservationPrice,
