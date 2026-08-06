@@ -141,23 +141,34 @@ export function normalizeMarketRows(rows, market) {
   return out;
 }
 
+// 估值來源自己帶資料日（BWIBBU_ALL 與 TPEX 本益比分析都有 Date，民國年、全檔同一值），
+// 而且它**發佈得比收盤慢**：實測 2026-08-05 台灣 23:54 那班抓到的仍是 08-04 的估值，
+// 卻和當天 08-05 的收盤寫在同一列。PE/PB/殖利率的分母是股價，錯一天就整排數字失準
+// （2330：PE 31.19 對應 2,320，32.33 才對應當日的 2,405，EPS 同為 74.38）。
+// 因此把資料日一起帶出來，讓 feed 說得出「這欄是哪一天的」。
 export function normalizeMarketValuation(rows) {
   if (!Array.isArray(rows)) throw new Error("Valuation payload is not an array");
-  const out = {};
+  const entries = {};
+  const dates = new Set();
   for (const row of rows) {
     const code = String(field(row, ["Code", "SecuritiesCompanyCode", "code"]) || "").trim();
-    if (!/^\d{4,6}$/.test(code) || out[code]) continue;
+    if (!/^\d{4,6}$/.test(code) || entries[code]) continue;
     const pe = parseNumber(field(row, ["PEratio", "PriceEarningRatio", "PERatio", "PER"]));
     const dividendYield = parseNumber(field(row, ["DividendYield", "YieldRatio"]));
     const pbRatio = parseNumber(field(row, ["PBratio", "PriceBookRatio", "PBRatio"]));
+    const date = rocToIso(field(row, ["Date", "date"]));
+    if (date) dates.add(date);
     if (pe == null && dividendYield == null && pbRatio == null) continue;
     const entry = {};
     if (pe != null) entry.pe = roundNumber(pe, 2);
     if (dividendYield != null) entry.dividendYield = roundNumber(dividendYield, 2);
     if (pbRatio != null) entry.pbRatio = roundNumber(pbRatio, 2);
-    out[code] = entry;
+    entries[code] = entry;
   }
-  return out;
+  // 同一份 payload 理論上只有一個日期；真的混了就取最舊的，
+  // 與 tradeDate 一樣採「這份資料至少完整到這一天」的保守解讀。
+  const date = [...dates].sort()[0] || null;
+  return { entries, date };
 }
 
 // 保留策略：新抓列數 < 前次 50% 視為上游劣化，沿用前次快照列。
@@ -305,16 +316,29 @@ async function main() {
   if (tpex.preserved) errors.push({ source: "feed-preservation", message: `kept ${tpex.rows.length} previous TPEX rows (fetched ${tpexRows.length})` });
 
   let valuation = {};
+  const valuationDates = {};
+  const prevValuationDates = (previousFeed.valuationDates && typeof previousFeed.valuationDates === "object") ? previousFeed.valuationDates : {};
   try {
-    valuation = normalizeMarketValuation(await fetchJson(SOURCES.twseValuation));
+    const twseVal = normalizeMarketValuation(await fetchJson(SOURCES.twseValuation));
+    valuation = twseVal.entries;
+    if (twseVal.date) valuationDates.twse = twseVal.date;
   } catch (error) {
     errors.push({ source: "TWSE OpenAPI BWIBBU_ALL", message: error.message });
   }
   try {
     const tpexVal = normalizeMarketValuation(await fetchJson(SOURCES.tpexValuation));
-    for (const [code, entry] of Object.entries(tpexVal)) if (!valuation[code]) valuation[code] = entry;
+    for (const [code, entry] of Object.entries(tpexVal.entries)) if (!valuation[code]) valuation[code] = entry;
+    if (tpexVal.date) valuationDates.tpex = tpexVal.date;
   } catch (error) {
     errors.push({ source: "TPEX OpenAPI peratio analysis", message: error.message });
+  }
+  // 某個來源整個掛掉時，那個市場的估值會沿用前次值（applyValuation 逐檔保留），
+  // 日期也必須跟著沿用——標成本次日期等於謊報新鮮度。
+  for (const market of ["twse", "tpex"]) {
+    if (!valuationDates[market] && prevValuationDates[market]) {
+      valuationDates[market] = prevValuationDates[market];
+      errors.push({ source: "feed-preservation", message: `kept previous ${market} valuationDate ${prevValuationDates[market]} (this run fetched none)` });
+    }
   }
   const stocks = [...twse.rows, ...tpex.rows].sort((a, b) => a.code.localeCompare(b.code));
   const prevValByCode = {};
@@ -361,12 +385,32 @@ async function main() {
     errors.push({ source: "feed-preservation", message: `kept previous valuation for ${valuationPreserved} row(s) missing from this run` });
   }
 
-  const feed = { updatedAt: now, tradeDate, marketDates, hiSince: accumulator.start, count: stocks.length, stocks, errors };
+  // 估值日與收盤日不同步是常態（估值來源發佈得慢）。頂層取兩市場較舊者，
+  // 與 tradeDate 同一套保守解讀。
+  const knownValuationDates = [valuationDates.twse, valuationDates.tpex].filter(Boolean).sort();
+  const valuationDate = knownValuationDates[0] || null;
+  // 但落差必須**逐市場**判斷。只比 valuationDate 與 tradeDate 會漏報：
+  // 實測 2026-08-06 早上，TWSE 收盤已是 08-06、TPEX 還停在 08-05，tradeDate 取最小值
+  // 也是 08-05，於是「估值日＝tradeDate」成立、報不出任何問題——但那 1,083 檔上市股
+  // 的收盤是 08-06、估值是 08-05，落差真實存在。這正是 tradeDate 取最小值時
+  // 各市場日期要一起輸出的同一個理由。
+  for (const market of ["twse", "tpex"]) {
+    const closeDate = marketDates[market];
+    const valDate = valuationDates[market];
+    if (!closeDate || !valDate || closeDate === valDate) continue;
+    errors.push({
+      source: "stale-valuation",
+      market,
+      message: `${market} valuation dated ${valDate} but close is ${closeDate} — PE/PB/yield use the ${valDate < closeDate ? "older" : "newer"} close as denominator`,
+    });
+  }
+
+  const feed = { updatedAt: now, tradeDate, marketDates, valuationDate, valuationDates, hiSince: accumulator.start, count: stocks.length, stocks, errors };
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   // minified：全市場 ~2,200 列，縮排會讓體積翻倍
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
   await writeFile(ACC_FILE, JSON.stringify({ start: accumulator.start, updatedAt: now, stocks: accumulator.stocks }), "utf8");
-  console.log(`market-feed: ${stocks.length} rows, tradeDate ${tradeDate}, errors ${errors.length}`);
+  console.log(`market-feed: ${stocks.length} rows, tradeDate ${tradeDate}, valuationDate ${valuationDate || "未取得"}, errors ${errors.length}`);
   if (errors.length) console.warn(JSON.stringify(errors, null, 2));
 }
 

@@ -431,9 +431,29 @@ function feedStamp(label, count, payload){
   const updated = stampTime(payload && payload.updatedAt);
   if (updated) parts.push("更新 " + updated);
   const notes = [];
+  const valuation = valuationDateNote(payload);
+  if (valuation) notes.push(valuation);
+  // stale-market／stale-valuation 是「日期不同步」的據實揭露，不是缺料，
+  // 而且已經在交易日與估值日那兩段各自講過了。把它們算進「缺料」等於
+  // 同一件事講兩次、還講錯——正是這支函式當初要修掉的那種誇大。
+  const missing = errors.filter(function(e){ return e && e.source !== "stale-market" && e.source !== "stale-valuation"; });
   if (preserved.length) notes.push("部分為前次保留資料");
-  else if (errors.length) notes.push("部分欄位缺料");
+  else if (missing.length) notes.push("部分欄位缺料");
   return parts.join(" · ") + (notes.length ? "（" + notes.join("、") + "）" : "");
+}
+
+// PE／PB／殖利率的分母是股價，而估值來源比收盤晚一步發佈：實測 2026-08-06 早上，
+// 上市收盤已是 08-06、BWIBBU 仍是 08-05，那三欄等於用前一天的股價算出來的
+// （2330：PE 31.19 對應 2,320，32.33 才對應 2,405，EPS 同為 74.38）。
+// 逐市場比對——只比頂層 valuationDate 與 tradeDate 會漏報，兩者都取最小值時會相等。
+// 沒有落差就不講，避免每天都掛一句廢話。
+function valuationDateNote(payload){
+  const val = (payload && payload.valuationDates) || {};
+  const close = (payload && payload.marketDates) || {};
+  const label = {twse:"上市", tpex:"上櫃"};
+  const off = ["twse","tpex"].filter(function(m){ return val[m] && close[m] && val[m] !== close[m]; });
+  if (!off.length) return "";
+  return "PE／PB／殖利率為 " + off.map(function(m){ return label[m] + " " + val[m]; }).join("、") + " 的估值";
 }
 
 // 兩個市場的資料日可能不同步（TWSE 的盤後端點曾比 TPEX 慢一天）。

@@ -30,6 +30,29 @@ test("market-feed.json matches the expected schema", async () => {
   assert.ok(Array.isArray(feed.errors));
   assertBothMarkets(feed.stocks, "market-feed", { twse: 800, tpex: 500 });
 
+  // 估值日：PE/PB/殖利率的分母是股價，來源比收盤晚一天發佈是常態，
+  // 所以 feed 必須說得出這些欄位是哪一天的，不能讓人以為＝tradeDate。
+  assert.match(feed.valuationDate, /^\d{4}-\d{2}-\d{2}$/, "valuationDate 必須存在且為 ISO 日期");
+  assert.ok(feed.valuationDate <= new Date().toISOString().slice(0, 10), "估值日不得在未來");
+  assert.equal(typeof feed.valuationDates, "object");
+  for (const market of Object.keys(feed.valuationDates)) {
+    assert.ok(market === "twse" || market === "tpex", `valuationDates 只該有 twse/tpex，出現 ${market}`);
+    assert.match(feed.valuationDates[market], /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(feed.valuationDate <= feed.valuationDates[market], "valuationDate 應為各市場的最舊者");
+  }
+  // 落差要**逐市場**判斷。只比 valuationDate 與 tradeDate 會漏報：兩者都取最小值，
+  // 當 TWSE 收盤比 TPEX 新時最小值會相等，但上市那千餘檔的落差是真的。
+  // 這裡不斷言「估值日必定 ≤ 收盤日」——TPEX 收盤保留舊值而估值抓到新的時，
+  // 反向落差也會發生，那同樣是要被揭露的事實，不是解析錯誤。
+  for (const market of Object.keys(feed.valuationDates)) {
+    if (!feed.marketDates || !feed.marketDates[market]) continue;
+    if (feed.valuationDates[market] === feed.marketDates[market]) continue;
+    assert.ok(
+      feed.errors.some((e) => e && e.source === "stale-valuation" && e.market === market),
+      `${market} 的估值日 ${feed.valuationDates[market]} 與收盤日 ${feed.marketDates[market]} 不一致時必須寫進 errors[]`,
+    );
+  }
+
   const codes = new Set();
   for (const row of feed.stocks) {
     const at = (msg) => `${row.code}: ${msg}`;

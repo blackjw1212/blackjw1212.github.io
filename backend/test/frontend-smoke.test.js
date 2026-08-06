@@ -602,6 +602,50 @@ test("a user-added stock gets every metric from the market feed", async () => {
   assert.equal(m.turnover, 69.75, "1395 × 5,000,000 / 1e8 = 69.75 億");
 });
 
+// PB／殖利率整張表都取自 market-feed，而估值來源比收盤晚一步發佈。
+// 這件事以前完全沒被講出來，使用者無從分辨那兩欄是哪一天的股價算的。
+test("the source line discloses when market-feed valuation lags the close", async () => {
+  const feedWith = (extra) => async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/market-feed.json")) {
+      return response(Object.assign({
+        updatedAt: "2026-08-06T01:30:00.000Z",
+        tradeDate: "2026-08-05",
+        count: 1,
+        stocks: [{ code: "2330", name: "台積電", market: "twse", close: 2405, change: 85, pe: 31.19, pbRatio: 10.21, dividendYield: 0.95, hi52: 2535, volume: 1000 }],
+        errors: [],
+      }, extra));
+    }
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unavailable: ${href}`);
+  };
+
+  // 上市收盤 08-06、估值 08-05 → 要指名市場與日期。
+  // 注意頂層 tradeDate 與 valuationDate 都會是 08-05（各取最小值），
+  // 只比那兩個欄位會完全漏報，所以這裡刻意讓它們相等。
+  const lag = await loadApp(feedWith({
+    valuationDate: "2026-08-05",
+    marketDates: { twse: "2026-08-06", tpex: "2026-08-05" },
+    valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+  }));
+  await lag.context.window.PortfolioConsoleApp.init();
+  assert.match(lag.document.getElementById("dataSource").textContent, /PB／殖利率為 上市 2026-08-05 的估值/);
+
+  // 對齊時不加噪音
+  const aligned = await loadApp(feedWith({
+    valuationDate: "2026-08-05",
+    marketDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+    valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+  }));
+  await aligned.context.window.PortfolioConsoleApp.init();
+  assert.doesNotMatch(aligned.document.getElementById("dataSource").textContent, /估值/);
+
+  // 舊 feed（沒有 valuationDates）不得炸掉也不得憑空講落差
+  const legacy = await loadApp(feedWith({ marketDates: { twse: "2026-08-05" } }));
+  await legacy.context.window.PortfolioConsoleApp.init();
+  assert.doesNotMatch(legacy.document.getElementById("dataSource").textContent, /估值|undefined/);
+});
+
 test("watchlist state survives a save/load round trip", async () => {
   const { context } = await loadApp(async () => response(staticFeed()));
   const { sanitizeState } = context.window.PortfolioConsoleApp.helpers;

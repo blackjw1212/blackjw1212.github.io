@@ -234,6 +234,8 @@ let STOCKS = [];
 let marketRows = {};        // code → market-feed 的列，供自行加入的標的取名稱與估值
 let marketFeedMeta = null;
 let marketFeedTradeDate = "";
+let marketFeedDates = {};             // {twse,tpex} 逐市場收盤日
+let marketFeedValuationDates = {};    // {twse,tpex} 逐市場估值日，比收盤晚一步是常態
 
 function rebuildStocks(){
   STOCKS = watchlist.map(function(entry){
@@ -553,8 +555,8 @@ function fillFromMarketRows(){
   return filled;
 }
 
-// 自行加入的標的不在 Worker 與 stock-risk-feed 的涵蓋範圍，改由全市場 feed 補。
-// market-feed 有 open/high/low，所以觀察價一樣算得出來，不是只有收盤價。
+// 自行加入的標的不在 Worker 與 stock-risk-feed 的涵蓋範圍，改由全市場 feed 補；
+// PB／殖利率／距 52 週高／成交額則是整份清單都靠它。
 async function loadMarketFeed(){
   try {
     const response = await fetch(MARKET_FEED_URL + "?v=" + encodeURIComponent(new Date().toISOString().slice(0,10)),
@@ -565,6 +567,8 @@ async function loadMarketFeed(){
     marketRows = {};
     for (const row of rows) if (row && row.code) marketRows[row.code] = row;
     marketFeedTradeDate = payload.tradeDate || "";
+    marketFeedDates = payload.marketDates || {};
+    marketFeedValuationDates = payload.valuationDates || {};
     rebuildStocks();
     const filled = fillFromMarketRows();
     marketFeedMeta = {tradeDate:marketFeedTradeDate, count:rows.length, filled:filled};
@@ -574,6 +578,18 @@ async function loadMarketFeed(){
     marketFeedMeta = null;
     return "全市場 feed 讀取失敗";
   }
+}
+
+// 估值來源（BWIBBU／TPEX 本益比分析）比收盤晚一步發佈，PE／PB／殖利率的分母是股價，
+// 差一天整排數字就失準。逐市場比對——只比頂層 valuationDate 與 tradeDate 會漏報，
+// 兩者都取最小值時會相等。沒落差就不講。
+function valuationDateNote(){
+  const label = {twse:"上市", tpex:"上櫃"};
+  const off = ["twse","tpex"].filter(function(m){
+    return marketFeedValuationDates[m] && marketFeedDates[m] && marketFeedValuationDates[m] !== marketFeedDates[m];
+  });
+  if (!off.length) return "";
+  return "PB／殖利率為 " + off.map(function(m){ return label[m] + " " + marketFeedValuationDates[m]; }).join("、") + " 的估值";
 }
 
 function sanitizeValuation(raw){
@@ -1130,7 +1146,10 @@ function renderScore(){
 
   // 收盤來源對整張表都一樣，放一次就好——原本每一列重複 13 次
   const source = $("dataSource");
-  if (source) source.textContent = "收盤來源：" + dataLabel();
+  if (source) {
+    const note = valuationDateNote();
+    source.textContent = "收盤來源：" + dataLabel() + (note ? "　·　" + note : "");
+  }
   renderSortHead();
 }
 

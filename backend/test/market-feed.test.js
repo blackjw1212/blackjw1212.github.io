@@ -127,20 +127,50 @@ test("normalizeMarketRows handles TWSE and TPEX field shapes and filters non-sto
 });
 
 test("normalizeMarketValuation reads both source shapes and skips empty rows", () => {
-  const out = normalizeMarketValuation([
+  const { entries } = normalizeMarketValuation([
     { Code: "2330", PEratio: "31.59", DividendYield: "0.94", PBratio: "10.34" },
     { SecuritiesCompanyCode: "3324", PriceEarningRatio: "27.22", YieldRatio: "1.26", PriceBookRatio: "6.54" },
     { Code: "1234", PEratio: "--", DividendYield: "--", PBratio: "--" },
   ]);
-  assert.deepEqual(out["2330"], { pe: 31.59, dividendYield: 0.94, pbRatio: 10.34 });
-  assert.deepEqual(out["3324"], { pe: 27.22, dividendYield: 1.26, pbRatio: 6.54 });
-  assert.equal(out["1234"], undefined);
+  assert.deepEqual(entries["2330"], { pe: 31.59, dividendYield: 0.94, pbRatio: 10.34 });
+  assert.deepEqual(entries["3324"], { pe: 27.22, dividendYield: 1.26, pbRatio: 6.54 });
+  assert.equal(entries["1234"], undefined);
 });
 
 test("normalizeMarketValuation keeps a loss-making stock that still reports yield or PB", () => {
-  const out = normalizeMarketValuation([{ Code: "2337", PEratio: "--", DividendYield: "1.20", PBratio: "1.80" }]);
-  assert.equal(out["2337"].pe, undefined);
-  assert.equal(out["2337"].pbRatio, 1.8);
+  const { entries } = normalizeMarketValuation([{ Code: "2337", PEratio: "--", DividendYield: "1.20", PBratio: "1.80" }]);
+  assert.equal(entries["2337"].pe, undefined);
+  assert.equal(entries["2337"].pbRatio, 1.8);
+});
+
+// 估值來源發佈得比收盤慢：實測 2026-08-05 台灣 23:54 那班抓到的估值仍是 08-04 的，
+// 卻和 08-05 的收盤寫進同一列。PE/PB/殖利率的分母是股價，錯一天整排數字就失準
+// （2330：PE 31.19 對應 2,320，32.33 才對應當日的 2,405，EPS 同為 74.38）。
+// 資料日一定要跟著出來，feed 才說得出「這欄是哪一天的」。
+test("normalizeMarketValuation reports the payload's own data date", () => {
+  const twse = normalizeMarketValuation([
+    { Date: "1150805", Code: "2330", PEratio: "32.33", DividendYield: "0.91", PBratio: "10.59" },
+    { Date: "1150805", Code: "2317", PEratio: "17.76", DividendYield: "2.87", PBratio: "1.97" },
+  ]);
+  assert.equal(twse.date, "2026-08-05");
+
+  const tpex = normalizeMarketValuation([
+    { Date: "1150805", SecuritiesCompanyCode: "1240", PriceEarningRatio: "11.80", YieldRatio: "6.35", PriceBookRatio: "1.56" },
+  ]);
+  assert.equal(tpex.date, "2026-08-05");
+
+  // 沒有 Date 欄位就回 null，不可猜成「今天」——猜錯就是謊報新鮮度
+  assert.equal(normalizeMarketValuation([{ Code: "2330", PEratio: "31.59" }]).date, null);
+
+  // 真的混到多個日期時取最舊的，與 tradeDate 同一套保守解讀
+  const mixed = normalizeMarketValuation([
+    { Date: "1150805", Code: "2330", PEratio: "32.33" },
+    { Date: "1150804", Code: "2317", PEratio: "17.76" },
+  ]);
+  assert.equal(mixed.date, "2026-08-04");
+
+  // 只有估值全空的列也要貢獻日期——否則整份都是虧損股時會取不到日期
+  assert.equal(normalizeMarketValuation([{ Date: "1150805", Code: "1101", PEratio: "", DividendYield: "", PBratio: "" }]).date, "2026-08-05");
 });
 
 test("preserveMarketRows keeps previous rows when upstream collapses", () => {

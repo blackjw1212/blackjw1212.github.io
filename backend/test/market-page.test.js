@@ -172,6 +172,82 @@ test("the stamp separates real preservation from ordinary missing fields", async
   assert.doesNotMatch(feedStamp("ETF", 0, { updatedAt: "not-a-date" }), /Invalid|NaN|undefined/);
 });
 
+// PE／PB／殖利率的分母是股價，而估值來源（BWIBBU、TPEX 本益比分析）比收盤晚一步
+// 發佈：實測 2026-08-06 早上，上市收盤已是 08-06、BWIBBU 仍是 08-05，那三欄等於用
+// 前一天的股價算出來的（2330：PE 31.19 對應 2,320，32.33 才對應 2,405，EPS 同為
+// 74.38）。這件事以前完全沒被講出來，1,463 檔全部受影響。
+test("the stamp discloses when valuation is a different day from the close", async () => {
+  const { app } = await loadMarket(async () => okResponse(marketFeed()));
+  const { feedStamp } = app.helpers;
+
+  // 上市收盤比估值新一天 → 要指名是哪個市場、哪一天的估值
+  const lagging = feedStamp("全市場", 1955, {
+    tradeDate: "2026-08-05",
+    marketDates: { twse: "2026-08-06", tpex: "2026-08-05" },
+    valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+    updatedAt: "2026-08-06T01:30:00.000Z",
+    errors: [{ source: "stale-valuation", market: "twse", message: "…" }],
+  });
+  assert.match(lagging, /PE／PB／殖利率為 上市 2026-08-05 的估值/);
+
+  // 關鍵回歸：只比頂層 valuationDate 與 tradeDate 會漏報這個情境——
+  // 兩者都取最小值，這裡都會是 2026-08-05 而看起來「同步」。
+  assert.match(
+    feedStamp("全市場", 1955, {
+      tradeDate: "2026-08-05", valuationDate: "2026-08-05",
+      marketDates: { twse: "2026-08-06", tpex: "2026-08-05" },
+      valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+      updatedAt: "2026-08-06T01:30:00.000Z", errors: [],
+    }),
+    /上市 2026-08-05 的估值/,
+    "頂層日期相等時仍必須揭露上市的落差",
+  );
+
+  // 兩個市場都落後 → 兩個都要列出來
+  assert.match(feedStamp("全市場", 1955, {
+    tradeDate: "2026-08-06",
+    marketDates: { twse: "2026-08-06", tpex: "2026-08-06" },
+    valuationDates: { twse: "2026-08-05", tpex: "2026-08-04" },
+    updatedAt: "2026-08-06T14:00:00.000Z", errors: [],
+  }), /PE／PB／殖利率為 上市 2026-08-05、上櫃 2026-08-04 的估值/);
+
+  // 對齊時不加噪音——每天都掛一句廢話會讓真正有落差時沒人注意
+  assert.doesNotMatch(feedStamp("全市場", 1955, {
+    tradeDate: "2026-08-05",
+    marketDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+    valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+    updatedAt: "2026-08-05T14:00:00.000Z", errors: [],
+  }), /估值/);
+
+  // 舊 feed（還沒有 valuationDates）不得炸掉，也不得憑空講落差
+  assert.doesNotMatch(feedStamp("全市場", 1955, {
+    tradeDate: "2026-08-05", marketDates: { twse: "2026-08-05" }, updatedAt: "2026-08-05T14:00:00.000Z", errors: [],
+  }), /估值|undefined/);
+
+  // 日期不同步是據實揭露，不是缺料。把 stale-* 算進「缺料」等於同一件事講兩次還講錯。
+  const disclosedOnly = feedStamp("全市場", 1955, {
+    tradeDate: "2026-08-05",
+    marketDates: { twse: "2026-08-06", tpex: "2026-08-05" },
+    valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+    updatedAt: "2026-08-06T01:30:00.000Z",
+    errors: [
+      { source: "stale-market", message: "TWSE 2026-08-06 vs TPEX 2026-08-05" },
+      { source: "stale-valuation", market: "twse", message: "…" },
+    ],
+  });
+  assert.match(disclosedOnly, /上市 2026-08-05 的估值/);
+  assert.doesNotMatch(disclosedOnly, /缺料/, "日期不同步不等於缺料");
+
+  // 真的有來源掛掉時仍要說缺料
+  assert.match(feedStamp("全市場", 1955, {
+    tradeDate: "2026-08-05", updatedAt: "2026-08-05T14:00:00.000Z",
+    errors: [
+      { source: "stale-market", message: "…" },
+      { source: "TWSE OpenAPI BWIBBU_ALL", message: "terminated" },
+    ],
+  }), /部分欄位缺料/);
+});
+
 test("codes link out to the shared TradingView layout with the right exchange prefix", async () => {
   const { app, elements } = await loadMarket(dualFeedMock());
   await app.init();
