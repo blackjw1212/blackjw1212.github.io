@@ -84,6 +84,11 @@
   .pos{color:var(--green)}.neg{color:var(--red)}.flat{color:var(--faint)}
   .mk{font-family:"Roboto Mono",monospace;font-size:10px;border:1px solid var(--line2);border-radius:8px;padding:1px 6px;color:var(--soft)}
   .badge{font-family:"Roboto Mono",monospace;font-size:10px;border-radius:8px;padding:1px 6px;background:var(--green-bg);color:var(--green);margin-left:6px}
+  /* 回測警語刻意做成擋不掉的一整條，不是塞在說明文字裡的一句話：
+     以總報酬為目標等於「買去年漲最多的」，看起來比配息目標更權威，也更容易害人。 */
+  .backtest-warn{border:1px solid var(--amber);border-left-width:4px;border-radius:8px;background:rgba(217,166,76,.10);
+    padding:10px 12px;margin-top:12px;font-size:12px;color:var(--soft);line-height:1.6}
+  .backtest-warn b{color:var(--amber)}
   .lowbase{background:var(--green-bg);color:var(--green);border-radius:8px;padding:1px 6px;font-family:"Roboto Mono",monospace;font-size:10px}
   .empty{padding:26px;text-align:center;color:var(--faint);font-size:13px}
   .more{display:flex;justify-content:center;margin-top:14px}
@@ -329,12 +334,13 @@
     <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
       <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
       <strong>配息波動改看近 24 個月</strong>（殖利率仍是近 12 個月）：只看 12 個月的季配標的僅有 4 筆，會系統性低估波動——實測 006208 配息由 0.989 漲到 4.75，12 月窗算出 0.16、24 月窗才是 0.65。水準跳升對「用近 12 月配息推估未來」正是最該標出來的風險。
-      <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息，需先在上方模擬器填綜合所得淨額。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>；其餘四個目標一律不計稅。
-      注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。目標函數也只看配息現金流、不含資本利得——這是低配息的市值型 ETF 在「最高配息」目標下必然墊底的原因。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
+      <strong>稅後總報酬最大化（預設）</strong>：目標為<strong>價差＋配息−所得稅−二代健保</strong>。價差取 Yahoo adjclose 近一年、已自行校正分割；台股個人證所稅停徵，因此價差免稅而配息要課稅，兩者的稅負待遇不同會實質改變最佳解。候選池改依總報酬排序並排除總報酬為負者，需先在上方模擬器填綜合所得淨額。<strong>這一段全部是近一年回測，不是預測</strong>——以總報酬為目標等於「買去年表現最好的」，請當成比較的起點而非結論。滿一年歷史不足或價格有無法解釋跳動的標的不發布報酬，也不會進入這個目標的候選池。
+      <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息，需先在上方模擬器填綜合所得淨額。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>。
+      注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。<strong>「最高配息」「補滿 12 個月」「分散類型」「稅後配息」四個目標只看配息現金流、不含資本利得</strong>——一檔配 10% 卻跌 12% 的標的在那些目標下會排很前面，但它在賠錢；要看實際賺多少請用預設的總報酬目標。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
     <div class="toolbar">
       <div class="toolrow">
         <div class="presets">
-          <button class="btn on" id="gBalanced" type="button">均衡：核心＋配息（計算）</button>
+          <button class="btn on" id="gNetTotal" type="button" title="以近一年稅後總報酬（價差＋配息−稅−健保）為目標；價差在台股個人免證所稅。需先在上方模擬器填入綜合所得淨額">稅後總報酬最大化（計算）</button>
           <button class="btn" id="gYield" type="button">最高配息（計算）</button>
           <button class="btn" id="gMonthly" type="button">補滿 12 個月（計算）</button>
           <button class="btn" id="gLowOverlap" type="button">分散類型（計算）</button>
@@ -750,7 +756,12 @@ function normalizeEtfFeed(payload){
       domicileSource:row.domicileSource || null,
       // 品質/分類指標優先取資料層（pipeline 已算好）；舊 feed 沒有時退回前端計算
       dividendCvField:parseNumber(row.dividendCv),
-      isCoreField:typeof row.isCore === "boolean" ? row.isCore : null,
+      // 近一年總報酬／價差（回測）。缺料時保持 null，總報酬目標會把該檔排除——
+      // 只有配息的半套資料會系統性偏袒賠價差的高配息標的。
+      totalReturn1y:parseNumber(row.totalReturn1y),
+      priceReturn1y:parseNumber(row.priceReturn1y),
+      returnFrom:row.returnFrom || null,
+      returnTo:row.returnTo || null,
       isActive:typeof row.isActive === "boolean"
         ? row.isActive
         : (/[AD]$/.test(String(row.code || "").toUpperCase()) || /^主動/.test(String(row.name || ""))),
@@ -1198,11 +1209,16 @@ function evaluatePortfolio(total, picks, weights, stress, nhi, tax){
   let totalFee = 0;
   let cashPool = 0;
   let taxableGross = 0;
+  let priceGain = 0;
+  let hasReturnData = true;
   for (let index = 0; index < picks.length; index += 1) {
     const etf = picks[index];
     const budget = total * weights[index] / 100;
     const shares = Math.floor(budget / etf.close);
     cashPool += budget - shares * etf.close;
+    // 近一年價差（回測）。實際持有的是整股，零股退回現金不參與漲跌。
+    if (etf.priceReturn1y == null) hasReturnData = false;
+    else priceGain += shares * etf.close * etf.priceReturn1y / 100;
     // 未標註者視為全額應稅（保守），不要因為缺欄位就少算稅
     const ratio = etf.taxableRatio == null ? 1 : etf.taxableRatio;
     for (const event of etf.dps) {
@@ -1223,12 +1239,20 @@ function evaluatePortfolio(total, picks, weights, stress, nhi, tax){
   }
   const totalNet = totalGross - totalFee;
   const taxInfo = tax ? estimateDividendTax({taxableDividend:taxableGross, netIncome:tax.netIncome, params:tax.params}) : null;
+  const afterTaxNet = tax ? totalNet - (taxInfo ? taxInfo.tax : 0) : null;
   return {totalNet:totalNet, totalGross:totalGross, totalFee:totalFee,
     monthlyNet:monthlyNet, monthsWithCash:monthsWithCash, minMonth:minMonth, cashPool:cashPool,
     taxableGross:taxableGross,
     tax:taxInfo ? taxInfo.tax : null, taxRegime:taxInfo ? taxInfo.regime : null,
+    priceGain:priceGain, hasReturnData:hasReturnData,
+    // 稅後總報酬 ＝ 價差（個人證所稅停徵，免稅）＋ 配息 − 二代健保 − 綜所稅。
+    // 價差用 priceReturn1y，它依定義已排除配息，與下面的配息現金流不會重複計算。
+    // 缺任何一檔的報酬資料就回 null——用半套資料排序會系統性偏袒高配息、賠價差的標的，
+    // 那正是這個目標要修掉的問題。
+    afterTaxTotal:(hasReturnData && tax) ? priceGain + afterTaxNet : null,
+    preTaxTotal:hasReturnData ? priceGain + totalNet : null,
     // 稅基為 0 時 estimateDividendTax 回 null，稅後＝扣費後，不可留成 null 讓比較失效
-    afterTaxNet:tax ? totalNet - (taxInfo ? taxInfo.tax : 0) : null};
+    afterTaxNet:afterTaxNet};
 }
 
 // 配息波動度（變異係數 = 標準差/平均）。少於 2 筆無從判斷，回 null。
@@ -1253,17 +1277,11 @@ function dividendCv(dps){
 
 const QUALITY = {maxCv:0.6, maxPremium:1};
 
-// 核心＝大型、低配息、非債券的股票型 ETF。刻意不看 type 欄位：全 350 檔只有 2 檔
-// 被標「市值型」（classifyEtf 預設回主題型，僅人工清單那 13 檔正確），改用客觀的
-// 規模與殖利率判定；「債券型」靠名稱含「債」判斷可靠，用於排除以免債券 ETF 佔走核心位。
-function isCoreHolding(row){
-  if (row && row.isCoreField != null) return row.isCoreField;
-  if (row && row.isActive) return false;   // 主動型永不擔任核心
-  // 與後端 isCoreEtf 同一套規則；槓反／期貨／外幣計價雖已被候選池硬排除，
-  // 這裡也要排除，否則 ETF 表上的「核心」標記會誤標
-  const nonCore = {"債券型":1, "槓桿反向":1, "期貨型":1, "外幣計價":1};
-  return Boolean(row && row.aum >= 1000 && row.yield != null && row.yield <= 4.5 && !nonCore[row.type]);
-}
+// 「核心 ETF」的概念已移除。它原本的作用是：有人發現純粹最大化配息會選出
+// 賠價差的標的，於是硬加一條「至少要放 30% 的大型低配息基金」。那是在不承認
+// 目標函式錯了的前提下打的補丁——用「規模大、配息低」當作「會賺錢」的代理，
+// 而規模與配息高低都不是報酬。目標改成稅後總報酬後就不需要這個代理了：
+// 賠價差的標的會直接輸在目標函式上，不必再靠身分標籤把它擋掉。
 
 // 候選池：滿一年配息歷史（yield 非 null）、規模達標、排除槓反與期貨型，
 // 再過品質門檻（配息波動過大、溢價買進）。
@@ -1308,12 +1326,17 @@ function buildCandidatePool(etfs, options){
     return list;
   };
 
-  // 均衡目標：核心（依規模）＋ 配息端（依殖利率）分開取，
-  // 否則純殖利率排序會讓 0050（1.57%，91 檔中排名倒數第一）永遠進不了搜尋空間。
-  if (opts.goal === "balanced") {
-    const cores = base.filter(isCoreHolding).sort(function(a, b){return (b.aum - a.aum) || a.code.localeCompare(b.code);});
-    const rest = base.filter(function(row){return !isCoreHolding(row);});
-    return seedLargest(cores.slice(0, 3).concat(rest.slice(0, 8)));
+  // 總報酬目標：池必須依總報酬排序，不能依殖利率。0050 殖利率在 91 檔裡倒數第一，
+  // 依殖利率截斷會讓它永遠進不了搜尋空間——而它近一年總報酬 +106.7%。
+  // 這也是「核心保送」原本想解決卻解錯的問題：真正該保送的判準是報酬，不是規模。
+  if (opts.goal === "netTotal") {
+    const withReturn = base.filter(function(row){return row.totalReturn1y != null;});
+    const ranked = withReturn.slice().sort(function(a, b){
+      return (b.totalReturn1y - a.totalReturn1y) || (b.aum - a.aum) || a.code.localeCompare(b.code);
+    });
+    const picked = ranked.slice(0, cap + 2);
+    picked.rejected = Object.assign({}, rejected, {noReturn:base.length - withReturn.length});
+    return picked;
   }
 
   if (base.length <= cap) return base;
@@ -1382,15 +1405,20 @@ function optimizeAllocation(etfs, options){
   const maxPicks = opts.maxPicks || 5;
   const step = opts.step || 5;
   const minW = opts.minW == null ? 10 : opts.minW;
-  const tightCap = goal === "diverse" || goal === "balanced";
+  const tightCap = goal === "diverse" || goal === "netTotal";
   const maxW = tightCap ? Math.min(opts.maxW == null ? 40 : opts.maxW, 30) : (opts.maxW == null ? 40 : opts.maxW);
-  const minCoreW = opts.minCoreW == null ? 30 : opts.minCoreW;   // 均衡：核心合計下限
-  const maxHighYieldW = opts.maxHighYieldW == null ? 40 : opts.maxHighYieldW; // 均衡：>9% 高息合計上限
   const stress = opts.stress || 1;
   const nhi = opts.nhi || NHI;
 
   // 稅後目標需要使用者的綜合所得淨額才算得出來——沒有就明講，不要偷偷退回稅前排序
   let taxCtx = null;
+  if (goal === "netTotal") {
+    const rawNet = opts.netIncome;
+    if (rawNet == null || rawNet === "" || !Number.isFinite(Number(rawNet)) || Number(rawNet) < 0) {
+      return {picks:[], reason:"稅後總報酬最大化需要「綜合所得淨額」，請先在上方模擬器填入"};
+    }
+    taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
+  }
   if (goal === "afterTax") {
     const rawNet = opts.netIncome;
     if (rawNet == null || rawNet === "" || !Number.isFinite(Number(rawNet)) || Number(rawNet) < 0) {
@@ -1419,6 +1447,7 @@ function optimizeAllocation(etfs, options){
       if (candidate.monthsWithCash !== incumbent.monthsWithCash) return candidate.monthsWithCash > incumbent.monthsWithCash;
       if (candidate.minMonth !== incumbent.minMonth) return candidate.minMonth > incumbent.minMonth;
     }
+    if (goal === "netTotal") return candidate.afterTaxTotal > incumbent.afterTaxTotal;
     if (goal === "afterTax") return candidate.afterTaxNet > incumbent.afterTaxNet;
     return candidate.totalNet > incumbent.totalNet;
   };
@@ -1431,23 +1460,16 @@ function optimizeAllocation(etfs, options){
         const types = {};
         subset.forEach(function(row){types[row.type] = true;});
         subsetOk = Object.keys(types).length >= 3;
-      } else if (goal === "balanced") {
-        subsetOk = subset.some(isCoreHolding);
+      } else if (goal === "netTotal") {
+        // 品質閘門：整組都要有報酬資料，且不收近一年總報酬為負的標的。
+        // 這才是「核心 ETF」原本想擋的東西——賠錢的標的直接不進來，
+        // 不必用「規模大、配息低」這種與報酬無關的身分標籤當代理。
+        subsetOk = subset.every(function(row){ return row.totalReturn1y != null && row.totalReturn1y > 0; });
       }
       if (subsetOk) {
         const compositions = compositionCache[subset.length]
           || (compositionCache[subset.length] = weightCompositions(subset.length, minW, maxW, step));
         for (const weights of compositions) {
-          if (goal === "balanced") {
-            // 核心要真的佔份量，且高息部位不得喧賓奪主
-            let coreWeight = 0;
-            let highYieldWeight = 0;
-            for (let index = 0; index < subset.length; index += 1) {
-              if (isCoreHolding(subset[index])) coreWeight += weights[index];
-              if (subset[index].yield > 9) highYieldWeight += weights[index];
-            }
-            if (coreWeight < minCoreW || highYieldWeight > maxHighYieldW) continue;
-          }
           evaluated += 1;
           const result = evaluatePortfolio(total, subset, weights, stress, nhi, taxCtx);
           if (better(result, best && best.result)) {
@@ -1472,25 +1494,24 @@ function optimizeAllocation(etfs, options){
   const months = {};
   best.funds.forEach(function(row){row.dps.forEach(function(event){months[event.m] = true;});});
 
-  let coreWeight = 0;
-  best.funds.forEach(function(row, index){ if (isCoreHolding(row)) coreWeight += best.weights[index]; });
-
   return {
     picks:best.funds.map(function(row, index){
-      return {code:row.code, name:row.name, pct:best.weights[index], etf:row, core:isCoreHolding(row)};
+      return {code:row.code, name:row.name, pct:best.weights[index], etf:row};
     }),
     result:best.result,
     goal:goal,
-    coreWeight:coreWeight,
     rejected:pool.rejected || {cv:0, premium:0},
     baselineNet:baseline.totalNet,
     baselineMinMonth:baseline.minMonth,
     baselineAfterTaxNet:baseline.afterTaxNet,
+    baselineAfterTaxTotal:baseline.afterTaxTotal,
     // netYield/diverse 下等權在搜尋空間內，此值恆 ≥ 0；
     // monthly 是字典序目標（可能犧牲總額換最弱月），此值可為負，UI 依 goal 呈現。
-    gainVsEqual:goal === "afterTax"
-      ? best.result.afterTaxNet - baseline.afterTaxNet
-      : best.result.totalNet - baseline.totalNet,
+    gainVsEqual:goal === "netTotal"
+      ? best.result.afterTaxTotal - baseline.afterTaxTotal
+      : (goal === "afterTax"
+        ? best.result.afterTaxNet - baseline.afterTaxNet
+        : best.result.totalNet - baseline.totalNet),
     evaluated:evaluated,
     poolSize:pool.length,
     coveredMonths:Object.keys(months).map(Number).sort(function(a, b){return a - b;}),
@@ -1883,7 +1904,7 @@ function renderExposure(){
 }
 
 /* ===================== 配置產生器 ===================== */
-let suggestGoal = "balanced";
+let suggestGoal = "netTotal";
 
 function runSuggest(){
   const box = $("suggestResult");
@@ -1907,15 +1928,26 @@ function runSuggest(){
     const tone = cv <= 0.3 ? "pos" : (cv <= 0.6 ? "" : "neg");
     return '<span class="' + tone + '">' + fmt(cv, 2) + '</span>';
   };
-  box.innerHTML = '<div class="table-scroll" style="margin-top:10px"><table style="min-width:680px"><thead><tr>'
+  const retCell = function(etf){
+    if (etf.totalReturn1y == null) return '<td class="num"><span class="stale">—</span></td>'
+      + '<td class="num"><span class="stale">—</span></td><td class="num"><span class="stale">—</span></td>';
+    const divPart = Math.round((etf.totalReturn1y - etf.priceReturn1y) * 10) / 10;
+    return '<td class="num ' + toneClass(etf.totalReturn1y) + '"><b>' + signed(etf.totalReturn1y, 1) + '%</b></td>'
+      + '<td class="num ' + toneClass(etf.priceReturn1y) + '">' + signed(etf.priceReturn1y, 1) + '%</td>'
+      + '<td class="num">' + signed(divPart, 1) + '%</td>';
+  };
+  box.innerHTML = '<div class="backtest-warn">近一年<b>回測</b>數字，不是預測。過去漲得多不代表接下來會漲——'
+      + '以總報酬為目標等於「買去年表現最好的」，請把它當成比較的起點而不是結論。</div>'
+    + '<div class="table-scroll" style="margin-top:10px"><table style="min-width:860px"><thead><tr>'
       + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th>'
+      + '<th>近1年總報酬</th><th>其中價差</th><th>其中配息</th>'
       + '<th>近12月殖利率%</th><th>近24月配息波動</th><th>折溢價%</th><th>規模(億)</th><th>發放月</th></tr></thead><tbody>'
       + out.picks.map(function(pick){
           return '<tr><td style="text-align:left">' + codeLink(pick.code, pick.etf.market, pick.name) + '</td>'
-            + '<td style="text-align:left"><span class="nm">' + escapeHtml(pick.name) + '</span>'
-              + (pick.core ? '<span class="badge">核心</span>' : '') + '</td>'
+            + '<td style="text-align:left"><span class="nm">' + escapeHtml(pick.name) + '</span></td>'
             + '<td class="num">' + escapeHtml(pick.etf.type) + '</td>'
             + '<td class="num"><b>' + pick.pct + '%</b></td>'
+            + retCell(pick.etf)
             + '<td class="num">' + (pick.etf.yield == null ? "—" : fmt(pick.etf.yield, 2)) + '</td>'
             + '<td class="num">' + cvText(pick.etf) + '</td>'
             + '<td class="num ' + toneClass(pick.etf.discountPremium) + '">' + (pick.etf.discountPremium == null ? "—" : signed(pick.etf.discountPremium, 2)) + '</td>'
@@ -1924,6 +1956,20 @@ function runSuggest(){
         }).join("")
     + '</tbody></table></div>'
     + '<div class="sim-summary">'
+      + (suggestGoal === "netTotal"
+        ? '<div class="sim-kpi"><b>近一年稅後總報酬</b><span class="' + toneClass(result.afterTaxTotal) + '">'
+            + fmt(Math.round(result.afterTaxTotal), 0) + '</span>'
+          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">'
+            + '價差 ' + fmt(Math.round(result.priceGain), 0) + '（免證所稅）＋配息 ' + fmt(Math.round(result.totalNet), 0)
+            // 稅可能是負的（可退還的股利抵減大於應納稅額），這時要寫「退稅」而不是「−所得稅 -2,852」
+            + '（扣健保）' + (result.tax < 0
+              ? '＋退稅 ' + fmt(Math.round(-result.tax), 0)
+              : '−所得稅 ' + fmt(Math.round(result.tax || 0), 0)) + '</span></div>'
+          + '<div class="sim-kpi"><b>報酬率（稅後）</b><span class="' + toneClass(result.afterTaxTotal) + '">'
+            + fmt(result.afterTaxTotal / total * 100, 2) + '%</span>'
+          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">其中配息貢獻 '
+            + fmt(result.totalNet / total * 100, 2) + 'pp</span></div>'
+        : '')
       + '<div class="sim-kpi"><b>扣費後年配息（壓力 ×' + simStress + '）</b><span>' + fmt(Math.round(result.totalNet), 0) + '</span></div>'
       + (suggestGoal === "afterTax"
         ? '<div class="sim-kpi"><b>估算所得稅（' + escapeHtml(result.taxRegime || "無應稅所得") + '）</b>'
@@ -1935,10 +1981,9 @@ function runSuggest(){
       + '<div class="sim-kpi"><b>整體殖利率（扣費後）</b><span>' + fmt(result.totalNet / total * 100, 2) + '%</span></div>'
       + '<div class="sim-kpi"><b>有現金流月數</b><span' + (result.monthsWithCash === 12 ? ' class="pos"' : '') + '>' + result.monthsWithCash + ' / 12</span>'
         + (missing.length ? '<span style="display:block;font-size:11px;color:var(--amber);font-family:inherit">缺 ' + missing.join("·") + ' 月</span>' : '') + '</div>'
-      + (suggestGoal === "balanced"
-        // 均衡的價值在「核心佔比」，等權重基準可能違反核心下限而看似更賺，比它會誤導
-        ? '<div class="sim-kpi"><b>核心佔比</b><span class="pos">' + out.coreWeight + '%</span>'
-          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">大型低配息股票型（規模≥1000億、殖利率≤4.5%）</span></div>'
+      + (suggestGoal === "netTotal"
+        ? '<div class="sim-kpi"><b>較等權重多（稅後總報酬）</b><span' + (out.gainVsEqual > 0 ? ' class="pos"' : '') + '>+' + fmt(Math.round(out.gainVsEqual), 0) + '</span>'
+          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重為 ' + fmt(Math.round(out.baselineAfterTaxTotal), 0) + '</span></div>'
         : suggestGoal === "monthly"
         // 字典序目標的價值在「最弱月更厚」，可能犧牲總額——比較最弱月而非總額，才不誤導
         ? '<div class="sim-kpi"><b>最弱月（扣費後）</b><span class="pos">' + fmt(Math.round(result.minMonth), 0) + '</span>'
@@ -2199,7 +2244,7 @@ function bind(){
   });
 
   /* --- 配置產生器 --- */
-  const goalButtons = [["gBalanced", "balanced"], ["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"], ["gAfterTax", "afterTax"]];
+  const goalButtons = [["gNetTotal", "netTotal"], ["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"], ["gAfterTax", "afterTax"]];
   for (const pair of goalButtons) {
     const node = $(pair[0]);
     if (!node) continue;
@@ -2263,7 +2308,7 @@ const marketApp = {
     buildCandidatePool:buildCandidatePool,
     dividendCv:dividendCv,
     etfCv:etfCv,
-    isCoreHolding:isCoreHolding,
+
     weightCompositions:weightCompositions,
     simulate:simulate,
     simWeightBounds:simWeightBounds,

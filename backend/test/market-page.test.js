@@ -1154,70 +1154,113 @@ test("quality gate drops volatile payers and premium buys but keeps steady growe
   assert.equal(pool.rejected.premium, 1);
 });
 
-test("isCoreHolding uses size and yield, not the unreliable type field", async () => {
-  const { app } = await loadMarket(dualFeedMock());
-  await app.init();
-  const { isCoreHolding } = app.helpers;
-  // 0050 等級：大規模、低配息
-  assert.equal(isCoreHolding({ aum: 21982, yield: 1.57, type: "市值型" }), true);
-  // 廣基型被 classifyEtf 誤標主題型，仍要認得出來
-  assert.equal(isCoreHolding({ aum: 4279, yield: 3.52, type: "主題型" }), true);
-  // 債券 ETF 不得佔走股票型核心的位置（原型驗證時 00679B 4.17% 曾頂替 0050）
-  assert.equal(isCoreHolding({ aum: 1726, yield: 4.17, type: "債券型" }), false);
-  assert.equal(isCoreHolding({ aum: 500, yield: 2, type: "市值型" }), false, "too small");
-  assert.equal(isCoreHolding({ aum: 5384, yield: 9.7, type: "高股息" }), false, "yield too high to be a core");
-});
+// 「配息最多」不等於「賺最多」。這是整個目標函式改寫的理由：
+// 一檔配 12% 卻跌 20% 的標的在舊目標下排第一，但它在賠錢。
+const mkFund = (code, opts) => Object.assign({
+  code, name: code, type: "主題型", market: "twse", close: 10, aum: 2000,
+  discountPremium: 0, payMonths: [3, 9], topHoldings: [],
+}, opts);
 
-test("balanced goal anchors a real core and caps the high-yield sleeve", async () => {
+test("the total-return goal rejects a high yielder that lost money", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
-  const mk = (code, aum, yieldPct, type) => ({
-    code, name: code, type, close: 10, aum, yield: yieldPct, discountPremium: 0,
-    dps: [{ m: 3, a: yieldPct / 10 }, { m: 9, a: yieldPct / 10 }], payMonths: [3, 9], topHoldings: [],
-  });
-  const pool = [
-    mk("0050X", 21982, 1.6, "市值型"),   // 核心
-    mk("00B1", 1726, 4.1, "債券型"),     // 大且低配息，但是債券 → 不算核心
-    mk("00H1", 5384, 9.7, "高股息"),     // 高息 >9%
-    mk("00H2", 1131, 9.5, "主題型"),     // 高息 >9%
-    mk("00M1", 581, 8.8, "主題型"),
+  const universe = [
+    // 配息王，但價差 −20%：舊的「最高配息」目標會選它，總報酬目標必須拒絕
+    mkFund("00TRAP", { yield: 12, dps: [{ m: 3, a: 0.6 }, { m: 9, a: 0.6 }],
+      totalReturn1y: -8, priceReturn1y: -20 }),
+    mkFund("00GOOD", { yield: 4, dps: [{ m: 3, a: 0.2 }, { m: 9, a: 0.2 }],
+      totalReturn1y: 30, priceReturn1y: 26 }),
+    mkFund("00OK", { yield: 6, dps: [{ m: 3, a: 0.3 }, { m: 9, a: 0.3 }],
+      totalReturn1y: 18, priceReturn1y: 12 }),
+    mkFund("00MEH", { yield: 5, dps: [{ m: 3, a: 0.25 }, { m: 9, a: 0.25 }],
+      totalReturn1y: 12, priceReturn1y: 7 }),
+    // 單檔上限 30% ⇒ 至少要 4 檔才湊得到 100%。池裡若只有 4 檔可用，
+    // 唯一的 4 檔子集必然含 00TRAP，測不出「拒絕」——要留一檔備位。
+    mkFund("00ALT", { yield: 4.5, dps: [{ m: 6, a: 0.45 }],
+      totalReturn1y: 15, priceReturn1y: 10.5 }),
   ];
-  const out = app.helpers.optimizeAllocation(pool, { total: 2000000, goal: "balanced" });
-  assert.ok(out.picks.length >= 3);
+  const out = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "netTotal", netIncome: 500000 });
+  assert.ok(out.picks.length >= 3, out.reason || "should find a combination");
   assert.equal(out.picks.reduce((sum, pick) => sum + pick.pct, 0), 100);
-  assert.ok(out.picks.some((pick) => pick.core), "must hold at least one core");
-  assert.ok(out.coreWeight >= 30, `core weight ${out.coreWeight} below the 30% floor`);
-  out.picks.forEach((pick) => assert.ok(pick.pct <= 30, "balanced caps every fund at 30%"));
-  const highYield = out.picks.reduce((sum, pick) => sum + (pick.etf.yield > 9 ? pick.pct : 0), 0);
-  assert.ok(highYield <= 40, `high-yield sleeve ${highYield}% exceeds the 40% cap`);
-  const bondAsCore = out.picks.some((pick) => pick.core && pick.etf.type === "債券型");
-  assert.equal(bondAsCore, false, "a bond ETF must never satisfy the core requirement");
+  assert.ok(!out.picks.some((pick) => pick.code === "00TRAP"), "總報酬為負的標的不得入選");
+  assert.ok(out.result.afterTaxTotal > 0);
+
+  // 對照：舊的最高配息目標確實會挑中它——這正是要修掉的行為
+  const byYield = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "netYield" });
+  assert.ok(byYield.picks.some((pick) => pick.code === "00TRAP"), "配息目標會選中賠錢的高息標的（對照組）");
 });
 
-test("balanced pool reaches the core that yield ranking structurally excludes", async () => {
+test("after-tax total return counts capital gains tax-free and dividends taxed", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
-  // 重現真實情況：合格檔數超過 poolCap(9) 時，純殖利率排序會把
-  // 0050 這種 1.57% 的核心擠到最後（實測 91 檔中排名 #91），永遠進不了搜尋空間
-  const highYielders = Array.from({ length: 12 }, (_, i) => ({
-    code: "00Y" + i, name: "高息" + i, type: "高股息", close: 10, aum: 500, yield: 9 - i * 0.1, discountPremium: 0,
-    dps: [{ m: 3, a: 0.45 }, { m: 9, a: 0.45 }], payMonths: [3, 9], topHoldings: [],
+  const universe = [
+    mkFund("00A", { yield: 4, dps: [{ m: 3, a: 0.2 }, { m: 9, a: 0.2 }], totalReturn1y: 30, priceReturn1y: 26 }),
+    mkFund("00B", { yield: 5, dps: [{ m: 3, a: 0.25 }, { m: 9, a: 0.25 }], totalReturn1y: 22, priceReturn1y: 17 }),
+    mkFund("00C", { yield: 6, dps: [{ m: 3, a: 0.3 }, { m: 9, a: 0.3 }], totalReturn1y: 18, priceReturn1y: 12 }),
+    // 單檔上限 30% ⇒ 4 檔起跳才湊得到 100%
+    mkFund("00D", { yield: 3, dps: [{ m: 6, a: 0.3 }], totalReturn1y: 25, priceReturn1y: 22 }),
+  ];
+  const out = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "netTotal", netIncome: 500000 });
+  assert.ok(out.result, out.reason || "should find a combination");
+  const r = out.result;
+  // 稅後總報酬 ＝ 價差（免證所稅）＋ 扣費後配息 − 所得稅
+  assert.ok(r.priceGain > 0, "價差要算進來");
+  assert.equal(Math.round(r.afterTaxTotal), Math.round(r.priceGain + r.afterTaxNet),
+    "稅後總報酬必須等於 價差 + 稅後配息，價差不得被課稅");
+  assert.ok(r.afterTaxTotal > r.afterTaxNet, "只看配息會低估實際賺到的錢");
+});
+
+test("the total-return goal refuses to guess the tax bracket", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const universe = [
+    mkFund("00A", { yield: 4, dps: [{ m: 3, a: 0.2 }], totalReturn1y: 30, priceReturn1y: 26 }),
+    mkFund("00B", { yield: 5, dps: [{ m: 3, a: 0.25 }], totalReturn1y: 22, priceReturn1y: 17 }),
+    mkFund("00C", { yield: 6, dps: [{ m: 3, a: 0.3 }], totalReturn1y: 18, priceReturn1y: 12 }),
+  ];
+  const out = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "netTotal" });
+  assert.equal(out.picks.length, 0);
+  assert.match(out.reason, /綜合所得淨額/);
+});
+
+// 缺報酬資料的標的不能混進來：只有配息的那半套資料會系統性偏袒賠價差的高配息標的
+test("funds without return data are excluded from the total-return goal", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const universe = [
+    mkFund("00A", { yield: 4, dps: [{ m: 3, a: 0.2 }], totalReturn1y: 30, priceReturn1y: 26 }),
+    mkFund("00B", { yield: 5, dps: [{ m: 3, a: 0.25 }], totalReturn1y: 22, priceReturn1y: 17 }),
+    mkFund("00C", { yield: 6, dps: [{ m: 3, a: 0.3 }], totalReturn1y: 18, priceReturn1y: 12 }),
+    mkFund("00NEW", { yield: 15, dps: [{ m: 3, a: 0.75 }] }),   // 新上市，沒有滿一年報酬
+  ];
+  const pool = app.helpers.buildCandidatePool(universe, { goal: "netTotal" });
+  assert.ok(!pool.some((row) => row.code === "00NEW"), "沒有報酬資料就不進候選池");
+  const out = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "netTotal", netIncome: 500000 });
+  assert.ok(!out.picks.some((pick) => pick.code === "00NEW"));
+});
+
+// 候選池必須依報酬排序。依殖利率截斷會讓 0050（殖利率 91 檔中倒數第一、
+// 近一年總報酬 +106.7%）永遠進不了搜尋空間——這正是「核心保送」原本想解決
+// 卻解錯的問題：真正該保送的判準是報酬，不是規模。
+test("the total-return pool ranks by return, not by yield", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const highYielders = Array.from({ length: 12 }, (_, i) => mkFund("00Y" + i, {
+    type: "高股息", aum: 500, yield: 9 - i * 0.1,
+    dps: [{ m: 3, a: 0.45 }, { m: 9, a: 0.45 }],
+    totalReturn1y: 5 - i * 0.2, priceReturn1y: -3 - i * 0.2,
   }));
-  const core = {
-    code: "0050X", name: "大型核心", type: "市值型", close: 100, aum: 21982, yield: 1.57, discountPremium: 0,
-    dps: [{ m: 2, a: 0.8 }, { m: 8, a: 0.8 }], payMonths: [2, 8], topHoldings: [],
-  };
-  const universe = highYielders.concat([core]);
+  const winner = mkFund("0050X", {
+    name: "大型核心", type: "市值型", close: 100, aum: 21982, yield: 1.57,
+    dps: [{ m: 2, a: 0.8 }, { m: 8, a: 0.8 }], payMonths: [2, 8],
+    totalReturn1y: 106.7, priceReturn1y: 102.5,
+  });
+  const universe = highYielders.concat([winner]);
 
-  const yieldPool = app.helpers.buildCandidatePool(universe, { goal: "netYield" });
-  // cap 仍是 9，規模保送額外再加 1 檔（不佔用殖利率名額）
-  assert.equal(yieldPool.length, 10, "cap binds, then the size seed adds the largest fund on top");
-  assert.ok(yieldPool.some((row) => row.code === "0050X"), "純殖利率排序也不得把最大檔關在門外");
-
-  const balancedPool = app.helpers.buildCandidatePool(universe, { goal: "balanced" });
-  assert.ok(balancedPool.some(app.helpers.isCoreHolding), "balanced pool seeds the core regardless of its yield rank");
-  const out = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "balanced" });
-  assert.ok(out.picks.some((pick) => pick.code === "0050X"), "and the optimiser can actually pick it");
+  const pool = app.helpers.buildCandidatePool(universe, { goal: "netTotal" });
+  assert.equal(pool[0].code, "0050X", "報酬最高的必須排在池首，即使它殖利率墊底");
+  const out = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "netTotal", netIncome: 500000 });
+  assert.ok(out.picks.some((pick) => pick.code === "0050X"), "而且最佳化真的選得到它");
 });
 
 test("the three largest qualifying funds are seeded into every goal's pool", async () => {
@@ -1260,7 +1303,7 @@ test("the three largest qualifying funds are seeded into every goal's pool", asy
   assert.ok(out.picks.some((pick) => pick.code === "0056X"), "又大又高息時必須勝出");
 });
 
-test("active funds are opt-in and structurally barred from being core", async () => {
+test("active funds are opt-in; leveraged and FX share classes are always out", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();
   const mk = (code, name, extra) => Object.assign({
@@ -1288,9 +1331,6 @@ test("active funds are opt-in and structurally barred from being core", async ()
   const on = app.helpers.buildCandidatePool(universe, { includeActive: true });
   assert.ok(on.some((row) => row.code === "00403A"), "opt-in brings them back");
   assert.ok(!on.some((row) => row.type === "槓桿反向"), "but never the leveraged ones");
-
-  // 即使納入，主動型仍不得被判為核心（規模與殖利率都符合也一樣）
-  assert.equal(app.helpers.isCoreHolding({ code: "00403A", isActive: true, aum: 1526, yield: 3, type: "主動型" }), false);
 
   // 端到端：optimizeAllocation 透傳 includeActive
   const defaultRun = app.helpers.optimizeAllocation(universe, { total: 1000000, goal: "netYield" });
