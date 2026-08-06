@@ -89,6 +89,14 @@
   .backtest-warn{border:1px solid var(--amber);border-left-width:4px;border-radius:8px;background:rgba(217,166,76,.10);
     padding:10px 12px;margin-top:12px;font-size:12px;color:var(--soft);line-height:1.6}
   .backtest-warn b{color:var(--amber)}
+  .profile-form{border:1px solid var(--line2);border-radius:8px;background:var(--panel);padding:12px;margin-top:12px}
+  .profile-head{font-size:12px;color:var(--soft);margin-bottom:8px}
+  .profile-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .profile-row .fld{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--soft)}
+  .profile-note{font-size:11px;color:var(--faint);margin-top:8px;line-height:1.6}
+  .profile-note b{color:var(--soft)}
+  .score-cell{font-family:"Roboto Mono",monospace;font-size:10px;white-space:nowrap}
+  .score-cell i{font-style:normal;color:var(--faint)}
   .lowbase{background:var(--green-bg);color:var(--green);border-radius:8px;padding:1px 6px;font-family:"Roboto Mono",monospace;font-size:10px}
   .empty{padding:26px;text-align:center;color:var(--faint);font-size:13px}
   .more{display:flex;justify-content:center;margin-top:14px}
@@ -337,6 +345,43 @@
       <strong>稅後總報酬最大化（預設）</strong>：目標為<strong>價差＋配息−所得稅−二代健保</strong>。價差取 Yahoo adjclose 近一年、已自行校正分割；台股個人證所稅停徵，因此價差免稅而配息要課稅，兩者的稅負待遇不同會實質改變最佳解。候選池改依總報酬排序並排除總報酬為負者，需先在上方模擬器填綜合所得淨額。<strong>這一段全部是近一年回測，不是預測</strong>——以總報酬為目標等於「買去年表現最好的」，請當成比較的起點而非結論。滿一年歷史不足或價格有無法解釋跳動的標的不發布報酬，也不會進入這個目標的候選池。
       <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息，需先在上方模擬器填綜合所得淨額。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>。
       注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。<strong>「最高配息」「補滿 12 個月」「分散類型」「稅後配息」四個目標只看配息現金流、不含資本利得</strong>——一檔配 10% 卻跌 12% 的標的在那些目標下會排很前面，但它在賠錢；要看實際賺多少請用預設的總報酬目標。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
+    <div class="profile-form">
+      <div class="profile-head">先描述你的情況，下面的目標與約束會自動設定</div>
+      <div class="profile-row">
+        <span class="fld">投資期限
+          <select id="pfHorizon" aria-label="投資期限">
+            <option value="2">3 年以內</option>
+            <option value="5">3–10 年</option>
+            <option value="15" selected>10 年以上</option>
+          </select>
+        </span>
+        <span class="fld">最多能忍受跌
+          <select id="pfLoss" aria-label="最大可接受虧損">
+            <option value="10">10%</option>
+            <option value="20">20%</option>
+            <option value="30" selected>30%</option>
+            <option value="">不設限</option>
+          </select>
+        </span>
+        <span class="fld">單一標的最多
+          <select id="pfMaxW" aria-label="單一標的權重上限">
+            <option value="20">20%</option>
+            <option value="25">25%</option>
+            <option value="30" selected>30%</option>
+            <option value="40">40%</option>
+          </select>
+        </span>
+        <label class="fld" style="cursor:pointer"><input type="checkbox" id="pfCashflow" style="accent-color:var(--amber)" /> 需要月月有現金流</label>
+        <label class="fld" style="cursor:pointer"><input type="checkbox" id="pfActive" style="accent-color:var(--amber)" /> 納入主動型</label>
+        <button class="btn" id="pfRun" type="button">依我的情況計算</button>
+      </div>
+      <div class="profile-note" id="pfNote"></div>
+      <div class="profile-note">
+        <b>刻意不問的事</b>：年齡（只是投資期限的代理，問了會重複計數）、每月投入金額（最佳化器算的是權重，定期定額不改變權重）、
+        既有其他資產（本站沒有那些資料）、再平衡頻率（沒有回測再平衡的能力，給建議等於編造）。
+        槓桿與反向 ETF 恆不納入，不提供開關。收集了卻不影響結果的問題，問了只是裝飾。
+      </div>
+    </div>
     <div class="toolbar">
       <div class="toolrow">
         <div class="presets">
@@ -738,6 +783,9 @@ function normalizeEtfFeed(payload){
       close:parseNumber(row.close),
       change:parseNumber(row.change),
       nav:parseNumber(row.nav),
+      // 成交股數：流動性評分要用（成交額＝收盤×股數）。原本沒帶進來，
+      // 六維評分的流動性那一欄整欄是「—」。
+      volume:parseNumber(row.volume),
       discountPremium:parseNumber(row.discountPremium),
       aum:parseNumber(row.aum),
       yield:parseNumber(row.yield),
@@ -760,6 +808,8 @@ function normalizeEtfFeed(payload){
       // 只有配息的半套資料會系統性偏袒賠價差的高配息標的。
       totalReturn1y:parseNumber(row.totalReturn1y),
       priceReturn1y:parseNumber(row.priceReturn1y),
+      volatility1y:parseNumber(row.volatility1y),
+      maxDrawdown1y:parseNumber(row.maxDrawdown1y),
       returnFrom:row.returnFrom || null,
       returnTo:row.returnTo || null,
       isActive:typeof row.isActive === "boolean"
@@ -1277,6 +1327,90 @@ function dividendCv(dps){
 
 const QUALITY = {maxCv:0.6, maxPremium:1};
 
+/* ---------- 六維評分 ---------- */
+
+// 用**百分位排名**而不是絕對門檻。「波動 <15% 給 10 分」這種門檻是憑空訂的，
+// 百分位至少說得出「相對於同期其他 N 檔」。缺料回 null 而不是 0——
+// 0 分是「很差」，null 是「不知道」，混為一談會讓新上市 ETF 看起來很爛。
+//
+// 沒有「管理費優勢」這一項：etf-static.json 的 expenseRatio 21 檔全 null，
+// 檔案自己註記「無可靠機器可讀源」。與其給一個猜的分數，不如不評並說明原因。
+const SCORE_DIMENSIONS = [
+  // short 是表格裡的縮寫，必須彼此不同——直接截前兩字會讓「配息能力」與
+  // 「配息穩定度」都變成「配息」，同一列出現兩個一樣的標籤。
+  {key:"return", label:"報酬潛力", short:"報酬", of:function(r){return r.totalReturn1y;}, higherIsBetter:true},
+  {key:"volatility", label:"波動度", short:"波動", of:function(r){return r.volatility1y;}, higherIsBetter:false},
+  {key:"drawdown", label:"風險（回撤）", short:"回撤", of:function(r){return r.maxDrawdown1y;}, higherIsBetter:true},
+  {key:"income", label:"配息能力", short:"息高", of:function(r){return r.yield;}, higherIsBetter:true},
+  {key:"stability", label:"配息穩定度", short:"息穩", of:function(r){return etfCv(r);}, higherIsBetter:false},
+  {key:"liquidity", label:"流動性", short:"流動", of:function(r){
+    // 成交額與規模都反映「進得去出得來」，取兩者的幾何平均避免單一極端值主導
+    const turnover = (r.close != null && r.volume != null) ? r.close * r.volume / 1e8 : null;
+    if (turnover == null || r.aum == null) return null;
+    return Math.sqrt(Math.max(turnover, 0.01) * Math.max(r.aum, 0.01));
+  }, higherIsBetter:true},
+];
+
+// 回撤是負值，越接近 0 越好，所以上面 drawdown 用 higherIsBetter=true（−9.7 > −53.1）。
+function percentileScore(value, sorted, higherIsBetter){
+  if (value == null || !sorted.length) return null;
+  // 有多少檔比它差
+  let worse = 0;
+  for (const other of sorted) {
+    if (higherIsBetter ? other < value : other > value) worse += 1;
+  }
+  const score = sorted.length === 1 ? 5 : (worse / (sorted.length - 1)) * 10;
+  return Math.round(score * 10) / 10;
+}
+
+// universe 決定百分位的分母。傳整個候選宇宙，不要只傳被選中的幾檔——
+// 「在 4 檔裡排第一」和「在 285 檔裡排第一」是完全不同的資訊。
+function etfScores(row, universe){
+  const pool = Array.isArray(universe) && universe.length ? universe : [row];
+  const out = {};
+  for (const dim of SCORE_DIMENSIONS) {
+    const values = pool.map(dim.of).filter(function(v){return v != null && Number.isFinite(v);});
+    out[dim.key] = percentileScore(dim.of(row), values, dim.higherIsBetter);
+  }
+  return out;
+}
+
+/* ---------- 投資人問卷 → 最佳化器約束 ---------- */
+
+// 只問「答案會改變輸出」的問題。收集了卻不影響結果就是演戲，所以刻意不問：
+//   年齡        — 只是投資期限的代理，已直接問期限，再問一次是重複計數
+//   每月投入金額 — 最佳化器算的是權重，定期定額不改變權重
+//   既有其他資產 — 沒有那些資料，無從做整體配置
+//   再平衡頻率   — 沒有回測再平衡的能力，給建議等於編造
+//   槓桿／反向   — 恆排除（每日重設的路徑依賴），不提供開關
+function profileToConstraints(profile){
+  const p = profile || {};
+  const years = Number(p.horizonYears);
+  const tolerance = Number(p.maxLossPct);      // 使用者能忍受的最大跌幅（正數）
+  const out = {};
+
+  // 需要月月有現金流 → 目標換成 monthly（字典序：先湊滿 12 個月，再墊高最弱月）。
+  // 否則以稅後總報酬為目標。
+  out.goal = p.needCashflow ? "monthly" : "netTotal";
+
+  // 集中度：使用者直接選，沒選就用期限推。短期不該押注單一標的。
+  const picked = Number(p.maxWeightPct);
+  out.maxW = Number.isFinite(picked) && picked > 0 ? picked
+    : (Number.isFinite(years) && years < 3 ? 20 : 30);
+  // 單檔上限決定最少檔數（上限 20% ⇒ 至少 5 檔才湊得到 100%）
+  out.minPicks = Math.max(3, Math.ceil(100 / out.maxW));
+
+  // 可接受虧損 → 用最大回撤當閘門。這是問卷唯一真正在過濾標的的條件，
+  // 也是「保守」與「積極」會產出不同組合的原因。
+  if (Number.isFinite(tolerance) && tolerance > 0) out.maxDrawdownPct = tolerance;
+  // 期限很短時再收緊一階：一年的回撤在三年內很可能重演，時間不夠攤平
+  if (Number.isFinite(years) && years < 3 && out.maxDrawdownPct == null) out.maxDrawdownPct = 15;
+
+  if (p.includeActive) out.includeActive = true;
+  if (p.netIncome != null && p.netIncome !== "") out.netIncome = p.netIncome;
+  return out;
+}
+
 // 「核心 ETF」的概念已移除。它原本的作用是：有人發現純粹最大化配息會選出
 // 賠價差的標的，於是硬加一條「至少要放 30% 的大型低配息基金」。那是在不承認
 // 目標函式錯了的前提下打的補丁——用「規模大、配息低」當作「會賺錢」的代理，
@@ -1290,7 +1424,11 @@ function buildCandidatePool(etfs, options){
   const opts = options || {};
   const minAum = opts.minAum == null ? 50 : opts.minAum;
   const cap = opts.poolCap || 9;
-  const rejected = {cv:0, premium:0, active:0};
+  const rejected = {cv:0, premium:0, active:0, drawdown:0};
+  // 問卷的「可接受虧損」：用近一年最大回撤當閘門。缺回撤資料的標的一併排除——
+  // 使用者說了能忍受多少，就不該把「不知道跌多深」的標的塞給他。
+  const maxDrawdownPct = Number(opts.maxDrawdownPct);
+  const hasDrawdownGate = Number.isFinite(maxDrawdownPct) && maxDrawdownPct > 0;
   // 主動型預設不納入：經理人風險與較高費用率，性質與被動指數 ETF 不同
   const includeActive = Boolean(opts.includeActive);
   const base = (etfs || []).filter(function(row){
@@ -1303,6 +1441,10 @@ function buildCandidatePool(etfs, options){
     const cv = etfCv(row);
     if (cv != null && cv > QUALITY.maxCv) { rejected.cv += 1; return false; }
     if (row.discountPremium != null && row.discountPremium > QUALITY.maxPremium) { rejected.premium += 1; return false; }
+    if (hasDrawdownGate && !(row.maxDrawdown1y != null && row.maxDrawdown1y >= -maxDrawdownPct)) {
+      rejected.drawdown += 1;
+      return false;
+    }
     return true;
   }).sort(function(a, b){
     return (b.yield - a.yield) || (b.aum - a.aum) || a.code.localeCompare(b.code);
@@ -1427,7 +1569,8 @@ function optimizeAllocation(etfs, options){
     taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
   }
 
-  const pool = buildCandidatePool(etfs, {goal:goal, minAum:opts.minAum, poolCap:opts.poolCap, includeActive:opts.includeActive});
+  const pool = buildCandidatePool(etfs, {goal:goal, minAum:opts.minAum, poolCap:opts.poolCap,
+    includeActive:opts.includeActive, maxDrawdownPct:opts.maxDrawdownPct});
   if (!pool.length) return {picks:[], reason:"沒有符合基本門檻的 ETF（需滿一年配息歷史、規模 ≥50 億、非槓反/期貨）"};
   // 應稅比例在這裡算一次就好；放進內圈會讓正規表示式跑數十萬次
   if (taxCtx) pool.forEach(function(row){ row.taxableRatio = etfTaxableRatio(row).ratio; });
@@ -1500,7 +1643,8 @@ function optimizeAllocation(etfs, options){
     }),
     result:best.result,
     goal:goal,
-    rejected:pool.rejected || {cv:0, premium:0},
+    rejected:pool.rejected || {cv:0, premium:0, drawdown:0},
+    poolUniverse:pool,
     baselineNet:baseline.totalNet,
     baselineMinMonth:baseline.minMonth,
     baselineAfterTaxNet:baseline.afterTaxNet,
@@ -1906,6 +2050,10 @@ function renderExposure(){
 /* ===================== 配置產生器 ===================== */
 let suggestGoal = "netTotal";
 
+// 問卷算出來的約束。null＝使用者還沒用問卷，走目標按鈕的原行為。
+// 按任一個目標按鈕會清掉它——否則使用者以為自己換了目標，實際上被問卷蓋回去。
+let activeProfile = null;
+
 function runSuggest(){
   const box = $("suggestResult");
   if (!box) return;
@@ -1915,8 +2063,10 @@ function runSuggest(){
   const includeActive = Boolean(($("gActive") || {}).checked);
   // 稅後目標沿用模擬器那格「綜合所得淨額」，不另開一個輸入——兩格會分叉
   const netIncomeRaw = ($("simNetIncome") || {}).value;
-  const out = optimizeAllocation(allEtfs, {total:total, goal:suggestGoal, stress:simStress, nhi:NHI, includeActive:includeActive,
-    netIncome:String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw), taxParams:taxParams});
+  // 問卷（若按過「依我的情況計算」）覆寫目標與約束；直接按目標按鈕則走原路。
+  const base = {total:total, goal:suggestGoal, stress:simStress, nhi:NHI, includeActive:includeActive,
+    netIncome:String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw), taxParams:taxParams};
+  const out = optimizeAllocation(allEtfs, Object.assign(base, activeProfile || {}));
   const elapsed = Date.now() - started;
   if (!out.picks.length) { box.innerHTML = '<p class="hint">' + escapeHtml(out.reason || "找不到組合") + '</p>'; return; }
   const result = out.result;
@@ -1927,6 +2077,16 @@ function runSuggest(){
     if (cv == null) return '<span class="stale">樣本' + (etf.dps ? etf.dps.length : 0) + '筆</span>';
     const tone = cv <= 0.3 ? "pos" : (cv <= 0.6 ? "" : "neg");
     return '<span class="' + tone + '">' + fmt(cv, 2) + '</span>';
+  };
+  // 百分位的分母是整個候選池，不是被選中的那 4 檔——
+  // 「在 4 檔裡排第一」和「在 285 檔裡排第一」是完全不同的資訊。
+  const universe = out.poolUniverse || out.picks.map(function(p){return p.etf;});
+  const scoreCell = function(etf){
+    const s = etfScores(etf, universe);
+    return SCORE_DIMENSIONS.map(function(dim){
+      const v = s[dim.key];
+      return '<i>' + dim.short + '</i> ' + (v == null ? "—" : fmt(v, 1));
+    }).join("　");
   };
   const retCell = function(etf){
     if (etf.totalReturn1y == null) return '<td class="num"><span class="stale">—</span></td>'
@@ -1940,7 +2100,8 @@ function runSuggest(){
       + '以總報酬為目標等於「買去年表現最好的」，請把它當成比較的起點而不是結論。</div>'
     + '<div class="table-scroll" style="margin-top:10px"><table style="min-width:860px"><thead><tr>'
       + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th>'
-      + '<th>近1年總報酬</th><th>其中價差</th><th>其中配息</th>'
+      + '<th>近1年總報酬</th><th>其中價差</th><th>其中配息</th><th>年化波動</th><th>最大回撤</th>'
+      + '<th title="相對於候選池其他標的的百分位，0~10；管理費優勢無資料來源故不評分">六維評分</th>'
       + '<th>近12月殖利率%</th><th>近24月配息波動</th><th>折溢價%</th><th>規模(億)</th><th>發放月</th></tr></thead><tbody>'
       + out.picks.map(function(pick){
           return '<tr><td style="text-align:left">' + codeLink(pick.code, pick.etf.market, pick.name) + '</td>'
@@ -1948,6 +2109,9 @@ function runSuggest(){
             + '<td class="num">' + escapeHtml(pick.etf.type) + '</td>'
             + '<td class="num"><b>' + pick.pct + '%</b></td>'
             + retCell(pick.etf)
+            + '<td class="num">' + (pick.etf.volatility1y == null ? "—" : fmt(pick.etf.volatility1y, 1) + "%") + '</td>'
+            + '<td class="num ' + toneClass(pick.etf.maxDrawdown1y) + '">' + (pick.etf.maxDrawdown1y == null ? "—" : fmt(pick.etf.maxDrawdown1y, 1) + "%") + '</td>'
+            + '<td class="score-cell">' + scoreCell(pick.etf) + '</td>'
             + '<td class="num">' + (pick.etf.yield == null ? "—" : fmt(pick.etf.yield, 2)) + '</td>'
             + '<td class="num">' + cvText(pick.etf) + '</td>'
             + '<td class="num ' + toneClass(pick.etf.discountPremium) + '">' + (pick.etf.discountPremium == null ? "—" : signed(pick.etf.discountPremium, 2)) + '</td>'
@@ -1999,7 +2163,10 @@ function runSuggest(){
     + '<div class="decision-tools" style="margin-top:10px"><button class="btn" id="applySuggest" type="button">套用到上方試算</button>'
       + '<span class="stamp">已計算 ' + fmt(out.evaluated, 0) + ' 個組合（' + elapsed + 'ms）· 候選池 ' + out.poolSize + ' 檔'
         + '（品質門檻已排除 配息波動過大 ' + out.rejected.cv + ' 檔、溢價過高 ' + out.rejected.premium + ' 檔'
-        + (out.rejected.active ? '、主動型 ' + out.rejected.active + ' 檔' : '') + '）'
+        + (out.rejected.active ? '、主動型 ' + out.rejected.active + ' 檔' : '')
+        // 回撤閘門是問卷唯一真正在過濾標的的條件，擋掉幾檔一定要講——
+        // 不講的話使用者不知道自己的「可接受虧損」把多少選項排除了
+        + (out.rejected.drawdown ? '、超過可接受虧損 ' + out.rejected.drawdown + ' 檔' : '') + '）'
         + '<span style="display:block">恆不納入：槓桿／反向（每日重設有路徑依賴）、期貨型（轉倉成本）、外幣計價（規模與流動性極低）</span></span></div>';
   const apply = $("applySuggest");
   if (apply) apply.addEventListener("click", function(){
@@ -2151,6 +2318,32 @@ function bind(){
     etfShown = Math.min(PAGE_SIZE, etfViewRows.length);
     renderEtf();
   });
+  const pfRun = $("pfRun");
+  if (pfRun) pfRun.addEventListener("click", function(){
+    const val = function(id){ const n = $(id); return n ? n.value : ""; };
+    activeProfile = profileToConstraints({
+      horizonYears: val("pfHorizon"),
+      maxLossPct: val("pfLoss"),
+      maxWeightPct: val("pfMaxW"),
+      needCashflow: Boolean(($("pfCashflow") || {}).checked),
+      includeActive: Boolean(($("pfActive") || {}).checked),
+    });
+    // 問卷同時決定目標，按鈕的高亮要跟著動，否則畫面顯示的目標是假的
+    suggestGoal = activeProfile.goal;
+    for (const entry of [["gNetTotal","netTotal"],["gYield","netYield"],["gMonthly","monthly"],["gLowOverlap","diverse"],["gAfterTax","afterTax"]]) {
+      const button = $(entry[0]);
+      if (button) button.className = entry[1] === suggestGoal ? "btn on" : "btn";
+    }
+    if ($("gActive")) $("gActive").checked = Boolean(activeProfile.includeActive);
+    const note = $("pfNote");
+    if (note) {
+      note.innerHTML = '<b>已套用</b>：目標 ' + escapeHtml(suggestGoal === "monthly" ? "補滿 12 個月現金流" : "稅後總報酬最大化")
+        + '　·　單檔上限 ' + activeProfile.maxW + '%　·　至少 ' + activeProfile.minPicks + ' 檔'
+        + (activeProfile.maxDrawdownPct != null ? '　·　只收近一年最大回撤淺於 ' + activeProfile.maxDrawdownPct + '% 的標的' : '　·　回撤不設限');
+    }
+    runSuggest();
+  });
+
   const resetE = $("resetE");
   if (resetE) resetE.addEventListener("click", function(){
     etfFilters.q = ""; etfFilters.type = ""; etfFilters.disc = null; etfFilters.aumMin = null; etfFilters.payingOnly = false;
@@ -2250,6 +2443,11 @@ function bind(){
     if (!node) continue;
     node.addEventListener("click", function(){
       suggestGoal = pair[1];
+      // 直接按目標按鈕＝放棄問卷的約束。不清掉的話使用者以為換了目標，
+      // 實際上仍被問卷的 goal 蓋回去，畫面與行為對不上。
+      activeProfile = null;
+      const note = $("pfNote");
+      if (note) note.textContent = "";
       for (const entry of goalButtons) {
         const button = $(entry[0]);
         if (button) button.className = entry[0] === pair[0] ? "btn on" : "btn";
@@ -2321,6 +2519,8 @@ const marketApp = {
     lookupSecurity:lookupSecurity,
     etfFeedUrl:etfFeedUrl,
     feedStamp:feedStamp,
+    etfScores:etfScores,
+    profileToConstraints:profileToConstraints,
     NHI:NHI,
   },
 };

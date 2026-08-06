@@ -1239,6 +1239,101 @@ test("funds without return data are excluded from the total-return goal", async 
   assert.ok(!out.picks.some((pick) => pick.code === "00NEW"));
 });
 
+test("etfScores ranks by percentile within the universe and keeps 'unknown' distinct from 'bad'", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { etfScores } = app.helpers;
+  const mk = (code, tr, vol, dd, y) => mkFund(code, {
+    totalReturn1y: tr, priceReturn1y: tr - 3, volatility1y: vol, maxDrawdown1y: dd,
+    yield: y, dividendCvField: 0.2, volume: 1000000,
+  });
+  const universe = [mk("A", 100, 30, -30, 2), mk("B", 50, 20, -15, 6), mk("C", 10, 12, -5, 10)];
+
+  const a = etfScores(universe[0], universe);
+  const c = etfScores(universe[2], universe);
+  assert.equal(a.return, 10, "報酬最高 → 滿分");
+  assert.equal(c.return, 0, "報酬最低 → 0 分");
+  // 波動與回撤是「越小／越淺越好」，方向不能弄反
+  assert.equal(a.volatility, 0, "波動最大 → 最低分");
+  assert.equal(c.volatility, 10, "波動最小 → 滿分");
+  assert.equal(a.drawdown, 0, "回撤最深 → 最低分");
+  assert.equal(c.drawdown, 10, "回撤最淺 → 滿分");
+  assert.equal(c.income, 10, "殖利率最高 → 滿分");
+
+  // 缺料回 null 而不是 0。0 是「很差」，null 是「不知道」——
+  // 混為一談會讓剛上市、還沒有滿年資料的 ETF 看起來像最爛的標的。
+  const newbie = mkFund("NEW", { yield: 5, volume: 1000 });
+  const s = etfScores(newbie, universe.concat([newbie]));
+  assert.equal(s.return, null);
+  assert.equal(s.volatility, null);
+  assert.equal(s.drawdown, null);
+  assert.ok(s.income != null, "有殖利率就要有配息能力分數");
+  // 流動性需要 close × volume × aum；normalizeEtfFeed 曾漏帶 volume，整欄變「—」
+  assert.ok(a.liquidity != null && c.liquidity != null, "流動性要算得出來，不得整欄缺料");
+
+  // 沒有「管理費優勢」這一維：etf-static 的 expenseRatio 全 null，無來源
+  assert.equal(s.fee, undefined);
+  assert.equal(s.expense, undefined);
+});
+
+test("profileToConstraints maps a profile to real constraints and asks nothing it cannot honour", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { profileToConstraints } = app.helpers;
+
+  const longTerm = profileToConstraints({ horizonYears: "15", maxLossPct: "30", maxWeightPct: "30" });
+  assert.equal(longTerm.goal, "netTotal");
+  assert.equal(longTerm.maxW, 30);
+  assert.equal(longTerm.minPicks, 4, "上限 30% ⇒ 至少 4 檔才湊得到 100%");
+  assert.equal(longTerm.maxDrawdownPct, 30);
+
+  // 需要現金流 → 目標換成 monthly，不是把總報酬目標硬套上月份條件
+  assert.equal(profileToConstraints({ needCashflow: true }).goal, "monthly");
+
+  // 短期且未指定容忍度 → 自動收緊。一年的回撤在三年內很可能重演。
+  const short = profileToConstraints({ horizonYears: "2", maxLossPct: "" });
+  assert.equal(short.maxDrawdownPct, 15);
+  assert.equal(short.maxW, 20, "短期不該押注單一標的");
+  assert.equal(short.minPicks, 5);
+
+  // 「不設限」要真的不設限，不可偷偷塞一個預設值
+  assert.equal(profileToConstraints({ horizonYears: "15", maxLossPct: "" }).maxDrawdownPct, undefined);
+
+  // 不履行的問題不得產生約束——收集了卻不影響輸出就是裝飾
+  const noisy = profileToConstraints({
+    horizonYears: "15", age: 42, monthlyAmount: 30000,
+    existingAssets: "房地產", rebalanceFrequency: "季", allowLeverage: true,
+  });
+  for (const key of ["age", "monthlyAmount", "existingAssets", "rebalanceFrequency", "allowLeverage"]) {
+    assert.equal(noisy[key], undefined, `${key} 不該變成約束`);
+  }
+});
+
+// 問卷不是裝飾：收緊「可接受虧損」必須真的把高回撤標的排掉，
+// 且兩份不同的問卷要產出不同的組合。
+test("a tighter loss tolerance actually removes deep-drawdown funds", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const mk = (code, dd, tr) => mkFund(code, {
+    totalReturn1y: tr, priceReturn1y: tr - 3, volatility1y: Math.abs(dd),
+    maxDrawdown1y: dd, yield: 5, dps: [{ m: 3, a: 0.25 }, { m: 9, a: 0.25 }],
+  });
+  const universe = [
+    mk("00WILD", -45, 120), mk("00WILD2", -40, 110),
+    mk("00CALM", -8, 25), mk("00CALM2", -9, 22), mk("00CALM3", -10, 20), mk("00CALM4", -7, 18),
+  ];
+  const loose = app.helpers.optimizeAllocation(universe, { total: 2000000, goal: "netTotal", netIncome: 500000 });
+  assert.ok(loose.picks.some((p) => p.code.startsWith("00WILD")), "不設限時高報酬的高回撤標的會入選");
+
+  const tight = app.helpers.optimizeAllocation(universe,
+    Object.assign({ total: 2000000, netIncome: 500000 }, app.helpers.profileToConstraints({ horizonYears: "15", maxLossPct: "15", maxWeightPct: "30" })));
+  assert.ok(tight.picks.length >= 3, tight.reason || "should still find something");
+  assert.ok(!tight.picks.some((p) => p.code.startsWith("00WILD")), "收緊容忍度後高回撤標的必須被排掉");
+  assert.ok(tight.rejected.drawdown >= 2, "被回撤閘門擋掉的檔數要記錄下來供 UI 揭露");
+  // 兩份問卷給出不同答案——若一樣就代表問卷沒作用
+  assert.notDeepEqual(loose.picks.map((p) => p.code).sort(), tight.picks.map((p) => p.code).sort());
+});
+
 // 候選池必須依報酬排序。依殖利率截斷會讓 0050（殖利率 91 檔中倒數第一、
 // 近一年總報酬 +106.7%）永遠進不了搜尋空間——這正是「核心保送」原本想解決
 // 卻解錯的問題：真正該保送的判準是報酬，不是規模。

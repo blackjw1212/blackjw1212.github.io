@@ -106,6 +106,26 @@ export function yahooReturns(payload) {
   };
   if (splitsApplied) out.splitsApplied = splitsApplied;
 
+  // 波動度與最大回撤：務必用**校正後**的價格。用原始序列的話，0052 的 1:7 分割
+  // 會被算成 −86% 的單日回撤，風險分數整個毀掉——那正是這支腳本存在的理由，
+  // 不要在新指標上重犯同一個錯。
+  const adjusted = points.map((p, i) => p.raw * factors[i]);
+  const daily = [];
+  for (let i = 1; i < adjusted.length; i += 1) daily.push(adjusted[i] / adjusted[i - 1] - 1);
+  if (daily.length >= 20) {
+    const mean = daily.reduce((sum, r) => sum + r, 0) / daily.length;
+    const variance = daily.reduce((sum, r) => sum + (r - mean) ** 2, 0) / (daily.length - 1);
+    out.volatility1y = Math.round(Math.sqrt(variance) * Math.sqrt(252) * 1000) / 10;
+  }
+  let peak = adjusted[0];
+  let worst = 0;
+  for (const price of adjusted) {
+    if (price > peak) peak = price;
+    const drop = price / peak - 1;
+    if (drop < worst) worst = drop;
+  }
+  out.maxDrawdown1y = Math.round(worst * 1000) / 10;
+
   const adjPoints = points.map((p, i) => ({ adj: p.adj, factor: factors[i] })).filter((p) => p.adj != null);
   if (adjPoints.length >= 2) {
     const a = adjPoints[0];

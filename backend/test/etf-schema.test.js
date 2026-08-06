@@ -93,6 +93,17 @@ test("etf-feed.json matches the expected schema", async () => {
     assert.match(row.returnTo, /^\d{4}-\d{2}-\d{2}$/, at("returnTo"));
     const span = (Date.parse(row.returnTo) - Date.parse(row.returnFrom)) / 86400000;
     assert.ok(span >= 330, at(`區間只有 ${Math.round(span)} 天，不足以稱為「近一年」`));
+
+    // 風險側與報酬側同進同出：只有一半的資料會讓評分把「不知道」當成「很好」
+    assert.ok(isNum(row.volatility1y) && row.volatility1y > 0, at("有報酬就必須有波動度"));
+    assert.ok(isNum(row.maxDrawdown1y), at("有報酬就必須有最大回撤"));
+    // 回撤是峰谷跌幅：不可能為正，也不可能跌掉超過 100%
+    assert.ok(row.maxDrawdown1y <= 0 && row.maxDrawdown1y > -100,
+      at(`最大回撤 ${row.maxDrawdown1y}% 不是合法的峰谷跌幅`));
+    // 未校正分割會算出 −86% 這種數字（實測 0052 的 1:7）。台股 ETF 一年跌掉七成
+    // 幾乎只可能是分割沒處理好，寧可讓測試紅燈也不要靜靜發布錯的風險分數。
+    assert.ok(row.maxDrawdown1y > -70, at(`最大回撤 ${row.maxDrawdown1y}% 過深，疑似分割未校正`));
+    assert.ok(row.volatility1y < 200, at(`年化波動 ${row.volatility1y}% 超出常理`));
   }
   assert.ok(Array.isArray(feed.errors));
   assertBothMarkets(feed.stocks, "etf-feed", { twse: 150, tpex: 80 });

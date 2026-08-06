@@ -53,6 +53,38 @@ test("a 1:7 split is corrected instead of being read as a 86% crash", () => {
   assert.ok(out.priceReturn1y > 0, "分割不得被讀成崩跌");
 });
 
+// 風險側的指標同樣要用校正後的序列。用原始價格的話 0052 的 1:7 分割
+// 會變成 −86% 的單日回撤，把整個風險評分毀掉。
+test("a split is not counted as a drawdown", () => {
+  const raw = [100, 105, 15, 16];
+  const out = yahooReturns(chart(raw, { adj: raw }));
+  assert.equal(out.splitsApplied, 1);
+  // 校正後序列為 14.29 / 15 / 15 / 16，一路向上，只有第一段的微小回落
+  assert.ok(out.maxDrawdown1y > -5, `分割被當成回撤了：${out.maxDrawdown1y}%`);
+  assert.ok(out.maxDrawdown1y <= 0, "回撤不可能為正");
+});
+
+test("drawdown measures peak-to-trough, not first-to-last", () => {
+  // 100 → 110（峰）→ 99 → 105：末值高於起點，但中間確實跌過 10%
+  const series = [100, 110, 99, 105];
+  const out = yahooReturns(chart(series, { adj: series }));
+  assert.equal(out.priceReturn1y, 5, "總報酬是首末相除");
+  assert.equal(out.maxDrawdown1y, -10, "回撤要抓峰谷，110 → 99 是 −10%");
+});
+
+test("volatility needs enough samples and rises with choppiness", () => {
+  const steady = Array.from({ length: 60 }, (_, i) => 100 * (1.001 ** i));
+  const choppy = Array.from({ length: 60 }, (_, i) => 100 * (1.001 ** i) * (i % 2 ? 1.05 : 0.95));
+  const a = yahooReturns(chart(steady, { adj: steady }));
+  const b = yahooReturns(chart(choppy, { adj: choppy }));
+  assert.ok(a.volatility1y >= 0);
+  assert.ok(b.volatility1y > a.volatility1y * 5, "波動大的序列要算出明顯較高的波動度");
+  // 樣本太少就不發布，不要用 3 個點硬算年化波動
+  const tiny = yahooReturns(chart([100, 101, 102], { adj: [100, 101, 102] }));
+  assert.equal(tiny.volatility1y, undefined);
+  assert.ok(tiny.maxDrawdown1y != null, "回撤只要有兩點就算得出來，不受樣本數門檻限制");
+});
+
 test("an unexplained jump is skipped rather than guessed", () => {
   // 0.6885 不是乾淨的分割比例——用觀測值當係數會把當天最多 10% 的真實漲跌
   // 一起吃進去，讓整段歷史偏移，所以整檔不發布

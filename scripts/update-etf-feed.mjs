@@ -591,6 +591,9 @@ async function main() {
       row.priceReturn1y = ret.priceReturn1y;
       row.returnFrom = ret.from;
       row.returnTo = ret.to;
+      // 風險側：波動度（日報酬標準差年化）與最大回撤，皆由分割校正後的序列算出
+      if (ret.volatility1y != null) row.volatility1y = ret.volatility1y;
+      if (ret.maxDrawdown1y != null) row.maxDrawdown1y = ret.maxDrawdown1y;
     }
     if (curated.domicileNote) row.domicileNote = curated.domicileNote;
     // 配息的國內來源佔比（稅務估算用）。名稱推定看不出投資地區時只能人工判定——
