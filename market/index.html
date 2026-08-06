@@ -443,17 +443,28 @@ function feedStamp(label, count, payload){
 }
 
 // PE／PB／殖利率的分母是股價，而估值來源比收盤晚一步發佈：實測 2026-08-06 早上，
-// 上市收盤已是 08-06、BWIBBU 仍是 08-05，那三欄等於用前一天的股價算出來的
-// （2330：PE 31.19 對應 2,320，32.33 才對應 2,405，EPS 同為 74.38）。
+// 上市收盤已是 08-06、BWIBBU 仍是 08-05，那三欄原本是用前一天的股價算出來的。
 // 逐市場比對——只比頂層 valuationDate 與 tradeDate 會漏報，兩者都取最小值時會相等。
-// 沒有落差就不講，避免每天都掛一句廢話。
+// 落差可換算時（rescaleValuation）要說「已換算」，不可換算時說原始日期，
+// 兩者是不同的事實，不能共用一句話。沒有落差就不講，避免每天掛一句廢話。
 function valuationDateNote(payload){
   const val = (payload && payload.valuationDates) || {};
   const close = (payload && payload.marketDates) || {};
   const label = {twse:"上市", tpex:"上櫃"};
+  const adjustable = valuationAdjustable(payload);
   const off = ["twse","tpex"].filter(function(m){ return val[m] && close[m] && val[m] !== close[m]; });
   if (!off.length) return "";
-  return "PE／PB／殖利率為 " + off.map(function(m){ return label[m] + " " + val[m]; }).join("、") + " 的估值";
+  const done = off.filter(function(m){ return adjustable[m]; });
+  const kept = off.filter(function(m){ return !adjustable[m]; });
+  const notes = [];
+  if (done.length) {
+    notes.push("PE／PB／殖利率已依當日收盤換算（原始估值 "
+      + done.map(function(m){ return label[m] + " " + val[m]; }).join("、") + "）");
+  }
+  if (kept.length) {
+    notes.push("PE／PB／殖利率為 " + kept.map(function(m){ return label[m] + " " + val[m]; }).join("、") + " 的估值");
+  }
+  return notes.join("、");
 }
 
 // 兩個市場的資料日可能不同步（TWSE 的盤後端點曾比 TPEX 慢一天）。
@@ -479,8 +490,56 @@ function dayPct(row){
   return Math.round(row.change / previous * 1000) / 10;
 }
 
+// 估值來源比收盤晚一步發佈，PE／PB／殖利率的分母是「估值那天的收盤」而非本列的收盤。
+// close - change 正好就是前一交易日的收盤，所以落差恰為一個交易日時可以換算回當日：
+//   PE、PB 與股價同向 → 乘以 close/(close-change)
+//   殖利率與股價反向 → 乘以 (close-change)/close
+// 實測 2330：31.19 × 2405/2320 = 32.33，與 BWIBBU 次日發佈的值一致（EPS 兩邊同為 74.38）。
+//
+// 換算只在「估值日剛好是收盤日的前一個交易日」時成立——close-change 依定義就是
+// 前一交易日的收盤。用日曆天數當門檻是錯的：08-04 到 08-06 只差兩天，但中間的
+// 08-05 也是交易日，close-change 給的是 08-05 而非 08-04 的收盤，換算就會錯。
+// 因此改判斷「中間有沒有夾到平日」。夾到國定假日時會誤判成「不只一個交易日」而
+// 放棄換算——那是保守的失敗方向（照登原值並標日期），可以接受；
+// 反向（把兩個交易日當成一個）才是會算錯數字的那種，這個判斷不可能發生。
+//
+// 換算放在頁面而不是 ETL：feed 只存原值，每次 render 從原值重算，跑幾次都一樣。
+// 寫進 feed 會被下一次的保留路徑當成原值再換一次，同一天重跑也會二次套用。
+function isPreviousTradingDay(from, to){
+  const a = Date.parse(from + "T00:00:00Z");
+  const b = Date.parse(to + "T00:00:00Z");
+  if (!(a < b) || b - a > 5 * 86400000) return false;
+  for (let t = a + 86400000; t < b; t += 86400000) {
+    const day = new Date(t).getUTCDay();
+    if (day !== 0 && day !== 6) return false;
+  }
+  return true;
+}
+
+function valuationAdjustable(payload){
+  const val = (payload && payload.valuationDates) || {};
+  const close = (payload && payload.marketDates) || {};
+  const out = {};
+  ["twse","tpex"].forEach(function(m){
+    out[m] = Boolean(val[m] && close[m] && isPreviousTradingDay(val[m], close[m]));
+  });
+  return out;
+}
+
+function rescaleValuation(row){
+  const previous = (row.close != null && row.change != null) ? row.close - row.change : null;
+  if (!(previous > 0) || !(row.close > 0) || previous === row.close) return row;
+  const k = row.close / previous;
+  if (row.pe != null) row.pe = Math.round(row.pe * k * 100) / 100;
+  if (row.pbRatio != null) row.pbRatio = Math.round(row.pbRatio * k * 100) / 100;
+  if (row.dividendYield != null) row.dividendYield = Math.round(row.dividendYield / k * 100) / 100;
+  row.valuationRescaled = true;
+  return row;
+}
+
 function normalizeFeed(payload){
   const rows = Array.isArray(payload && payload.stocks) ? payload.stocks : [];
+  const adjustable = valuationAdjustable(payload);
   return rows.map(function(row){
     const clean = {
       code:String(row.code || ""),
@@ -496,6 +555,9 @@ function normalizeFeed(payload){
       volume:parseNumber(row.volume),
     };
     clean.dayPct = dayPct(clean);
+    // 換算要在篩選與排序之前做完，否則「低基期 PE≤25」會拿舊分母的 PE 去篩，
+    // 篩出來的名單和畫面顯示的數字對不起來。
+    if (adjustable[clean.market]) rescaleValuation(clean);
     // 成交金額（億元）＝ 收盤 × 成交股數。流動性代理指標：純估值篩選會把
     // 幾乎不能成交的個股排到最前面，這欄用來把它們濾掉。
     clean.turnover = (clean.close != null && clean.volume != null)

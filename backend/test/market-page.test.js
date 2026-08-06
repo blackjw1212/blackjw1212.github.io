@@ -180,7 +180,7 @@ test("the stamp discloses when valuation is a different day from the close", asy
   const { app } = await loadMarket(async () => okResponse(marketFeed()));
   const { feedStamp } = app.helpers;
 
-  // 上市收盤比估值新一天 → 要指名是哪個市場、哪一天的估值
+  // 上市收盤比估值新一個交易日 → 換算得回來，說「已換算」並附原始日期
   const lagging = feedStamp("全市場", 1955, {
     tradeDate: "2026-08-05",
     marketDates: { twse: "2026-08-06", tpex: "2026-08-05" },
@@ -188,7 +188,17 @@ test("the stamp discloses when valuation is a different day from the close", asy
     updatedAt: "2026-08-06T01:30:00.000Z",
     errors: [{ source: "stale-valuation", market: "twse", message: "…" }],
   });
-  assert.match(lagging, /PE／PB／殖利率為 上市 2026-08-05 的估值/);
+  assert.match(lagging, /PE／PB／殖利率已依當日收盤換算（原始估值 上市 2026-08-05）/);
+
+  // 落差超過可換算範圍 → 只揭露不換算，措辭必須不同（說成已換算就是假的）
+  const wide = feedStamp("全市場", 1955, {
+    tradeDate: "2026-08-06",
+    marketDates: { twse: "2026-08-06", tpex: "2026-08-06" },
+    valuationDates: { twse: "2026-07-20", tpex: "2026-07-20" },
+    updatedAt: "2026-08-06T14:00:00.000Z", errors: [],
+  });
+  assert.match(wide, /PE／PB／殖利率為 上市 2026-07-20、上櫃 2026-07-20 的估值/);
+  assert.doesNotMatch(wide, /已依當日收盤換算/);
 
   // 關鍵回歸：只比頂層 valuationDate 與 tradeDate 會漏報這個情境——
   // 兩者都取最小值，這裡都會是 2026-08-05 而看起來「同步」。
@@ -199,17 +209,28 @@ test("the stamp discloses when valuation is a different day from the close", asy
       valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
       updatedAt: "2026-08-06T01:30:00.000Z", errors: [],
     }),
-    /上市 2026-08-05 的估值/,
+    /原始估值 上市 2026-08-05/,
     "頂層日期相等時仍必須揭露上市的落差",
   );
 
-  // 兩個市場都落後 → 兩個都要列出來
-  assert.match(feedStamp("全市場", 1955, {
+  // 混合情形：上市差一個交易日（可換算）、上櫃 08-04→08-06 中間夾著交易日 08-05
+  // （close-change 給的是 08-05 而非 08-04 的收盤，不可換算）。兩件事措辭要分開。
+  const mixed = feedStamp("全市場", 1955, {
     tradeDate: "2026-08-06",
     marketDates: { twse: "2026-08-06", tpex: "2026-08-06" },
     valuationDates: { twse: "2026-08-05", tpex: "2026-08-04" },
     updatedAt: "2026-08-06T14:00:00.000Z", errors: [],
-  }), /PE／PB／殖利率為 上市 2026-08-05、上櫃 2026-08-04 的估值/);
+  });
+  assert.match(mixed, /已依當日收盤換算（原始估值 上市 2026-08-05）/);
+  assert.match(mixed, /PE／PB／殖利率為 上櫃 2026-08-04 的估值/);
+
+  // 跨週末仍算「前一個交易日」：2026-08-07 是週五、08-10 是週一，中間只有週末
+  assert.match(feedStamp("全市場", 1955, {
+    tradeDate: "2026-08-10",
+    marketDates: { twse: "2026-08-10", tpex: "2026-08-10" },
+    valuationDates: { twse: "2026-08-07", tpex: "2026-08-07" },
+    updatedAt: "2026-08-10T14:00:00.000Z", errors: [],
+  }), /已依當日收盤換算/);
 
   // 對齊時不加噪音——每天都掛一句廢話會讓真正有落差時沒人注意
   assert.doesNotMatch(feedStamp("全市場", 1955, {
@@ -235,7 +256,7 @@ test("the stamp discloses when valuation is a different day from the close", asy
       { source: "stale-valuation", market: "twse", message: "…" },
     ],
   });
-  assert.match(disclosedOnly, /上市 2026-08-05 的估值/);
+  assert.match(disclosedOnly, /原始估值 上市 2026-08-05/);
   assert.doesNotMatch(disclosedOnly, /缺料/, "日期不同步不等於缺料");
 
   // 真的有來源掛掉時仍要說缺料

@@ -620,7 +620,7 @@ test("the source line discloses when market-feed valuation lags the close", asyn
     throw new Error(`unavailable: ${href}`);
   };
 
-  // 上市收盤 08-06、估值 08-05 → 要指名市場與日期。
+  // 上市收盤 08-06、估值 08-05，差一個交易日 → 換算得回來，要說「已換算」並附原始日期。
   // 注意頂層 tradeDate 與 valuationDate 都會是 08-05（各取最小值），
   // 只比那兩個欄位會完全漏報，所以這裡刻意讓它們相等。
   const lag = await loadApp(feedWith({
@@ -629,7 +629,21 @@ test("the source line discloses when market-feed valuation lags the close", asyn
     valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
   }));
   await lag.context.window.PortfolioConsoleApp.init();
-  assert.match(lag.document.getElementById("dataSource").textContent, /PB／殖利率為 上市 2026-08-05 的估值/);
+  assert.match(lag.document.getElementById("dataSource").textContent,
+    /PE／PB／殖利率已換算至本頁收盤/);
+
+  // 落差超過可換算的範圍（close-change 已不是估值那天的收盤）→ 只揭露、不換算。
+  // 說成「已換算」會是假的。
+  const wide = await loadApp(feedWith({
+    valuationDate: "2026-07-20",
+    marketDates: { twse: "2026-08-06", tpex: "2026-08-06" },
+    valuationDates: { twse: "2026-07-20", tpex: "2026-07-20" },
+  }));
+  await wide.context.window.PortfolioConsoleApp.init();
+  const wideText = wide.document.getElementById("dataSource").textContent;
+  assert.match(wideText, /PE／PB／殖利率為 上市 2026-07-20、上櫃 2026-07-20 的估值/);
+  assert.doesNotMatch(wideText, /已換算/);
+  assert.match(wide.document.getElementById("scoreBody").innerHTML, /<td class="num">31\.19<\/td>/, "不可換算時照原值顯示");
 
   // 對齊時不加噪音
   const aligned = await loadApp(feedWith({
@@ -662,34 +676,95 @@ test("watchlist state survives a save/load round trip", async () => {
   assert.equal(saved.watchlist[0].tier, undefined);
 });
 
-test("scorecard PE prefers feed valuation and falls back to built-in", async () => {
-  // (1) feed carries valuation → PE comes from feed, not the built-in static label
-  const withVal = await loadApp(async (url) => {
+// PE 以前有兩個來源：stock-risk-feed 的 valuation（只有內建 13 檔）優先、
+// market-feed（1,463 檔）墊底，兩邊給不同數字而畫面說不出原因。實際上那不是兩個
+// 來源——都出自 BWIBBU_ALL，差別只在抓取時機造成的分母不同。換算到同一個收盤後
+// 兩者相等，所以只留涵蓋面大的那一份。
+test("PE comes from market-feed alone and is rescaled to the page's close", async () => {
+  const mock = async (url) => {
     const href = String(url);
+    if (href.startsWith("/data/market-feed.json")) {
+      return response({
+        updatedAt: "2026-08-06T01:30:00.000Z",
+        tradeDate: "2026-08-05",
+        marketDates: { twse: "2026-08-06", tpex: "2026-08-05" },
+        valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+        count: 1,
+        // 這一列就是實測值：收盤 2,405、漲跌 +85 → 前一日收盤 2,320，
+        // 而 pe 31.19 正是以 2,320 為分母算的。
+        stocks: [{ code: "2330", name: "台積電", market: "twse", close: 2405, change: 85,
+                   pe: 31.19, pbRatio: 10.21, dividendYield: 0.95, hi52: 2535, volume: 1000 }],
+        errors: [],
+      });
+    }
     if (href.startsWith("/data/stock-risk-feed.json")) {
-      return response(staticFeed({ valuation: {
-        "2330": { code: "2330", pe: 25.3 },
-        "2382": { code: "2382", pe: 18.9 },
-      } }));
+      // 舊的第二來源即使還在 feed 裡也不得被採用
+      return response(staticFeed({ valuation: { "2330": { code: "2330", pe: 25.3 } } }));
     }
     throw new Error(`unavailable: ${href}`);
-  });
-  await withVal.context.window.PortfolioConsoleApp.init();
-  const valHtml = withVal.document.getElementById("scoreBody").innerHTML;
-  assert.match(valHtml, /<td class="num">25\.3<\/td>/);   // 2330 feed pe，格式與 /market/ 同一支 fmt
-  assert.match(valHtml, /<td class="num">18\.9<\/td>/);   // 2382 feed pe
+  };
+  const { context, document } = await loadApp(mock);
+  await context.window.PortfolioConsoleApp.init();
+  const html = document.getElementById("scoreBody").innerHTML;
 
-  // (2) feed 沒有 valuation → 退回 market-feed 的 pe；沒有 market-feed 就顯示「—」，
-  //     不再退回寫死的靜態標籤（那種值只會過期）
-  const noVal = await loadApp(async (url) => {
+  // 分子是**畫面正在顯示的收盤**，不是 market-feed 的收盤：本頁優先用 13:30 快照
+  // （這裡 staticFeed 給的 2,400.25），比 market-feed 的 2,405 更新一步。
+  // 顯示的 PE 必須對應顯示的收盤，否則同一列的兩個數字互相矛盾。
+  //   31.19 × 2400.25/2320 = 32.27
+  assert.match(html, /<td class="num">32\.27<\/td>/, "PE 要換算到畫面上的收盤");
+  assert.doesNotMatch(html, /31\.19/, "不得顯示以前一日收盤為分母的原值");
+  assert.doesNotMatch(html, /25\.3/, "stock-risk-feed 的第二份 PE 已移除，不得復活");
+  // PB 與股價同向、殖利率反向
+  assert.match(html, /<td class="num">10\.56<\/td>/, "10.21 × 2400.25/2320 = 10.56");
+  assert.match(html, /<td class="num">0\.92<\/td>/, "0.95 × 2320/2400.25 = 0.92");
+
+  // 完全沒有 market-feed → 顯示破折號，不得退回任何寫死的靜態標籤
+  const noFeed = await loadApp(async (url) => {
     const href = String(url);
     if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unavailable: ${href}`);
   });
-  await noVal.context.window.PortfolioConsoleApp.init();
-  const baseHtml = noVal.document.getElementById("scoreBody").innerHTML;
-  assert.doesNotMatch(baseHtml, /~32|~19/, "寫死的靜態 PE 標籤已移除");
-  assert.match(baseHtml, /<td class="num">—<\/td>/);
+  await noFeed.context.window.PortfolioConsoleApp.init();
+  const bare = noFeed.document.getElementById("scoreBody").innerHTML;
+  assert.doesNotMatch(bare, /~32|~19/, "寫死的靜態 PE 標籤已移除");
+  assert.match(bare, /<td class="num">—<\/td>/);
+});
+
+// 不變量：顯示的 PE 永遠對應顯示的收盤。分母已經等於顯示價時 k=1，不得再乘一次。
+test("valuation is left alone when its denominator already equals the shown close", async () => {
+  const mock = (feedClose, pageClose, dates) => async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/market-feed.json")) {
+      return response(Object.assign({
+        updatedAt: "2026-08-06T14:00:00.000Z", tradeDate: "2026-08-06", count: 1,
+        stocks: [{ code: "2330", name: "台積電", market: "twse", close: feedClose, change: 85,
+                   pe: 32.33, pbRatio: 10.59, dividendYield: 0.91, hi52: 2535, volume: 1000 }],
+        errors: [],
+      }, dates));
+    }
+    if (href.startsWith("/data/stock-risk-feed.json")) {
+      return response(staticFeed({ eod: [{ code: "2330", name: "台積電", close: pageClose, change: 85 }] }));
+    }
+    throw new Error(`unavailable: ${href}`);
+  };
+  const aligned = { marketDates: { twse: "2026-08-06", tpex: "2026-08-06" },
+                    valuationDates: { twse: "2026-08-06", tpex: "2026-08-06" } };
+
+  // 估值日＝feed 收盤日，且本頁收盤就是 feed 收盤 → 分母已對齊，照原值
+  const same = await loadApp(mock(2405, 2405, aligned));
+  await same.context.window.PortfolioConsoleApp.init();
+  assert.match(same.document.getElementById("scoreBody").innerHTML, /<td class="num">32\.33<\/td>/, "分母已對齊就照原值");
+  assert.doesNotMatch(same.document.getElementById("dataSource").textContent, /換算|估值/);
+
+  // feed 內部日期一致，但本頁收盤更新一步（13:30 快照）→ 仍要換算，
+  // 否則同一列顯示的收盤與 PE 各自對應不同的價格。這正是 3324 的情形：
+  // 畫面 1,060、feed 965，只看 feed 內部日期會誤判成「不必換算」。
+  const fresher = await loadApp(mock(965, 1060, aligned));
+  await fresher.context.window.PortfolioConsoleApp.init();
+  const html = fresher.document.getElementById("scoreBody").innerHTML;
+  assert.match(html, /<td class="num">35\.51<\/td>/, "32.33 × 1060/965 = 35.51");
+  assert.doesNotMatch(html, /32\.33/, "不得留著以 feed 舊收盤為分母的原值");
+  assert.match(fresher.document.getElementById("dataSource").textContent, /已換算至本頁收盤/);
 });
 
 // 原本 PE 與人工說明散在配置分層區；配置區移除後這些要在同一列（或同一張卡）
@@ -697,10 +772,20 @@ test("scorecard PE prefers feed valuation and falls back to built-in", async () 
 test("each row carries live PE, live close, and the manual role note", async () => {
   const { context, document } = await loadApp(async (url) => {
     const href = String(url);
+    if (href.startsWith("/data/market-feed.json")) {
+      return response({
+        updatedAt: "2026-08-05T14:00:00.000Z",
+        tradeDate: "2026-08-05",
+        marketDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+        valuationDates: { twse: "2026-08-05", tpex: "2026-08-05" },
+        count: 1,
+        stocks: [{ code: "2308", name: "台達電", market: "twse", close: 1905, change: -5, pe: 66.7, volume: 1000 }],
+        errors: [],
+      });
+    }
     if (href.startsWith("/data/stock-risk-feed.json")) {
       return response(staticFeed({
         eod: [{ code: "2308", name: "台達電", close: 1905, change: -5, high: 1950, low: 1880 }],
-        valuation: { "2308": { code: "2308", pe: 66.7 } },
       }));
     }
     throw new Error(`unavailable: ${href}`);

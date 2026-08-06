@@ -286,7 +286,6 @@ let state = loadState();
 let staticFeedPromise = null;
 let marketIndexRows = [];
 let marketIndexMeta = null;
-let feedValuation = {};
 
 function $(id){return DOC ? DOC.getElementById(id) : null;}
 
@@ -581,42 +580,69 @@ async function loadMarketFeed(){
 }
 
 // 估值來源（BWIBBU／TPEX 本益比分析）比收盤晚一步發佈，PE／PB／殖利率的分母是股價，
-// 差一天整排數字就失準。逐市場比對——只比頂層 valuationDate 與 tradeDate 會漏報，
-// 兩者都取最小值時會相等。沒落差就不講。
-function valuationDateNote(){
-  const label = {twse:"上市", tpex:"上櫃"};
-  const off = ["twse","tpex"].filter(function(m){
-    return marketFeedValuationDates[m] && marketFeedDates[m] && marketFeedValuationDates[m] !== marketFeedDates[m];
-  });
-  if (!off.length) return "";
-  return "PB／殖利率為 " + off.map(function(m){ return label[m] + " " + marketFeedValuationDates[m]; }).join("、") + " 的估值";
-}
-
-function sanitizeValuation(raw){
-  const out = {};
-  if (!raw || typeof raw !== "object") return out;
-  for (const code of builtInCodes()) {
-    const entry = raw[code];
-    if (!entry || typeof entry !== "object") continue;
-    const pe = parseNumber(entry.pe);
-    if (pe == null) continue;
-    out[code] = {pe:pe};
+// 差一天整排數字就失準。close - change 依定義就是前一交易日的收盤，所以「估值日剛好是
+// 收盤日的前一個交易日」時可以換算回當日：PE／PB 乘 close/(close-change)，殖利率反向。
+//
+// 用日曆天數當門檻是錯的：08-04 到 08-06 只差兩天，但中間的 08-05 也是交易日，
+// close-change 給的是 08-05 而非 08-04 的收盤。因此改判斷「中間有沒有夾到平日」。
+// 夾到國定假日會誤判成「不只一個交易日」而放棄換算——保守的失敗方向，可接受；
+// 反向（把兩個交易日當成一個）才會算錯數字，這個判斷不可能發生。
+//
+// 逐市場比對——只比頂層 valuationDate 與 tradeDate 會漏報，兩者都取最小值時會相等。
+function isPreviousTradingDay(from, to){
+  const a = Date.parse(from + "T00:00:00Z");
+  const b = Date.parse(to + "T00:00:00Z");
+  if (!(a < b) || b - a > 5 * 86400000) return false;
+  for (let t = a + 86400000; t < b; t += 86400000) {
+    const day = new Date(t).getUTCDay();
+    if (day !== 0 && day !== 6) return false;
   }
-  return out;
+  return true;
 }
 
-async function loadValuation(){
-  try {
-    const feed = await loadStaticFeed();
-    const next = sanitizeValuation(feed && feed.valuation);
-    if (Object.keys(next).length) {
-      feedValuation = next;
-      renderScore();
-      return "本益比：靜態 feed valuation";
-    }
-  } catch (error) {}
-  return "本益比：沿用內建參考值";
+// 估值的分母是「估值那天的收盤」。相對於 market-feed 這一列，那個價格是：
+//   估值日 = feed 收盤日      → feed 的 close
+//   估值日 = feed 收盤日前一交易日 → feed 的 close - change
+//   其餘（落差更長／日期缺漏） → 無從得知，回 null 表示不能換算
+// 本頁的收盤常比 feed 新一步（13:30 快照），所以即使 feed 內部日期一致，
+// 分母仍可能不等於畫面上的價格——3324 就是：畫面 1,060、feed 965，
+// 只看 feed 內部日期會判定「同步、不必換算」，但同一列的兩個數字依然矛盾。
+function valuationBasis(market, row){
+  const v = marketFeedValuationDates[market];
+  const c = marketFeedDates[market];
+  const close = parseNumber(row && row.close);
+  if (!v || !c || close == null) return null;
+  if (v === c) return close;
+  if (isPreviousTradingDay(v, c)) {
+    const change = parseNumber(row && row.change);
+    return change == null ? null : close - change;
+  }
+  return null;
 }
+
+function valuationAdjustable(market){
+  const v = marketFeedValuationDates[market];
+  const c = marketFeedDates[market];
+  return Boolean(v && c && (v === c || isPreviousTradingDay(v, c)));
+}
+
+// 註記要講「實際發生了什麼」，不是「依日期推測應該發生什麼」：
+// rescaledAny 由 renderScore 統計實際換算過的列，沒換就不會宣稱換過。
+function valuationDateNote(rescaledAny){
+  const label = {twse:"上市", tpex:"上櫃"};
+  const notes = [];
+  if (rescaledAny) notes.push("PE／PB／殖利率已換算至本頁收盤");
+  // 分母無從得知（落差超過一個交易日、或 feed 沒給日期）→ 只能照登原值並說是哪天的
+  const unknown = ["twse","tpex"].filter(function(m){
+    return marketFeedValuationDates[m] && marketFeedDates[m]
+      && marketFeedValuationDates[m] !== marketFeedDates[m] && !valuationAdjustable(m);
+  });
+  if (unknown.length) {
+    notes.push("PE／PB／殖利率為 " + unknown.map(function(m){ return label[m] + " " + marketFeedValuationDates[m]; }).join("、") + " 的估值");
+  }
+  return notes.join("　·　");
+}
+
 
 function saveEodCache(result){
   const store = storage();
@@ -889,17 +915,42 @@ function stockTradingViewLink(stock, card){
 // 估值欄位與 /market/ 同源同算法（成交額＝收盤×成交股數／1e8），差別只在
 // 收盤與漲跌%：本頁優先用 13:30 快照／Worker 收盤，比全市場 feed 新一步，
 // 所以距 52 週高改用「本頁的收盤 vs feed 的 hi52」重算，不直接抄 feed 的 fromHi。
+//
+// PE 以前有兩個來源（stock-risk-feed 的 valuation 優先、market-feed 墊底），
+// 兩邊會給出不同的數字而畫面說不出原因。實際上那不是兩個來源——兩者都出自
+// BWIBBU_ALL，差別只在抓取時機造成的分母不同（2330：31.19 對應 2,320，
+// 32.33 對應 2,405，EPS 同為 74.38）。換算到同一個收盤後兩者相等，
+// 所以只留 market-feed 一份：它涵蓋 1,463 檔，stock-risk-feed 只有內建 13 檔。
 function stockMetrics(stock, snapshot){
   const row = marketRows[stock.code] || null;
-  const valuation = feedValuation[stock.code];
   const close = snapshot && snapshot.close != null ? snapshot.close : (row ? parseNumber(row.close) : null);
   const hi52 = row ? parseNumber(row.hi52) : null;
   const volume = row ? parseNumber(row.volume) : null;
+  const market = row && row.market === "tpex" ? "tpex" : (row ? "twse" : "");
+
+  // 分母換算：把估值的分母換成本頁正在顯示的 close，PE／PB 同向、殖利率反向。
+  // 分母已經等於顯示價時 k=1，不動；每次 render 都從 feed 原值重算，跑幾次都一樣。
+  let pe = row ? parseNumber(row.pe) : null;
+  let pbRatio = row ? parseNumber(row.pbRatio) : null;
+  let dividendYield = row ? parseNumber(row.dividendYield) : null;
+  let rescaled = false;
+  if (row && market && close > 0) {
+    const basis = valuationBasis(market, row);
+    if (basis > 0 && Math.abs(close - basis) > 1e-9) {
+      const k = close / basis;
+      if (pe != null) pe = roundNumber(pe * k, 2);
+      if (pbRatio != null) pbRatio = roundNumber(pbRatio * k, 2);
+      if (dividendYield != null) dividendYield = roundNumber(dividendYield / k, 2);
+      rescaled = pe != null || pbRatio != null || dividendYield != null;
+    }
+  }
+
   return {
-    market:row && row.market === "tpex" ? "上櫃" : (row ? "上市" : ""),
-    pe:valuation && valuation.pe != null ? valuation.pe : (row ? parseNumber(row.pe) : null),
-    pbRatio:row ? parseNumber(row.pbRatio) : null,
-    dividendYield:row ? parseNumber(row.dividendYield) : null,
+    market:market === "tpex" ? "上櫃" : (market ? "上市" : ""),
+    pe:pe,
+    pbRatio:pbRatio,
+    dividendYield:dividendYield,
+    valuationRescaled:rescaled,
     fromHi:(close != null && hi52) ? roundNumber((close - hi52) / hi52 * 100, 1) : (row ? parseNumber(row.fromHi) : null),
     turnover:(close != null && volume != null) ? Math.round(close * volume / 1e6) / 100 : null,
   };
@@ -1147,7 +1198,7 @@ function renderScore(){
   // 收盤來源對整張表都一樣，放一次就好——原本每一列重複 13 次
   const source = $("dataSource");
   if (source) {
-    const note = valuationDateNote();
+    const note = valuationDateNote(rows.some(function(e){return e.metrics.valuationRescaled;}));
     source.textContent = "收盤來源：" + dataLabel() + (note ? "　·　" + note : "");
   }
   renderSortHead();
@@ -1166,7 +1217,6 @@ async function refresh(){
   // 不覆蓋 13:30 快照那份較精準的資料
   await loadMarketFeed();
   await loadMarketIndices();
-  await loadValuation();
   renderWatchEditor();
   renderScore();
 }
@@ -1220,7 +1270,6 @@ async function init(){
   sharedWatchlist = parseWatchParam((ROOT.location || {}).search);
   watchlist = sharedWatchlist || state.watchlist || DEFAULT_WATCHLIST.slice();
   rebuildStocks();
-  loadValuation();
   renderSharedBanner();
   renderWatchEditor();
   renderScore();
