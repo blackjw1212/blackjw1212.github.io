@@ -904,11 +904,14 @@ function tradingViewUrl(code){
   return url.toString();
 }
 
+// 代碼欄只放代碼：名稱有自己的欄位，兩邊都印就是同一件事講兩次。
+// 手機卡片沒有分欄，那裡才需要代碼＋名稱一起顯示。
 function stockTradingViewLink(stock, card){
   const href = tradingViewUrl(stock && stock.code);
   const label = "在 TradingView 開啟 " + stock.code + " " + stock.name + "完整圖表觀察（外部連結）";
-  const body = '<span class="code">' + stock.code + '</span> <span class="' + (card ? "stock-main" : "nm") + '">' + escapeHtml(stock.name) + '</span><span class="tv-pill">完整圖表</span>';
-  if (!href) return '<span class="code">' + stock.code + '</span> <span class="' + (card ? "stock-main" : "nm") + '">' + escapeHtml(stock.name) + '</span>';
+  const name = card ? ' <span class="stock-main">' + escapeHtml(stock.name) + '</span>' : "";
+  const body = '<span class="code">' + stock.code + '</span>' + name + '<span class="tv-pill">完整圖表</span>';
+  if (!href) return '<span class="code">' + stock.code + '</span>' + name;
   return '<a class="stock-tv-link" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer" aria-label="' + escapeHtml(label) + '">' + body + '</a>';
 }
 
