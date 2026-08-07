@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-07T01:33:40.816Z",
-  "eodUpdatedAt": "2026-08-06T12:24:09.030Z",
+  "updatedAt": "2026-08-07T02:05:23.065Z",
+  "eodUpdatedAt": "2026-08-07T02:05:23.065Z",
   "eodTradingDate": "2026-08-06",
   "holdings": [
     "2330",
@@ -196,14 +196,5 @@
     "updatedAt": "2026-08-05T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
