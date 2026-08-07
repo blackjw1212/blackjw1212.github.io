@@ -133,6 +133,27 @@ test("etf-feed.json matches the expected schema", async () => {
     const span = (Date.parse(row.returnTo) - Date.parse(row.returnFrom)) / 86400000;
     assert.ok(span >= 330, at(`區間只有 ${Math.round(span)} 天，不足以稱為「近一年」`));
 
+    // 長窗只能比短窗更悲觀或相等：更長的期間必然包含短期間的那次下跌。
+    // 這條擋住「切錯窗」——實測 0050 是 1Y −15.9%／3Y −28.5%／5Y −36.4%。
+    if (row.maxDrawdown3y != null) {
+      assert.ok(row.maxDrawdown3y <= row.maxDrawdown1y + 0.15,
+        at(`3Y 回撤 ${row.maxDrawdown3y}% 竟比 1Y ${row.maxDrawdown1y}% 淺`));
+    }
+    if (row.maxDrawdown5y != null && row.maxDrawdown3y != null) {
+      assert.ok(row.maxDrawdown5y <= row.maxDrawdown3y + 0.15,
+        at(`5Y 回撤 ${row.maxDrawdown5y}% 竟比 3Y ${row.maxDrawdown3y}% 淺`));
+    }
+    // 長窗一定要有 CAGR，否則畫面切到 3Y/5Y 會出現「有總報酬卻沒年化」的空洞
+    for (const w of ["3y", "5y"]) {
+      if (row["totalReturn" + w] == null) continue;
+      assert.ok(isNum(row["cagr" + w]), at(`有 ${w} 總報酬就必須有 CAGR`));
+      // CAGR 還原回總報酬要對得上
+      const years = w === "3y" ? 3 : 5;
+      const rebuilt = (Math.pow(1 + row["cagr" + w] / 100, years) - 1) * 100;
+      assert.ok(Math.abs(rebuilt - row["totalReturn" + w]) < Math.max(2, Math.abs(row["totalReturn" + w]) * 0.03),
+        at(`${w} CAGR ${row["cagr" + w]}% 還原不回總報酬 ${row["totalReturn" + w]}%`));
+    }
+
     // 風險側與報酬側同進同出：只有一半的資料會讓評分把「不知道」當成「很好」
     assert.ok(isNum(row.volatility1y) && row.volatility1y > 0, at("有報酬就必須有波動度"));
     assert.ok(isNum(row.maxDrawdown1y), at("有報酬就必須有最大回撤"));

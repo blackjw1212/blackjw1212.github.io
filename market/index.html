@@ -264,7 +264,14 @@
       殖利率很漂亮，但那一年是在賠錢。滿一年歷史不足的標的顯示「—」，不以 0 充數。
       <br><b>應稅比例是推定值</b>：配息組成（54C 國內股利／5A 國內利息／71 海外／76W 平準金）的實際金額
       <b>沒有任何公開來源</b>——TWSE 與 TPEX 的公告都只有總金額，SITCA 頁面是 postback-only，
-      唯一權威來源是你自己的收益分配通知書。標「推定」的是依標的性質估的，只有標「通知書」的才是實際數字。</div>
+      唯一權威來源是你自己的收益分配通知書。標「推定」的是依標的性質估的，只有標「通知書」的才是實際數字。
+      <div style="margin-top:8px">觀察期間
+        <button class="btn on" id="pd1y" type="button" style="padding:3px 10px;min-height:28px">1 年</button>
+        <button class="btn" id="pd3y" type="button" style="padding:3px 10px;min-height:28px">3 年</button>
+        <button class="btn" id="pd5y" type="button" style="padding:3px 10px;min-height:28px">5 年</button>
+        <span style="margin-left:8px">——<b>只看一年會誤導</b>：實測 0050 的一年最大回撤 −15.9%，五年是 −36.4%；
+        00631L 一年 −31.3%、三年 −55.1%。跌的時候長什麼樣，一年看不出來。</span>
+      </div></div>
     <div class="table-scroll">
       <table id="etfTable" style="min-width:1240px">
         <thead><tr>
@@ -276,10 +283,11 @@
           <th data-etf-sort="discountPremium">折溢價%</th>
           <th data-etf-sort="aum">規模(億)</th>
           <th data-etf-sort="yield">近12月殖利率%</th>
-          <th data-etf-sort="totalReturn1y" title="價差＋配息。與殖利率並列才看得出「配得多」是不是「賺得多」">近1年總報酬</th>
-          <th data-etf-sort="priceReturn1y" title="總報酬中不含配息的部分">其中價差</th>
-          <th data-etf-sort="volatility1y" title="日報酬標準差年化">年化波動</th>
-          <th data-etf-sort="maxDrawdown1y" title="近一年峰谷最大跌幅">最大回撤</th>
+          <th data-etf-sort="periodTotalReturn" title="價差＋配息。與殖利率並列才看得出「配得多」是不是「賺得多」">總報酬</th>
+          <th data-etf-sort="periodCagr" title="年化報酬。1 年期的 CAGR 依定義等於總報酬">CAGR</th>
+          <th data-etf-sort="periodVolatility" title="日報酬標準差年化">年化波動</th>
+          <th data-etf-sort="periodMaxDrawdown" title="該期間內的峰谷最大跌幅">最大回撤</th>
+          <th data-etf-sort="periodCalmar" title="CAGR ÷ |最大回撤|。每承受 1% 回撤換到多少年化報酬，越高越好">Calmar</th>
           <th data-etf-sort="dividendCvField" title="近24月配息變異係數，越小越穩">配息穩定度</th>
           <th title="配息中要課綜所稅的比例。54C／5A／71／76W 的實際金額沒有公開來源，這裡是依標的性質推定">應稅比例</th>
           <th data-etf-sort="frequency">頻率</th>
@@ -817,14 +825,29 @@ function normalizeEtfFeed(payload){
       domicileSource:row.domicileSource || null,
       // 品質/分類指標優先取資料層（pipeline 已算好）；舊 feed 沒有時退回前端計算
       dividendCvField:parseNumber(row.dividendCv),
+      dividendCvSamples:parseNumber(row.dividendCvSamples),
       // 近一年總報酬／價差（回測）。缺料時保持 null，總報酬目標會把該檔排除——
       // 只有配息的半套資料會系統性偏袒賠價差的高配息標的。
+      // 三個觀察窗全部帶進來。只帶 1Y 的話畫面切到 3Y／5Y 會整片「—」，
+      // 而那正是這次要解決的「只看一年會誤導」。
       totalReturn1y:parseNumber(row.totalReturn1y),
       priceReturn1y:parseNumber(row.priceReturn1y),
       volatility1y:parseNumber(row.volatility1y),
       maxDrawdown1y:parseNumber(row.maxDrawdown1y),
+      totalReturn3y:parseNumber(row.totalReturn3y),
+      priceReturn3y:parseNumber(row.priceReturn3y),
+      volatility3y:parseNumber(row.volatility3y),
+      maxDrawdown3y:parseNumber(row.maxDrawdown3y),
+      cagr3y:parseNumber(row.cagr3y),
+      totalReturn5y:parseNumber(row.totalReturn5y),
+      priceReturn5y:parseNumber(row.priceReturn5y),
+      volatility5y:parseNumber(row.volatility5y),
+      maxDrawdown5y:parseNumber(row.maxDrawdown5y),
+      cagr5y:parseNumber(row.cagr5y),
       returnFrom:row.returnFrom || null,
       returnTo:row.returnTo || null,
+      returnSpanDays:parseNumber(row.returnSpanDays),
+      returnUnavailable:row.returnUnavailable || null,
       // 前十大成分股的產業分佈。未分類的權重要原樣帶進來，
       // 不可在前端補成 0 或攤進其他產業——那會讓集中度看起來比實際低。
       sectorMix:(row.sectorMix && Array.isArray(row.sectorMix.sectors)) ? row.sectorMix : null,
@@ -884,10 +907,11 @@ function etfRowHtml(row){
     // 報酬與風險：資料層早就算好了，先前只出現在配置產生器的結果表。
     // 殖利率旁邊沒有總報酬，等於讓人只看得到「配得多」而看不到「賺得多」。
     // 58 檔沒有滿一年歷史 → 顯示「—」而非 0，0 會被讀成「完全不波動」。
-    + '<td class="num ' + toneClass(row.totalReturn1y) + '">' + (row.totalReturn1y == null ? "—" : signed(row.totalReturn1y, 1) + "%") + '</td>'
-    + '<td class="num ' + toneClass(row.priceReturn1y) + '">' + (row.priceReturn1y == null ? "—" : signed(row.priceReturn1y, 1) + "%") + '</td>'
-    + '<td class="num">' + (row.volatility1y == null ? "—" : fmt(row.volatility1y, 1) + "%") + '</td>'
-    + '<td class="num ' + toneClass(row.maxDrawdown1y) + '">' + (row.maxDrawdown1y == null ? "—" : fmt(row.maxDrawdown1y, 1) + "%") + '</td>'
+    + '<td class="num ' + toneClass(row.periodTotalReturn) + '">' + periodCell(row, row.periodTotalReturn, 1, "%", true) + '</td>'
+    + '<td class="num ' + toneClass(row.periodCagr) + '">' + periodCell(row, row.periodCagr, 1, "%", true) + '</td>'
+    + '<td class="num">' + periodCell(row, row.periodVolatility, 1, "%", false) + '</td>'
+    + '<td class="num ' + toneClass(row.periodMaxDrawdown) + '">' + periodCell(row, row.periodMaxDrawdown, 1, "%", false) + '</td>'
+    + '<td class="num">' + periodCell(row, row.periodCalmar, 2, "", false) + '</td>'
     + '<td class="num">' + etfCvCell(row) + '</td>'
     + '<td class="num">' + taxableCell(row) + '</td>'
     + '<td class="num">' + (row.frequency ? escapeHtml(row.frequency) : "—") + '</td>'
@@ -911,11 +935,75 @@ function taxableCell(row){
     + escapeHtml(solid ? "通知書" : "推定") + '</span>';
 }
 
+// 目前選的觀察窗。1Y 是牛市的一年，3Y／5Y 才看得出這檔在跌的時候長什麼樣。
+let etfPeriod = "1y";
+
+// 把選定窗的指標攤成 period* 欄位，排序（sortRows 讀 row[key]）才接得上。
+// Calmar = CAGR ÷ |最大回撤|：已經有 CAGR 與回撤，這是免費且直接可比的風險調整指標。
+function applyPeriod(rows, period){
+  const p = period || "1y";
+  return (rows || []).map(function(row){
+    const total = row["totalReturn" + p];
+    // 1 年期的 CAGR 依定義等於總報酬，資料層刻意不重複輸出，這裡補回來供顯示
+    const cagr = p === "1y" ? total : row["cagr" + p];
+    const mdd = row["maxDrawdown" + p];
+    const calmar = (cagr != null && mdd != null && mdd < 0) ? Math.round((cagr / Math.abs(mdd)) * 100) / 100 : null;
+    return Object.assign({}, row, {
+      periodTotalReturn: total == null ? null : total,
+      periodCagr: cagr == null ? null : cagr,
+      periodVolatility: row["volatility" + p] == null ? null : row["volatility" + p],
+      periodMaxDrawdown: mdd == null ? null : mdd,
+      periodCalmar: calmar,
+    });
+  });
+}
+
+// 「—」必須說得出原因。使用者看到破折號無從分辨是「成立太新」「抓不到」還是
+// 「還沒算完」，而這三件事的意義完全不同。
+function periodCell(row, value, digits, suffix, withSign){
+  if (value != null) return (withSign ? signed(value, digits) : fmt(value, digits)) + suffix;
+  const u = row.returnUnavailable;
+  let why;
+  if (u && u.reason === "history") {
+    why = u.days ? "上市約 " + u.days + " 天，未滿一年" : "成立未滿一年";
+  } else if (u && u.reason === "unparsable") {
+    why = "價格序列有無法解釋的跳動，不發布以免算錯";
+  } else if (row.returnSpanDays != null) {
+    why = "資料僅 " + row.returnSpanDays + " 天，不足 " + (etfPeriod === "3y" ? "3 年" : "5 年");
+  } else {
+    why = "無報酬資料";
+  }
+  return '<span class="stale" title="' + escapeHtml(why) + '">—</span>';
+}
+
 // 配息穩定度：與配置產生器結果表同一套三段配色，缺樣本時說出樣本數而不是印 0
+// 「0.35」對使用者不構成資訊——沒人知道那到底算好還是壞。
+// 先給一個看得懂的等級，數字放在旁邊供對照，門檻沿用既有的品質閘門
+// （QUALITY.maxCv = 0.6 是候選池的排除線，這裡的分級與它對齊，不另訂一套）。
+function cvGrade(cv, samples){
+  if (cv == null) return null;
+  // 樣本太少時不給等級：實測 00400A 只有 2 次配息且金額相同 → CV 0，
+  // 標成「極穩」是在用兩個點宣稱一個趨勢。
+  if (samples != null && samples < 4) return { label: "樣本不足", cls: "", weak: true };
+  if (cv <= 0.15) return { label: "極穩", cls: "pos" };
+  if (cv <= 0.30) return { label: "穩定", cls: "pos" };
+  if (cv <= 0.60) return { label: "普通", cls: "" };
+  if (cv <= 1.00) return { label: "波動", cls: "neg" };
+  return { label: "很不穩", cls: "neg" };
+}
+
 function etfCvCell(row){
   const cv = etfCv(row);
-  if (cv == null) return '<span class="stale">樣本' + ((row.dps || []).length) + '筆</span>';
-  return '<span class="' + (cv <= 0.3 ? "pos" : (cv <= 0.6 ? "" : "neg")) + '">' + fmt(cv, 2) + '</span>';
+  if (cv == null) {
+    const n = (row.dps || []).length;
+    return '<span class="stale" title="' + (n ? "只有 " + n + " 次配息紀錄，樣本不足以判斷波動" : "近兩年無配息紀錄")
+      + '">' + (n ? "樣本" + n + "筆" : "無配息") + '</span>';
+  }
+  const g = cvGrade(cv, row.dividendCvSamples);
+  const note = g.weak ? "只有 " + row.dividendCvSamples + " 次配息，變異係數不具統計意義"
+    : "近 24 個月 " + (row.dividendCvSamples || "?") + " 次配息的變異係數";
+  return '<span class="' + g.cls + '" title="' + escapeHtml(note) + '">' + escapeHtml(g.label) + '</span>'
+    + '<span style="display:block;font-size:10px;color:var(--faint)">CV ' + fmt(cv, 2) + '</span>';
 }
 
 function renderEtfHead(){
@@ -944,7 +1032,9 @@ function renderEtf(){
 }
 
 function recomputeEtf(){
-  etfViewRows = sortRows(applyEtfFilters(allEtfs, etfFilters), etfSortKey, etfSortDir);
+  // applyPeriod 要在篩選與排序**之前**：否則點「總報酬」排序時，
+  // period* 欄位還不存在，排出來會是一片 null。
+  etfViewRows = sortRows(applyPeriod(applyEtfFilters(allEtfs, etfFilters), etfPeriod), etfSortKey, etfSortDir);
   etfShown = Math.min(PAGE_SIZE, etfViewRows.length);
   renderEtf();
 }
@@ -1432,6 +1522,24 @@ function dividendCv(dps){
 
 const QUALITY = {maxCv:0.6, maxPremium:1};
 
+// 風險閘門要用**已知最深**的回撤，不是最近一年的。
+// 實測 0050 1Y −15.9% 但 5Y −36.4%、00631L 1Y −31.3% 但 3Y −55.1%。
+// 只看 1Y 會讓「我最多忍受 30%」的人拿到真實回撤 36% 的標的——
+// 那是這個閘門存在的唯一目的，用最樂觀的窗把關等於沒把關。
+function worstDrawdown(row){
+  const all = [row && row.maxDrawdown1y, row && row.maxDrawdown3y, row && row.maxDrawdown5y]
+    .filter(function(v){ return v != null && Number.isFinite(v); });
+  return all.length ? Math.min.apply(null, all) : null;
+}
+
+// 已知最長觀察窗的標籤，讓畫面說得出這個數字是幾年的
+function worstDrawdownWindow(row){
+  if (row && row.maxDrawdown5y != null) return "5年";
+  if (row && row.maxDrawdown3y != null) return "3年";
+  if (row && row.maxDrawdown1y != null) return "1年";
+  return "";
+}
+
 /* ---------- 六維評分 ---------- */
 
 // 用**百分位排名**而不是絕對門檻。「波動 <15% 給 10 分」這種門檻是憑空訂的，
@@ -1445,7 +1553,7 @@ const SCORE_DIMENSIONS = [
   // 「配息穩定度」都變成「配息」，同一列出現兩個一樣的標籤。
   {key:"return", label:"報酬潛力", short:"報酬", of:function(r){return r.totalReturn1y;}, higherIsBetter:true},
   {key:"volatility", label:"波動度", short:"波動", of:function(r){return r.volatility1y;}, higherIsBetter:false},
-  {key:"drawdown", label:"風險（回撤）", short:"回撤", of:function(r){return r.maxDrawdown1y;}, higherIsBetter:true},
+  {key:"drawdown", label:"風險（回撤）", short:"回撤", of:function(r){return worstDrawdown(r);}, higherIsBetter:true},
   {key:"income", label:"配息能力", short:"息高", of:function(r){return r.yield;}, higherIsBetter:true},
   {key:"stability", label:"配息穩定度", short:"息穩", of:function(r){return etfCv(r);}, higherIsBetter:false},
   {key:"liquidity", label:"流動性", short:"流動", of:function(r){
@@ -1562,7 +1670,7 @@ function buildCandidatePool(etfs, options){
     const cv = etfCv(row);
     if (cv != null && cv > QUALITY.maxCv) { rejected.cv += 1; return false; }
     if (row.discountPremium != null && row.discountPremium > QUALITY.maxPremium) { rejected.premium += 1; return false; }
-    if (hasDrawdownGate && !(row.maxDrawdown1y != null && row.maxDrawdown1y >= -maxDrawdownPct)) {
+    if (hasDrawdownGate && !(worstDrawdown(row) != null && worstDrawdown(row) >= -maxDrawdownPct)) {
       rejected.drawdown += 1;
       return false;
     }
@@ -2447,7 +2555,7 @@ function bind(){
     etfFilters.type = ""; etfFilters.disc = -0.3; etfFilters.aumMin = 10; etfFilters.payingOnly = false;
     if (typeE) typeE.value = "";
     etfSortKey = "discountPremium"; etfSortDir = 1;
-    etfViewRows = sortRows(applyEtfFilters(allEtfs, etfFilters).filter(function(row){return row.type !== "槓桿反向" && row.type !== "期貨型";}), etfSortKey, etfSortDir);
+    etfViewRows = sortRows(applyPeriod(applyEtfFilters(allEtfs, etfFilters).filter(function(row){return row.type !== "槓桿反向" && row.type !== "期貨型";}), etfPeriod), etfSortKey, etfSortDir);
     etfShown = Math.min(PAGE_SIZE, etfViewRows.length);
     renderEtf();
   });
@@ -2477,6 +2585,19 @@ function bind(){
     }
     runSuggest();
   });
+
+  for (const pair of [["pd1y", "1y"], ["pd3y", "3y"], ["pd5y", "5y"]]) {
+    const node = $(pair[0]);
+    if (!node) continue;
+    node.addEventListener("click", function(){
+      etfPeriod = pair[1];
+      for (const other of [["pd1y", "1y"], ["pd3y", "3y"], ["pd5y", "5y"]]) {
+        const b = $(other[0]);
+        if (b) b.className = other[1] === etfPeriod ? "btn on" : "btn";
+      }
+      recomputeEtf();
+    });
+  }
 
   const resetE = $("resetE");
   if (resetE) resetE.addEventListener("click", function(){
@@ -2656,6 +2777,9 @@ const marketApp = {
     etfScores:etfScores,
     profileToConstraints:profileToConstraints,
     combineSectorMix:combineSectorMix,
+    applyPeriod:applyPeriod,
+    worstDrawdown:worstDrawdown,
+    cvGrade:cvGrade,
     NHI:NHI,
   },
 };

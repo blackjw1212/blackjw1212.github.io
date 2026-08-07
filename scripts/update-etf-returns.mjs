@@ -52,6 +52,74 @@ export function snapSplitRatio(ratio) {
   return best ? best.candidate : null;
 }
 
+// 三個觀察窗。tolerance 是允許的缺口：交易日不是每天都有，5 年約 1,215 個交易日，
+// 用日曆天算會永遠差一截，所以各留一段寬容。
+const WINDOWS = [
+  { key: "1y", days: 365, tolerance: 35 },
+  { key: "3y", days: 365 * 3, tolerance: 60 },
+  { key: "5y", days: 365 * 5, tolerance: 90 },
+];
+
+// 從校正後的序列切出一個時間窗並算出該窗的指標。
+// 所有計算都用 raw * factor（分割校正後）——0052 的 1:7 分割若沒校正，
+// 會被算成 −86% 的單日回撤，整個風險側就毀了。
+export function windowMetrics(points, factors, days) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const endMs = Date.parse(points[points.length - 1].date + "T00:00:00Z");
+  const startMs = endMs - days * 86400000;
+  const w = WINDOWS.find((x) => x.days === days);
+  const tolerance = (w ? w.tolerance : 35) * 86400000;
+
+  let firstIndex = -1;
+  for (let i = 0; i < points.length; i += 1) {
+    if (Date.parse(points[i].date + "T00:00:00Z") >= startMs) { firstIndex = i; break; }
+  }
+  if (firstIndex < 0) return null;
+  // 起點必須真的接近窗的起始日。序列只有兩年時，5y 窗會從第一筆開始，
+  // 那樣算出來的「5 年報酬」其實是兩年——那是假的，不可發布。
+  if (Date.parse(points[firstIndex].date + "T00:00:00Z") - startMs > tolerance) return null;
+
+  const slice = points.slice(firstIndex);
+  // 報酬與回撤兩個點就算得出來；只有波動度需要足夠樣本，那個門檻放在下面。
+  // 把 20 點的要求套在整組上，會讓資料稀疏的標的連報酬都消失。
+  if (slice.length < 2) return null;
+  const adj = slice.map((p, i) => p.raw * factors[firstIndex + i]);
+  const pct = (from, to) => Math.round((to / from - 1) * 1000) / 10;
+
+  const daily = [];
+  for (let i = 1; i < adj.length; i += 1) daily.push(adj[i] / adj[i - 1] - 1);
+
+  let peak = adj[0];
+  let worst = 0;
+  for (const p of adj) { if (p > peak) peak = p; const d = p / peak - 1; if (d < worst) worst = d; }
+
+  let volatility = null;
+  if (daily.length >= 20) {
+    const mean = daily.reduce((s, r) => s + r, 0) / daily.length;
+    const variance = daily.reduce((s, r) => s + (r - mean) ** 2, 0) / (daily.length - 1);
+    volatility = Math.round(Math.sqrt(variance) * Math.sqrt(252) * 1000) / 10;
+  }
+  const out = {
+    priceReturn: pct(adj[0], adj[adj.length - 1]),
+    maxDrawdown: Math.round(worst * 1000) / 10,
+    volatility: volatility,
+  };
+
+  // 總報酬走 adjclose（已還原配息）；缺 adjclose 就不發總報酬，
+  // 不拿 raw 假裝——那會把配息貢獻整個吃掉
+  const adjPts = slice.map((p, i) => ({ v: p.adj, f: factors[firstIndex + i] })).filter((p) => p.v != null);
+  if (adjPts.length >= 2) {
+    const a = adjPts[0], b = adjPts[adjPts.length - 1];
+    out.totalReturn = pct(a.v * a.f, b.v * b.f);
+    const years = days / 365;
+    const growth = (b.v * b.f) / (a.v * a.f);
+    if (growth > 0) out.cagr = Math.round((Math.pow(growth, 1 / years) - 1) * 1000) / 10;
+  }
+  // 缺 adjclose 只代表算不出總報酬，價格報酬與回撤仍然成立——
+  // 整組丟掉會讓那些標的連價差都消失。
+  return out;
+}
+
 async function readJson(fileUrl, fallback) {
   try {
     return JSON.parse(await readFile(fileUrl, "utf8"));
@@ -75,7 +143,7 @@ export function yahooReturns(payload, options) {
   const rawSeries = Array.isArray(quote.close) ? quote.close : [];
   const adjSeries = adjHolder && Array.isArray(adjHolder.adjclose) ? adjHolder.adjclose : [];
 
-  const points = [];
+  let points = [];
   for (let i = 0; i < result.timestamp.length; i += 1) {
     const raw = Number(rawSeries[i]);
     const adj = Number(adjSeries[i]);
@@ -89,63 +157,67 @@ export function yahooReturns(payload, options) {
   if (points.length < 2) return { skip: "fewer than 2 usable closes" };
 
   // 分割偵測與校正：由後往前累乘，讓「較早的價格」換算到目前的股數基準
-  const factors = new Array(points.length).fill(1);
+  let factors = new Array(points.length).fill(1);
   let cumulative = 1;
   let splitsApplied = 0;
+  let unexplainedAt = -1;      // 最晚一次無法解釋的跳動：它之前的資料一律不可信
+  let unexplainedNote = null;
   for (let i = points.length - 1; i >= 1; i -= 1) {
     const step = points[i].raw / points[i - 1].raw;
     if (step < band.lo || step > band.hi) {
       const snapped = snapSplitRatio(step);
-      // 跳動超出漲跌幅限制、又不貼近任何乾淨的分割比例 → 不猜，整檔不發布
-      if (snapped == null) return { skip: `unexplained ${step.toFixed(4)}x jump on ${points[i].date}` };
+      if (snapped == null) {
+        // 跳動超出漲跌幅限制、又不貼近任何乾淨的分割比例 → 不猜。
+        // 但**只有跨越它的窗才不能算**：四年前的一次不明跳動不該讓 1Y 也消失。
+        // 原本整檔丟棄，改抓 5 年資料後 1Y 覆蓋率從 293 掉到 267 就是這個原因。
+        unexplainedAt = i;
+        unexplainedNote = `unexplained ${step.toFixed(4)}x jump on ${points[i].date}`;
+        break;   // 更早的資料一律不可信，不必再往前掃
+      }
       cumulative *= snapped;
       splitsApplied += 1;
     }
     factors[i - 1] = cumulative;
   }
 
-  const pct = (from, to) => Math.round((to / from - 1) * 1000) / 10;
-  const first = points[0];
+  // 把序列截到不明跳動之後。整檔丟棄太粗暴——乾淨的那一段仍然算得出來，
+  // 而跨越跳動的長窗會被 windowMetrics 的起點容差自然擋掉。
+  if (unexplainedAt > 0) {
+    points = points.slice(unexplainedAt);
+    factors = factors.slice(unexplainedAt);
+    if (points.length < 20) return { skip: unexplainedNote };
+  }
+
   const last = points[points.length - 1];
   const out = {
-    from: first.date,
+    from: points[0].date,
     to: last.date,
-    spanDays: Math.round((Date.parse(last.date) - Date.parse(first.date)) / 86400000),
-    priceReturn1y: pct(first.raw * factors[0], last.raw),
+    spanDays: Math.round((Date.parse(last.date) - Date.parse(points[0].date)) / 86400000),
   };
   if (splitsApplied) out.splitsApplied = splitsApplied;
+  if (unexplainedNote) out.truncatedBy = unexplainedNote;
 
-  // 波動度與最大回撤：務必用**校正後**的價格。用原始序列的話，0052 的 1:7 分割
-  // 會被算成 −86% 的單日回撤，風險分數整個毀掉——那正是這支腳本存在的理由，
-  // 不要在新指標上重犯同一個錯。
-  const adjusted = points.map((p, i) => p.raw * factors[i]);
-  const daily = [];
-  for (let i = 1; i < adjusted.length; i += 1) daily.push(adjusted[i] / adjusted[i - 1] - 1);
-  if (daily.length >= 20) {
-    const mean = daily.reduce((sum, r) => sum + r, 0) / daily.length;
-    const variance = daily.reduce((sum, r) => sum + (r - mean) ** 2, 0) / (daily.length - 1);
-    out.volatility1y = Math.round(Math.sqrt(variance) * Math.sqrt(252) * 1000) / 10;
-  }
-  let peak = adjusted[0];
-  let worst = 0;
-  for (const price of adjusted) {
-    if (price > peak) peak = price;
-    const drop = price / peak - 1;
-    if (drop < worst) worst = drop;
-  }
-  out.maxDrawdown1y = Math.round(worst * 1000) / 10;
-
-  const adjPoints = points.map((p, i) => ({ adj: p.adj, factor: factors[i] })).filter((p) => p.adj != null);
-  if (adjPoints.length >= 2) {
-    const a = adjPoints[0];
-    const b = adjPoints[adjPoints.length - 1];
-    out.totalReturn1y = pct(a.adj * a.factor, b.adj * b.factor);
+  // **只給一年的數字會誤導。** 這份資料裡大盤一年翻倍，0050 的 +106.7% 是牛市產物；
+  // 同一檔 5 年總報酬 243.3%、CAGR 約 28%，那才是可以拿來比較的量級。
+  // 一次 5y 抓取切出三個窗，不必多打 API。
+  for (const w of WINDOWS) {
+    const m = windowMetrics(points, factors, w.days);
+    if (!m) continue;                       // 歷史不足這個窗就整組不發，不用短區間冒充
+    out["totalReturn" + w.key] = m.totalReturn;
+    out["priceReturn" + w.key] = m.priceReturn;
+    out["maxDrawdown" + w.key] = m.maxDrawdown;
+    if (m.volatility != null) out["volatility" + w.key] = m.volatility;
+    // 1Y 的 CAGR 依定義等於總報酬，重複輸出只會讓人以為是兩個不同的數字
+    if (w.key !== "1y" && m.cagr != null) out["cagr" + w.key] = m.cagr;
   }
   return out;
 }
 
 export function hasFullYear(entry) {
-  return Boolean(entry && !entry.skip && entry.spanDays >= MIN_SPAN_DAYS);
+  // 至少要有 1Y 才發布。3Y／5Y 各自由 windowMetrics 決定有沒有，缺就不出現該欄。
+  // 至少要有 1Y 窗算得出東西（缺 adjclose 時只有價格報酬，仍可發布）。
+  // 3Y／5Y 各自由 windowMetrics 決定有沒有，缺就不出現該欄。
+  return Boolean(entry && !entry.skip && entry.spanDays >= MIN_SPAN_DAYS && entry.priceReturn1y != null);
 }
 
 async function main() {
@@ -169,13 +241,18 @@ async function main() {
     const symbol = row.code + (row.market === "tpex" ? ".TWO" : ".TW");
     try {
       const response = await fetch(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1d`,
+        `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=5y&interval=1d`,
         { headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" } },
       );
       if (!response.ok) throw new Error("HTTP " + response.status);
       const entry = yahooReturns(await response.json(), { leveraged: row.type === "槓桿反向" });
-      if (entry.skip) { skipped[row.code] = entry.skip; continue; }
-      if (!hasFullYear(entry)) { skipped[row.code] = `only ${entry.spanDays} days of history`; continue; }
+      if (entry.skip) { skipped[row.code] = { reason: "unparsable", detail: entry.skip }; continue; }
+      if (!hasFullYear(entry)) {
+        // 記下實際天數：畫面上的「—」要說得出是「成立未滿一年」還是「抓不到」，
+        // 使用者才不會以為是 API 壞了或還沒算完。
+        skipped[row.code] = { reason: "history", days: entry.spanDays || 0, from: entry.from || null };
+        continue;
+      }
       if (entry.splitsApplied) splitFixed += 1;
       stocks[row.code] = entry;
       ok += 1;

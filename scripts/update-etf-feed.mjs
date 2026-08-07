@@ -675,21 +675,37 @@ async function main() {
     // 品質與分類指標寫入資料層（原本只在前端算，消費原始 JSON 者拿不到）
     // 波動度看近 24 個月（殖利率仍是近 12 個月）——用同一個 12 月窗只有 4 筆，
     // 看不出 006208 那種 0.989→4.75 的水準跳升
-    const cv = dividendCv(cvWindowAmounts(history.stocks[row.code], tradeDate));
+    const cvWindow = cvWindowAmounts(history.stocks[row.code], tradeDate);
+    const cv = dividendCv(cvWindow);
     if (cv != null) row.dividendCv = cv;
+    // 樣本數要跟著出來：實測 00400A 只有 2 次配息、金額相同 → CV 0，
+    // 畫面把它標成「極穩」。2 個樣本的變異係數沒有統計意義，
+    // 前端要據此拒絕給出高等級。
+    if (Array.isArray(cvWindow) && cvWindow.length) row.dividendCvSamples = cvWindow.length;
     row.isActive = isActiveEtf(row);
     row.isCore = isCoreEtf(row);
     // 近一年總報酬／價格報酬（回測）。抓不到就整組不寫，讓前端以「無資料」處理——
     // 缺一半的報酬比沒有報酬更危險：只有配息會讓賠價差的高配息標的看起來最好。
     const ret = returnsByCode[row.code];
     if (ret && ret.totalReturn1y != null && ret.priceReturn1y != null) {
-      row.totalReturn1y = ret.totalReturn1y;
-      row.priceReturn1y = ret.priceReturn1y;
       row.returnFrom = ret.from;
       row.returnTo = ret.to;
-      // 風險側：波動度（日報酬標準差年化）與最大回撤，皆由分割校正後的序列算出
-      if (ret.volatility1y != null) row.volatility1y = ret.volatility1y;
-      if (ret.maxDrawdown1y != null) row.maxDrawdown1y = ret.maxDrawdown1y;
+      row.returnSpanDays = ret.spanDays;
+      // 三個觀察窗。只給一年會誤導：實測 0050 的 1Y 最大回撤 −15.9%，
+      // 但 5Y 是 −36.4%；00631L 1Y −31.3%、3Y −55.1%。
+      for (const key of ["1y", "3y", "5y"]) {
+        for (const metric of ["totalReturn", "priceReturn", "maxDrawdown", "volatility", "cagr"]) {
+          const field = metric + key;
+          if (ret[field] != null) row[field] = ret[field];
+        }
+      }
+    } else if (returnsData.skipped && returnsData.skipped[row.code]) {
+      // 為什麼沒有報酬資料：畫面上的「—」要說得出是「成立未滿一年」還是「抓不到」，
+      // 否則使用者會以為是 API 壞了或還沒算完。
+      const s = returnsData.skipped[row.code];
+      row.returnUnavailable = (s && typeof s === "object")
+        ? { reason: s.reason, days: s.days == null ? null : s.days }
+        : { reason: "unparsable" };
     }
     if (curated.domicileNote) row.domicileNote = curated.domicileNote;
     // 配息的國內來源佔比（稅務估算用）。名稱推定看不出投資地區時只能人工判定——
