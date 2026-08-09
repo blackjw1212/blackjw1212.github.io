@@ -1105,6 +1105,76 @@ test("effectiveExposure weights holdings by allocation and reports coverage gaps
   assert.equal(Object.keys(tsmc.per).length, 2, "kept per-ETF weights for the table");
 });
 
+// 曝險引擎是唯一資料來源。原本三個地方各掃一次持股，同一筆配置會給出對不起來的數字。
+async function loadedApp() {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  return app;
+}
+
+test("overlap and effective exposure are the same engine, not two implementations", async () => {
+  const app = await loadedApp();
+  const { computeOverlap, effectiveExposure } = app.helpers;
+  const picked = app.getEtfs().filter((row) => ["0050", "006208"].includes(row.code));
+  const overlap = computeOverlap(picked);
+  const eff = effectiveExposure([{ code: "0050", pct: 50 }, { code: "006208", pct: 50 }]);
+  // 等權兩檔：台積電 57.37×0.5 + 57.39×0.5 = 57.38
+  const a = overlap.find((row) => row.name === "台積電");
+  const b = eff.rows.find((row) => row.name === "台積電");
+  assert.ok(Math.abs(b.eff - 57.38) < 0.01, `實質曝險應為 57.38，實得 ${b.eff}`);
+  assert.equal(a.inAll, true, "兩檔都持有的股票要標成交集");
+  assert.deepEqual(Object.keys(a.per).sort(), Object.keys(b.per).sort(), "兩個 view 的逐檔權重必須同源");
+});
+
+// 這是最容易講錯的一個數字：可見的前十大本來就是最集中的那一段。
+// 若拿 100% 當分母，看不見的那 36% 會被當成 0 曝險，把集中度算得太漂亮。
+test("HHI and effective holdings are normalised over the visible slice only", async () => {
+  const app = await loadedApp();
+  const e = app.helpers.buildPortfolioExposure([{ code: "0050", pct: 100 }], app.getEtfs());
+  // 0050 可見前十大只有 57.37 + 6.11 = 63.48%，台積電佔可見部分的 90.4%
+  assert.ok(Math.abs(e.visibleTotal - 63.48) < 0.01, `可見曝險應為 63.48%，實得 ${e.visibleTotal}`);
+  assert.ok(e.effectiveHoldings < 2,
+    `以可見部分為分母，有效持股數應接近 1.2；實得 ${e.effectiveHoldings}。` +
+    "若得到 3 左右，代表用 100% 當分母、把看不見的持股當成 0 曝險了");
+  assert.equal(e.visibleNames, 2, "只能宣稱看得到的名字數，不可宣稱總持股檔數");
+  assert.ok(!("holdingCount" in e), "沒有全持股資料，就不可輸出「總共持有幾檔」");
+});
+
+test("fund-level metrics stay exact when holdings data is missing", async () => {
+  const app = await loadedApp();
+  // 0056 完全沒有成分股資料，但殖利率是精確的，不該被曝險的缺口拖累
+  const e = app.helpers.buildPortfolioExposure(
+    [{ code: "0050", pct: 60 }, { code: "0056", pct: 40 }], app.getEtfs());
+  assert.ok(Math.abs(e.fund.yield - (1.57 * 0.6 + 8.13 * 0.4)) < 0.01,
+    `加權殖利率應為 4.19，實得 ${e.fund.yield}`);
+  assert.equal(e.uncoveredPct, 40, "沒有成分股資料的比重要說出來");
+  assert.ok(e.stocks.length, "有成分股資料的那 60% 仍要算得出曝險");
+});
+
+test("removing a fund renormalises the rest instead of shrinking the denominator", async () => {
+  const app = await loadedApp();
+  const rows = app.helpers.marginalContribution([{ code: "0050", pct: 50 }, { code: "0056", pct: 50 }]);
+  const dropHigh = rows.find((row) => row.code === "0056");
+  // base 4.85；拿掉 0056 後只剩 0050，重新正規化為 100% → 1.57，差 3.28
+  // 若沒有重新正規化（拿 50/100 算），會得到 0.785、差額 4.07 —— 每一檔都會看起來「拿掉就變差」
+  assert.ok(Math.abs(dropHigh.dYield - 3.28) < 0.02,
+    `0056 對殖利率的邊際貢獻應為 +3.28pp，實得 ${dropHigh.dYield}`);
+  assert.equal(rows.length, 2, "每一檔都要有一列");
+  assert.equal(app.helpers.marginalContribution([{ code: "0050", pct: 100 }]).length, 0,
+    "只有一檔時沒有「移除後」可比，不可輸出空殼列");
+});
+
+test("a stock with no industry match is left unclassified, never invented into a sector", async () => {
+  const app = await loadedApp();
+  // 測試 feed 沒有 holdingIndustry，等於全部比對不到
+  const e = app.helpers.buildPortfolioExposure([{ code: "0050", pct: 100 }], app.getEtfs());
+  assert.equal(e.sectors.length, 0, "查不到產業就不可硬塞一個產業名");
+  assert.ok(Math.abs(e.unclassifiedWeight - 63.5) < 0.1,
+    `未分類要保住全部可見權重，實得 ${e.unclassifiedWeight}`);
+});
+
 test("dividendCv measures payout volatility and needs at least two events", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

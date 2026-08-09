@@ -1071,6 +1071,8 @@ async function loadEtf(){
     if (!response.ok) throw new Error("HTTP " + response.status);
     const payload = await response.json();
     allEtfs = normalizeEtfFeed(payload);
+  // 成分股→產業對照是 feed 層級（不在每一列上），曝險引擎要用
+  holdingIndustryMap = (payload && payload.holdingIndustry) || {};
     etfLoaded = true;
     recomputeEtf();
     renderOvList();
@@ -1086,29 +1088,174 @@ async function loadEtf(){
   }
 }
 
+/* ===================== 組合曝險引擎 =====================
+ *
+ * 單一資料來源：allocations（[{code, pct}]）→ 一份 exposure，所有視圖從它推導。
+ * Overlap、產業曝險、有效持股、HHI、前十大、槓桿曝險都只是 view，不各算各的。
+ * 原本每加一個功能就多一支 computeXXX()，結果是「功能都有，但彼此對不起來」。
+ *
+ * **這份曝險只涵蓋看得見的前十大。** 全市場沒有完整持股的機器可讀來源——
+ * TWSE openapi 沒有任何 ETF 端點、etfPCF 回 404，MoneyDJ 也只給前十大。
+ * 因此：
+ *   - 不輸出「總共持有幾檔股票」：5 檔 ETF 最多看到 50 個名字，不是 1,800 檔，
+ *     給那個數字等於編。
+ *   - HHI 與有效持股數都只在 coveredPct 那一段內成立，欄位名與畫面都要說出來。
+ *     可見部分本來就是最集中的那一段，直接當成全組合會系統性高估集中度。
+ *   - 基金層級的指標（殖利率、總報酬、Calmar、回撤）不依賴持股，**是精確的**。
+ *     所以「移除某檔會怎樣」在那些指標上完全可信。
+ */
+function buildPortfolioExposure(allocations, universe){
+  const rows = Array.isArray(universe) ? universe : allEtfs;
+  const byCode = {};
+  rows.forEach(function(r){ byCode[r.code] = r; });
+
+  const items = (allocations || []).map(function(a){
+    const code = String(a.code || "").trim().toUpperCase();
+    return { code: code, pct: Number(a.pct) || 0, etf: byCode[code] || null };
+  }).filter(function(i){ return i.etf && i.pct > 0; });
+
+  const totalPct = items.reduce(function(s, i){ return s + i.pct; }, 0);
+  const empty = {
+    items: [], totalPct: 0, stocks: [], sectors: [], unclassifiedWeight: 0,
+    coveredPct: 0, uncoveredPct: 0, hhi: null, effectiveHoldings: null,
+    top1: 0, top10: 0, visibleNames: 0, leveragePct: 0, fund: null,
+  };
+  if (!items.length || !(totalPct > 0)) return empty;
+
+  // 1) 個股曝險：ETF 內權重 × 該 ETF 在組合中的比重
+  const stockMap = {};
+  let covered = 0;      // 有成分股資料、且被前十大涵蓋到的組合比重
+  let uncovered = 0;    // 完全沒有成分股資料的那部分組合
+  let leveragePct = 0;
+  items.forEach(function(i){
+    const share = i.pct / totalPct;
+    if (/L$/.test(i.code)) leveragePct += i.pct;
+    const holdings = (i.etf.topHoldings || []);
+    if (!holdings.length) { uncovered += i.pct; return; }
+    let seen = 0;
+    holdings.forEach(function(h){
+      const w = Number(h.weight);
+      if (!Number.isFinite(w) || w <= 0) return;
+      seen += w;
+      const key = String(h.name || "").trim();
+      if (!stockMap[key]) stockMap[key] = { name: key, exposure: 0, per: {} };
+      stockMap[key].per[i.code] = w;
+      stockMap[key].exposure += w * share;
+    });
+    // 前十大只涵蓋該 ETF 的一部分（實測 0050 80%、0056 39%），其餘看不到
+    covered += i.pct * seen / 100;
+  });
+
+  const round = function(v, d){ const m = Math.pow(10, d == null ? 2 : d); return Math.round(v * m) / m; };
+  const stocks = Object.keys(stockMap).map(function(k){
+    const s = stockMap[k];
+    s.exposure = round(s.exposure);
+    s.heldBy = Object.keys(s.per).length;
+    s.inAll = s.heldBy === items.length;
+    return s;
+  }).sort(function(a, b){ return b.exposure - a.exposure || a.name.localeCompare(b.name); });
+
+  // 2) 產業曝險：同一份個股曝險換個維度加總，不重新掃一次持股
+  const sectorMap = {};
+  let unclassified = 0;
+  stocks.forEach(function(s){
+    const ind = industryOf(s.name);
+    if (ind) sectorMap[ind] = (sectorMap[ind] || 0) + s.exposure;
+    else unclassified += s.exposure;
+  });
+  const sectors = Object.keys(sectorMap).map(function(name){
+    return { name: name, weight: round(sectorMap[name], 1) };
+  }).sort(function(a, b){ return b.weight - a.weight || a.name.localeCompare(b.name); });
+
+  // 3) 集中度：**只在可見曝險內**成立。以可見部分為分母重新正規化，
+  //    否則看不見的那 20~40% 會被當成 0 曝險，把 HHI 灌高。
+  const visibleTotal = stocks.reduce(function(s, x){ return s + x.exposure; }, 0);
+  let hhi = null;
+  let effectiveHoldings = null;
+  if (visibleTotal > 0 && stocks.length) {
+    hhi = stocks.reduce(function(s, x){ const w = x.exposure / visibleTotal; return s + w * w; }, 0);
+    effectiveHoldings = Math.round(1 / hhi * 10) / 10;
+    hhi = Math.round(hhi * 1000) / 1000;
+  }
+
+  return {
+    items: items,
+    totalPct: round(totalPct, 1),
+    stocks: stocks,
+    sectors: sectors,
+    unclassifiedWeight: round(unclassified, 1),
+    coveredPct: round(covered, 1),
+    uncoveredPct: round(uncovered, 1),
+    visibleTotal: round(visibleTotal, 2),
+    hhi: hhi,
+    effectiveHoldings: effectiveHoldings,
+    visibleNames: stocks.length,
+    top1: stocks.length ? stocks[0].exposure : 0,
+    top10: round(stocks.slice(0, 10).reduce(function(s, x){ return s + x.exposure; }, 0), 1),
+    leveragePct: round(leveragePct, 1),
+    fund: fundLevelMetrics(items, totalPct),
+  };
+}
+
+// 基金層級指標。**不依賴持股資料，所以是精確的**——
+// 「移除某檔會怎樣」在這些數字上完全可信，不受前十大限制影響。
+function fundLevelMetrics(items, totalPct){
+  const p = etfPeriod || "1y";
+  let yieldSum = 0, yieldW = 0;
+  let retSum = 0, retW = 0;
+  let ddWorst = 0, ddW = 0;
+  let cagrSum = 0;
+  items.forEach(function(i){
+    const share = i.pct / totalPct;
+    if (i.etf.yield != null) { yieldSum += i.etf.yield * share; yieldW += share; }
+    const tr = i.etf["totalReturn" + p];
+    const cagr = p === "1y" ? tr : i.etf["cagr" + p];
+    const dd = i.etf["maxDrawdown" + p];
+    if (tr != null) { retSum += tr * share; retW += share; }
+    if (cagr != null) cagrSum += cagr * share;
+    // 組合回撤不可用加權平均——各檔不會同時見底。加權平均是**樂觀下界**，
+    // 這裡取它但標明是下界，不要讓人以為那是實際會經歷的最大跌幅。
+    if (dd != null) { ddWorst += dd * share; ddW += share; }
+  });
+  const round = function(v, d){ const m = Math.pow(10, d == null ? 2 : d); return Math.round(v * m) / m; };
+  const cagr = retW > 0 ? round(cagrSum, 1) : null;
+  const dd = ddW > 0 ? round(ddWorst, 1) : null;
+  return {
+    period: p,
+    yield: yieldW > 0 ? round(yieldSum, 2) : null,
+    totalReturn: retW > 0 ? round(retSum, 1) : null,
+    cagr: cagr,
+    maxDrawdownWeighted: dd,
+    calmar: (cagr != null && dd != null && dd < 0) ? round(cagr / Math.abs(dd)) : null,
+    coverage: round(retW * 100, 0),   // 有報酬資料的組合比重
+  };
+}
+
+// 成分股 → 產業。由 etf-feed 的 holdingIndustry 帶進來（只含實際出現在持股裡的
+// 名字，不是整份 1,998 檔的對照表），normalizeEtfFeed 之外另存，因為它是 feed 層級。
+let holdingIndustryMap = {};
+function industryOf(name){
+  const raw = String(name || "").trim();
+  return holdingIndustryMap[raw] || holdingIndustryMap[raw.replace(/[*＊\s]/g, "")] || null;
+}
+
 /* ===================== 成分股重疊 ===================== */
 function curatedEtfs(){
   return allEtfs.filter(function(row){return row.topHoldings.length;});
 }
 
+// Overlap 現在只是曝險引擎的一個 view。原本它自己掃一次持股、
+// 產業集中度又掃一次、模擬器的 effectiveExposure 再掃一次——三份結果對不起來。
+// 等權是這個 view 的預設：使用者在這裡只勾選標的、沒有給比重。
 function computeOverlap(selected){
-  // selected: [{code, name, topHoldings:[{name, weight}]}] → 合計曝險排序
-  const map = {};
-  for (const etf of selected) {
-    for (const holding of etf.topHoldings) {
-      const key = holding.name;
-      if (!map[key]) map[key] = {name:key, total:0, per:{}};
-      map[key].per[etf.code] = holding.weight;
-      map[key].total += holding.weight;
-    }
-  }
-  const rows = Object.values(map).map(function(entry){
-    entry.total = Math.round(entry.total * 100) / 100;
-    entry.inAll = selected.every(function(etf){return entry.per[etf.code] != null;});
-    return entry;
+  const each = selected.length ? 100 / selected.length : 0;
+  const exposure = buildPortfolioExposure(
+    selected.map(function(e){ return { code: e.code, pct: each }; }), selected);
+  return exposure.stocks.map(function(s){
+    // total 保留原本的語意（各檔前十大權重直接相加），供既有畫面與測試沿用
+    const total = Object.keys(s.per).reduce(function(sum, k){ return sum + s.per[k]; }, 0);
+    return { name: s.name, total: Math.round(total * 100) / 100, per: s.per, inAll: s.inAll };
   });
-  rows.sort(function(a, b){return b.total - a.total || a.name.localeCompare(b.name);});
-  return rows;
 }
 
 function renderOvList(){
@@ -1125,28 +1272,19 @@ function renderOvList(){
 // 未分類**獨立成一列**，不併進任何產業也不從分母剔除。00712 復華富時不動產
 // 前十大 78.6% 全是美國 REITs、中文譯名比對不到，若把它吞掉，這檔會顯示成
 // 「完全沒有產業集中度」，那是最危險的誤導。
+// 同樣改成引擎的 view，不再自己聚合 sectorMix——
+// 兩套聚合邏輯遲早會給出不同的數字，而使用者無從判斷哪個對。
 function combineSectorMix(selected){
-  const funds = (selected || []).filter(function(r){return r && r.sectorMix;});
-  if (!funds.length) return null;
-  const acc = {};
-  let covered = 0;
-  let unclassified = 0;
-  funds.forEach(function(row){
-    const m = row.sectorMix;
-    const share = 1 / funds.length;   // 等權：這裡回答「這組標的的產業樣貌」，不是某個配置
-    m.sectors.forEach(function(s){ acc[s.name] = (acc[s.name] || 0) + s.weight * share; });
-    covered += m.coveredWeight * share;
-    unclassified += m.unclassifiedWeight * share;
-  });
-  const round = function(v){ return Math.round(v * 10) / 10; };
-  const sectors = Object.keys(acc).map(function(name){ return {name:name, weight:round(acc[name])}; })
-    .sort(function(a, b){ return b.weight - a.weight || a.name.localeCompare(b.name); });
+  if (!selected || !selected.length) return null;
+  const each = 100 / selected.length;
+  const e = buildPortfolioExposure(selected.map(function(r){ return { code: r.code, pct: each }; }), selected);
+  if (!e.stocks.length) return null;
   return {
-    sectors: sectors,
-    coveredWeight: round(covered),
-    unclassifiedWeight: round(unclassified),
-    withMix: funds.length,
-    withoutMix: (selected || []).length - funds.length,
+    sectors: e.sectors,
+    coveredWeight: e.visibleTotal,
+    unclassifiedWeight: e.unclassifiedWeight,
+    withMix: e.items.filter(function(i){ return (i.etf.topHoldings || []).length; }).length,
+    withoutMix: selected.length - e.items.filter(function(i){ return (i.etf.topHoldings || []).length; }).length,
   };
 }
 
@@ -1412,27 +1550,49 @@ function simulate(input){
 
 // 實質曝險：把各檔前十大成分股權重 × 該檔佔總資金比例，加總為「這檔股票佔你多少錢」。
 // 只有精選檔有人工維護的成分股，未涵蓋者以 coverage 回報，避免看起來像全貌。
+//
+// 這裡已經改成曝險引擎的一個 view。原本它自己掃一次持股、Overlap 掃一次、
+// 產業集中度再掃一次——同一筆配置在三個地方會給出對不起來的數字。
+// 保留 rows/eff/coveredPct 的既有語意（coveredPct＝有成分股資料的配置比重，
+// 不是前十大實際涵蓋的權重），因為畫面與測試都依賴它。
 function effectiveExposure(allocations){
-  const map = {};
-  let covered = 0;
-  let uncovered = 0;
-  for (const allocation of allocations) {
-    const pct = Number(allocation.pct) || 0;
-    const etf = allEtfs.find(function(row){return row.code === String(allocation.code || "").trim().toUpperCase();});
-    if (!etf || !etf.topHoldings.length) { uncovered += pct; continue; }
-    covered += pct;
-    for (const holding of etf.topHoldings) {
-      if (!map[holding.name]) map[holding.name] = {name:holding.name, eff:0, per:{}};
-      map[holding.name].per[etf.code] = holding.weight;
-      map[holding.name].eff += holding.weight * pct / 100;
-    }
-  }
-  const rows = Object.values(map).map(function(row){
-    row.eff = Math.round(row.eff * 100) / 100;
-    return row;
-  }).sort(function(a, b){return b.eff - a.eff;});
-  return {rows:rows, coveredPct:covered, uncoveredPct:uncovered,
-    top1:rows[0] ? rows[0].eff : 0, top10Sum:Math.round(rows.reduce(function(sum, row){return sum + row.eff;}, 0) * 100) / 100};
+  const e = buildPortfolioExposure(allocations, allEtfs);
+  const rows = e.stocks.map(function(s){ return { name: s.name, eff: s.exposure, per: s.per }; });
+  return {
+    rows: rows,
+    coveredPct: Math.round((e.totalPct - e.uncoveredPct) * 100) / 100,
+    uncoveredPct: e.uncoveredPct,
+    top1: e.top1,
+    top10Sum: e.visibleTotal,
+    exposure: e,
+  };
+}
+
+// 移除某一檔會怎樣。基金層級指標（殖利率／總報酬／Calmar／回撤）不依賴持股，
+// 這部分的差額是精確的；曝險層級（最大單一持股／有效持股數）仍受前十大限制。
+// 剩下的權重**依原比例重新正規化**——不是把被移除的那份丟掉不算，
+// 那會讓每一檔看起來都「移除後報酬變低」，因為分母被偷偷改小了。
+function marginalContribution(allocations){
+  const base = buildPortfolioExposure(allocations, allEtfs);
+  if (base.items.length < 2) return [];
+  return base.items.map(function(target){
+    const rest = base.items
+      .filter(function(i){ return i.code !== target.code; })
+      .map(function(i){ return { code: i.code, pct: i.pct }; });
+    const without = buildPortfolioExposure(rest, allEtfs);
+    const delta = function(a, b){ return (a == null || b == null) ? null : Math.round((a - b) * 100) / 100; };
+    return {
+      code: target.code,
+      name: target.etf.name,
+      pct: target.pct,
+      dYield: delta(base.fund && base.fund.yield, without.fund && without.fund.yield),
+      dReturn: delta(base.fund && base.fund.totalReturn, without.fund && without.fund.totalReturn),
+      dDrawdown: delta(base.fund && base.fund.maxDrawdownWeighted, without.fund && without.fund.maxDrawdownWeighted),
+      dCalmar: delta(base.fund && base.fund.calmar, without.fund && without.fund.calmar),
+      dTop1: delta(base.top1, without.top1),
+      dEffective: delta(base.effectiveHoldings, without.effectiveHoldings),
+    };
+  });
 }
 
 /* ---- 配置最佳化引擎：對「選哪些檔 × 各配多少 %」做窮舉搜尋 ---- */
@@ -2230,8 +2390,11 @@ function renderExposure(){
   if (!box) return;
   const exposure = effectiveExposure(simAllocations);
   if (!exposure.rows.length) {
+    // 沒有成分股資料只擋住曝險，擋不住基金層級指標——那些是精確的，
+    // 一併藏起來等於因為次要資料缺漏而丟掉主要結論。
     box.innerHTML = exposure.uncoveredPct > 0
       ? '<p class="hint" style="margin-top:14px">所選標的沒有人工維護的成分股資料，無法計算實質曝險（目前僅精選 ETF 具備）。</p>'
+        + marginalHtml(simAllocations)
       : "";
     return;
   }
@@ -2254,6 +2417,7 @@ function renderExposure(){
   const freshness = oldest
     ? '成分股資料日 ' + escapeHtml(oldest) + (ageDays != null ? '（' + ageDays + ' 天前）' : '')
     : '';
+  const e = exposure.exposure;
   box.innerHTML = '<h2 style="margin-top:26px">實質曝險 <em>EXPOSURE</em></h2>'
     + '<p class="hint">各檔前十大成分股權重 × 該檔佔總資金比例，加總後即為單一股票實際佔你多少資金。'
       + '涵蓋 ' + fmt(exposure.coveredPct, 0) + '% 的配置'
@@ -2265,6 +2429,7 @@ function renderExposure(){
       + '<div class="sim-kpi"><b>重複持有檔數</b><span>' + shared.length + '</span>'
         + (shared.length ? '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">' + escapeHtml(shared.slice(0, 3).map(function(row){return row.name;}).join("、")) + '</span>' : '') + '</div>'
     + '</div>'
+    + concentrationHtml(e)
     + '<div class="table-scroll" style="margin-top:12px"><table style="min-width:520px"><thead><tr><th style="text-align:left">成分股</th>'
       + codes.map(function(code){return '<th>' + escapeHtml(code) + '</th>';}).join("")
       + '<th>實質佔總資金%</th></tr></thead><tbody>'
@@ -2273,6 +2438,88 @@ function renderExposure(){
             + codes.map(function(code){return '<td class="num">' + (row.per[code] != null ? fmt(row.per[code], 2) : "—") + '</td>';}).join("")
             + '<td class="num"><b>' + fmt(row.eff, 2) + '</b></td></tr>';
         }).join("")
+    + '</tbody></table></div>'
+    + exposureSectorHtml(e)
+    + marginalHtml(simAllocations);
+}
+
+// 集中度。三個數字都**只在可見的那段曝險內成立**，標題與說明都要講出來——
+// 可見的本來就是最集中的那一段，當成全組合會系統性高估。
+function concentrationHtml(e){
+  if (!e || !e.visibleNames) return "";
+  const eff = e.effectiveHoldings;
+  // 有效持股數 = 1/Σw²。等權 N 檔剛好等於 N，愈集中愈小。
+  const tone = eff == null ? "" : (eff < 5 ? ' class="neg"' : (eff < 10 ? ' style="color:var(--amber)"' : ''));
+  return '<div class="sim-summary" style="margin-top:10px">'
+    + '<div class="sim-kpi"><b>有效持股數<span style="font-weight:400">（可見）</span></b><span' + tone + '>'
+      + (eff == null ? "—" : fmt(eff, 1) + " 檔") + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">'
+      + e.visibleNames + ' 個看得到的名字，1/Σw²</span></div>'
+    + '<div class="sim-kpi"><b>HHI<span style="font-weight:400">（可見）</span></b><span>'
+      + (e.hhi == null ? "—" : fmt(e.hhi * 100, 1)) + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">滿分 100＝全押一檔</span></div>'
+    + '<div class="sim-kpi"><b>槓桿曝險</b><span' + (e.leveragePct > 0 ? ' style="color:var(--amber)"' : '') + '>'
+      + fmt(e.leveragePct, 1) + '%</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">正2／反1 佔配置比重</span></div>'
+    + '</div>'
+    + '<p class="hint">有效持股數與 HHI 以<b>看得到的 ' + e.visibleNames + ' 檔前十大成分股</b>為分母計算，'
+    + '不是整個組合的真實持股數（一檔 ETF 常持有上百檔，公開資料只到前十大）。'
+    + '拿它跟別的組合比是有意義的，拿它當「我真的只持有這幾檔」則不是。</p>';
+}
+
+// 產業曝險：與上面的個股曝險同一份資料換個維度，不重新掃持股。
+function exposureSectorHtml(e){
+  if (!e || !e.sectors.length) return "";
+  const rows = e.sectors.slice(0, 8).map(function(s){
+    return '<tr><td style="text-align:left">' + escapeHtml(s.name) + '</td>'
+      + '<td class="num">' + fmt(s.weight, 1) + '%</td></tr>';
+  }).join("")
+    + (e.unclassifiedWeight > 0
+      ? '<tr><td style="text-align:left"><span class="stale">未分類（名稱比對不到，多為海外持股）</span></td>'
+        + '<td class="num"><span class="stale">' + fmt(e.unclassifiedWeight, 1) + '%</span></td></tr>'
+      : "");
+  const top = e.sectors[0];
+  return '<h3 style="font-size:14px;margin-top:18px">產業曝險</h3>'
+    + '<p class="hint">同一份可見曝險換個維度加總。'
+    + (top ? '最大產業<b>' + escapeHtml(top.name) + ' ' + fmt(top.weight, 1) + '%</b>——'
+      + '不同股票也可能是同一個產業，這是個股重疊看不出來的那一半。' : '') + '</p>'
+    + '<div class="table-scroll"><table style="min-width:360px"><thead><tr>'
+    + '<th style="text-align:left">產業</th><th>佔總資金</th></tr></thead><tbody>'
+    + rows + '</tbody></table></div>';
+}
+
+// 移除某檔會怎樣。這是「這檔到底幫我賺到什麼」最直接的答案——
+// 比單看它自己的殖利率有用，因為那沒有考慮它跟其他檔重疊。
+function marginalHtml(allocations){
+  const rows = marginalContribution(allocations);
+  if (!rows.length) return "";
+  const p = etfPeriod || "1y";
+  const label = p === "1y" ? "近1年總報酬" : (p === "3y" ? "近3年總報酬" : "近5年總報酬");
+  const cell = function(v, digits, suffix){
+    if (v == null) return '<td class="num">—</td>';
+    return '<td class="num ' + toneClass(v) + '">' + signed(v, digits) + (suffix || "") + '</td>';
+  };
+  return '<h3 style="font-size:14px;margin-top:18px">移除這一檔會怎樣</h3>'
+    + '<p class="hint">拿掉該檔、其餘依原比例重新正規化後，整體指標的變化。'
+    + '正值＝這檔把該指標往上帶。殖利率、報酬、Calmar、回撤<b>不依賴持股資料，是精確的</b>；'
+    + '最大單一持股與有效持股數仍只看得到前十大。回撤用加權平均，是<b>樂觀下界</b>——'
+    + '實際上各檔不會同時見底。</p>'
+    + '<div class="table-scroll"><table style="min-width:600px"><thead><tr>'
+    + '<th style="text-align:left">標的</th><th>配置%</th><th>殖利率</th><th>' + label + '</th>'
+    + '<th>加權回撤</th><th>Calmar</th><th>最大單一持股</th><th>有效持股數</th>'
+    + '</tr></thead><tbody>'
+    + rows.map(function(r){
+        return '<tr><td style="text-align:left"><span class="code">' + escapeHtml(r.code) + '</span> '
+          + escapeHtml(r.name) + '</td>'
+          + '<td class="num">' + fmt(r.pct, 1) + '</td>'
+          + cell(r.dYield, 2, "pp") + cell(r.dReturn, 1, "pp")
+          + cell(r.dDrawdown, 1, "pp") + cell(r.dCalmar, 2)
+          // 集中度是「愈低愈好」，所以上色方向與報酬相反：+ 代表這檔讓組合更集中
+          + (r.dTop1 == null ? '<td class="num">—</td>'
+            : '<td class="num ' + toneClass(-r.dTop1) + '">' + signed(r.dTop1, 2) + 'pp</td>')
+          + cell(r.dEffective, 1, " 檔")
+          + '</tr>';
+      }).join("")
     + '</tbody></table></div>';
 }
 
@@ -2399,6 +2646,10 @@ function runSuggest(){
         : '<div class="sim-kpi"><b>較等權重多</b><span' + (out.gainVsEqual > 0 ? ' class="pos"' : '') + '>+' + fmt(Math.round(out.gainVsEqual), 0) + ' /年</span>'
           + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重為 ' + fmt(Math.round(out.baselineNet), 0) + '</span></div>')
     + '</div>'
+    // 最佳化只會挑「各自分數高」的標的，它不知道這 4 檔可能同時重壓台積電。
+    // 集中度與邊際貢獻要跟結果放在一起，否則使用者看到的是 4 個好數字、
+    // 而不是一個組合。
+    + suggestExposureHtml(out.picks)
     + '<div class="decision-tools" style="margin-top:10px"><button class="btn" id="applySuggest" type="button">套用到上方試算</button>'
       + '<span class="stamp">已計算 ' + fmt(out.evaluated, 0) + ' 個組合（' + elapsed + 'ms）· 候選池 ' + out.poolSize + ' 檔'
         + '（品質門檻已排除 配息波動過大 ' + out.rejected.cv + ' 檔、溢價過高 ' + out.rejected.premium + ' 檔'
@@ -2415,6 +2666,21 @@ function runSuggest(){
     renderSimRows();
     runSim();
   });
+}
+
+// 配置產生器的組合層級視圖。與模擬器共用同一個引擎與同一組說明文字，
+// 兩頁對同一組配置不會給出不同的集中度。
+function suggestExposureHtml(picks){
+  const allocations = picks.map(function(p){ return { code: p.code, pct: p.pct }; });
+  const e = buildPortfolioExposure(allocations, allEtfs);
+  if (!e.items.length) return "";
+  return '<h3 style="font-size:14px;margin-top:20px">這組合起來有多集中</h3>'
+    + (e.uncoveredPct > 0
+      ? '<p class="hint">其中 ' + fmt(e.uncoveredPct, 0) + '% 的配置沒有成分股資料，未計入下列曝險。</p>'
+      : '')
+    + concentrationHtml(e)
+    + exposureSectorHtml(e)
+    + marginalHtml(allocations);
 }
 
 /* ===================== 頁籤 ===================== */
@@ -2777,6 +3043,8 @@ const marketApp = {
     etfScores:etfScores,
     profileToConstraints:profileToConstraints,
     combineSectorMix:combineSectorMix,
+    buildPortfolioExposure:buildPortfolioExposure,
+    marginalContribution:marginalContribution,
     applyPeriod:applyPeriod,
     worstDrawdown:worstDrawdown,
     cvGrade:cvGrade,

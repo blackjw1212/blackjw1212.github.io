@@ -729,7 +729,19 @@ async function main() {
   if (premiumMismatch) errors.push({ source: "premium-sanity", message: `${premiumMismatch} row(s) premium mismatch >${PREMIUM_SANITY_PP}pp vs MIS official; column suppressed` });
   if (navPreserved) errors.push({ source: "feed-preservation", message: `kept previous nav/premium/aum for ${navPreserved} column value(s)` });
 
-  const feed = { updatedAt: now, tradeDate, marketDates, count: rows.length, divHistoryStart: history.start, stocks: rows, errors };
+  // 前端的曝險引擎要逐檔查「成分股 → 產業」。整份 industry-map（1,998 檔）
+  // 對頁面太大，而實際出現在 topHoldings 裡的名字只有一小部分——只帶那些。
+  const holdingIndustry = {};
+  for (const row of rows) {
+    for (const h of (row.topHoldings || [])) {
+      const raw = String((h && h.name) || "").trim();
+      if (!raw || holdingIndustry[raw] !== undefined) continue;
+      const ind = industryByName[raw] || industryByName[raw.replace(/[*＊\s]/g, "")] || null;
+      if (ind) holdingIndustry[raw] = ind;
+    }
+  }
+
+  const feed = { updatedAt: now, tradeDate, marketDates, count: rows.length, divHistoryStart: history.start, holdingIndustry, stocks: rows, errors };
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
   await writeFile(HISTORY_FILE, JSON.stringify({ start: history.start, updatedAt: now, stocks: history.stocks }), "utf8");
