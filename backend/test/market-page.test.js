@@ -1265,6 +1265,53 @@ test("the page discloses which rate sits in the denominator", async () => {
   assert.match(note, /不等於/, "要講明組合的 Sharpe 不是成分的加權平均");
 });
 
+// 配息 sparkline。一個 CV 數字說不出形狀，但圖也很容易說謊——
+// 這幾條測的是「它不會說謊」，不是「它畫得出來」。
+test("the sparkline baseline is zero so a small cut is not drawn as a cliff", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { dividendSparkline } = app.helpers;
+  // 1.07 → 0.866 是砍 19%。縱軸從 0 起算時，落差應該只佔可用高度的一小段；
+  // 若改用 min-max 縮放，這兩個值會被畫成從最頂到最底（差 16px）。
+  const svg = dividendSparkline({ dividendSeries: [
+    { d: "2025-01", a: 1.07 }, { d: "2025-04", a: 1.07 },
+    { d: "2025-07", a: 0.866 }, { d: "2025-10", a: 0.866 },
+  ] });
+  const ys = svg.match(/points="([^"]+)"/)[1].split(" ").map((p) => Number(p.split(",")[1]));
+  const spread = Math.max(...ys) - Math.min(...ys);
+  assert.ok(spread > 0, "有變動就要看得出來");
+  assert.ok(spread < 6, `19% 的減配不該畫成 ${spread}px 的斷崖——縱軸沒有從 0 起算`);
+  // 最高點必須貼近頂端（PAD=1），證明分母是最大值而不是 min-max 區間
+  assert.ok(Math.min(...ys) <= 1.5, "最大值應貼齊頂端");
+});
+
+test("too few payouts produce no sparkline at all", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { dividendSparkline } = app.helpers;
+  // 兩個點連成一線看起來像趨勢，但那跟 cvGrade 拒絕給等級是同一個理由
+  assert.equal(dividendSparkline({ dividendSeries: [{ d: "2026-01", a: 1 }, { d: "2026-04", a: 2 }] }), "",
+    "2 筆不足以畫出走勢");
+  assert.equal(dividendSparkline({ dividendSeries: null }), "");
+  assert.equal(dividendSparkline({}), "");
+  // 金額全為 0（理論上不該發生）也不可畫出一條貼底的假線
+  assert.equal(dividendSparkline({ dividendSeries: [
+    { d: "a", a: 0 }, { d: "b", a: 0 }, { d: "c", a: 0 }, { d: "d", a: 0 }] }), "");
+});
+
+test("the sparkline says which period and how many payouts it covers", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const svg = app.helpers.dividendSparkline({ dividendSeries: [
+    { d: "2024-10", a: 1.07 }, { d: "2025-01", a: 1.07 },
+    { d: "2025-04", a: 0.866 }, { d: "2026-07", a: 1.35 },
+  ] });
+  assert.match(svg, /近 24 個月 4 次配息/, "要說得出是哪個窗、幾筆");
+  assert.match(svg, /2024-10 1\.07 → 2026-07 1\.35/, "首尾要標日期，否則看不出時間軸");
+  assert.match(svg, /縱軸從 0 起算/, "縮放方式要講明，否則無從判斷落差的意義");
+  assert.match(svg, /<title>/, "游標提示與無障礙標籤都要有");
+});
+
 test("dividendCv measures payout volatility and needs at least two events", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

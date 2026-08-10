@@ -117,6 +117,25 @@ test("etf-feed.json matches the expected schema", async () => {
     assert.ok(m.coveredWeight > 0 && m.coveredWeight <= 100.5, at(`coveredWeight ${m.coveredWeight} 超出範圍`));
   }
 
+  // 配息走勢的資料點必須與 CV 同源。若兩邊各自從 history 撈一次，
+  // 24 個月窗的邊界會分岔——實測 00939／00940 有 25 筆事件但 CV 只取 24 筆，
+  // 結果會是「圖上 25 個點、CV 說 24 筆」，而沒有人看得出哪個對。
+  const withSeries = feed.stocks.filter((row) => row.dividendSeries);
+  assert.ok(withSeries.length >= 120, `expected 120+ ETFs with dividendSeries, got ${withSeries.length}`);
+  for (const row of withSeries) {
+    const at = (msg) => `${row.code}: ${msg}`;
+    assert.ok(row.dividendSeries.length >= 4, at("少於 4 筆不可輸出序列，兩個點連成一線看起來像趨勢"));
+    assert.equal(row.dividendSeries.length, row.dividendCvSamples,
+      at(`序列 ${row.dividendSeries.length} 筆與 CV 樣本 ${row.dividendCvSamples} 筆不符——兩邊不同源`));
+    let previous = "";
+    for (const point of row.dividendSeries) {
+      assert.match(point.d, /^\d{4}-\d{2}$/, at(`除息年月格式錯誤：${point.d}`));
+      assert.ok(point.a > 0, at(`配息金額 ${point.a} 必須為正`));
+      assert.ok(point.d >= previous, at("序列必須依除息日遞增，否則走勢圖的時間軸是亂的"));
+      previous = point.d;
+    }
+  }
+
   // 無風險利率。Sharpe／Sortino 的分母來源必須說得出出處，
   // 而且**不可為 0**——0 會把超額報酬灌成全額報酬，畫面上看不出異狀。
   assert.ok(feed.riskFree, "feed 必須帶無風險利率，否則 Sharpe／Sortino 整欄消失");

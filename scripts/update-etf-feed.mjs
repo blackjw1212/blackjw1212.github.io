@@ -380,7 +380,10 @@ export function cvWindowAmounts(entry, tradeDate, months = CV_WINDOW_MONTHS) {
   return Object.entries(entry.events)
     .filter(([ex]) => ex >= minIso && ex <= tradeDate)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, e]) => ({ a: e.dps }));
+    // 帶上除息年月：sparkline 要畫時間軸，而它必須與 CV 用**同一組事件**。
+    // 另外從 history 撈一次會在 24 個月窗的邊界上分岔——實測 00939／00940
+    // 這種月配標的有 25 筆事件、CV 只取 24 筆，兩邊會差一筆而沒人看得出來。
+    .map(([ex, e]) => ({ d: ex.slice(0, 7), a: e.dps }));
 }
 
 // 配息變異係數 = 標準差 / 平均。少於 2 筆無從判斷，回 null。
@@ -683,6 +686,13 @@ async function main() {
     // 畫面把它標成「極穩」。2 個樣本的變異係數沒有統計意義，
     // 前端要據此拒絕給出高等級。
     if (Array.isArray(cvWindow) && cvWindow.length) row.dividendCvSamples = cvWindow.length;
+    // 配息走勢圖的資料點。刻意與 CV 同源（見 cvWindowAmounts）——
+    // CV 說「穩定」而圖上明顯一路下滑，兩者對不起來時使用者無從判斷哪個對。
+    // 少於 4 筆不輸出：實測中位數只有 2 筆，兩個點連成一線看起來像趨勢，
+    // 但那跟 cvGrade 拒絕給等級是同一個理由。
+    if (Array.isArray(cvWindow) && cvWindow.length >= 4) {
+      row.dividendSeries = cvWindow.map((e) => ({ d: e.d, a: e.a }));
+    }
     row.isActive = isActiveEtf(row);
     row.isCore = isCoreEtf(row);
     // 近一年總報酬／價格報酬（回測）。抓不到就整組不寫，讓前端以「無資料」處理——

@@ -84,6 +84,8 @@
   .pos{color:var(--green)}.neg{color:var(--red)}.flat{color:var(--faint)}
   .mk{font-family:"Roboto Mono",monospace;font-size:10px;border:1px solid var(--line2);border-radius:8px;padding:1px 6px;color:var(--soft)}
   .badge{font-family:"Roboto Mono",monospace;font-size:10px;border-radius:8px;padding:1px 6px;background:var(--green-bg);color:var(--green);margin-left:6px}
+  /* 配息走勢：用 currentColor 繼承所在儲存格的顏色，等級配色不必再寫一次 */
+  .spark{display:block;margin:2px 0 0 auto;color:var(--faint);overflow:visible}
   /* 回測警語刻意做成擋不掉的一整條，不是塞在說明文字裡的一句話：
      以總報酬為目標等於「買去年漲最多的」，看起來比配息目標更權威，也更容易害人。 */
   .backtest-warn{border:1px solid var(--amber);border-left-width:4px;border-radius:8px;background:rgba(217,166,76,.10);
@@ -291,7 +293,7 @@
           <th data-etf-sort="periodCalmar" title="CAGR ÷ |最大回撤|。每承受 1% 回撤換到多少年化報酬，越高越好">Calmar</th>
           <th data-etf-sort="periodSharpe" title="(CAGR − 無風險利率) ÷ 年化波動。每承受 1% 總波動換到多少超額年化報酬">Sharpe</th>
           <th data-etf-sort="periodSortino" title="(CAGR − 無風險利率) ÷ 下檔標準差。只把下跌算成風險，上漲的波動不罰">Sortino</th>
-          <th data-etf-sort="dividendCvField" title="近24月配息變異係數，越小越穩">配息穩定度</th>
+          <th data-etf-sort="dividendCvField" title="近24月配息變異係數，越小越穩。下方走勢圖是同一組配息（≥4 筆才畫，縱軸從 0 起算）——CV 說得出振幅、說不出方向：實測 119 檔標為極穩／穩定的標的裡，有 30 檔後半段配息與前半段相差超過 ±15%">配息穩定度</th>
           <th title="配息中要課綜所稅的比例。54C／5A／71／76W 的實際金額沒有公開來源，這裡是依標的性質推定">應稅比例</th>
           <th data-etf-sort="frequency">頻率</th>
         </tr></thead>
@@ -829,6 +831,9 @@ function normalizeEtfFeed(payload){
       // 品質/分類指標優先取資料層（pipeline 已算好）；舊 feed 沒有時退回前端計算
       dividendCvField:parseNumber(row.dividendCv),
       dividendCvSamples:parseNumber(row.dividendCvSamples),
+      // 配息走勢的資料點（與 CV 同一組事件，見 update-etf-feed.mjs 的 cvWindowAmounts）。
+      // 資料層已擋掉少於 4 筆的標的，這裡不再自己補。
+      dividendSeries:Array.isArray(row.dividendSeries) ? row.dividendSeries : null,
       // 近一年總報酬／價差（回測）。缺料時保持 null，總報酬目標會把該檔排除——
       // 只有配息的半套資料會系統性偏袒賠價差的高配息標的。
       // 三個觀察窗全部帶進來。只帶 1Y 的話畫面切到 3Y／5Y 會整片「—」，
@@ -1044,7 +1049,42 @@ function etfCvCell(row){
   const note = g.weak ? "只有 " + row.dividendCvSamples + " 次配息，變異係數不具統計意義"
     : "近 24 個月 " + (row.dividendCvSamples || "?") + " 次配息的變異係數";
   return '<span class="' + g.cls + '" title="' + escapeHtml(note) + '">' + escapeHtml(g.label) + '</span>'
-    + '<span style="display:block;font-size:10px;color:var(--faint)">CV ' + fmt(cv, 2) + '</span>';
+    + '<span style="display:block;font-size:10px;color:var(--faint)">CV ' + fmt(cv, 2) + '</span>'
+    + dividendSparkline(row);
+}
+
+// 配息走勢。一個 CV 數字說不出形狀：實測 0056 的 CV 是 0.15、等級「極穩」，
+// 但序列是 1.07→1.07→1.07→0.866→0.866→0.866→1.0→1.35——中間砍過 19% 再回升。
+// 「砍完又補回來」與「一路持平」的 CV 可以很接近，對要靠配息過日子的人卻完全不同。
+//
+// **基準線固定在 0，不用 min-max 縮放。** 縮放會把 1.07→0.866 這種 19% 的變動
+// 畫成從頂到底的斷崖，讓每一檔看起來都在劇烈波動——那是圖表最常見的說謊方式。
+function dividendSparkline(row){
+  const s = row.dividendSeries;
+  if (!Array.isArray(s) || s.length < 4) return "";
+  const W = 68, H = 18, PAD = 1;
+  let max = 0;
+  for (const p of s) { const v = Number(p.a); if (Number.isFinite(v) && v > max) max = v; }
+  if (!(max > 0)) return "";
+  const step = s.length > 1 ? (W - PAD * 2) / (s.length - 1) : 0;
+  const pts = s.map(function(p, i){
+    const v = Math.max(0, Number(p.a) || 0);
+    const x = PAD + i * step;
+    const y = H - PAD - (v / max) * (H - PAD * 2);
+    return (Math.round(x * 10) / 10) + "," + (Math.round(y * 10) / 10);
+  });
+  const last = s[s.length - 1];
+  const first = s[0];
+  // 首尾比較只是描述，不是預測——tooltip 講清楚是哪一段期間的哪幾筆
+  const tip = "近 24 個月 " + s.length + " 次配息：" + first.d + " " + first.a
+    + " → " + last.d + " " + last.a + "（縱軸從 0 起算）";
+  const lastX = pts[pts.length - 1].split(",")[0];
+  const lastY = pts[pts.length - 1].split(",")[1];
+  return '<svg class="spark" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '"'
+    + ' role="img" aria-label="' + escapeHtml(tip) + '"><title>' + escapeHtml(tip) + '</title>'
+    + '<polyline fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"'
+    + ' stroke-linecap="round" points="' + pts.join(" ") + '"/>'
+    + '<circle cx="' + lastX + '" cy="' + lastY + '" r="1.8" fill="currentColor"/></svg>';
 }
 
 function renderEtfHead(){
@@ -3132,6 +3172,7 @@ const marketApp = {
     worstDrawdown:worstDrawdown,
     riskAdjusted:riskAdjusted,
     cvGrade:cvGrade,
+    dividendSparkline:dividendSparkline,
     NHI:NHI,
   },
 };
