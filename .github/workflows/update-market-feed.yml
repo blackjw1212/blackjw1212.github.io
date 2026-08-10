@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # 派工 Pages 部署用；沒有它 gh workflow run 會 403
 
 jobs:
   update-market-feed:
@@ -123,3 +124,12 @@ jobs:
           git add $FILES
           git commit -m "Update market and ETF feeds"
           git push
+          # **這一步是資料能不能上線的關鍵。** 以 GITHUB_TOKEN 推出的 commit
+          # 依 GitHub 規則不會觸發 on:push 的 workflow，所以 pages-deploy 收不到，
+          # 資料進得了 repo 卻上不了線——實測線上曾停在 3 天前的 tradeDate，
+          # 而 repo 已是當日。必須顯式派工。
+          # 放在這裡（而不是另開一步）是因為上面無變更時就 exit 0 了，
+          # 天然只有真的 commit 出去才會部署。
+          gh workflow run pages-deploy.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}

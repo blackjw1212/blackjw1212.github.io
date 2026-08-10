@@ -501,6 +501,28 @@ function fmt(value, digits){
 // 另外「交易日比更新時間早一天」多半不是壞掉，而是 TWSE OpenAPI 當下還沒發佈
 // （實測 2026-07-28 台灣 20:13 仍只有 07-27 的資料），所以把更新時間一起顯示，
 // 讓「為什麼交易日沒前進」看得出原因，而不是誤以為排程沒跑。
+// 部署鏈條斷掉時，資料進得了 repo 卻上不了線：實測 2026-08-10 線上停在 08-07 的
+// tradeDate、repo 已是當日，整整 3 天沒人發現（feed workflow 用 GITHUB_TOKEN 推的
+// commit 不會觸發 on:push 的 pages-deploy）。頁面自己比對 updatedAt 與現在，
+// 過期就明說，不必靠人工巡檢才發現。
+//
+// **判準用實際時數，不用交易日計數。** 要讓交易日計數不誤報就得有 TWSE 開休市日曆
+// （春節連假最長 6 天），那是另一條資料管線；既有的 isPreviousTradingDay() 只把
+// 週末算進去，套在這裡會逢國定假日就亮紅燈。
+// 72 小時的餘裕來自最長的正常間隔——週五 22:00 → 週一 09:00 台北 ＝ 59 小時。
+// 連假期間仍會亮，但那時資料**確實**就是那麼舊，所以文案要說得出兩種可能。
+//
+// 三頁各有一份（本站無打包器，isPreviousTradingDay 本來就是這樣重複的），
+// 由測試互驗行為一致，比照 dividendCv() 的做法。
+const STALE_HOURS = 72;
+function stalenessNote(updatedAt){
+  const t = Date.parse(updatedAt || "");
+  if (!Number.isFinite(t)) return "";
+  const hours = (Date.now() - t) / 3600000;
+  if (!(hours > STALE_HOURS)) return "";
+  return "⚠ 資料已 " + Math.floor(hours / 24) + " 天未更新（可能是連假，也可能是更新流程中斷）";
+}
+
 function feedStamp(label, count, payload){
   const errors = Array.isArray(payload && payload.errors) ? payload.errors : [];
   const preserved = errors.filter(function(e){ return e && e.source === "feed-preservation"; });
@@ -516,7 +538,11 @@ function feedStamp(label, count, payload){
   const missing = errors.filter(function(e){ return e && e.source !== "stale-market" && e.source !== "stale-valuation"; });
   if (preserved.length) notes.push("部分為前次保留資料");
   else if (missing.length) notes.push("部分欄位缺料");
-  return parts.join(" · ") + (notes.length ? "（" + notes.join("、") + "）" : "");
+  // 過期警示放在括號外：它講的是「這份資料本身是不是舊的」，
+  // 與括號裡「這份資料的某些欄位有問題」不是同一個層級的事。
+  const stale = stalenessNote(payload && payload.updatedAt);
+  return parts.join(" · ") + (notes.length ? "（" + notes.join("、") + "）" : "")
+    + (stale ? " · " + stale : "");
 }
 
 // PE／PB／殖利率的分母是股價，而估值來源比收盤晚一步發佈：實測 2026-08-06 早上，
@@ -3171,6 +3197,8 @@ const marketApp = {
     applyPeriod:applyPeriod,
     worstDrawdown:worstDrawdown,
     riskAdjusted:riskAdjusted,
+    stalenessNote:stalenessNote,
+    STALE_HOURS:STALE_HOURS,
     cvGrade:cvGrade,
     dividendSparkline:dividendSparkline,
     NHI:NHI,

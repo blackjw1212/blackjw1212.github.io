@@ -129,9 +129,20 @@ test("the stamp separates real preservation from ordinary missing fields", async
   const { app } = await loadMarket(async () => okResponse(marketFeed()));
   const { feedStamp } = app.helpers;
 
-  // 一切正常
-  assert.equal(feedStamp("全市場", 1936, { tradeDate: "2026-07-28", updatedAt: "2026-07-28T14:05:00.000Z", errors: [] }),
-    "全市場 1936 檔 · 交易日 2026-07-28 · 更新 07-28 22:05");
+  // 格式與時區換算（固定時戳才鎖得住）。這份時戳早就過了過期門檻，
+  // 所以後面會多接一段警示——用 startsWith 鎖前段，警示本身另外測。
+  assert.ok(
+    feedStamp("全市場", 1936, { tradeDate: "2026-07-28", updatedAt: "2026-07-28T14:05:00.000Z", errors: [] })
+      .startsWith("全市場 1936 檔 · 交易日 2026-07-28 · 更新 07-28 22:05"),
+    "戳記前段的格式與 UTC→台灣時間換算");
+
+  // 一切正常＝新鮮且無錯誤時，不可有任何括號註記、也不可有過期警示。
+  // 用相對時戳，否則這條測試會隨時間自然腐化成「過期」而莫名失敗。
+  const freshStamp = feedStamp("全市場", 1936, {
+    tradeDate: "2026-07-28", updatedAt: new Date(Date.now() - 3600000).toISOString(), errors: [],
+  });
+  assert.doesNotMatch(freshStamp, /（/, "沒有缺料就不該有括號註記");
+  assert.doesNotMatch(freshStamp, /未更新/, "新鮮資料不可亮過期警示，否則警示變常態就失效了");
 
   // 真的有列被保留 → 才可以說「前次保留資料」
   const preserved = feedStamp("全市場", 1936, {

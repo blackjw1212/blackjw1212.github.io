@@ -259,6 +259,20 @@ function formatDate(value) {
   }).format(date);
 }
 
+// 部署鏈條斷掉時，資料進得了 repo 卻上不了線：實測 2026-08-10 線上停在 08-07、
+// repo 已是當日，3 天沒人發現。頁面自己比對 updatedAt 與現在，過期就明說。
+// 判準用實際時數而非交易日計數——交易日計數要不誤報得有 TWSE 開休市日曆。
+// 72 小時的餘裕來自最長的正常間隔：週五 22:00 → 週一 09:00 台北 ＝ 59 小時。
+// 與 market/、stocks/ 兩頁同一套規則，由測試互驗三份一致（本站無打包器）。
+const STALE_HOURS = 72;
+function stalenessNote(updatedAt) {
+  const t = Date.parse(updatedAt || "");
+  if (!Number.isFinite(t)) return "";
+  const hours = (Date.now() - t) / 3600000;
+  if (!(hours > STALE_HOURS)) return "";
+  return `⚠ 資料已 ${Math.floor(hours / 24)} 天未更新（可能是連假，也可能是更新流程中斷）`;
+}
+
 // 交易日（資料屬於哪一天）與 eodUpdatedAt（何時抓的）不同，標示要用前者。
 function formatTradingDate(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -280,11 +294,14 @@ async function refreshAiSummary() {
     const feed = await response.json();
     const eodRows = Array.isArray(feed.eod) ? feed.eod.length : 0;
     const tradingDate = formatTradingDate(feed.eodTradingDate);
-    const stamp = tradingDate
+    // 過期時蓋掉平常的日期標示：「08/07 收盤」在今天是 08/10 時看起來一切正常，
+    // 那正是這次 3 天沒被發現的原因。
+    const stale = stalenessNote(feed.eodUpdatedAt || feed.updatedAt);
+    const stamp = stale || (tradingDate
       ? `${tradingDate} 收盤`
-      : `收盤資料 ${formatDate(feed.eodUpdatedAt || feed.updatedAt)}`;
+      : `收盤資料 ${formatDate(feed.eodUpdatedAt || feed.updatedAt)}`);
     const yieldValue = feed.yield10y && feed.yield10y.value;
-    setStatus("stockFeedStatus", "stockFeedMeta", eodRows ? `${eodRows} 檔` : "待更新", stamp, eodRows ? "ok" : "warn");
+    setStatus("stockFeedStatus", "stockFeedMeta", eodRows ? `${eodRows} 檔` : "待更新", stamp, (eodRows && !stale) ? "ok" : "warn");
     setStatus("yieldStatus", "yieldMeta", formatYield(yieldValue), feed.yield10y && feed.yield10y.source ? feed.yield10y.source : "來源待更新", Number.isFinite(Number(yieldValue)) ? "ok" : "warn");
   } catch (error) {
     setStatus("stockFeedStatus", "stockFeedMeta", "待更新", "靜態 feed 暫時無法讀取", "warn");

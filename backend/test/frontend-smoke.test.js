@@ -207,8 +207,11 @@ async function loadHome(fetchMock) {
 
 function staticFeed(overrides = {}) {
   return {
-    updatedAt: "2026-06-05T09:00:00.000Z",
-    eodUpdatedAt: "2026-06-05T08:00:00.000Z",
+    // 時戳必須相對於現在。原本寫死 2026-06-05，隨時間自然腐化成「過期資料」——
+    // 加上過期警示後這份「正常 feed」的 fixture 會讓首頁亮 warn 而測試莫名其妙失敗。
+    // 要測過期的測試自己用 overrides 傳舊時戳。
+    updatedAt: hoursAgo(2),
+    eodUpdatedAt: hoursAgo(3),
     eod: [
       { code: "2330", name: "台積電", close: "2,400.25", change: "+5.25" },
       { code: "2308", name: "台達電", close: 2250, change: -10 },
@@ -1090,4 +1093,97 @@ test("malformed or legacy localStorage state does not break app initialization",
   assert.equal(context.window.PortfolioConsoleApp.getState().planN, undefined);
   assert.match(document.getElementById("scoreBody").innerHTML, /2330/);
   assert.equal(document.getElementById("tLog").innerHTML, "");
+});
+
+// ── 資料過期警示 ────────────────────────────────────────────────
+// 起因：feed workflow 用 GITHUB_TOKEN 推的 commit 不會觸發 on:push 的 pages-deploy，
+// 資料進得了 repo 卻上不了線。實測 2026-08-10 線上停在 08-07、repo 已是當日，
+// 3 天沒人發現。這幾條測的是「下次會被看見」。
+
+// 用相對於現在的時間造樣本，就不必去 mock 時鐘
+const hoursAgo = (h) => new Date(Date.now() - h * 3600000).toISOString();
+
+// 三頁各有一份 helper（本站無打包器，isPreviousTradingDay 本來就是這樣重複的）。
+// 這條擋的是日後只改其中一份造成的分叉——比照 dividendCv() 在資料層與前端互驗的做法。
+async function stalenessHelpers() {
+  const home = await loadHome(async () => response(staticFeed()));
+  const stocks = await loadApp(async () => response(staticFeed()));
+  const marketPath = fileURLToPath(new URL("../../market/index.html", import.meta.url));
+  const marketHtml = await readFile(marketPath, "utf8");
+  const marketScript = marketHtml.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)?.[1];
+  assert.ok(marketScript, "market inline script should be present");
+  const marketWindow = { __MARKET_SKIP_AUTO_INIT__: true, location: { href: "https://local.test/", search: "" } };
+  const marketCtx = vm.createContext({
+    console, document: createDocument().document, fetch: async () => response({}),
+    Headers, Intl, URL, URLSearchParams, setTimeout, clearTimeout, window: marketWindow,
+  });
+  vm.runInContext(marketScript, marketCtx, { filename: "market-index.html" });
+  return {
+    "index.html": home.context.stalenessNote,
+    "stocks/index.html": stocks.context.window.PortfolioConsoleApp.helpers.stalenessNote,
+    "market/index.html": marketWindow.MarketApp.helpers.stalenessNote,
+  };
+}
+
+test("all three pages agree on when data counts as stale", async () => {
+  const helpers = await stalenessHelpers();
+  const names = Object.keys(helpers);
+  assert.equal(names.length, 3);
+  for (const name of names) {
+    assert.equal(typeof helpers[name], "function", `${name} 缺少 stalenessNote`);
+  }
+  // 逐個時點比對三份輸出必須逐字相同，任何一頁被改動都會當場失敗
+  for (const h of [1, 24, 59, 71, 73, 100, 200]) {
+    const at = hoursAgo(h);
+    const outputs = names.map((n) => helpers[n](at));
+    assert.equal(new Set(outputs).size, 1,
+      `${h} 小時前的判定三頁不一致：${JSON.stringify(Object.fromEntries(names.map((n, i) => [n, outputs[i]])))}`);
+  }
+});
+
+test("a normal weekend gap does not raise a false alarm", async () => {
+  const helpers = await stalenessHelpers();
+  for (const [name, fn] of Object.entries(helpers)) {
+    // 最長的正常間隔：週五 22:00 → 週一 09:00 台北 ＝ 59 小時
+    assert.equal(fn(hoursAgo(59)), "", `${name}: 正常週末不可誤報，否則每週一都在喊狼來了`);
+    assert.equal(fn(hoursAgo(71)), "", `${name}: 門檻 72 小時之內都不該亮`);
+  }
+});
+
+test("a genuinely broken pipeline is called out with how old the data is", async () => {
+  const helpers = await stalenessHelpers();
+  for (const [name, fn] of Object.entries(helpers)) {
+    const note = fn(hoursAgo(80));
+    assert.match(note, /3 天未更新/, `${name}: 要說得出過期幾天，只說「過期」使用者無從判斷嚴重性`);
+    // 連假期間資料確實就是那麼舊，警示是誠實的——但要讓人分得出兩種可能
+    assert.match(note, /連假/, `${name}: 要說明也可能是連假，否則使用者以為系統壞了`);
+    assert.match(note, /中斷/, `${name}: 也要說明可能是更新流程中斷`);
+  }
+});
+
+test("a missing or unparsable timestamp stays silent instead of guessing", async () => {
+  const helpers = await stalenessHelpers();
+  for (const [name, fn] of Object.entries(helpers)) {
+    assert.equal(fn(""), "", `${name}: 沒有時戳就無從判斷，不可猜`);
+    assert.equal(fn(null), "", `${name}: null 不可當成很舊`);
+    assert.equal(fn("not a date"), "", `${name}: 解析不了不可當成很舊`);
+  }
+});
+
+test("the home page replaces the reassuring date stamp when data is stale", async () => {
+  // 「08/07 收盤」在今天是 08/10 時看起來一切正常——那正是 3 天沒被發現的原因
+  const stale = staticFeed({ eodUpdatedAt: hoursAgo(80), updatedAt: hoursAgo(80) });
+  const { document } = await loadHome(async () => response(stale));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const meta = document.getElementById("stockFeedMeta").textContent;
+  assert.match(meta, /資料已 3 天未更新/, "過期時必須蓋掉平常的日期標示");
+  assert.doesNotMatch(meta, /收盤$/, "不可還顯示成正常的收盤標示");
+});
+
+test("the home page shows the ordinary stamp when data is fresh", async () => {
+  const fresh = staticFeed({ eodUpdatedAt: hoursAgo(2), updatedAt: hoursAgo(2) });
+  const { document } = await loadHome(async () => response(fresh));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const meta = document.getElementById("stockFeedMeta").textContent;
+  assert.doesNotMatch(meta, /未更新/, "新鮮資料不可亮警示，否則警示會被當成常態而失效");
 });

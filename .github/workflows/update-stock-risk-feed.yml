@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # 派工 Pages 部署用；沒有它 gh workflow run 會 403
 
 jobs:
   update-feed:
@@ -30,3 +31,8 @@ jobs:
           git add data/stock-risk-feed.json
           git commit -m "Update stock risk feed"
           git push
+          # 見 update-market-feed.yml 的同一段：GITHUB_TOKEN 推的 commit
+          # 不會觸發 on:push，不顯式派工的話這份資料永遠上不了線。
+          gh workflow run pages-deploy.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
