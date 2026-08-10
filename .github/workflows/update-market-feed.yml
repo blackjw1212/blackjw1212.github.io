@@ -86,6 +86,17 @@ jobs:
           else
             echo "Not the 22:00 slot — skipping the daily return refresh"
           fi
+      # 無風險利率（Sharpe／Sortino 的分母）。央行重貼現率一年動不到一次，
+      # 但**必須排進來**：只在本機跑過一次的話，下次央行調整時畫面會靜靜沿用舊利率。
+      # 排在 ETF feed 之前，當班就併得進 feed。
+      - name: Refresh risk-free rate (once daily)
+        continue-on-error: true
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
+            node scripts/update-risk-free.mjs
+          else
+            echo "Not the 22:00 slot — skipping the daily risk-free refresh"
+          fi
       # ETF 引擎失敗不得連坐個股 feed：這步容錯。ETF 檔案維持上次 commit 的內容，
       # 下一步的 schema 驗證會檢查那份舊檔並通過，個股 feed 照常更新。
       - name: Generate ETF feed
@@ -100,7 +111,7 @@ jobs:
         run: |
           # 只納入實際存在的檔案：holdings 首次執行前不存在，git diff 會報錯
           FILES=""
-          for f in data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json data/etf-holdings.json data/etf-returns.json data/industry-map.json data/tax-params.json; do
+          for f in data/market-feed.json data/market-52w.json data/etf-feed.json data/etf-div-history.json data/etf-holdings.json data/etf-returns.json data/industry-map.json data/risk-free.json data/tax-params.json; do
             [ -f "$f" ] && FILES="$FILES $f"
           done
           if git diff --quiet -- $FILES; then

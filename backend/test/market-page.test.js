@@ -1175,6 +1175,96 @@ test("a stock with no industry match is left unclassified, never invented into a
     `未分類要保住全部可見權重，實得 ${e.unclassifiedWeight}`);
 });
 
+// Sharpe／Sortino。分母是什麼、分子是什麼、載不到利率時怎麼辦，三件事都要釘住。
+function riskAdjFeed(riskFree) {
+  const base = {
+    market: "twse", type: "市值型", nav: null, discountPremium: null, aum: 100,
+    frequency: null, payMonths: [], dps: [], topHoldings: [],
+  };
+  const feed = etfFeed({
+    riskFree,
+    count: 2,
+    stocks: [
+      Object.assign({}, base, {
+        code: "00AA", name: "有報酬", close: 50, yield: 3,
+        totalReturn1y: 12, volatility1y: 20, downsideDeviation1y: 10, maxDrawdown1y: -15,
+        cagr5y: 20, totalReturn5y: 148.8, volatility5y: 25, downsideDeviation5y: 12.5, maxDrawdown5y: -30,
+        returnFrom: "2021-08-01", returnTo: "2026-08-01", returnSpanDays: 1826,
+      }),
+      Object.assign({}, base, {
+        code: "00BB", name: "跑不贏定存", close: 20, yield: 1,
+        totalReturn1y: 1, volatility1y: 10, downsideDeviation1y: 6, maxDrawdown1y: -8,
+        returnFrom: "2025-08-01", returnTo: "2026-08-01", returnSpanDays: 365,
+      }),
+    ],
+  });
+  return async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/market-feed.json")) return okResponse(marketFeed());
+    if (href.startsWith("/data/etf-feed.json")) return okResponse(feed);
+    throw new Error(`unavailable: ${href}`);
+  };
+}
+
+const RF = { rate: 2, effectiveFrom: "2024-03-22", kind: "重貼現率", source: "中央銀行 央行貼放利率" };
+
+test("Sharpe and Sortino use excess CAGR over the risk-free rate", async () => {
+  const { app } = await loadMarket(riskAdjFeed(RF));
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const one = app.helpers.applyPeriod(app.getEtfs(), "1y").find((r) => r.code === "00AA");
+  // 1Y 的 CAGR 依定義等於總報酬 12 → (12−2)/20 = 0.5，除以下檔 10 → 1.0
+  assert.equal(one.periodSharpe, 0.5);
+  assert.equal(one.periodSortino, 1, "Sortino 的分母是下檔標準差，不是總波動");
+
+  const five = app.helpers.applyPeriod(app.getEtfs(), "5y").find((r) => r.code === "00AA");
+  // 分子必須是 CAGR 20 而不是 5 年總報酬 148.8。
+  // 用總報酬會得到 (148.8−2)/25 = 5.87，那個數字沒有任何意義。
+  assert.equal(five.periodSharpe, 0.72, `5Y Sharpe 應為 (20−2)/25=0.72，實得 ${five.periodSharpe}`);
+  assert.equal(five.periodSortino, 1.44);
+});
+
+// 這是這組功能最危險的失敗模式：利率載不到時退回 0，
+// 畫面照樣印出一個好看的數字，而那個數字把超額報酬灌成了全額報酬。
+test("a missing risk-free rate suppresses the ratios instead of defaulting to zero", async () => {
+  const { app, elements } = await loadMarket(riskAdjFeed(null));
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const row = app.helpers.applyPeriod(app.getEtfs(), "1y").find((r) => r.code === "00AA");
+  assert.equal(row.periodSharpe, null, "沒有無風險利率就沒有超額報酬，不可用 0 代替");
+  assert.equal(row.periodSortino, null);
+  // 而且要說得出為什麼——使用者看到整欄「—」必須分得出是缺利率還是缺歷史
+  assert.match(elements.get("rfNote").innerHTML, /無風險利率載入失敗/);
+  assert.match(elements.get("etfBody").innerHTML, /不以 0 代替/);
+});
+
+test("underperforming the risk-free rate shows a negative ratio, not a blank", async () => {
+  const { app } = await loadMarket(riskAdjFeed(RF));
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const row = app.helpers.applyPeriod(app.getEtfs(), "1y").find((r) => r.code === "00BB");
+  // (1 − 2) / 10 = −0.1。跑不贏定存是結論，不是缺資料，藏起來等於幫它遮醜。
+  assert.equal(row.periodSharpe, -0.1);
+});
+
+test("the page discloses which rate sits in the denominator", async () => {
+  const { app, elements } = await loadMarket(riskAdjFeed(RF));
+  await app.init();
+  await app.showTab("etf");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const note = elements.get("rfNote").innerHTML;
+  assert.match(note, /重貼現率/, "要講明是哪一種利率");
+  // fmt 不補零，全站一致（央行表格本身也寫「2」）
+  assert.match(note, /重貼現率 2%/, "要講明數值");
+  assert.match(note, /2024-03-22/, "要講明從何時起適用");
+  assert.match(note, /中央銀行/, "要講明出處");
+  // Sharpe 不可加總——組合層級若給一個加權平均值會是錯的，畫面要先擋掉這個誤解
+  assert.match(note, /不等於/, "要講明組合的 Sharpe 不是成分的加權平均");
+});
+
 test("dividendCv measures payout volatility and needs at least two events", async () => {
   const { app } = await loadMarket(dualFeedMock());
   await app.init();

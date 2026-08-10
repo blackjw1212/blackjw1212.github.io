@@ -117,6 +117,32 @@ test("etf-feed.json matches the expected schema", async () => {
     assert.ok(m.coveredWeight > 0 && m.coveredWeight <= 100.5, at(`coveredWeight ${m.coveredWeight} 超出範圍`));
   }
 
+  // 無風險利率。Sharpe／Sortino 的分母來源必須說得出出處，
+  // 而且**不可為 0**——0 會把超額報酬灌成全額報酬，畫面上看不出異狀。
+  assert.ok(feed.riskFree, "feed 必須帶無風險利率，否則 Sharpe／Sortino 整欄消失");
+  assert.ok(feed.riskFree.rate > 0 && feed.riskFree.rate < 12,
+    `無風險利率 ${feed.riskFree.rate}% 超出合理範圍——多半是解析錯位抓到別的欄`);
+  assert.match(feed.riskFree.effectiveFrom, /^\d{4}-\d{2}-\d{2}$/, "要說得出從何時起適用");
+  assert.ok(feed.riskFree.source, "要說得出出處");
+
+  // 下檔標準差（Sortino 的分母）。只算下跌但分母用全部樣本數，
+  // 所以它在數學上**必然不大於**同期的總波動。若某檔反過來，是計算寫錯了。
+  const withDownside = feed.stocks.filter((row) => row.downsideDeviation1y != null);
+  assert.ok(withDownside.length >= 250,
+    `expected 250+ ETFs with downsideDeviation1y, got ${withDownside.length}`);
+  for (const row of withDownside) {
+    for (const w of ["1y", "3y", "5y"]) {
+      const dd = row["downsideDeviation" + w];
+      const vol = row["volatility" + w];
+      if (dd == null) continue;
+      assert.ok(dd >= 0, `${row.code}: 下檔標準差 ${dd} 不可為負`);
+      if (vol != null) {
+        assert.ok(dd <= vol + 0.05,
+          `${row.code}: ${w} 下檔標準差 ${dd} 大於總波動 ${vol}——只算下跌卻比全部還大，計算有誤`);
+      }
+    }
+  }
+
   // 近一年總報酬。配息只會讓總報酬高於價格報酬，所以 total < price 一定是算錯了——
   // 實測 0052 沒做分割校正時就是 −73%（真值 +117.7%），這條會當場擋下。
   const withReturn = feed.stocks.filter((row) => row.totalReturn1y != null);

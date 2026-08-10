@@ -271,9 +271,10 @@
         <button class="btn" id="pd5y" type="button" style="padding:3px 10px;min-height:28px">5 年</button>
         <span style="margin-left:8px">——<b>只看一年會誤導</b>：實測 0050 的一年最大回撤 −15.9%，五年是 −36.4%；
         00631L 一年 −31.3%、三年 −55.1%。跌的時候長什麼樣，一年看不出來。</span>
-      </div></div>
+      </div>
+      <div style="margin-top:6px" id="rfNote"></div></div>
     <div class="table-scroll">
-      <table id="etfTable" style="min-width:1240px">
+      <table id="etfTable" style="min-width:1380px">
         <thead><tr>
           <th data-etf-sort="code">代碼</th>
           <th data-etf-sort="name">名稱</th>
@@ -288,6 +289,8 @@
           <th data-etf-sort="periodVolatility" title="日報酬標準差年化">年化波動</th>
           <th data-etf-sort="periodMaxDrawdown" title="該期間內的峰谷最大跌幅">最大回撤</th>
           <th data-etf-sort="periodCalmar" title="CAGR ÷ |最大回撤|。每承受 1% 回撤換到多少年化報酬，越高越好">Calmar</th>
+          <th data-etf-sort="periodSharpe" title="(CAGR − 無風險利率) ÷ 年化波動。每承受 1% 總波動換到多少超額年化報酬">Sharpe</th>
+          <th data-etf-sort="periodSortino" title="(CAGR − 無風險利率) ÷ 下檔標準差。只把下跌算成風險，上漲的波動不罰">Sortino</th>
           <th data-etf-sort="dividendCvField" title="近24月配息變異係數，越小越穩">配息穩定度</th>
           <th title="配息中要課綜所稅的比例。54C／5A／71／76W 的實際金額沒有公開來源，這裡是依標的性質推定">應稅比例</th>
           <th data-etf-sort="frequency">頻率</th>
@@ -833,15 +836,18 @@ function normalizeEtfFeed(payload){
       totalReturn1y:parseNumber(row.totalReturn1y),
       priceReturn1y:parseNumber(row.priceReturn1y),
       volatility1y:parseNumber(row.volatility1y),
+      downsideDeviation1y:parseNumber(row.downsideDeviation1y),
       maxDrawdown1y:parseNumber(row.maxDrawdown1y),
       totalReturn3y:parseNumber(row.totalReturn3y),
       priceReturn3y:parseNumber(row.priceReturn3y),
       volatility3y:parseNumber(row.volatility3y),
+      downsideDeviation3y:parseNumber(row.downsideDeviation3y),
       maxDrawdown3y:parseNumber(row.maxDrawdown3y),
       cagr3y:parseNumber(row.cagr3y),
       totalReturn5y:parseNumber(row.totalReturn5y),
       priceReturn5y:parseNumber(row.priceReturn5y),
       volatility5y:parseNumber(row.volatility5y),
+      downsideDeviation5y:parseNumber(row.downsideDeviation5y),
       maxDrawdown5y:parseNumber(row.maxDrawdown5y),
       cagr5y:parseNumber(row.cagr5y),
       returnFrom:row.returnFrom || null,
@@ -912,6 +918,8 @@ function etfRowHtml(row){
     + '<td class="num">' + periodCell(row, row.periodVolatility, 1, "%", false) + '</td>'
     + '<td class="num ' + toneClass(row.periodMaxDrawdown) + '">' + periodCell(row, row.periodMaxDrawdown, 1, "%", false) + '</td>'
     + '<td class="num">' + periodCell(row, row.periodCalmar, 2, "", false) + '</td>'
+    + '<td class="num">' + riskAdjCell(row, row.periodSharpe) + '</td>'
+    + '<td class="num">' + riskAdjCell(row, row.periodSortino) + '</td>'
     + '<td class="num">' + etfCvCell(row) + '</td>'
     + '<td class="num">' + taxableCell(row) + '</td>'
     + '<td class="num">' + (row.frequency ? escapeHtml(row.frequency) : "—") + '</td>'
@@ -938,6 +946,23 @@ function taxableCell(row){
 // 目前選的觀察窗。1Y 是牛市的一年，3Y／5Y 才看得出這檔在跌的時候長什麼樣。
 let etfPeriod = "1y";
 
+// 無風險利率（feed 帶進來）。null 代表載不到——那兩欄就顯示「—」，不填 0。
+let riskFree = null;
+
+// Sharpe：每承受 1 單位總波動，換到多少超過無風險利率的年化報酬。
+// Sortino：分母換成下檔標準差——上漲的波動不是風險，Sharpe 把它一起罰了。
+//
+// 三件事必須講清楚，否則這兩個數字比沒有還糟：
+//  1. 分子用 **CAGR − 無風險利率**（年化），不是總報酬。用 5 年總報酬 243% 去除以
+//     年化波動 28%，會得到 8.6 這種毫無意義的數字。
+//  2. 這是**回測**，用的是已實現的波動，不是未來的風險。
+//  3. **不可加權平均**：組合的 Sharpe 不等於成分 Sharpe 的加權平均（那要組合本身的
+//     報酬序列）。所以曝險引擎的 fundLevelMetrics 刻意沒有 Sharpe。
+function riskAdjusted(cagr, denominator){
+  if (cagr == null || denominator == null || !(denominator > 0) || !riskFree) return null;
+  return Math.round(((cagr - riskFree.rate) / denominator) * 100) / 100;
+}
+
 // 把選定窗的指標攤成 period* 欄位，排序（sortRows 讀 row[key]）才接得上。
 // Calmar = CAGR ÷ |最大回撤|：已經有 CAGR 與回撤，這是免費且直接可比的風險調整指標。
 function applyPeriod(rows, period){
@@ -948,12 +973,17 @@ function applyPeriod(rows, period){
     const cagr = p === "1y" ? total : row["cagr" + p];
     const mdd = row["maxDrawdown" + p];
     const calmar = (cagr != null && mdd != null && mdd < 0) ? Math.round((cagr / Math.abs(mdd)) * 100) / 100 : null;
+    const vol = row["volatility" + p];
+    const dd = row["downsideDeviation" + p];
     return Object.assign({}, row, {
       periodTotalReturn: total == null ? null : total,
       periodCagr: cagr == null ? null : cagr,
-      periodVolatility: row["volatility" + p] == null ? null : row["volatility" + p],
+      periodVolatility: vol == null ? null : vol,
+      periodDownside: dd == null ? null : dd,
       periodMaxDrawdown: mdd == null ? null : mdd,
       periodCalmar: calmar,
+      periodSharpe: riskAdjusted(cagr, vol),
+      periodSortino: riskAdjusted(cagr, dd),
     });
   });
 }
@@ -974,6 +1004,17 @@ function periodCell(row, value, digits, suffix, withSign){
     why = "無報酬資料";
   }
   return '<span class="stale" title="' + escapeHtml(why) + '">—</span>';
+}
+
+// Sharpe／Sortino 的「—」有一個 periodCell 說不出來的原因：無風險利率載不到。
+// 那時候整欄都會是「—」，但成因與「這檔成立未滿一年」完全不同，要分得出來。
+function riskAdjCell(row, value){
+  if (value != null) {
+    // 負值代表連無風險利率都跑不贏——那是結論，不是缺資料，要看得出來
+    return '<span class="' + toneClass(value) + '">' + fmt(value, 2) + '</span>';
+  }
+  if (!riskFree) return '<span class="stale" title="無風險利率載入失敗，不以 0 代替">—</span>';
+  return periodCell(row, null, 2, "", false);
 }
 
 // 配息穩定度：與配置產生器結果表同一套三段配色，缺樣本時說出樣本數而不是印 0
@@ -1028,7 +1069,46 @@ function renderEtf(){
   if (more) more.hidden = etfShown >= etfViewRows.length;
   const count = $("etfCount");
   if (count) count.textContent = allEtfs.length ? "符合 " + etfViewRows.length + " / " + allEtfs.length + " 檔（顯示 " + slice.length + "）" : "尚未載入";
+  renderRiskFreeNote();
   renderEtfHead();
+}
+
+// 分母裡放的是什麼，使用者必須看得到。Sharpe 只是一個數字，
+// 換一個無風險利率就換一組排名——不講來源等於要人盲信。
+function renderRiskFreeNote(){
+  const box = $("rfNote");
+  if (!box) return;
+  if (!riskFree) {
+    box.innerHTML = '<span class="stale">無風險利率載入失敗，Sharpe／Sortino 不計算（不以 0 代替）。</span>';
+    return;
+  }
+  box.innerHTML = '<span class="hint" style="margin:0">Sharpe／Sortino 的無風險利率採<b>'
+    + escapeHtml(riskFree.kind || "") + ' ' + fmt(riskFree.rate, 3) + '%</b>'
+    + (riskFree.effectiveFrom ? '（' + escapeHtml(riskFree.effectiveFrom) + ' 起）' : '')
+    + '，來源' + escapeHtml(riskFree.source || "") + '。'
+    // 政策利率不是散戶存得到的利率，這件事會讓 Sharpe 偏保守，要講
+    + '那是<b>政策利率</b>，不是你實際存得到的定存利率（約低 0.3~0.4pp），'
+    + '所以這裡的 Sharpe 略偏保守。分子用 CAGR 不是總報酬；'
+    + '組合的 Sharpe <b>不等於</b>成分的加權平均，本站不提供組合層級的 Sharpe。'
+    + sharpeBenchmark() + '</span>';
+}
+
+// 單獨一個 Sharpe 3.42 看不出好壞——要有比較基準。
+// 這裡即時算全市場中位數（不寫死數字，換一天就會跟著變），
+// 順帶讓「只看一年會誤導」變成看得見的對照：實測 1Y 中位數 1.52、5Y −0.05。
+function sharpeBenchmark(){
+  const rows = applyPeriod(allEtfs, etfPeriod).filter(function(r){ return r.periodSharpe != null; });
+  if (rows.length < 20) return "";
+  const sorted = rows.map(function(r){ return r.periodSharpe; }).sort(function(a, b){ return a - b; });
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const negatives = sorted.filter(function(v){ return v < 0; }).length;
+  const label = etfPeriod === "1y" ? "1 年" : (etfPeriod === "3y" ? "3 年" : "5 年");
+  return '<span style="display:block;margin-top:4px">目前觀察期（' + label + '）全市場 Sharpe 中位數 <b>'
+    + fmt(median, 2) + '</b>（' + rows.length + ' 檔有資料），其中 <b>' + negatives
+    + ' 檔為負</b>——連無風險利率都沒跑贏。'
+    + (etfPeriod === "1y"
+      ? '切到 3 年／5 年這個中位數會大幅下降：<b>一年的高 Sharpe 多半是牛市產物，不是這檔的特性</b>。'
+      : '') + '</span>';
 }
 
 function recomputeEtf(){
@@ -1073,6 +1153,9 @@ async function loadEtf(){
     allEtfs = normalizeEtfFeed(payload);
   // 成分股→產業對照是 feed 層級（不在每一列上），曝險引擎要用
   holdingIndustryMap = (payload && payload.holdingIndustry) || {};
+  // 無風險利率同樣是 feed 層級。載不到就維持 null，Sharpe／Sortino 兩欄顯示「—」
+  // 並說明原因——**絕不可退回 0**，那會把超額報酬灌成全額報酬。
+  riskFree = (payload && payload.riskFree && payload.riskFree.rate > 0) ? payload.riskFree : null;
     etfLoaded = true;
     recomputeEtf();
     renderOvList();
@@ -3047,6 +3130,7 @@ const marketApp = {
     marginalContribution:marginalContribution,
     applyPeriod:applyPeriod,
     worstDrawdown:worstDrawdown,
+    riskAdjusted:riskAdjusted,
     cvGrade:cvGrade,
     NHI:NHI,
   },

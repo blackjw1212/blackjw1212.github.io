@@ -21,6 +21,7 @@ const HOLDINGS_FILE = new URL("../data/etf-holdings.json", import.meta.url);
 // 近一年總報酬（update-etf-returns.mjs 產出）。配置產生器要以「最終賺多少」
 // 為目標就需要價差那一半——feed 自己只有配息。
 const RETURNS_FILE = new URL("../data/etf-returns.json", import.meta.url);
+const RISK_FREE_FILE = new URL("../data/risk-free.json", import.meta.url);
 // 個股 → 產業別（update-industry-map.mjs 產出）。topHoldings 只有名稱與權重，
 // 沒有這張表就算不出「看起來分散、實際上全押同一個產業」。
 const INDUSTRY_FILE = new URL("../data/industry-map.json", import.meta.url);
@@ -694,7 +695,7 @@ async function main() {
       // 三個觀察窗。只給一年會誤導：實測 0050 的 1Y 最大回撤 −15.9%，
       // 但 5Y 是 −36.4%；00631L 1Y −31.3%、3Y −55.1%。
       for (const key of ["1y", "3y", "5y"]) {
-        for (const metric of ["totalReturn", "priceReturn", "maxDrawdown", "volatility", "cagr"]) {
+        for (const metric of ["totalReturn", "priceReturn", "maxDrawdown", "volatility", "downsideDeviation", "cagr"]) {
           const field = metric + key;
           if (ret[field] != null) row[field] = ret[field];
         }
@@ -741,7 +742,16 @@ async function main() {
     }
   }
 
-  const feed = { updatedAt: now, tradeDate, marketDates, count: rows.length, divHistoryStart: history.start, holdingIndustry, stocks: rows, errors };
+  // 無風險利率隨 feed 一起帶，頁面就不必多打一次 fetch。
+  // 缺檔不是致命的——Sharpe／Sortino 那兩欄會顯示「—」並說明原因，
+  // 但**絕不可預設 0**：那等於把超額報酬灌成全額報酬。
+  const riskFreeRaw = await readJsonOr(RISK_FREE_FILE, null);
+  const riskFree = (riskFreeRaw && riskFreeRaw.rate > 0)
+    ? { rate: riskFreeRaw.rate, effectiveFrom: riskFreeRaw.effectiveFrom, kind: riskFreeRaw.kind, source: riskFreeRaw.source }
+    : null;
+  if (!riskFree) errors.push({ source: "risk-free", message: "data/risk-free.json missing or non-positive; Sharpe/Sortino suppressed" });
+
+  const feed = { updatedAt: now, tradeDate, marketDates, count: rows.length, divHistoryStart: history.start, holdingIndustry, riskFree, stocks: rows, errors };
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
   await writeFile(HISTORY_FILE, JSON.stringify({ start: history.start, updatedAt: now, stocks: history.stocks }), "utf8");

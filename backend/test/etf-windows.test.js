@@ -36,6 +36,24 @@ test("a longer window sees a drawdown the short window misses", () => {
   assert.ok(threeY.maxDrawdown < -40, `3Y 必須看到，實得 ${threeY.maxDrawdown}%`);
 });
 
+// Sortino 的分母。最常見的寫錯法是拿「負報酬的筆數」當分母——
+// 那算的是「跌的時候跌多兇」，不是「整段期間承受多少下檔風險」。
+test("downside deviation counts only losses but divides by every observation", () => {
+  // 一路上漲、完全沒有下跌日 → 下檔標準差必須是 0，而總波動不是
+  const up = series(400, 0.001);
+  const m = windowMetrics(up, flat(up), 365);
+  assert.equal(m.downsideDeviation, 0, "沒有下跌日就沒有下檔風險");
+  assert.ok(m.volatility === 0 || m.volatility != null, "總波動仍要算得出來");
+
+  // 少數幾天重摔的標的：下檔標準差必須明顯小於總波動，
+  // 若誤用「負報酬筆數」當分母，兩者會接近甚至反轉
+  const pts = series(400, 0.0008, { dipAt: 200, dipTo: 0.85 });
+  const n = windowMetrics(pts, flat(pts), 365);
+  assert.ok(n.downsideDeviation > 0, "有跌過就要有下檔風險");
+  assert.ok(n.downsideDeviation < n.volatility,
+    `下檔標準差 ${n.downsideDeviation} 應小於總波動 ${n.volatility}——只有下跌被算進去`);
+});
+
 test("CAGR annualises and is not the same number as total return", () => {
   const pts = series(365 * 3, 0.001);
   const m = windowMetrics(pts, flat(pts), 365 * 3);
