@@ -2025,3 +2025,125 @@ test("dividends per unit grow with price so the yield does not silently decay", 
     `第 10 年配息 ${Math.round(last)} 應隨資產成長（第 1 年 ${Math.round(first)}），` +
     "否則殖利率會機械式衰減、摩擦被低估");
 });
+
+test("the page says out loud when distributing wins, instead of burying it", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("sim");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  set("simTotal", "600000");
+  set("simNetIncome", "150000");     // 低所得 → 8.5% 抵減 > 應納稅額
+  app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
+  set("pmReturn", "8");
+  const detail = elements.get("pmDetail").innerHTML;
+  assert.match(detail, /配息型反而勝出/, "翻轉時必須明講，否則使用者會照著「累積型比較好」做決定");
+  assert.match(detail, /8\.5% 股利抵減/, "要說得出原因是股利抵減，不能只說結果");
+});
+
+test("a missing net income is disclosed rather than silently treated as tax-free", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("sim");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  set("simTotal", "5000000");
+  set("simNetIncome", "");            // 沒填
+  app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
+  set("pmReturn", "8");
+  assert.match(elements.get("pmDetail").innerHTML, /沒有計入所得稅/,
+    "沒填所得就不能讓人以為免稅——摩擦會被低估");
+});
+
+// ── 新手介面：結論卡的方向不可寫死 ──────────────────────────────
+// 新手看不出「累積型是假想商品」，也看不出自己的所得級距會讓結論翻轉。
+// 這幾條鎖住的是「不會把人帶往錯的方向」，不是「畫得好不好看」。
+async function beginnerPanel(overrides = {}) {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("sim");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  set("simTotal", overrides.total == null ? "5000000" : overrides.total);
+  if (overrides.salary != null) set("simSalary", overrides.salary);
+  set("simNetIncome", overrides.netIncome == null ? "2500000" : overrides.netIncome);
+  app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
+  set("pmReturn", overrides.rTotal == null ? "8" : overrides.rTotal);
+  return { app, elements, set };
+}
+
+test("the verdict names whichever side actually wins, in both directions", async () => {
+  const high = await beginnerPanel({ netIncome: "2500000" });
+  const highText = high.elements.get("pmVerdict").innerHTML;
+  assert.match(highText, /不配息的版本多留住/, "高所得：不配息勝出");
+  assert.doesNotMatch(highText, /反而退稅/);
+
+  const low = await beginnerPanel({ total: "600000", netIncome: "150000" });
+  const lowText = low.elements.get("pmVerdict").innerHTML;
+  assert.match(lowText, /領股息反而退稅/,
+    "低所得：領股息反而退稅。寫死方向會把這個族群帶往錯的決定，而新手看不出來");
+  assert.match(lowText, /有配息的版本多留住/, "要明說是哪一邊比較多");
+});
+
+test("the verdict never tells the beginner to buy something that does not exist", async () => {
+  const { elements } = await beginnerPanel();
+  const verdict = elements.get("pmVerdict").innerHTML;
+  assert.doesNotMatch(verdict, /推薦|建議選|該選/, "非投顧：不下指令");
+  assert.match(verdict, /台灣沒有這種商品/, "必須點明不配息版本在台灣買不到");
+  assert.match(verdict, /影響你要不要偏好高股息/, "要導向真的可執行的那件事");
+});
+
+test("the months-of-salary comparison only appears when a salary was entered", async () => {
+  const without = await beginnerPanel();
+  assert.doesNotMatch(without.elements.get("pmVerdict").innerHTML, /個月/,
+    "沒填年薪就不可換算月薪——不用臆測的數字說話");
+  const withSalary = await beginnerPanel({ salary: "1200000" });
+  const text = withSalary.elements.get("pmVerdict").innerHTML;
+  assert.match(text, /個月/);
+  assert.match(text, /家庭薪水/, "simSalary 是家庭合計，換算後要標明");
+});
+
+test("an empty field is named out loud instead of leaving the panel blank", async () => {
+  const noMoney = await beginnerPanel({ total: "" });
+  assert.match(noMoney.elements.get("pmNeed").innerHTML, /投入總額/, "要指名是哪一格");
+  const noIncome = await beginnerPanel({ netIncome: "" });
+  const need = noIncome.elements.get("pmNeed").innerHTML;
+  assert.match(need, /年薪/, "新手不知道「綜合所得淨額」，要引導他填年薪");
+  assert.match(need, /算不出所得稅/, "要說出不填的後果，否則他會直接略過");
+  const filled = await beginnerPanel({ salary: "1200000" });
+  assert.equal(filled.elements.get("pmNeed").innerHTML, "", "都填好了就不該再提示");
+});
+
+// 摺疊只能是視覺上的。若把進階輸入停用，使用者改了卻沒反應會以為壞掉。
+test("collapsing the advanced box does not stop its inputs from feeding the model", async () => {
+  const { elements, set } = await beginnerPanel({ rTotal: "8" });
+  const before = elements.get("pmVerdict").innerHTML;
+  set("pmReturn", "15");
+  const after = elements.get("pmVerdict").innerHTML;
+  assert.notEqual(before, after, "改了年化報酬，結論必須跟著變");
+});
+
+test("the shaded band flips colour and wording with the direction", async () => {
+  const high = await beginnerPanel({ netIncome: "2500000" });
+  const highChart = high.elements.get("pmChart").innerHTML;
+  assert.match(highChart, /data-gap="friction"/);
+  assert.match(highChart, /被稅與手續費摩擦掉的錢/);
+
+  const low = await beginnerPanel({ total: "600000", netIncome: "150000" });
+  const lowChart = low.elements.get("pmChart").innerHTML;
+  assert.match(lowChart, /data-gap="refund"/, "翻轉時陰影的語意也翻轉");
+  assert.match(lowChart, /多拿到的退稅/, "不可固定寫「被摩擦掉的錢」");
+  assert.doesNotMatch(lowChart, /被稅與手續費摩擦掉的錢/);
+});

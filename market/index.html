@@ -86,6 +86,20 @@
   .badge{font-family:"Roboto Mono",monospace;font-size:10px;border-radius:8px;padding:1px 6px;background:var(--green-bg);color:var(--green);margin-left:6px}
   /* 配息走勢：用 currentColor 繼承所在儲存格的顏色，等級配色不必再寫一次 */
   .spark{display:block;margin:2px 0 0 auto;color:var(--faint);overflow:visible}
+  /* 新手用的模式卡片與結論卡。沿用既有色票，不新增變數。 */
+  .mode-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}
+  .mode-card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:12px 14px;text-align:left;cursor:pointer;color:inherit;font:inherit}
+  .mode-card:hover{border-color:#4c5e6b}
+  .mode-card.on{border-color:var(--teal);box-shadow:inset 3px 0 0 var(--teal)}
+  .mode-card b{display:block;font-size:15px}
+  .mode-card span{display:block;margin-top:3px;color:var(--faint);font-size:12px;line-height:1.5}
+  .verdict{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:16px 18px;margin-top:12px}
+  .verdict .big{font-size:clamp(20px,4.5vw,30px);font-weight:900;line-height:1.25}
+  .verdict .sub{margin-top:8px;color:var(--soft);font-size:13px;line-height:1.6}
+  .need{border:1px solid var(--amber);border-radius:10px;padding:12px 14px;margin-top:10px;color:var(--amber);font-size:13px;line-height:1.6}
+  @media (max-width:640px){
+    .mode-cards{grid-template-columns:1fr}
+  }
   /* 回測警語刻意做成擋不掉的一整條，不是塞在說明文字裡的一句話：
      以總報酬為目標等於「買去年漲最多的」，看起來比配息目標更權威，也更容易害人。 */
   .backtest-warn{border:1px solid var(--amber);border-left-width:4px;border-radius:8px;background:rgba(217,166,76,.10);
@@ -360,6 +374,43 @@
     <div class="sim-chart" id="simChart"></div>
     <div id="simDetail"></div>
     <div id="simExposure"></div>
+  </section>
+
+  <section aria-labelledby="pmHeading">
+    <h2 id="pmHeading">領股息會被課多少稅？ <em>PROJECTION</em></h2>
+    <p class="hint">此為拿同一檔標的「有領股息」與「不領股息」比較，讓你一眼看出被扣了多少稅與手續費。
+      <strong>台灣買不到「不配息版本」的同一檔 ETF</strong>——那條線是拿來當尺量摩擦的，
+      <strong>不是一個可以去下單的標的</strong>。沿用上方的投入金額、標的與年薪設定。</p>
+    <div id="pmNeed"></div>
+    <div class="mode-cards">
+      <button class="mode-card" id="pmAcc" type="button" aria-pressed="false">
+        <b>🟢 不配息</b><span>股息自動滾入，不領錢專心長大</span></button>
+      <button class="mode-card on" id="pmDist" type="button" aria-pressed="true">
+        <b>🔵 有配息</b><span>定期領零用錢，領出來再自己買回去</span></button>
+    </div>
+    <div class="toolbar">
+      <div class="toolrow">
+        <span class="fld" style="font-weight:700">打算放多久</span>
+        <div class="presets">
+          <button class="btn" id="pm5" type="button">5 年</button>
+          <button class="btn on" id="pm10" type="button">10 年</button>
+        </div>
+      </div>
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:13px;color:var(--faint)">進階設定（不改也算得出來）</summary>
+        <div class="toolrow" style="margin-top:8px">
+          <span class="fld">預計每年總共賺多少 <input id="pmReturn" type="number" step="0.1" inputmode="decimal" style="width:76px" aria-label="假設年化總報酬率（%），價差加配息一起算" /> %
+            <span class="hint" style="margin:0">價差＋配息一起算</span></span>
+          <span class="fld">券商手續費 <input id="pmFee" type="number" step="0.001" min="0" inputmode="decimal" style="width:82px" aria-label="券商手續費率（%）" /> %
+            <span class="hint" style="margin:0">有折扣就改這裡</span></span>
+        </div>
+        <div class="toolrow"><span class="hint" style="margin:0" id="pmAssumeNote"></span></div>
+      </details>
+    </div>
+    <div id="pmVerdict"></div>
+    <div class="sim-summary" id="pmSummary"></div>
+    <div id="pmChart"></div>
+    <div id="pmDetail"></div>
   </section>
 
   <section aria-labelledby="suggestHeading">
@@ -2637,6 +2688,9 @@ function runSim(){
     summary.innerHTML = '<div class="sim-kpi"><b>狀態</b><span style="font-size:13px">輸入總額並加入標的後試算</span></div>';
     chart.innerHTML = "";
     if (detail) detail.innerHTML = "";
+    // 投影區塊的「還差一步」提示正是為了這個狀態而存在，
+    // 早退時不呼叫它，缺總額的人就永遠看不到那句指路。
+    runProjection();
     return;
   }
   const warn = result.overAllocated ? '<div class="sim-kpi" style="border-color:var(--red)"><b>警告</b><span style="font-size:13px;color:var(--red)">配置合計超過 100%</span></div>' : "";
@@ -2680,6 +2734,221 @@ function runSim(){
       + '</tbody></table></div>';
   }
   renderExposure();
+  runProjection();
+}
+
+/* ---- 多年期投影的 UI ---- */
+let pmMode = "dist";      // dist｜acc
+let pmYears = 10;
+let pmReturnTouched = false;   // 使用者改過就不再自動覆寫
+
+// 預設的年化總報酬：組合的**加權 5Y CAGR**。5Y 是可用窗裡最保守的一個——
+// 1Y 是牛市的一年（實測全市場 Sharpe 中位數 1.52 vs 5Y 的 −0.05），
+// 拿它外推十年會得到離譜的數字。
+function defaultProjectionReturn(){
+  let sum = 0, weight = 0;
+  for (const allocation of simAllocations) {
+    const security = lookupSecurity(allocation.code);
+    if (!security || !(security.price > 0)) continue;
+    const explicit = Number(allocation.shares);
+    const value = (Number.isFinite(explicit) && explicit > 0)
+      ? explicit * security.price
+      : (Number(($("simTotal") || {}).value) || 0) * (Number(allocation.pct) || 0) / 100;
+    if (!(value > 0)) continue;
+    const etf = allEtfs.find(function(row){ return row.code === security.code; });
+    const cagr = etf && etf.cagr5y;
+    if (cagr == null) continue;
+    sum += cagr * value; weight += value;
+  }
+  return weight > 0 ? Math.round(sum / weight * 10) / 10 : null;
+}
+
+function setProjectionMode(mode){
+  pmMode = mode;
+  const a = $("pmDist"), b = $("pmAcc");
+  if (a) { a.className = mode === "dist" ? "mode-card on" : "mode-card"; if (a.setAttribute) a.setAttribute("aria-pressed", mode === "dist" ? "true" : "false"); }
+  if (b) { b.className = mode === "acc" ? "mode-card on" : "mode-card"; if (b.setAttribute) b.setAttribute("aria-pressed", mode === "acc" ? "true" : "false"); }
+  runProjection();
+}
+
+function setProjectionYears(years){
+  pmYears = years;
+  const a = $("pm5"), b = $("pm10");
+  if (a) a.className = years === 5 ? "btn on" : "btn";
+  if (b) b.className = years === 10 ? "btn on" : "btn";
+  runProjection();
+}
+
+function runProjection(){
+  const summary = $("pmSummary");
+  const chart = $("pmChart");
+  const detail = $("pmDetail");
+  const note = $("pmAssumeNote");
+  if (!summary || !chart) return;
+
+  const returnNode = $("pmReturn");
+  const feeNode = $("pmFee");
+  // 0.001425 * 100 在二進位下是 0.14250000000000002，直接塞進 input 會露出來
+  if (feeNode && String(feeNode.value || "").trim() === "") feeNode.value = fmt(DEFAULT_FEE_RATE * 100, 4);
+  const auto = defaultProjectionReturn();
+  if (returnNode && !pmReturnTouched && auto != null) returnNode.value = String(auto);
+
+  const total = Number(($("simTotal") || {}).value) || 0;
+  const netIncomeRaw = ($("simNetIncome") || {}).value;
+  const netIncome = String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw);
+  const out = projectMultiYear({
+    total:total, years:pmYears,
+    rTotal:Number((returnNode || {}).value),
+    feeRate:Number((feeNode || {}).value) / 100,
+    stress:simStress, nhi:NHI, netIncome:netIncome, taxParams:taxParams,
+    allocations:simAllocations.map(function(allocation){
+      return {code:allocation.code, pct:allocation.pct, shares:allocation.shares, security:lookupSecurity(allocation.code)};
+    }),
+  });
+  if (note) {
+    note.innerHTML = auto == null
+      ? '所選標的沒有 5 年報酬資料，年化總報酬請自行填入。'
+      : '預設帶入組合的<b>加權 5 年 CAGR ' + fmt(auto, 1) + '%</b>（可覆寫）。'
+        + '這是<b>回測外推，不是預測</b>；加權平均 CAGR 與組合實際 CAGR 是近似關係（幾何 vs 算術）。';
+  }
+  // 新手最容易卡在「為什麼沒有數字」。與其留白，不如指名道姓講出要填哪一格。
+  const need = $("pmNeed");
+  if (need) {
+    const missing = [];
+    if (!(total > 0)) missing.push('先在上面的「<b>投入總額</b>」填你打算投入多少錢。');
+    if (netIncome == null) missing.push('上面填「<b>年薪（含獎金）</b>」就會自動幫你換算所得，不填的話<b>算不出所得稅</b>，差距會被低估。');
+    need.innerHTML = missing.length ? '<div class="need">還差一步：' + missing.join(' ') + '</div>' : "";
+  }
+
+  const verdict = $("pmVerdict");
+  if (!out) {
+    summary.innerHTML = "";
+    if (verdict) verdict.innerHTML = "";
+    chart.innerHTML = "";
+    if (detail) detail.innerHTML = "";
+    return;
+  }
+
+  const money = function(v){ return fmt(Math.round(v), 0); };
+  const flipped = out.distEnd > out.accEnd;
+
+  // ── 一句話總結。**依方向改寫，不是換個正負號。**
+  // 低所得時 8.5% 股利抵減大於應納稅額 → 領股息反而退稅、配息型勝出。
+  // 固定寫「累積型比較好」會把這個族群帶往錯的方向，而新手看不出來。
+  if (verdict) {
+    const gap = Math.abs(out.delta);
+    // 「相當於幾個月薪水」只在真的填了年薪時才出現，不用臆測的數字換算。
+    // simSalary 的既有標籤就是「年薪（含獎金）· 家庭合計」，所以要標明是家庭。
+    const salary = Number(($("simSalary") || {}).value);
+    const months = (Number.isFinite(salary) && salary > 0) ? gap / (salary / 12) : null;
+    const monthText = months != null && months >= 0.1
+      ? '，相當於 <b>' + fmt(months, 1) + ' 個月</b>的家庭薪水（年薪 ÷ 12）' : '';
+    verdict.innerHTML = '<div class="verdict">'
+      + (flipped
+        ? '<div class="big">你的所得級距下，<span class="pos">領股息反而退稅</span>。<br>'
+          + pmYears + ' 年後，有配息的版本多留住 <span class="pos">' + money(gap) + ' 元</span>' + monthText + '。</div>'
+          + '<div class="sub">合併計稅的 8.5% 股利抵減（上限 8 萬）大於你的應納稅額，'
+          + out.refundYears + ' 個年度是<b>退稅</b>——在這個所得水準，配息的稅務成本是負的。</div>'
+        : '<div class="big">' + pmYears + ' 年後，不配息的版本多留住 <span class="neg">' + money(gap) + ' 元</span>' + monthText + '。</div>'
+          + '<div class="sub">這筆錢是你的配息被課走的稅與手續費。'
+          + '它<b>不是</b>叫你去買不配息的 ETF（台灣沒有這種商品），'
+          + '而是告訴你：<b>配息越多，這條摩擦成本越大</b>——這會影響你要不要偏好高股息標的。</div>')
+      + '</div>';
+  }
+
+  // ── 三大指標。名稱一律白話，數字一律標明由哪幾項組成。
+  summary.innerHTML =
+    '<div class="sim-kpi"><b>' + (out.frictionSaved >= 0 ? "配息被課走的錢" : "領股息拿到的退稅") + '</b>'
+      + '<span class="' + (out.frictionSaved >= 0 ? "neg" : "pos") + '">' + money(Math.abs(out.frictionSaved)) + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">'
+      + '所得稅 ' + money(out.taxTotal) + '　二代健保 ' + money(out.nhiTotal)
+      + '　再投資手續費 ' + money(out.buyFeeTotal) + '</span></div>'
+    + '<div class="sim-kpi"><b>' + pmYears + ' 年下來差多少</b>'
+      + '<span class="' + (flipped ? "pos" : "neg") + '">' + money(Math.abs(out.delta)) + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">'
+      + (flipped ? '有配息的版本比較多' : '比上面那筆更大，因為被扣走的錢也少賺了後續的複利') + '</span></div>'
+    + '<div class="sim-kpi"><b>' + (pmMode === "acc" ? "不配息" : "有配息") + '：' + pmYears + ' 年後拿回</b>'
+      + '<span>' + money(pmMode === "acc" ? out.accEnd : out.distEnd) + '</span>'
+      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">'
+      + '投入 ' + money(out.startAsset) + '，已扣賣出時的證交稅與手續費 '
+      + money(pmMode === "acc" ? out.accExit : out.distExit) + '</span></div>';
+
+  chart.innerHTML = projectionChart(out, flipped);
+  if (detail) detail.innerHTML = projectionNotes(out, flipped);
+}
+
+// 兩條資產曲線。**縱軸從 0 起算**，與配息 sparkline 同一個理由：
+// 用 min-max 縮放會把幾個百分點的差距畫成天差地遠。
+function projectionChart(out, flipped){
+  const W = 640, H = 200, PADL = 8, PADB = 18, PADT = 8;
+  const max = Math.max(out.rows[out.rows.length - 1].accAsset, out.rows[out.rows.length - 1].distAsset);
+  if (!(max > 0)) return "";
+  const n = out.rows.length;
+  const x = function(i){ return PADL + (W - PADL * 2) * (i / n); };
+  const y = function(v){ return PADT + (H - PADT - PADB) * (1 - v / max); };
+  const pts = function(key){
+    return [[x(0), y(out.startAsset)].join(",")]
+      .concat(out.rows.map(function(r, i){ return [x(i + 1), y(r[key])].join(","); }));
+  };
+  const accPts = pts("accAsset");
+  const distPts = pts("distAsset");
+  // 兩條線之間填色。**顏色與說明都要跟著方向翻轉**：贏家不固定是累積型，
+  // 低所得時領股息反而退稅，這時那塊面積代表的是「多拿到的」而不是「被摩擦掉的」。
+  const upper = flipped ? distPts : accPts;
+  const lower = flipped ? accPts : distPts;
+  const gapFill = flipped ? "var(--green)" : "var(--amber)";
+  const band = "M" + upper.join(" L") + " L" + lower.slice().reverse().join(" L") + " Z";
+  const accOn = pmMode === "acc";
+  return '<div class="table-scroll" style="margin-top:12px">'
+    + '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;min-width:320px" role="img"'
+    + ' aria-label="' + out.years + ' 年資產成長對照，兩線之間為'
+    + (flipped ? '多拿到的退稅' : '被稅與手續費摩擦掉的金額') + '，縱軸從 0 起算">'
+    + '<path d="' + band + '" fill="' + gapFill + '" fill-opacity="0.18" stroke="none" data-gap="'
+    + (flipped ? "refund" : "friction") + '"/>'
+    + '<polyline fill="none" stroke="var(--faint)" stroke-width="' + (accOn ? 1.2 : 2.4) + '"'
+    + ' stroke-linejoin="round" points="' + distPts.join(" ") + '"/>'
+    + '<polyline fill="none" stroke="var(--teal)" stroke-width="' + (accOn ? 2.4 : 1.2) + '"'
+    + ' stroke-linejoin="round" points="' + accPts.join(" ") + '"/>'
+    + '<text x="' + PADL + '" y="' + (H - 4) + '" fill="var(--faint)" font-size="11">現在</text>'
+    + '<text x="' + (W - PADL) + '" y="' + (H - 4) + '" fill="var(--faint)" font-size="11" text-anchor="end">'
+    + out.years + ' 年後</text></svg></div>'
+    + '<p class="hint"><span style="color:var(--teal)">━</span> 不配息　'
+    + '<span style="color:var(--faint)">━</span> 有配息　·　'
+    + '<span style="color:' + gapFill + '">■</span> 中間這一段就是'
+    + (flipped ? '<b>多拿到的退稅</b>' : '<b>被稅與手續費摩擦掉的錢</b>')
+    + '　·　縱軸從 0 起算，沒有縮放。</p>';
+}
+
+function projectionNotes(out, flipped){
+  const money = function(v){ return fmt(Math.round(v), 0); };
+  const rows = out.rows.map(function(r){
+    return '<tr><td class="num">' + r.year + '</td>'
+      + '<td class="num">' + money(r.distAsset) + '</td>'
+      + '<td class="num">' + money(r.accAsset) + '</td>'
+      + '<td class="num">' + money(r.gross) + '</td>'
+      + '<td class="num">' + money(r.tax) + '</td>'
+      + '<td class="num">' + money(r.nhi) + '</td></tr>';
+  }).join("");
+  return (flipped
+      // 這是本功能最該講出來的結論，不能藏在表格裡：低所得時領股利反而退稅。
+      ? '<div class="backtest-warn">⚠ <b>這組設定下配息型反而勝出。</b>'
+        + '合併計稅的 8.5% 股利抵減（上限 8 萬）大於應納稅額，'
+        + out.refundYears + ' 個年度出現<b>退稅</b>——配息在這個所得級距是負成本。'
+        + '「累積型一定比較好」對高所得者成立，對低所得者不成立。</div>'
+      : '')
+    + (out.hasTax ? '' : '<div class="backtest-warn">未填「綜合所得淨額」，'
+        + '本次只計二代健保與手續費，<b>沒有計入所得稅</b>——填了之後差距會擴大。</div>')
+    + (out.nhiFirstYear && out.nhiFirstYear > 1
+      ? '<p class="hint">二代健保從<b>第 ' + out.nhiFirstYear + ' 年</b>才開始扣：'
+        + '單筆配息一開始未達 2 萬門檻，隨再投資複利成長後跨過去。</p>'
+      : '')
+    + '<p class="hint">出場成本的證交稅依證券交易稅條例第 2 條第 2 款（ETF 賣方 0.1%）。'
+      + '<b>債券 ETF 現行免徵，但依同條例第 2-1 條第 2 項只到 2026-12-31</b>，'
+      + '投影期的賣出時點在那之後，故一律計入。手續費預設 0.1425% 為券商公告標準費率，'
+      + '依折扣不同可自行調整。投影期允許零股（單年度試算仍為整股）。</p>'
+    + '<div class="table-scroll"><table style="min-width:520px"><thead><tr>'
+    + '<th>年</th><th>配息型資產</th><th>累積型資產</th><th>當年配息</th><th>所得稅</th><th>二代健保</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 
 // 常駐顯示：多檔 ETF 疊起來後，單一股票實際佔了你多少錢。
@@ -3209,6 +3478,21 @@ function bind(){
   if (s80) s80.addEventListener("click", function(){setStress(0.8, "s80");});
   const s60 = $("s60");
   if (s60) s60.addEventListener("click", function(){setStress(0.6, "s60");});
+  // 多年期投影。其餘輸入（總額／配置／所得／壓力）都已經會呼叫 runSim()，
+  // 而 runSim() 尾端就接 runProjection()，不必重複綁。
+  const pmDist = $("pmDist");
+  if (pmDist) pmDist.addEventListener("click", function(){setProjectionMode("dist");});
+  const pmAcc = $("pmAcc");
+  if (pmAcc) pmAcc.addEventListener("click", function(){setProjectionMode("acc");});
+  const pm5 = $("pm5");
+  if (pm5) pm5.addEventListener("click", function(){setProjectionYears(5);});
+  const pm10 = $("pm10");
+  if (pm10) pm10.addEventListener("click", function(){setProjectionYears(10);});
+  const pmReturn = $("pmReturn");
+  // 使用者一改就停止自動帶入，否則下次重算會把他填的數字蓋掉
+  if (pmReturn) pmReturn.addEventListener("input", function(){pmReturnTouched = true; runProjection();});
+  const pmFee = $("pmFee");
+  if (pmFee) pmFee.addEventListener("input", runProjection);
   const simTotal = $("simTotal");
   const simNetIncome = $("simNetIncome");
   const afterNetIncomeChanged = function(){
