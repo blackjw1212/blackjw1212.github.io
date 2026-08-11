@@ -448,15 +448,18 @@ function dualFeedMock(calls) {
   };
 }
 
-test("etf tab lazy-loads the etf feed with cache-busting and toggles panels", async () => {
+test("the etf feed loads once, with cache-busting, and panels toggle", async () => {
   const calls = [];
   const { app, elements } = await loadMarket(dualFeedMock(calls));
   await app.init();
-  assert.ok(!calls.some((href) => href.startsWith("/data/etf-feed.json")), "etf feed must NOT load on stock tab");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  // 著陸頁是現金流模擬，它需要 etf-feed 才算得出東西——所以這裡**必須**已經載入。
+  // 這條原本斷言「stock 頁不得載入 etf feed」，預設頁籤改掉後那個前提就不成立了；
+  // 真正要守住的是「只抓一次」與「有 cache-busting」，那兩件事在下面。
+  const etfCall = calls.find((href) => href.startsWith("/data/etf-feed.json"));
+  assert.ok(etfCall, "著陸頁需要 etf feed，否則主視覺是空的");
   await app.showTab("etf");
   await new Promise((resolve) => setTimeout(resolve, 0));
-  const etfCall = calls.find((href) => href.startsWith("/data/etf-feed.json"));
-  assert.ok(etfCall, "switching tab loads the etf feed");
   assert.match(etfCall, /\?v=\d{4}-\d{2}-\d{2}/, "cache-busting version param required (sw.js is cache-first)");
   assert.equal(app.getActiveTab(), "etf");
   assert.equal(elements.get("stockPanel").hidden, true);
@@ -2146,4 +2149,125 @@ test("the shaded band flips colour and wording with the direction", async () => 
   assert.match(lowChart, /data-gap="refund"/, "翻轉時陰影的語意也翻轉");
   assert.match(lowChart, /多拿到的退稅/, "不可固定寫「被摩擦掉的錢」");
   assert.doesNotMatch(lowChart, /被稅與手續費摩擦掉的錢/);
+});
+
+// ── 主視覺：結論先講 ──────────────────────────────────────────
+// 這一組守的是「簡化沒有簡化掉誠實」，不是「排版好不好看」。
+// 自備一份帶多窗報酬的 feed：共用 fixture 沒有報酬欄位，而其他測試靠「沒有」來驗「—」，
+// 直接加欄位會動到它們的期望。
+function heroFeedMock() {
+  const base = { market: "twse", type: "市值型", nav: null, discountPremium: null, aum: 5000,
+    frequency: "半年配", payMonths: [2, 8], dps: [{ m: 2, a: 1.6 }, { m: 8, a: 1.7 }] };
+  const feed = etfFeed({ count: 2, stocks: [
+    Object.assign({}, base, { code: "0050", name: "元大台灣50", close: 100, yield: 3.3,
+      totalReturn1y: 20, maxDrawdown1y: -15, totalReturn3y: 60, maxDrawdown3y: -25,
+      totalReturn5y: 120, maxDrawdown5y: -36, cagr5y: 17,
+      topHoldings: [{ name: "台積電", weight: 57.37 }, { name: "聯發科", weight: 6.11 }], holdingsAsOf: "2026-07-27" }),
+    // 只有 1Y 的新上市標的：用來驗選窗會不會被「唯一有長歷史的那檔」綁架
+    Object.assign({}, base, { code: "00NEW", name: "新上市高息", close: 20, yield: 8,
+      totalReturn1y: 30, maxDrawdown1y: -10, topHoldings: [], returnSpanDays: 400 }),
+  ] });
+  return async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/market-feed.json")) return okResponse(marketFeed());
+    if (href.startsWith("/data/etf-feed.json")) return okResponse(feed);
+    throw new Error("unavailable: " + href);
+  };
+}
+
+async function heroPanel(allocations, overrides = {}) {
+  const { app, elements } = await loadMarket(heroFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  // 先設標的再設總額：setSimAllocations 只 renderSimRows()、不重算，
+  // 靠後面 simTotal 的 input 事件觸發 runSim() 才會更新主視覺
+  if (allocations) app.setSimAllocations(allocations);
+  set("simTotal", overrides.total == null ? "1000000" : overrides.total);
+  return { app, elements, set, hero: () => elements.get("simHero").innerHTML };
+}
+
+test("the landing tab is the simulator, not the 1,958-row stock table", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(app.getActiveTab(), "sim", "新手一進來該看到結論，不是千列表格");
+  assert.equal(elements.get("simPanel").hidden, false);
+  assert.equal(elements.get("stockPanel").hidden, true);
+});
+
+// 這是本次最重要的一條。截圖那組配置五檔只有一檔有五年資料，
+// 固定 5 年會讓那一檔（正2）的 +497.6% 代表整個組合。
+test("the headline return window adapts instead of letting one fund speak for the portfolio", async () => {
+  // 0050 有 1/3/5Y，00NEW 只有 1Y。各半配置時 5Y 只涵蓋 50%、3Y 也只有 50%，
+  // 都低於 80% 門檻 → 必須退回 1Y。若固定 5Y，畫面會印出 0050 一檔的 +120%
+  // 當成整個組合的五年報酬——那正是實測那組配置會發生的事（+497.6% 來自一檔正2）。
+  const half = await heroPanel([
+    { code: "0050", pct: 50, shares: null, month: null },
+    { code: "00NEW", pct: 50, shares: null, month: null },
+  ]);
+  const html = half.hero();
+  assert.match(html, /近 1 年總報酬/, "涵蓋率不足的長窗必須被跳過");
+  assert.doesNotMatch(html, /近 5 年總報酬/);
+  assert.doesNotMatch(html, /120/, "不可拿唯一有五年資料的那檔代表整個組合");
+  assert.match(html, /涵蓋組合的 100%/);
+
+  // 全押有完整歷史的那檔 → 5Y 涵蓋 100%，就該用最長窗
+  const full = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  assert.match(full.hero(), /近 5 年總報酬/, "涵蓋率夠就要用最長窗，短窗會低估風險");
+
+  assert.equal(half.app.helpers.WINDOW_MIN_COVERAGE, 80,
+    "門檻改動會直接改變主視覺顯示的年數，必須是刻意的");
+});
+test("the headline states which window it used and how much of the portfolio it covers", async () => {
+  const { hero } = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  const html = hero();
+  assert.match(html, /近 \d 年總報酬/, "要講明是幾年，不可含糊寫「總報酬」");
+  assert.match(html, /涵蓋組合的 \d+%/, "涵蓋率必須攤開，門檻本身是判斷");
+  assert.match(html, /回測，不是預測/);
+});
+
+test("concentration reuses the shipped thresholds and keeps the visible-only caveat", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const { concentrationGrade } = app.helpers;
+  assert.equal(concentrationGrade(4).label, "高");
+  assert.equal(concentrationGrade(7).label, "中等");
+  assert.equal(concentrationGrade(12).label, "低");
+  assert.equal(concentrationGrade(null), null, "沒有成分股資料就不給等級");
+  const { hero } = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  assert.match(hero(), /只算看得到的前十大成分股/,
+    "簡化不可把「只看得到前十大」這個誠實邊界一起簡化掉");
+});
+
+test("an empty portfolio gets a pointer, not a blank hero", async () => {
+  const { hero } = await heroPanel(null, { total: "" });
+  const html = hero();
+  assert.ok(html.length > 0, "留白會讓新手以為壞了");
+  assert.match(html, /投入總額/, "要指名是哪一格");
+  assert.match(html, /加入標的/, "要講出下一步按哪顆");
+});
+
+test("the plain-language disclaimer stays outside the folds", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const firstFold = html.indexOf('<details');
+  const plain = html.indexOf("這是<b>試算不是預測</b>");
+  assert.ok(plain > 0 && plain < firstFold,
+    "白話免責必須看得到；完整說明才收進折疊");
+  // 契約釘住的完整揭露仍須存在（收在折疊裡也算）
+  for (const pin of ["不是投資建議", "不是稅務建議", "應稅比例是推定的", "發放時不扣繳所得稅"]) {
+    assert.ok(html.includes(pin), `契約揭露 ${pin} 不可因為簡化而消失`);
+  }
+});
+
+test("collapsing does not disable the inputs inside", async () => {
+  const { elements, set, hero } = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  const before = hero();
+  set("simTotal", "3000000");
+  assert.notEqual(hero(), before, "折疊只是視覺收合，改了輸入主視覺仍要跟著變");
+  assert.match(hero(), /3,000,000/);
 });

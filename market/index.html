@@ -97,8 +97,24 @@
   .verdict .big{font-size:clamp(20px,4.5vw,30px);font-weight:900;line-height:1.25}
   .verdict .sub{margin-top:8px;color:var(--soft);font-size:13px;line-height:1.6}
   .need{border:1px solid var(--amber);border-radius:10px;padding:12px 14px;margin-top:10px;color:var(--amber);font-size:13px;line-height:1.6}
+  /* 主視覺：進來第一眼的六個數字 */
+  .hero-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+  .hero-row.second .hero-kpi{background:var(--panel)}
+  .hero-kpi{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:14px 16px}
+  .hero-kpi b{display:block;color:var(--soft);font-size:12px;font-weight:700}
+  .hero-kpi>span{display:block;margin-top:6px;font-size:clamp(19px,3.4vw,27px);font-weight:900;line-height:1.15;font-family:"Roboto Mono",monospace}
+  .hero-kpi .sub{display:block;margin-top:6px;font-size:11px;font-weight:400;color:var(--faint);font-family:inherit;line-height:1.5}
+  /* 折疊區：資訊沒有刪，只是收起來 */
+  .fold{border:1px solid var(--line);border-radius:10px;margin-top:10px;background:var(--surface)}
+  .fold>summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:14px;list-style:none}
+  .fold>summary::-webkit-details-marker{display:none}
+  .fold>summary::before{content:"▸ ";color:var(--faint)}
+  .fold[open]>summary::before{content:"▾ "}
+  .fold>summary span{margin-left:8px;color:var(--faint);font-size:12px;font-weight:400}
+  .fold-body{padding:0 14px 14px}
   @media (max-width:640px){
     .mode-cards{grid-template-columns:1fr}
+    .hero-row{grid-template-columns:1fr}
   }
   /* 回測警語刻意做成擋不掉的一整條，不是塞在說明文字裡的一句話：
      以總報酬為目標等於「買去年漲最多的」，看起來比配息目標更權威，也更容易害人。 */
@@ -179,12 +195,12 @@
 
 <main class="wrap">
   <div class="tabbar" role="tablist" aria-label="市場資料分頁">
-    <button class="tab on" id="tabStock" type="button" role="tab" aria-selected="true">全股票</button>
+    <button class="tab on" id="tabSim" type="button" role="tab" aria-selected="true">我能領多少</button>
     <button class="tab" id="tabEtf" type="button" role="tab" aria-selected="false">ETF</button>
-    <button class="tab" id="tabSim" type="button" role="tab" aria-selected="false">現金流模擬</button>
+    <button class="tab" id="tabStock" type="button" role="tab" aria-selected="false">全股票</button>
   </div>
 
-  <div id="stockPanel">
+  <div id="stockPanel" hidden>
   <section aria-labelledby="screenHeading">
     <h2 id="screenHeading">搜尋與篩選 <em>SCREENER</em></h2>
     <p class="hint">全部條件在瀏覽器端即時運算。這是資料篩選工具，不是買賣建議，也不評估你的資金規則與風險承受度。</p>
@@ -330,54 +346,83 @@
   </section>
   </div>
 
-  <div id="simPanel" hidden>
+  <div id="simPanel">
   <section aria-labelledby="simHeading">
-    <h2 id="simHeading">資金月現金流模擬 <em>SIMULATOR</em></h2>
-    <p class="hint">ETF 依實際配息的發放月自動分攤（不需自行填月份），非年收益÷12；個股無公開配息日曆，以歷史殖利率推估、發放月預設 8 月可自行修改。扣費為簡化估算之保守上限，僅供參考，不是投資建議。
-      <br><strong>所得稅估算</strong>：對居住者而言，國內 ETF 配息<strong>發放時不扣繳所得稅</strong>，只扣二代健保；真正的稅是隔年 5 月申報的綜所稅，本工具估的是那個。合併計稅（8.5% 抵減、上限 80,000／戶／年）與分開計稅（28%）兩制都算、取較低者；低級距時抵減大於稅額會呈現為<strong>可退稅</strong>。稅率級距採 115 年度（財政部 2025-11-27 公告）。
-      <br><strong>應稅比例是推定的</strong>：ETF 收益分配只有 54C 國內股利與 5A 國內利息課稅，71 海外所得走最低稅負制、76W 與收益平準金免稅；但這個組成沒有任何可自動取得的來源，因此依標的性質推定（債券型／外幣計價／投資海外者視為海外所得），每列都會標明推定理由。實際請以收益分配通知書為準。最低稅負制假設個人海外所得遠低於 750 萬扣除額而估為 0。<strong>本工具不是稅務建議。</strong></p>
+    <h2 id="simHeading">你這樣買，一年能領多少？ <em>SIMULATOR</em></h2>
+    <p class="hint">填金額、挑幾檔 ETF，馬上算出一年大概能領多少、每月平均多少。
+      這是<b>試算不是預測</b>，用的是各檔過去實際發過的配息；<b>不是投資或稅務建議</b>。
+      算法與稅制假設都在最下面的「這些數字是怎麼算的」。</p>
     <div class="toolbar">
       <div class="toolrow">
         <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
         <button class="btn" id="simAdd" type="button">＋ 加入標的</button>
-        <button class="btn" id="simOptimize" type="button" title="以投入總額窮舉計算上方這些標的的權重組合，取扣費後年配息最高者">最佳分配</button>
-        <button class="btn" id="simUseHoldings" type="button" title="把投入總額設為目前所有持股的市值合計，讓比例%以實際持股為基準">總額＝目前持股市值</button>
         <span class="count" id="simPctSum"></span>
       </div>
-      <div class="toolrow">
-        <span class="fld">綜合所得淨額 <input id="simNetIncome" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="綜合所得淨額（元）" placeholder="不填則不估稅" /> 元</span>
-        <span class="hint" style="margin:0">留空則只估補充保費。<b>不知道這個數字？</b>它在你去年綜所稅申報書上，或用下面這排由年薪換算。</span>
+    </div>
+
+    <div id="simHero"></div>
+
+    <h3 style="font-size:14px;margin-top:20px">你的標的</h3>
+    <div class="sim-rows" id="simRows"></div>
+
+    <details class="fold">
+      <summary>詳細績效<span>每月現金流、逐檔明細</span></summary>
+      <div class="fold-body">
+        <div class="sim-summary" id="simSummary"></div>
+        <div class="sim-chart" id="simChart"></div>
+        <div id="simDetail"></div>
       </div>
-      <div class="toolrow">
-        <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
-        <span class="fld">申報方式
-          <select id="simFiling" aria-label="申報方式">
-            <option value="single">單身</option>
-            <option value="joint2">夫妻合併·雙薪</option>
-            <option value="joint1">夫妻合併·單薪</option>
-          </select>
-        </span>
-        <span class="fld">扶養親屬 <input id="simDependents" type="number" min="0" max="10" step="1" inputmode="numeric" style="width:56px" aria-label="扶養親屬人數" value="0" /> 人</span>
-        <span class="hint" style="margin:0" id="simNetIncomeHint"></span>
-      </div>
-      <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
-      <div class="sim-rows" id="simRows"></div>
-      <div class="toolrow">
+    </details>
+
+    <details class="fold">
+      <summary>成分股與重疊<span>實際買到哪些股票、哪個產業最重</span></summary>
+      <div class="fold-body"><div id="simExposure"></div></div>
+    </details>
+
+    <details class="fold">
+      <summary>風險分析<span>配息縮水時會怎樣</span></summary>
+      <div class="fold-body">
+        <p class="hint">把配息乘上一個折扣重算，看最壞情況下現金流剩多少。</p>
         <div class="presets">
           <button class="btn on" id="s100" type="button">歷史基準</button>
           <button class="btn" id="s80" type="button">保守 −20%</button>
           <button class="btn" id="s60" type="button">極端 −40%</button>
         </div>
       </div>
-    </div>
-    <div class="sim-summary" id="simSummary"></div>
-    <div class="sim-chart" id="simChart"></div>
-    <div id="simDetail"></div>
-    <div id="simExposure"></div>
+    </details>
+
+    <details class="fold">
+      <summary>進階設定<span>填了年薪才算得出所得稅</span></summary>
+      <div class="fold-body">
+        <div class="toolrow">
+          <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
+          <span class="fld">申報方式
+            <select id="simFiling" aria-label="申報方式">
+              <option value="single">單身</option>
+              <option value="joint2">夫妻合併·雙薪</option>
+              <option value="joint1">夫妻合併·單薪</option>
+            </select>
+          </span>
+          <span class="fld">扶養親屬 <input id="simDependents" type="number" min="0" max="10" step="1" inputmode="numeric" style="width:56px" aria-label="扶養親屬人數" value="0" /> 人</span>
+        </div>
+        <div class="toolrow">
+          <span class="fld">綜合所得淨額 <input id="simNetIncome" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="綜合所得淨額（元）" placeholder="填年薪會自動換算" /> 元</span>
+          <span class="hint" style="margin:0">知道確切數字就直接填，它在你去年綜所稅申報書上。</span>
+        </div>
+        <div class="toolrow"><span class="hint" style="margin:0" id="simNetIncomeHint"></span></div>
+        <div class="toolrow">
+          <button class="btn" id="simOptimize" type="button" title="以投入總額窮舉計算上方這些標的的權重組合，取扣費後年配息最高者">最佳分配</button>
+          <button class="btn" id="simUseHoldings" type="button" title="把投入總額設為目前所有持股的市值合計，讓比例%以實際持股為基準">總額＝目前持股市值</button>
+        </div>
+        <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
+      </div>
+    </details>
+
   </section>
 
-  <section aria-labelledby="pmHeading">
-    <h2 id="pmHeading">領股息會被課多少稅？ <em>PROJECTION</em></h2>
+  <details class="fold" style="margin-top:18px">
+    <summary id="pmHeading">配息分析：領股息會被課多少稅？<span>稅與手續費十年吃掉多少</span></summary>
+    <div class="fold-body">
     <p class="hint">此為拿同一檔標的「有領股息」與「不領股息」比較，讓你一眼看出被扣了多少稅與手續費。
       <strong>台灣買不到「不配息版本」的同一檔 ETF</strong>——那條線是拿來當尺量摩擦的，
       <strong>不是一個可以去下單的標的</strong>。沿用上方的投入金額、標的與年薪設定。</p>
@@ -411,10 +456,12 @@
     <div class="sim-summary" id="pmSummary"></div>
     <div id="pmChart"></div>
     <div id="pmDetail"></div>
-  </section>
+    </div>
+  </details>
 
-  <section aria-labelledby="suggestHeading">
-    <h2 id="suggestHeading">配置產生器 <em>OPTIMIZER</em></h2>
+  <details class="fold">
+    <summary id="suggestHeading">自動配置<span>讓程式窮舉出配息最高的權重組合</span></summary>
+    <div class="fold-body">
     <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
       <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
       <strong>配息波動改看近 24 個月</strong>（殖利率仍是近 12 個月）：只看 12 個月的季配標的僅有 4 筆，會系統性低估波動——實測 006208 配息由 0.989 漲到 4.75，12 月窗算出 0.16、24 月窗才是 0.65。水準跳升對「用近 12 月配息推估未來」正是最該標出來的風險。
@@ -475,7 +522,14 @@
     </div>
     <div id="suggestResult"></div>
     <p class="hint" style="margin-top:12px">二代健保補充保費以「單一標的單次給付 ≥ 20,000 元 × 2.11%」全額估算；配息中非股利成分（收益平準金、資本利得、境外債息）之適用規則未查證，實際扣費可能較低。稅負、匯費與健保細部規則不在本模擬範圍。</p>
-  </section>
+    </div>
+  </details>
+  <details class="fold">
+    <summary>這些數字是怎麼算的<span>稅制、應稅比例與各項假設</span></summary>
+    <div class="fold-body"><p class="hint">ETF 依實際配息的發放月自動分攤（不需自行填月份），非年收益÷12；個股無公開配息日曆，以歷史殖利率推估、發放月預設 8 月可自行修改。扣費為簡化估算之保守上限，僅供參考，不是投資建議。
+      <br><strong>所得稅估算</strong>：對居住者而言，國內 ETF 配息<strong>發放時不扣繳所得稅</strong>，只扣二代健保；真正的稅是隔年 5 月申報的綜所稅，本工具估的是那個。合併計稅（8.5% 抵減、上限 80,000／戶／年）與分開計稅（28%）兩制都算、取較低者；低級距時抵減大於稅額會呈現為<strong>可退稅</strong>。稅率級距採 115 年度（財政部 2025-11-27 公告）。
+      <br><strong>應稅比例是推定的</strong>：ETF 收益分配只有 54C 國內股利與 5A 國內利息課稅，71 海外所得走最低稅負制、76W 與收益平準金免稅；但這個組成沒有任何可自動取得的來源，因此依標的性質推定（債券型／外幣計價／投資海外者視為海外所得），每列都會標明推定理由。實際請以收益分配通知書為準。最低稅負制假設個人海外所得遠低於 750 萬扣除額而估為 0。<strong>本工具不是稅務建議。</strong></p></div>
+  </details>
   </div>
 
   <footer>
@@ -858,7 +912,7 @@ const TAX_FALLBACK = {
 let taxParams = TAX_FALLBACK;
 const LS_SIM = "bjkw-market-sim-v1";
 
-let activeTab = "stock";
+let activeTab = "sim";
 let allEtfs = [];
 let etfLoaded = false;
 let etfViewRows = [];
@@ -2684,8 +2738,9 @@ function runSim(){
     }),
   });
   saveSimState();
+  renderHero(result, total);
   if (!total || !simAllocations.length) {
-    summary.innerHTML = '<div class="sim-kpi"><b>狀態</b><span style="font-size:13px">輸入總額並加入標的後試算</span></div>';
+    summary.innerHTML = "";
     chart.innerHTML = "";
     if (detail) detail.innerHTML = "";
     // 投影區塊的「還差一步」提示正是為了這個狀態而存在，
@@ -2735,6 +2790,125 @@ function runSim(){
   }
   renderExposure();
   runProjection();
+}
+
+/* ---- 主視覺：結論先講，細節收折 ---- */
+
+// 進來第一眼只該看到六個數字。其餘全部收進折疊區——資訊沒有刪，只是排出層級。
+function renderHero(result, total){
+  const box = $("simHero");
+  if (!box) return;
+  const money = function(v){ return fmt(Math.round(v), 0); };
+
+  // 空狀態不可留白：新手會以為壞了。指路要講得出「按哪顆」。
+  if (!total || !simAllocations.length) {
+    box.innerHTML = '<div class="need">還差一步：'
+      + (!total ? '填上面的「<b>投入總額</b>」，' : '')
+      + '再按「<b>＋ 加入標的</b>」挑幾檔 ETF，這裡就會算出你一年大概能領多少。</div>';
+    return;
+  }
+
+  const win = adaptiveReturnWindow(simAllocations);
+  const exposure = buildPortfolioExposure(
+    simAllocations.map(function(a){ return {code:a.code, pct:a.pct}; }), allEtfs);
+  const grade = concentrationGrade(exposure.effectiveHoldings);
+  const monthly = result.totalNet / 12;
+
+  const big = function(label, value, sub, cls){
+    return '<div class="hero-kpi"><b>' + label + '</b>'
+      + '<span class="' + (cls || "") + '">' + value + '</span>'
+      + (sub ? '<span class="sub">' + sub + '</span>' : '') + '</div>';
+  };
+  box.innerHTML = '<div class="hero-row">'
+      + big("你投入", money(total) + ' 元', "")
+      + big("一年大概領到", money(result.totalNet) + ' 元', "已扣二代健保，未扣所得稅")
+      + big("平均每月", money(monthly) + ' 元', "實際依各檔發放月分佈，不是每月都有")
+    + '</div>'
+    + '<div class="hero-row second">'
+      // 窗是自適應的：固定 5 年會讓「只有一檔有五年資料」的組合印出那一檔的數字
+      + (win
+        ? big("近 " + win.years + " 年總報酬", signed(win.totalReturn, 1) + '%',
+            "涵蓋組合的 " + win.coverage + "%（回測，不是預測）", toneClass(win.totalReturn))
+        : big("近期總報酬", "—", "所選標的的歷史都不滿一年，算不出來"))
+      + (win && win.maxDrawdown != null
+        ? big("最大回撤", fmt(win.maxDrawdown, 1) + '%',
+            "近 " + win.years + " 年最深的一次；加權平均是樂觀下界", "neg")
+        : big("最大回撤", "—", "歷史不足，算不出來"))
+      + (grade
+        ? big("組合集中度", grade.label,
+            "有效持股數 " + fmt(exposure.effectiveHoldings, 1) + " 檔（只算看得到的前十大成分股）",
+            grade.cls)
+        : big("組合集中度", "—", "所選標的沒有成分股資料"))
+    + '</div>'
+    + overlapHeroHtml(exposure);
+}
+
+// 「有沒有其實買到一樣的東西」——新手最想知道卻最難自己看出來的一件事。
+function overlapHeroHtml(exposure){
+  if (!exposure || !exposure.stocks.length) return "";
+  const top = exposure.stocks[0];
+  const sector = exposure.sectors[0];
+  return '<p class="hint" style="margin-top:10px">你這幾檔<b>其實買到一樣的東西</b>：'
+    + '最重的一檔是<b>' + escapeHtml(top.name) + ' 約 ' + fmt(top.exposure, 1) + '%</b>'
+    + (sector ? '，最重的產業是<b>' + escapeHtml(sector.name) + ' 約 ' + fmt(sector.weight, 1) + '%</b>' : '')
+    + '。（只看得到各檔前十大成分股，實際重疊會更高）</p>';
+}
+
+// 報酬窗要**自適應**，不可固定 5 年。實測截圖那組配置（00933B／00919／00951／
+// 00930／00631L 各 20%）：1Y 涵蓋 100% +86.4%、3Y 涵蓋 80% +177.2%、
+// **5Y 涵蓋只有 20% 卻是 +497.6%**——那是 00631L 一檔正2 的數字，
+// 其餘四檔上市 490~1397 天根本沒有五年歷史。
+// 高股息 ETF 多為近年新上市，這是新手組合的常態而不是邊角。
+//
+// 取涵蓋率 ≥ MIN_COVERAGE 的**最長**窗。門檻本身是判斷，所以涵蓋率一律攤在畫面上，
+// 讓使用者自己看得出這個數字可信到什麼程度。
+const WINDOW_MIN_COVERAGE = 80;
+function adaptiveReturnWindow(allocations){
+  const rows = [];
+  for (const allocation of (allocations || [])) {
+    const security = lookupSecurity(allocation.code);
+    if (!security || !(security.price > 0)) continue;
+    const explicit = Number(allocation.shares);
+    const value = (Number.isFinite(explicit) && explicit > 0)
+      ? explicit * security.price
+      : (Number(($("simTotal") || {}).value) || 0) * (Number(allocation.pct) || 0) / 100;
+    if (!(value > 0)) continue;
+    const etf = allEtfs.find(function(row){ return row.code === security.code; });
+    if (etf) rows.push({etf:etf, value:value});
+  }
+  const totalValue = rows.reduce(function(s, r){ return s + r.value; }, 0);
+  if (!(totalValue > 0)) return null;
+  // 由長到短，取第一個涵蓋率過關的
+  for (const key of ["5y", "3y", "1y"]) {
+    let covered = 0, sum = 0, ddSum = 0, ddCovered = 0;
+    for (const r of rows) {
+      const tr = r.etf["totalReturn" + key];
+      if (tr != null) { covered += r.value; sum += tr * r.value; }
+      const dd = r.etf["maxDrawdown" + key];
+      if (dd != null) { ddCovered += r.value; ddSum += dd * r.value; }
+    }
+    const coverage = Math.round(covered / totalValue * 100);
+    if (coverage < WINDOW_MIN_COVERAGE) continue;
+    return {
+      key:key,
+      years:key === "1y" ? 1 : (key === "3y" ? 3 : 5),
+      totalReturn:Math.round(sum / covered * 10) / 10,
+      // 加權平均回撤是**樂觀下界**——各檔不會同時見底，既有 fundLevelMetrics
+      // 也是這樣標註的，這裡沿用同一個說法
+      maxDrawdown:ddCovered > 0 ? Math.round(ddSum / ddCovered * 10) / 10 : null,
+      coverage:coverage,
+    };
+  }
+  return null;
+}
+
+// 集中度分級。**重用 concentrationHtml() 既有的門檻**（有效持股數 <5 紅、<10 琥珀），
+// 不另訂一套數字——兩處若各自訂門檻，同一個組合會被標成不同等級。
+function concentrationGrade(effectiveHoldings){
+  if (effectiveHoldings == null) return null;
+  if (effectiveHoldings < 5) return {label:"高", cls:"neg"};
+  if (effectiveHoldings < 10) return {label:"中等", cls:"", style:"color:var(--amber)"};
+  return {label:"低", cls:"pos"};
 }
 
 /* ---- 多年期投影的 UI ---- */
@@ -3567,6 +3741,10 @@ async function init(){
   loadSimState();
   bind();
   await load();
+  // 預設頁籤改成現金流模擬後，它的延遲載入（etf-feed／tax-params）必須在這裡觸發，
+  // 否則著陸頁是空的——showTab 原本只在使用者點擊時才跑。
+  // 排在 load() 之後：lookupSecurity 會查 allStocks，個股標的要等 market-feed 到位。
+  if (activeTab !== "stock") showTab(activeTab);
 }
 
 const marketApp = {
@@ -3632,6 +3810,9 @@ const marketApp = {
     worstDrawdown:worstDrawdown,
     riskAdjusted:riskAdjusted,
     projectMultiYear:projectMultiYear,
+    adaptiveReturnWindow:adaptiveReturnWindow,
+    WINDOW_MIN_COVERAGE:WINDOW_MIN_COVERAGE,
+    concentrationGrade:concentrationGrade,
     SELL_TAX_RATE:SELL_TAX_RATE,
     DEFAULT_FEE_RATE:DEFAULT_FEE_RATE,
     stalenessNote:stalenessNote,
