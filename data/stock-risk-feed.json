@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-08-11T02:59:34.876Z",
-  "eodUpdatedAt": "2026-08-11T02:59:34.876Z",
-  "eodTradingDate": "2026-08-10",
+  "updatedAt": "2026-08-11T04:20:40.442Z",
+  "eodUpdatedAt": "2026-08-11T04:20:40.442Z",
+  "eodTradingDate": "2026-08-11",
   "holdings": [
     "2330",
     "2317",
@@ -63,9 +63,9 @@
     {
       "code": "2382",
       "name": "廣達",
-      "close": 313.5,
-      "change": 15.5,
-      "date": "2026-08-10"
+      "close": 313,
+      "change": -0.5,
+      "date": "2026-08-11"
     },
     {
       "code": "3017",
@@ -84,9 +84,9 @@
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 1010,
-      "change": -5,
-      "date": "2026-08-10"
+      "close": 1035,
+      "change": 25,
+      "date": "2026-08-11"
     },
     {
       "code": "3661",
@@ -196,5 +196,18 @@
     "updatedAt": "2026-08-07T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    },
+    {
+      "source": "TPEX OpenAPI peratio analysis",
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 520"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 0 eod row(s), 1 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
