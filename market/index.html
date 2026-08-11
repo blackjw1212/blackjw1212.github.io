@@ -1697,6 +1697,156 @@ function simulate(input){
     emptyMonths:monthlyGross.map(function(value, index){return value > 0 ? null : index + 1;}).filter(Boolean)};
 }
 
+/* ===================== 多年期：累積型 vs 配息再投資 ===================== */
+
+// 賣出證交稅。來源：證券交易稅條例第 2 條第 2 款「公司債及其他經政府核准之有價證券
+// 徵千分之一」，TWSE ETF 專區亦明列「證交稅：ETF 賣方課徵 0.1%」。
+//
+// 債券 ETF 依同條例第 2-1 條第 2 項暫停徵，**但只到民國 115/12/31（＝2026-12-31）**，
+// 且槓桿反向型不適用。投影期 5~10 年的賣出時點必然落在到期之後，所以一律套 0.1%，
+// 畫面另外標明現行免徵今年底到期。
+const SELL_TAX_RATE = 0.001;
+
+// 券商手續費預設值。金管會 97 金管證二字第0970019212號函：券商費率**得逾**
+// 千分之 1.425，逾者須事先告知客戶——所以這是**公告標準費率而不是硬上限**，
+// 實際依各券商折扣差很多，因此開放使用者輸入。
+const DEFAULT_FEE_RATE = 0.001425;
+
+// 反事實孿生：拿同一組配置，比較「配息並再投資」與「假想一個總報酬完全相同、
+// 但不配息的孿生版本」。差額 100% 歸因於稅務與手續費摩擦。
+//
+// **台灣沒有 UCITS 那種同一檔的累積級別／配息級別**，所以累積型這一側是假想商品，
+// 不可照著去買——這句話必須出現在畫面上，不能只寫在這裡。
+//
+// 價格成長用 **(1+R)/(1+y) − 1**，不是 R − y。後者在零摩擦下會讓兩個模型差一個
+// y(R−y) 的二階項（R=8%、y=5% 時十年約差 1.5%），那個差額與稅費完全無關，
+// 卻會被讀成摩擦成本。正確的分解是 (1+R) = (1+p)(1+y)。
+function projectMultiYear(input){
+  const years = Math.max(1, Math.min(50, Math.round(Number(input && input.years) || 0)));
+  const r = Number(input && input.rTotal);
+  if (!Number.isFinite(r) || !years) return null;
+  const stress = Number(input.stress) || 1;
+  const nhi = input.nhi || NHI;
+  const feeRate = Number(input.feeRate);
+  const fee = Number.isFinite(feeRate) && feeRate >= 0 ? feeRate : DEFAULT_FEE_RATE;
+  const sellTaxRaw = Number(input.sellTaxRate);
+  const sellTax = Number.isFinite(sellTaxRaw) && sellTaxRaw >= 0 ? sellTaxRaw : SELL_TAX_RATE;
+
+  // 逐檔建倉。**投影期允許零股**（2020 起有盤中零股交易）：10 年 × N 檔的整股捨去
+  // 會累積出一筆與「要量測的東西」無關的漂移，而單年度 simulate() 的整股邏輯不動。
+  const funds = [];
+  let startAsset = 0;
+  for (const allocation of (input.allocations || [])) {
+    const security = allocation.security;
+    if (!security || !(security.price > 0)) continue;
+    const explicit = Number(allocation.shares);
+    const value = (Number.isFinite(explicit) && explicit > 0)
+      ? explicit * security.price
+      : (Number(input.total) || 0) * (Number(allocation.pct) || 0) / 100;
+    if (!(value > 0)) continue;
+    const events = security.kind === "etf"
+      ? (security.events || []).map(function(e){ return {m:Number(e.m), a:Number(e.a)}; }).filter(function(e){ return e.a > 0; })
+      : (security.annualDps > 0 ? [{m:8, a:Number(security.annualDps)}] : []);
+    const annualDps = events.reduce(function(s, e){ return s + e.a; }, 0);
+    funds.push({
+      code:allocation.code || security.code, name:security.name,
+      shares:value / security.price, price:security.price, price0:security.price,
+      events:events,
+      // **逐檔各自的殖利率**：價格成長套各自的 (1+R)/(1+y_i)，讓每一檔的總報酬都等於 R。
+      // 用組合層級的 y 會讓高息檔實際總報酬高於 R、低息檔低於 R，
+      // 「相同總報酬率」這個前提當場破掉。
+      yieldRate:annualDps / security.price,
+      taxable:taxableRatio(security).ratio,
+    });
+    startAsset += value;
+  }
+  if (!funds.length || !(startAsset > 0)) return null;
+
+  const rows = [];
+  let taxSum = 0, nhiSum = 0, buyFeeSum = 0, grossSum = 0;
+  let nhiFirstYear = null;
+  let refundYears = 0;
+
+  for (let y = 1; y <= years; y += 1) {
+    let gross = 0, nhiFee = 0, taxableGross = 0;
+    const per = [];
+    for (const f of funds) {
+      // 每單位配息隨股價等比成長，殖利率才維持在 y_i。若把它釘在第 0 年的絕對金額，
+      // 十年後殖利率會機械式衰減 → 配息型少繳稅 → 摩擦成本被系統性低估。
+      const scale = f.price / f.price0;
+      let fGross = 0, fNhi = 0, fTaxable = 0;
+      for (const event of f.events) {
+        const g = f.shares * event.a * scale * stress;
+        if (!(g > 0)) continue;
+        fGross += g;
+        // 二代健保**逐筆**判門檻。這是多年模型才看得出來的動態：隨再投資複利，
+        // 原本低於 2 萬的單筆配息會在某一年跨過門檻，從那年起才開始扣費。
+        if (g >= nhi.threshold) {
+          fNhi += g * nhi.rate;
+          if (nhiFirstYear == null) nhiFirstYear = y;
+        }
+        fTaxable += g * f.taxable;
+      }
+      per.push({fund:f, gross:fGross, nhi:fNhi, taxable:fTaxable});
+      gross += fGross; nhiFee += fNhi; taxableGross += fTaxable;
+    }
+    // 逐年重算：配息成長會把人推進更高級距，也可能在低所得時產生退稅（負值）
+    const taxInfo = estimateDividendTax({taxableDividend:taxableGross, netIncome:input.netIncome, params:input.taxParams});
+    const tax = taxInfo ? taxInfo.tax : 0;
+    if (tax < 0) refundYears += 1;
+
+    // **配息投回原本那一檔**，不是按市值撒回全組合。
+    // 撒回全組合等於讓 A 檔的配息去買 B 檔，而兩檔的價格成長率不同
+    // （各自是 (1+R)/(1+y_i)），混合後組合報酬就不再精確等於 R——
+    // 實測兩檔 5 年會產生 0.17% 的偏差，那不是摩擦卻會被算進差額。
+    // 投回原檔時每檔都維持 (1+y_i)×(1+R)/(1+y_i) = 1+R，零摩擦下兩模型完全相等。
+    // 稅是組合層級算出來的，按各檔的應稅貢獻分攤回去。
+    let buyFee = 0;
+    for (const p of per) {
+      const share = taxableGross > 0 ? p.taxable / taxableGross : (gross > 0 ? p.gross / gross : 0);
+      const netCash = p.gross - p.nhi - tax * share;
+      const fFee = netCash > 0 ? netCash * fee : 0;
+      buyFee += fFee;
+      const invested = netCash - fFee;
+      if (invested !== 0 && p.fund.price > 0) p.fund.shares = Math.max(0, p.fund.shares + invested / p.fund.price);
+    }
+    for (const f of funds) {
+      const growth = (1 + r / 100) / (1 + f.yieldRate);
+      f.price = Math.max(0, f.price * growth);
+    }
+
+    grossSum += gross; nhiSum += nhiFee; taxSum += tax; buyFeeSum += buyFee;
+    rows.push({
+      year:y,
+      distAsset:funds.reduce(function(s, f){ return s + f.shares * f.price; }, 0),
+      accAsset:startAsset * Math.pow(1 + r / 100, y),
+      gross:gross, nhi:nhiFee, tax:tax, buyFee:buyFee,
+    });
+  }
+
+  // 出場：兩邊都在期末全數賣出，同樣付證交稅與手續費。累積型資產較大、
+  // 絕對金額付得較多——這才是公平比較，不算出場成本會系統性高估累積型。
+  const exitRate = sellTax + fee;
+  const distGross = rows[rows.length - 1].distAsset;
+  const accGross = rows[rows.length - 1].accAsset;
+  const distExit = distGross * exitRate;
+  const accExit = accGross * exitRate;
+
+  return {
+    years:years, rTotal:r, startAsset:startAsset, rows:rows,
+    feeRate:fee, sellTaxRate:sellTax,
+    distEnd:distGross - distExit, accEnd:accGross - accExit,
+    delta:(accGross - accExit) - (distGross - distExit),
+    taxTotal:taxSum, nhiTotal:nhiSum, buyFeeTotal:buyFeeSum, grossTotal:grossSum,
+    distExit:distExit, accExit:accExit,
+    // 免去的摩擦：所得稅＋二代健保＋再投資手續費。**不含出場成本**，
+    // 因為那一項兩邊都付，不是累積型省下來的。
+    frictionSaved:taxSum + nhiSum + buyFeeSum,
+    nhiFirstYear:nhiFirstYear, refundYears:refundYears,
+    hasTax:input.netIncome != null && String(input.netIncome) !== "",
+  };
+}
+
 // 實質曝險：把各檔前十大成分股權重 × 該檔佔總資金比例，加總為「這檔股票佔你多少錢」。
 // 只有精選檔有人工維護的成分股，未涵蓋者以 coverage 回報，避免看起來像全貌。
 //
@@ -3197,6 +3347,9 @@ const marketApp = {
     applyPeriod:applyPeriod,
     worstDrawdown:worstDrawdown,
     riskAdjusted:riskAdjusted,
+    projectMultiYear:projectMultiYear,
+    SELL_TAX_RATE:SELL_TAX_RATE,
+    DEFAULT_FEE_RATE:DEFAULT_FEE_RATE,
     stalenessNote:stalenessNote,
     STALE_HOURS:STALE_HOURS,
     cvGrade:cvGrade,

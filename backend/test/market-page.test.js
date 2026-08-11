@@ -1891,3 +1891,137 @@ test("preserved upstream data is disclosed in the stamp", async () => {
   await app.init();
   assert.match(elements.get("stamp").textContent, /前次保留資料/);
 });
+
+// ── 多年期：累積型（不配息）vs 配息再投資 ──────────────────────
+// 反事實孿生：同一組配置，比較「配息並再投資」與「總報酬完全相同但不配息」的
+// 假想版本。差額 100% 歸因於稅務與手續費摩擦——所以零摩擦時兩者必須完全相等，
+// 那條測試不過的話，後面所有差額都不可信。
+
+// 造一檔殖利率 y、股價 p 的 ETF。events 拆成 n 筆，用來測二代健保的單筆門檻。
+function fundSec(code, price, yieldPct, payouts = 2, extra = {}) {
+  const annual = price * yieldPct / 100;
+  const events = Array.from({ length: payouts }, (_, i) => ({ m: i * 3 + 2, a: annual / payouts }));
+  return Object.assign({ code, name: code, kind: "etf", price, events, type: "高股息" }, extra);
+}
+const alloc = (security, pct) => ({ code: security.code, pct, security });
+
+async function projector() {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  return app.helpers.projectMultiYear;
+}
+
+// 這是整組功能的地基。價格成長若寫成 R − y 而不是 (1+R)/(1+y) − 1，
+// 零摩擦下兩邊會差一個 y(R−y) 的二階項（R=8%、y=5% 時十年約 1.5%），
+// 那個差額與稅費無關卻會被讀成摩擦成本。
+test("with zero friction the two models must land on exactly the same number", async () => {
+  const project = await projector();
+  for (const years of [5, 10]) {
+    const out = project({
+      total: 1000000, years, rTotal: 8, stress: 1,
+      allocations: [alloc(fundSec("00AA", 50, 5), 60), alloc(fundSec("00BB", 20, 9), 40)],
+      netIncome: null,                                  // 無所得 → 不課綜所稅
+      nhi: { rate: 0, threshold: 20000, cap: null },     // 健保歸零
+      feeRate: 0, sellTaxRate: 0,                        // 手續費與證交稅歸零
+    });
+    const gap = Math.abs(out.accEnd - out.distEnd);
+    assert.ok(gap < out.accEnd * 1e-9,
+      `${years} 年零摩擦下兩模型必須相等，實差 ${gap.toFixed(2)}（占 ${(gap / out.accEnd * 100).toFixed(4)}%）` +
+      "——價格成長可能誤用了 R − y 而不是 (1+R)/(1+y) − 1");
+    // 而且要等於單純複利，證明迴圈本身沒有多算或少算一期
+    assert.ok(Math.abs(out.accEnd - 1000000 * Math.pow(1.08, years)) < 1e-6, "累積型必須就是 (1+R)^Y");
+  }
+});
+
+test("friction shows up as a deficit that reconciles item by item", async () => {
+  const project = await projector();
+  const out = project({
+    total: 5000000, years: 10, rTotal: 8, stress: 1,
+    allocations: [alloc(fundSec("00AA", 50, 6), 100)],
+    netIncome: 2000000,                     // 高所得 → 稅為正
+    taxParams: null, nhi: undefined,
+    feeRate: 0.001425, sellTaxRate: 0.001,
+  });
+  assert.ok(out.taxTotal > 0, `高所得應課到稅，實得 ${out.taxTotal}`);
+  assert.ok(out.nhiTotal > 0, "單筆過門檻應扣二代健保");
+  assert.ok(out.accEnd > out.distEnd, "有稅時累積型必勝");
+  // 只比大小不夠——差額必須真的來自那三項的複利，不是別處的計算漏洞。
+  // 摩擦金額在中途被抽走，之後不再複利，所以終值差額必然大於摩擦本身的面額。
+  assert.ok(out.delta > out.frictionSaved,
+    `差額 ${Math.round(out.delta)} 應大於摩擦面額 ${Math.round(out.frictionSaved)}（被抽走的錢少賺了後續複利）`);
+  // 上界：全部摩擦若都發生在第 1 年，最多長成 (1+R)^10 倍
+  assert.ok(out.delta < out.frictionSaved * Math.pow(1.08, 10),
+    "差額不該超過「摩擦全發生在第一年」的極限，超過代表重複計算");
+});
+
+// 使用者原本的驗收標準寫「累積型必須 ≥ 配息型」。低所得時會反過來：
+// 合併計稅的 8.5% 股利抵減（上限 8 萬）可能大於應納稅額而退稅。
+// 這條鎖住那個反直覺但正確的行為——它是這個功能最有價值的輸出。
+test("a dividend tax refund can flip the result in favour of distributing", async () => {
+  const project = await projector();
+  const out = project({
+    total: 1000000, years: 10, rTotal: 6, stress: 1,
+    allocations: [alloc(fundSec("00AA", 50, 6), 100)],
+    netIncome: 100000,                       // 低所得 → 8.5% 抵減大於應納稅額
+    nhi: { rate: 0, threshold: 20000, cap: null },
+    feeRate: 0, sellTaxRate: 0,
+  });
+  assert.ok(out.refundYears > 0, `低所得應出現退稅年度，實得 ${out.refundYears}`);
+  assert.ok(out.taxTotal < 0, `累計稅應為負（退稅），實得 ${out.taxTotal}`);
+  assert.ok(out.distEnd > out.accEnd,
+    "退稅情境下配息型應勝出——「累積型永遠比較好」是錯的，這是本功能最該講出來的結論");
+});
+
+// 二代健保是「單筆」≥ 2 萬。多年模型才看得出來的動態：
+// 第 1 年單筆不到門檻，隨再投資複利在某一年跨過去，從那年起才開始扣。
+test("the NHI threshold is crossed partway through, not from year one", async () => {
+  const project = await projector();
+  // 單筆 = 100 萬 × 4% ÷ 1 次 = 40,000 → 一開始就過門檻
+  const over = project({
+    total: 1000000, years: 5, rTotal: 8, stress: 1,
+    allocations: [alloc(fundSec("00AA", 50, 4, 1), 100)],
+    netIncome: null, feeRate: 0, sellTaxRate: 0,
+  });
+  assert.equal(over.nhiFirstYear, 1, "一開始就超過門檻的應從第 1 年扣");
+
+  // 單筆 = 30 萬 × 4% ÷ 1 次 = 12,000 → 要複利幾年才會跨過 20,000
+  const later = project({
+    total: 300000, years: 15, rTotal: 8, stress: 1,
+    allocations: [alloc(fundSec("00AA", 50, 4, 1), 100)],
+    netIncome: null, feeRate: 0, sellTaxRate: 0,
+  });
+  assert.ok(later.nhiFirstYear > 1 && later.nhiFirstYear <= 15,
+    `門檻應在中途跨過，實得第 ${later.nhiFirstYear} 年`);
+  const before = later.rows[later.nhiFirstYear - 2];
+  const after = later.rows[later.nhiFirstYear - 1];
+  assert.equal(before.nhi, 0, "跨過門檻之前不該扣費");
+  assert.ok(after.nhi > 0, "跨過門檻那年起才開始扣費");
+});
+
+test("the exit cost is charged to both sides, never only one", async () => {
+  const project = await projector();
+  const base = { total: 1000000, years: 10, rTotal: 8, stress: 1,
+    allocations: [alloc(fundSec("00AA", 50, 5), 100)], netIncome: 1000000, feeRate: 0.001425 };
+  const withTax = project(Object.assign({}, base, { sellTaxRate: 0.001 }));
+  const noTax = project(Object.assign({}, base, { sellTaxRate: 0 }));
+  assert.ok(noTax.accEnd > withTax.accEnd, "取消證交稅應抬高累積型");
+  assert.ok(noTax.distEnd > withTax.distEnd, "也必須同時抬高配息型——只抬一邊就是偏袒");
+  assert.ok(withTax.accExit > withTax.distExit,
+    "累積型資產較大，出場成本的絕對金額必然較高");
+});
+
+test("dividends per unit grow with price so the yield does not silently decay", async () => {
+  const project = await projector();
+  const out = project({
+    total: 1000000, years: 10, rTotal: 10, stress: 1,
+    allocations: [alloc(fundSec("00AA", 50, 5), 100)],
+    netIncome: null, nhi: { rate: 0, threshold: 20000, cap: null }, feeRate: 0, sellTaxRate: 0,
+  });
+  // 若每單位配息釘死在第 0 年，第 10 年的配息總額會遠低於資產成長幅度，
+  // 稅基被系統性低估、摩擦成本被算得太小
+  const first = out.rows[0].gross;
+  const last = out.rows[9].gross;
+  assert.ok(last > first * 2,
+    `第 10 年配息 ${Math.round(last)} 應隨資產成長（第 1 年 ${Math.round(first)}），` +
+    "否則殖利率會機械式衰減、摩擦被低估");
+});
