@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-12T03:31:52.277Z",
+  "updatedAt": "2026-08-12T05:23:12.744Z",
   "eodUpdatedAt": "2026-08-11T23:02:49.982Z",
   "eodTradingDate": "2026-08-12",
   "holdings": [
@@ -91,16 +91,16 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 4060,
-      "change": 105,
-      "date": "2026-08-12"
+      "close": 3955,
+      "change": 155,
+      "date": "2026-08-11"
     },
     {
       "code": "6239",
       "name": "力成",
-      "close": 282.5,
-      "change": -6,
-      "date": "2026-08-11"
+      "close": 282,
+      "change": -0.5,
+      "date": "2026-08-12"
     },
     {
       "code": "6669",
@@ -199,7 +199,7 @@
   "errors": [
     {
       "source": "TPEX OpenAPI daily close quotes",
-      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
+      "message": "terminated"
     },
     {
       "source": "feed-preservation",
