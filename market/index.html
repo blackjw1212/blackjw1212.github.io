@@ -451,8 +451,10 @@
           <span class="fld">券商手續費 <input id="pmFee" type="number" step="0.001" min="0" inputmode="decimal" style="width:82px" aria-label="券商手續費率（%）" /> %
             <span class="hint" style="margin:0">有折扣就改這裡</span></span>
         </div>
-        <div class="toolrow"><span class="hint" style="margin:0" id="pmAssumeNote"></span></div>
       </details>
+      <!-- 假設說明**不可**收進折疊：整段投影都建立在這個報酬率上，
+           而它是回測外推。埋在兩層 details 裡等於使用者永遠看不到。 -->
+      <div class="toolrow"><span class="hint" style="margin:0" id="pmAssumeNote"></span></div>
     </div>
     <div id="pmVerdict"></div>
     <div class="sim-summary" id="pmSummary"></div>
@@ -2961,25 +2963,19 @@ let pmMode = "dist";      // dist｜acc
 let pmYears = 10;
 let pmReturnTouched = false;   // 使用者改過就不再自動覆寫
 
-// 預設的年化總報酬：組合的**加權 5Y CAGR**。5Y 是可用窗裡最保守的一個——
-// 1Y 是牛市的一年（實測全市場 Sharpe 中位數 1.52 vs 5Y 的 −0.05），
-// 拿它外推十年會得到離譜的數字。
+// 預設的年化總報酬。**必須走 adaptiveReturnWindow 的涵蓋率防護**，不可自己
+// 「對有資料的檔取平均」——舊版就是那樣寫的，實測那組配置（00933B／00919／
+// 00951／00930／00631L 各 20%）五檔只有 00631L 有 cagr5y，於是它回傳 43.2%，
+// 等於拿 20% 資產的報酬率套到 100% 的組合，投影十年把 150 萬變成 5,347 萬。
+//
+// 改成由選定窗的總報酬換算年化：CAGR = (1+總報酬)^(1/年數) − 1。
+// 這樣分母與主視覺完全一致，兩處不會各說各話。
 function defaultProjectionReturn(){
-  let sum = 0, weight = 0;
-  for (const allocation of simAllocations) {
-    const security = lookupSecurity(allocation.code);
-    if (!security || !(security.price > 0)) continue;
-    const explicit = Number(allocation.shares);
-    const value = (Number.isFinite(explicit) && explicit > 0)
-      ? explicit * security.price
-      : (Number(($("simTotal") || {}).value) || 0) * (Number(allocation.pct) || 0) / 100;
-    if (!(value > 0)) continue;
-    const etf = allEtfs.find(function(row){ return row.code === security.code; });
-    const cagr = etf && etf.cagr5y;
-    if (cagr == null) continue;
-    sum += cagr * value; weight += value;
-  }
-  return weight > 0 ? Math.round(sum / weight * 10) / 10 : null;
+  const win = adaptiveReturnWindow(simAllocations);
+  if (!win || win.totalReturn == null) return null;
+  const growth = 1 + win.totalReturn / 100;
+  if (!(growth > 0)) return null;
+  return Math.round((Math.pow(growth, 1 / win.years) - 1) * 1000) / 10;
 }
 
 function setProjectionMode(mode){
@@ -3025,10 +3021,15 @@ function runProjection(){
     }),
   });
   if (note) {
+    const win = adaptiveReturnWindow(simAllocations);
     note.innerHTML = auto == null
-      ? '所選標的沒有 5 年報酬資料，年化總報酬請自行填入。'
-      : '預設帶入組合的<b>加權 5 年 CAGR ' + fmt(auto, 1) + '%</b>（可覆寫）。'
-        + '這是<b>回測外推，不是預測</b>；加權平均 CAGR 與組合實際 CAGR 是近似關係（幾何 vs 算術）。';
+      ? '所選標的的歷史不足，算不出預設報酬率——請在「進階設定」自行填入年化總報酬。'
+      : '⚠ 下面全部建立在「每年 <b>' + fmt(auto, 1) + '%</b>」這個假設上，'
+        + '它是由<b>近 ' + (win ? win.years : "?") + ' 年實際報酬換算的年化值</b>'
+        + (win ? '（涵蓋組合的 ' + win.coverage + '%）' : '')
+        + '——<b>是回測外推，不是預測</b>。'
+        + '過去這幾年是牛市，直接外推十年會得到很大的數字；'
+        + '覺得不合理就到「進階設定」自己改一個。';
   }
   // 新手最容易卡在「為什麼沒有數字」。與其留白，不如指名道姓講出要填哪一格。
   const need = $("pmNeed");
@@ -3118,24 +3119,44 @@ function projectionChart(out, flipped){
   const gapFill = flipped ? "var(--green)" : "var(--amber)";
   const band = "M" + upper.join(" L") + " L" + lower.slice().reverse().join(" L") + " Z";
   const accOn = pmMode === "acc";
+  // 差距相對於總資產通常只有 1~2%，在零基準的軸上就是幾個像素——實測只有 4.35px。
+  // **不為了好看去縮放縱軸**（那會把小差距畫成天差地遠），改成在右緣把它標出來：
+  // 圖形照實呈現「差距相對很小」，數字負責講「但這是 23 萬」。
+  const lastUpper = upper[upper.length - 1].split(",").map(Number);
+  const lastLower = lower[lower.length - 1].split(",").map(Number);
+  const gapValue = Math.abs(out.delta);
+  const midY = (lastUpper[1] + lastLower[1]) / 2;
+  const callout = '<line x1="' + (W - PADL) + '" y1="' + lastUpper[1] + '" x2="' + (W - PADL)
+      + '" y2="' + lastLower[1] + '" stroke="' + gapFill + '" stroke-width="2"/>'
+    + '<line x1="' + (W - PADL - 26) + '" y1="' + midY + '" x2="' + (W - PADL) + '" y2="' + midY
+      + '" stroke="' + gapFill + '" stroke-width="1" stroke-dasharray="2 2"/>'
+    + '<text x="' + (W - PADL - 30) + '" y="' + (midY + 4) + '" fill="' + gapFill
+      + '" font-size="12" font-weight="700" text-anchor="end">差 ' + fmt(Math.round(gapValue), 0) + ' 元</text>';
+  // 選中的那條加粗且不透明，沒選中的壓到 0.35——不這樣的話切換模式在畫面上幾乎看不出來
   return '<div class="table-scroll" style="margin-top:12px">'
     + '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;min-width:320px" role="img"'
-    + ' aria-label="' + out.years + ' 年資產成長對照，兩線之間為'
-    + (flipped ? '多拿到的退稅' : '被稅與手續費摩擦掉的金額') + '，縱軸從 0 起算">'
-    + '<path d="' + band + '" fill="' + gapFill + '" fill-opacity="0.18" stroke="none" data-gap="'
-    + (flipped ? "refund" : "friction") + '"/>'
-    + '<polyline fill="none" stroke="var(--faint)" stroke-width="' + (accOn ? 1.2 : 2.4) + '"'
+    + ' aria-label="' + out.years + ' 年資產成長對照，兩線相差 ' + fmt(Math.round(gapValue), 0) + ' 元，'
+    + (flipped ? '為多拿到的退稅' : '為被稅與手續費摩擦掉的金額') + '，縱軸從 0 起算">'
+    + '<path d="' + band + '" fill="' + gapFill + '" fill-opacity="0.35" stroke="' + gapFill
+    + '" stroke-width="0.5" data-gap="' + (flipped ? "refund" : "friction") + '"/>'
+    + '<polyline fill="none" stroke="var(--faint)" stroke-width="' + (accOn ? 1.2 : 3)
+    + '" stroke-opacity="' + (accOn ? 0.35 : 1) + '"'
     + ' stroke-linejoin="round" points="' + distPts.join(" ") + '"/>'
-    + '<polyline fill="none" stroke="var(--teal)" stroke-width="' + (accOn ? 2.4 : 1.2) + '"'
+    + '<polyline fill="none" stroke="var(--teal)" stroke-width="' + (accOn ? 3 : 1.2)
+    + '" stroke-opacity="' + (accOn ? 1 : 0.35) + '"'
     + ' stroke-linejoin="round" points="' + accPts.join(" ") + '"/>'
+    + callout
     + '<text x="' + PADL + '" y="' + (H - 4) + '" fill="var(--faint)" font-size="11">現在</text>'
     + '<text x="' + (W - PADL) + '" y="' + (H - 4) + '" fill="var(--faint)" font-size="11" text-anchor="end">'
     + out.years + ' 年後</text></svg></div>'
-    + '<p class="hint"><span style="color:var(--teal)">━</span> 不配息　'
+    + '<p class="hint">'
+    + '<span style="color:var(--teal)">━</span> 不配息　'
     + '<span style="color:var(--faint)">━</span> 有配息　·　'
+    + '你目前看的是<b>' + (accOn ? "不配息" : "有配息") + '</b>那條（比較粗的那條）。'
     + '<span style="color:' + gapFill + '">■</span> 中間這一段就是'
     + (flipped ? '<b>多拿到的退稅</b>' : '<b>被稅與手續費摩擦掉的錢</b>')
-    + '　·　縱軸從 0 起算，沒有縮放。</p>';
+    + '——它看起來很薄，是因為<b>縱軸從 0 起算、沒有縮放</b>：'
+    + '差距相對總資產本來就小，但金額是實在的。</p>';
 }
 
 function projectionNotes(out, flipped){
@@ -3856,6 +3877,7 @@ const marketApp = {
     riskAdjusted:riskAdjusted,
     projectMultiYear:projectMultiYear,
     adaptiveReturnWindow:adaptiveReturnWindow,
+    defaultProjectionReturn:defaultProjectionReturn,
     WINDOW_MIN_COVERAGE:WINDOW_MIN_COVERAGE,
     concentrationGrade:concentrationGrade,
     SELL_TAX_RATE:SELL_TAX_RATE,

@@ -2362,3 +2362,75 @@ test("the non-paying holdings note appears only when there actually are any", as
   assert.doesNotMatch(allPayers.hero(), /不配息的/,
     "全部都配息時不該多這一句——不相干的說明也是雜訊");
 });
+
+// ── 迴歸：投影的預設報酬率不可只對「有資料的檔」取平均 ────────────
+// 實測 bug：五檔配置裡只有 00631L 有 cagr5y，舊版 defaultProjectionReturn
+// 直接跳過沒資料的檔、對剩下那一檔取平均，回傳 43.2%，
+// 等於拿 20% 資產的報酬率套到 100% 的組合——投影十年把 150 萬變成 5,347 萬。
+// 主視覺早就修好了（涵蓋率門檻），這支函式寫在更早、沒跟著補。
+test("the projection default rate goes through the same coverage gate as the hero", async () => {
+  const panel = await heroPanel([
+    { code: "00NEW", pct: 80, shares: null, month: null },   // 只有 1Y
+    { code: "0050", pct: 20, shares: null, month: null },    // 有 1/3/5Y
+  ]);
+  const { defaultProjectionReturn, adaptiveReturnWindow } = panel.app.helpers;
+  const win = adaptiveReturnWindow([
+    { code: "00NEW", pct: 80, shares: null, month: null },
+    { code: "0050", pct: 20, shares: null, month: null },
+  ]);
+  // 5Y 只有 0050（20%）→ 涵蓋率不足；必須退回 1Y（兩檔都有 → 100%）
+  assert.equal(win.years, 1, "長窗涵蓋率不足要退回短窗");
+  assert.equal(win.coverage, 100);
+  const rate = defaultProjectionReturn();
+  // 1Y 加權總報酬 = 30×0.8 + 20×0.2 = 28；一年期的年化就是它本身
+  assert.ok(Math.abs(rate - 28) < 0.2,
+    `預設報酬率應為 28%（1Y 加權），實得 ${rate}——` +
+    "若只對有 cagr5y 的檔取平均會得到 0050 一檔的 17%，那是 20% 資產代表 100% 組合");
+});
+
+test("the projection default is annualised from the window, not a raw total return", async () => {
+  const panel = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  const rate = panel.app.helpers.defaultProjectionReturn();
+  // 5Y 總報酬 120% → 年化 = 1.2^(1/5) 之於 2.2 開五次方 − 1 = 17.1%
+  const expected = (Math.pow(2.2, 1 / 5) - 1) * 100;
+  assert.ok(Math.abs(rate - expected) < 0.2,
+    `五年總報酬 120% 的年化應為 ${expected.toFixed(1)}%，實得 ${rate}——` +
+    "直接把總報酬當年化會讓十年投影暴衝");
+  assert.ok(rate < 20, "年化值必須遠小於五年總報酬 120%");
+});
+
+test("the assumption warning is visible, not buried in a collapsed box", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const noteAt = html.indexOf('id="pmAssumeNote"');
+  assert.ok(noteAt > 0);
+  // 數一數這個節點被包在幾層 details 裡：整段投影都建立在那個報酬率上，
+  // 而它是回測外推。原本埋在兩層 details（配息分析 → 進階設定）裡，等於沒寫。
+  const before = html.slice(0, noteAt);
+  const opens = (before.match(/<details/g) || []).length;
+  const closes = (before.match(/<\/details>/g) || []).length;
+  assert.equal(opens - closes, 1,
+    `假設說明只能在「配息分析」那一層，實際被包了 ${opens - closes} 層——` +
+    "再往裡收使用者就看不到「這是回測外推」了");
+});
+
+test("switching mode visibly changes the chart, not just one hidden label", async () => {
+  const panel = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  const chart = () => panel.elements.get("pmChart").innerHTML;
+  const before = chart();
+  panel.elements.get("pmAcc").listeners.get("click")();
+  const after = chart();
+  assert.notEqual(before, after, "切換模式圖表必須有反應");
+  // 選中的線要粗、沒選中的要淡，否則使用者按了看不出差別
+  assert.match(after, /stroke="var\(--teal\)" stroke-width="3"/, "選中不配息時該線要加粗");
+  assert.match(after, /stroke-opacity="0\.35"/, "沒選中的線要壓淡");
+  assert.match(after, /你目前看的是<b>不配息<\/b>/, "圖說要講明你在看哪一條");
+});
+
+test("the thin friction band carries its value as a number", async () => {
+  const panel = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  const chart = panel.elements.get("pmChart").innerHTML;
+  // 差距通常只有總資產的 1~2%，在零基準軸上就是幾個像素（實測 4.35px）。
+  // 不縮放縱軸去放大它，改成把金額標在旁邊。
+  assert.match(chart, /差 [\d,]+ 元/, "細到看不見的色帶要有數字說明它是多少錢");
+  assert.match(chart, /縱軸從 0 起算、沒有縮放/, "要解釋它為什麼看起來這麼薄");
+});
