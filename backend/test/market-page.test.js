@@ -2158,14 +2158,24 @@ test("the shaded band flips colour and wording with the direction", async () => 
 function heroFeedMock() {
   const base = { market: "twse", type: "市值型", nav: null, discountPremium: null, aum: 5000,
     frequency: "半年配", payMonths: [2, 8], dps: [{ m: 2, a: 1.6 }, { m: 8, a: 1.7 }] };
-  const feed = etfFeed({ count: 2, stocks: [
+  const feed = etfFeed({ count: 4, stocks: [
+    // 價差必須跟著給：adaptiveReturnWindow 要求總報酬與價差**都有**才計入該檔，
+    // 否則「價差＋配息」會與總報酬用不同分母而加不回去
     Object.assign({}, base, { code: "0050", name: "元大台灣50", close: 100, yield: 3.3,
-      totalReturn1y: 20, maxDrawdown1y: -15, totalReturn3y: 60, maxDrawdown3y: -25,
-      totalReturn5y: 120, maxDrawdown5y: -36, cagr5y: 17,
+      totalReturn1y: 20, priceReturn1y: 16, maxDrawdown1y: -15,
+      totalReturn3y: 60, priceReturn3y: 48, maxDrawdown3y: -25,
+      totalReturn5y: 120, priceReturn5y: 95, maxDrawdown5y: -36, cagr5y: 17,
       topHoldings: [{ name: "台積電", weight: 57.37 }, { name: "聯發科", weight: 6.11 }], holdingsAsOf: "2026-07-27" }),
     // 只有 1Y 的新上市標的：用來驗選窗會不會被「唯一有長歷史的那檔」綁架
     Object.assign({}, base, { code: "00NEW", name: "新上市高息", close: 20, yield: 8,
-      totalReturn1y: 30, maxDrawdown1y: -10, topHoldings: [], returnSpanDays: 400 }),
+      totalReturn1y: 30, priceReturn1y: 22, maxDrawdown1y: -10, topHoldings: [], returnSpanDays: 400 }),
+    // 不配息的槓桿型：配息 0、價差就是全部的總報酬
+    Object.assign({}, base, { code: "00LEV", name: "槓桿正2", close: 50, yield: null,
+      dps: [], payMonths: [], frequency: null,
+      totalReturn1y: 90, priceReturn1y: 90, maxDrawdown1y: -40, topHoldings: [] }),
+    // 只有價差、沒有總報酬（缺 adjclose）：不可被任何一邊計入
+    Object.assign({}, base, { code: "00NOADJ", name: "缺還原價", close: 30, yield: 5,
+      priceReturn1y: 10, maxDrawdown1y: -12, topHoldings: [] }),
   ] });
   return async (url) => {
     const href = String(url);
@@ -2211,14 +2221,15 @@ test("the headline return window adapts instead of letting one fund speak for th
     { code: "00NEW", pct: 50, shares: null, month: null },
   ]);
   const html = half.hero();
-  assert.match(html, /近 1 年總報酬/, "涵蓋率不足的長窗必須被跳過");
-  assert.doesNotMatch(html, /近 5 年總報酬/);
+  assert.match(html, /投資總報酬/, "總報酬要有自己的一組標題");
+  assert.match(html, /近 1 年/, "涵蓋率不足的長窗必須被跳過");
+  assert.doesNotMatch(html, /近 5 年/);
   assert.doesNotMatch(html, /120/, "不可拿唯一有五年資料的那檔代表整個組合");
   assert.match(html, /涵蓋組合的 100%/);
 
   // 全押有完整歷史的那檔 → 5Y 涵蓋 100%，就該用最長窗
   const full = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
-  assert.match(full.hero(), /近 5 年總報酬/, "涵蓋率夠就要用最長窗，短窗會低估風險");
+  assert.match(full.hero(), /近 5 年/, "涵蓋率夠就要用最長窗，短窗會低估風險");
 
   assert.equal(half.app.helpers.WINDOW_MIN_COVERAGE, 80,
     "門檻改動會直接改變主視覺顯示的年數，必須是刻意的");
@@ -2226,7 +2237,7 @@ test("the headline return window adapts instead of letting one fund speak for th
 test("the headline states which window it used and how much of the portfolio it covers", async () => {
   const { hero } = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
   const html = hero();
-  assert.match(html, /近 \d 年總報酬/, "要講明是幾年，不可含糊寫「總報酬」");
+  assert.match(html, /近 \d 年/, "要講明是幾年，不可含糊寫「總報酬」");
   assert.match(html, /涵蓋組合的 \d+%/, "涵蓋率必須攤開，門檻本身是判斷");
   assert.match(html, /回測，不是預測/);
 });
@@ -2270,4 +2281,84 @@ test("collapsing does not disable the inputs inside", async () => {
   set("simTotal", "3000000");
   assert.notEqual(hero(), before, "折疊只是視覺收合，改了輸入主視覺仍要跟著變");
   assert.match(hero(), /3,000,000/);
+});
+
+// ── 三條主線：現金流／投資總報酬／風險 ──────────────────────────
+// 起因：原本六格裡有三格給現金流，等於在版面上暗示不配息的標的不重要。
+// 實測那組配置近三年 84% 的總報酬來自價差、只有 16% 來自配息。
+
+// 這是本輪最重要的一條。價差必須與總報酬用**同一組標的**累加。
+// 注意不能用「價差＋配息 == 總報酬」當判準——dividendPart 是由總報酬減價差得來的，
+// 那個等式是定義式恆成立，測了等於沒測（第一版就是這樣寫，mutation 完全咬不住）。
+// 會露出馬腳的是**價差的值本身**。
+test("the price-return leg is accumulated over the same funds as the total return", async () => {
+  // 00NOADJ 只有 1Y 價差、沒有總報酬（缺 adjclose）。主持股用只有 1Y 的 00NEW，
+  // 才會落在 1Y 窗上——那正是 00NOADJ 有價差資料、可能被誤算進去的那個窗。
+  // 這樣才驗得到「它有沒有被偷偷算進價差那一邊」。
+  const panel = await heroPanel([
+    { code: "00NEW", pct: 90, shares: null, month: null },
+    { code: "00NOADJ", pct: 10, shares: null, month: null },
+  ]);
+  const win = panel.app.helpers.adaptiveReturnWindow([
+    { code: "00NEW", pct: 90, shares: null, month: null },
+    { code: "00NOADJ", pct: 10, shares: null, month: null },
+  ]);
+  assert.ok(win, "涵蓋 90% ≥ 80%，窗應該成立");
+  assert.equal(win.coverage, 90, "00NOADJ 不可計入涵蓋率");
+  // 只有 00NEW 該被算到：總報酬 30、價差 22、配息 8pp
+  assert.equal(win.years, 1, "00NEW 只有一年歷史，長窗涵蓋率為 0 會被跳過");
+  assert.equal(win.totalReturn, 30);
+  assert.equal(win.priceReturn, 22,
+    "價差若把 00NOADJ 也算進去會變成 23.1——那代表兩邊用了不同分母");
+  assert.equal(win.dividendPart, 8);
+});
+// 缺 adjclose 的標的只有價差、沒有總報酬。若價差那一邊把它算進去，
+// 分母就不一樣了，拆解會悄悄對不起來。
+test("a fund with price data but no total return is excluded from both sides", async () => {
+  const panel = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  const { adaptiveReturnWindow } = panel.app.helpers;
+  const clean = adaptiveReturnWindow([{ code: "0050", pct: 100, shares: null, month: null }]);
+  const mixed = adaptiveReturnWindow([
+    { code: "0050", pct: 50, shares: null, month: null },
+    { code: "00NOADJ", pct: 50, shares: null, month: null },
+  ]);
+  // 00NOADJ 佔一半且不可計入 → 涵蓋率必須掉到 50%，低於 80% 門檻 → 整個窗不成立
+  assert.ok(clean, "全押有完整資料的標的算得出來");
+  assert.equal(mixed, null,
+    "只有價差沒有總報酬的標的必須兩邊都不算，且涵蓋率要反映這件事");
+});
+
+test("the hero puts cash flow and total return on equal footing", async () => {
+  const { hero } = await heroPanel([
+    { code: "0050", pct: 50, shares: null, month: null },
+    { code: "00LEV", pct: 50, shares: null, month: null },
+  ]);
+  const html = hero();
+  for (const label of ["現金流", "投資總報酬", "風險"]) {
+    assert.ok(html.includes(label), `三條主線都要有標題，缺 ${label}`);
+  }
+  // 版面權重：現金流不可再佔比總報酬多的格數
+  const groups = html.split('class="hero-group"');
+  const cardsIn = (i) => (groups[i].match(/class="hero-kpi"/g) || []).length;
+  assert.equal(cardsIn(1), cardsIn(2),
+    "現金流與總報酬的卡片數必須相同，否則版面又在暗示哪一邊比較重要");
+  assert.match(html, /價差和配息一起算/, "要講明總報酬的組成");
+  assert.match(html, /% 價差/, "拆解要給實際數字，不是靜態標語");
+  assert.match(html, /配息貢獻/);
+});
+
+test("the non-paying holdings note appears only when there actually are any", async () => {
+  const withLev = await heroPanel([
+    { code: "0050", pct: 50, shares: null, month: null },
+    { code: "00LEV", pct: 50, shares: null, month: null },
+  ]);
+  const html = withLev.hero();
+  assert.match(html, /1 檔是不配息的/, "有不配息標的就要講，否則新手會問「買它幹嘛」");
+  assert.match(html, /00LEV/, "要點名是哪一檔");
+  assert.match(html, /價差照樣算進上面的總報酬/);
+  assert.match(html, /資本增值/, "要說出它的角色");
+
+  const allPayers = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
+  assert.doesNotMatch(allPayers.hero(), /不配息的/,
+    "全部都配息時不該多這一句——不相干的說明也是雜訊");
 });

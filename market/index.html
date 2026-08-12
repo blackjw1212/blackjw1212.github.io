@@ -97,9 +97,11 @@
   .verdict .big{font-size:clamp(20px,4.5vw,30px);font-weight:900;line-height:1.25}
   .verdict .sub{margin-top:8px;color:var(--soft);font-size:13px;line-height:1.6}
   .need{border:1px solid var(--amber);border-radius:10px;padding:12px 14px;margin-top:10px;color:var(--amber);font-size:13px;line-height:1.6}
-  /* 主視覺：進來第一眼的六個數字 */
-  .hero-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
-  .hero-row.second .hero-kpi{background:var(--panel)}
+  /* 主視覺：三條主線並列——現金流／投資總報酬／風險 */
+  .hero-group{margin-top:14px}
+  .hero-group-label{font-size:13px;font-weight:900;color:var(--soft)}
+  .hero-group-label span{margin-left:8px;font-size:12px;font-weight:400;color:var(--faint)}
+  .hero-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:6px}
   .hero-kpi{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:14px 16px}
   .hero-kpi b{display:block;color:var(--soft);font-size:12px;font-weight:700}
   .hero-kpi>span{display:block;margin-top:6px;font-size:clamp(19px,3.4vw,27px);font-weight:900;line-height:1.15;font-family:"Roboto Mono",monospace}
@@ -2819,28 +2821,61 @@ function renderHero(result, total){
       + '<span class="' + (cls || "") + '">' + value + '</span>'
       + (sub ? '<span class="sub">' + sub + '</span>' : '') + '</div>';
   };
-  box.innerHTML = '<div class="hero-row">'
-      + big("你投入", money(total) + ' 元', "")
-      + big("一年大概領到", money(result.totalNet) + ' 元', "已扣二代健保，未扣所得稅")
-      + big("平均每月", money(monthly) + ' 元', "實際依各檔發放月分佈，不是每月都有")
-    + '</div>'
-    + '<div class="hero-row second">'
-      // 窗是自適應的：固定 5 年會讓「只有一檔有五年資料」的組合印出那一檔的數字
-      + (win
-        ? big("近 " + win.years + " 年總報酬", signed(win.totalReturn, 1) + '%',
-            "涵蓋組合的 " + win.coverage + "%（回測，不是預測）", toneClass(win.totalReturn))
-        : big("近期總報酬", "—", "所選標的的歷史都不滿一年，算不出來"))
-      + (win && win.maxDrawdown != null
-        ? big("最大回撤", fmt(win.maxDrawdown, 1) + '%',
-            "近 " + win.years + " 年最深的一次；加權平均是樂觀下界", "neg")
-        : big("最大回撤", "—", "歷史不足，算不出來"))
+  // **三條主線並列。** 原本六格裡有三格給現金流（投入／一年／每月），
+  // 等於在版面上暗示不配息的標的不重要——但實測那組配置近三年
+  // 84% 的總報酬來自價差、只有 16% 來自配息，00631L 更是配息 0、價差 475.9%。
+  // 「總報酬 ≠ 配息」要由結構本身講出來，不是靠一句附註。
+  // 「你投入」降為上下文行：它只是把輸入回讀，不該佔掉一格權重。
+  const group = function(label, note, cards){
+    return '<div class="hero-group"><div class="hero-group-label">' + label
+      + '<span>' + note + '</span></div><div class="hero-row">' + cards + '</div></div>';
+  };
+  box.innerHTML = '<p class="hint" style="margin:10px 0 0">以投入 <b>' + money(total) + ' 元</b>試算。</p>'
+    + group("現金流", "你每年實際領到的錢",
+        big("一年約", money(result.totalNet) + ' 元', "已扣二代健保，未扣所得稅")
+      + big("每月平均", money(monthly) + ' 元', "實際依各檔發放月分佈，不是每月都有"))
+    + group("投資總報酬", "價差和配息一起算",
+        // 窗是自適應的：固定 5 年會讓「只有一檔有五年資料」的組合印出那一檔的數字
+        (win
+          ? big("近 " + win.years + " 年", signed(win.totalReturn, 1) + '%',
+              "涵蓋組合的 " + win.coverage + "%（回測，不是預測）", toneClass(win.totalReturn))
+            // 拆解與總報酬同分母（adaptiveReturnWindow 要求兩者都有才計入），
+            // 所以這兩個數字加起來一定等於左邊那個
+            + big("其中", signed(win.priceReturn, 1) + '% 價差',
+                "配息貢獻 " + signed(win.dividendPart, 1) + 'pp　·　兩者相加就是左邊的總報酬')
+          : big("近期總報酬", "—", "所選標的的歷史都不滿一年，算不出來")
+            + big("其中", "—", "沒有報酬資料就拆不出價差與配息")))
+    + group("風險", "這組合最慘的時候",
+        (win && win.maxDrawdown != null
+          ? big("最大回撤", fmt(win.maxDrawdown, 1) + '%',
+              "近 " + win.years + " 年最深的一次；加權平均是樂觀下界", "neg")
+          : big("最大回撤", "—", "歷史不足，算不出來"))
       + (grade
         ? big("組合集中度", grade.label,
             "有效持股數 " + fmt(exposure.effectiveHoldings, 1) + " 檔（只算看得到的前十大成分股）",
             grade.cls)
-        : big("組合集中度", "—", "所選標的沒有成分股資料"))
-    + '</div>'
+        : big("組合集中度", "—", "所選標的沒有成分股資料")))
+    + nonPayerNote()
     + overlapHeroHtml(exposure);
+}
+
+// 「00631L 不配息，那我買它幹嘛？」——這句只在組合真的有不配息標的時才出現，
+// 不相干時不要多一句話。答案是：它的角色是資本增值，不是現金流。
+function nonPayerNote(){
+  const names = [];
+  for (const allocation of simAllocations) {
+    const security = lookupSecurity(allocation.code);
+    if (!security) continue;
+    const pays = security.kind === "etf"
+      ? (security.events || []).length > 0
+      : Number(security.annualDps) > 0;
+    if (!pays) names.push(security.code);
+  }
+  if (!names.length) return "";
+  return '<p class="hint" style="margin-top:10px">你有 <b>' + names.length + ' 檔是不配息的</b>（'
+    + escapeHtml(names.slice(0, 3).join("、")) + (names.length > 3 ? " 等" : "")
+    + '）。它們配息是 0，但<b>價差照樣算進上面的總報酬</b>——'
+    + '這類標的的角色是<b>資本增值</b>，不是產生現金流。</p>';
 }
 
 // 「有沒有其實買到一樣的東西」——新手最想知道卻最難自己看出來的一件事。
@@ -2880,19 +2915,29 @@ function adaptiveReturnWindow(allocations){
   if (!(totalValue > 0)) return null;
   // 由長到短，取第一個涵蓋率過關的
   for (const key of ["5y", "3y", "1y"]) {
-    let covered = 0, sum = 0, ddSum = 0, ddCovered = 0;
+    let covered = 0, sum = 0, priceSum = 0, ddSum = 0, ddCovered = 0;
     for (const r of rows) {
       const tr = r.etf["totalReturn" + key];
-      if (tr != null) { covered += r.value; sum += tr * r.value; }
+      const pr = r.etf["priceReturn" + key];
+      // **兩者都有才計入。** 價差與總報酬若用不同的標的集合累加，
+      // 「價差＋配息」就加不回總報酬，而畫面上完全看不出來。
+      // 實測 feed 兩者的涵蓋標的完全相同（1Y/3Y/5Y 皆 0 筆差異），
+      // 所以這個條件不會少算——但不變式要由程式碼守住，不能靠巧合。
+      if (tr != null && pr != null) { covered += r.value; sum += tr * r.value; priceSum += pr * r.value; }
       const dd = r.etf["maxDrawdown" + key];
       if (dd != null) { ddCovered += r.value; ddSum += dd * r.value; }
     }
     const coverage = Math.round(covered / totalValue * 100);
     if (coverage < WINDOW_MIN_COVERAGE) continue;
+    const totalReturn = Math.round(sum / covered * 10) / 10;
+    const priceReturn = Math.round(priceSum / covered * 10) / 10;
     return {
       key:key,
       years:key === "1y" ? 1 : (key === "3y" ? 3 : 5),
-      totalReturn:Math.round(sum / covered * 10) / 10,
+      totalReturn:totalReturn,
+      priceReturn:priceReturn,
+      // 配息貢獻由相減而來，三個數字才必然互相對得起來
+      dividendPart:Math.round((totalReturn - priceReturn) * 10) / 10,
       // 加權平均回撤是**樂觀下界**——各檔不會同時見底，既有 fundLevelMetrics
       // 也是這樣標註的，這裡沿用同一個說法
       maxDrawdown:ddCovered > 0 ? Math.round(ddSum / ddCovered * 10) / 10 : null,
