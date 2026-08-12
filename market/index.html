@@ -354,47 +354,30 @@
     <p class="hint">填金額、挑幾檔 ETF，馬上算出一年大概能領多少、每月平均多少。
       這是<b>試算不是預測</b>，用的是各檔過去實際發過的配息；<b>不是投資或稅務建議</b>。
       算法與稅制假設都在最下面的「這些數字是怎麼算的」。</p>
+    <!-- 會改變下方主視覺數字的控制項一律放在**主視覺上方**。
+         上一版把壓力測試與年薪收進折疊，實測按鈕落在主視覺下方 469~885px，
+         按下去受影響的數字已經捲出畫面——等於看不到自己按了什麼。
+         輸出就在自己旁邊的控制項（模式切換、年期、自動配置目標）留在原地，
+         搬上來反而會離開它們的結果。 -->
     <div class="toolbar">
       <div class="toolrow">
         <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
         <button class="btn" id="simAdd" type="button">＋ 加入標的</button>
         <span class="count" id="simPctSum"></span>
       </div>
-    </div>
-
-    <div id="simHero"></div>
-
-    <h3 style="font-size:14px;margin-top:20px">你的標的</h3>
-    <div class="sim-rows" id="simRows"></div>
-
-    <details class="fold">
-      <summary>詳細績效<span>每月現金流、逐檔明細</span></summary>
-      <div class="fold-body">
-        <div class="sim-summary" id="simSummary"></div>
-        <div class="sim-chart" id="simChart"></div>
-        <div id="simDetail"></div>
-      </div>
-    </details>
-
-    <details class="fold">
-      <summary>成分股與重疊<span>實際買到哪些股票、哪個產業最重</span></summary>
-      <div class="fold-body"><div id="simExposure"></div></div>
-    </details>
-
-    <details class="fold">
-      <summary>風險分析<span>配息縮水時會怎樣</span></summary>
-      <div class="fold-body">
-        <p class="hint">把配息乘上一個折扣重算，看最壞情況下現金流剩多少。</p>
+      <div class="toolrow">
+        <span class="fld" style="font-weight:700">配息打折試算</span>
         <div class="presets">
           <button class="btn on" id="s100" type="button">歷史基準</button>
           <button class="btn" id="s80" type="button">保守 −20%</button>
           <button class="btn" id="s60" type="button">極端 −40%</button>
         </div>
+        <span class="hint" style="margin:0">看配息縮水時，現金流剩多少</span>
       </div>
-    </details>
+    </div>
 
-    <details class="fold">
-      <summary>進階設定<span>填了年薪才算得出所得稅</span></summary>
+    <details class="fold" id="simAdvanced">
+      <summary>稅務與進階設定<span>填年薪才算得出所得稅</span></summary>
       <div class="fold-body">
         <div class="toolrow">
           <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
@@ -418,6 +401,25 @@
         </div>
         <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
       </div>
+    </details>
+
+    <div id="simHero"></div>
+
+    <h3 style="font-size:14px;margin-top:20px">你的標的</h3>
+    <div class="sim-rows" id="simRows"></div>
+
+    <details class="fold">
+      <summary>詳細績效<span>每月現金流、逐檔明細</span></summary>
+      <div class="fold-body">
+        <div class="sim-summary" id="simSummary"></div>
+        <div class="sim-chart" id="simChart"></div>
+        <div id="simDetail"></div>
+      </div>
+    </details>
+
+    <details class="fold">
+      <summary>成分股與重疊<span>實際買到哪些股票、哪個產業最重</span></summary>
+      <div class="fold-body"><div id="simExposure"></div></div>
     </details>
 
   </section>
@@ -3036,7 +3038,9 @@ function runProjection(){
   if (need) {
     const missing = [];
     if (!(total > 0)) missing.push('先在上面的「<b>投入總額</b>」填你打算投入多少錢。');
-    if (netIncome == null) missing.push('上面填「<b>年薪（含獎金）</b>」就會自動幫你換算所得，不填的話<b>算不出所得稅</b>，差距會被低估。');
+    // 年薪已搬到主視覺上方，但那個盒子預設是收合的——指路要講得出「先展開哪一個」，
+    // 只寫「上面填年薪」會讓人在畫面上找不到那一格。
+    if (netIncome == null) missing.push('展開上面的「<b>稅務與進階設定</b>」填年薪，就會自動換算所得；不填的話<b>算不出所得稅</b>，差距會被低估。');
     need.innerHTML = missing.length ? '<div class="need">還差一步：' + missing.join(' ') + '</div>' : "";
   }
 

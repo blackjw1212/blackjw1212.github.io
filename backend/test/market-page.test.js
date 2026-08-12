@@ -2434,3 +2434,81 @@ test("the thin friction band carries its value as a number", async () => {
   assert.match(chart, /差 [\d,]+ 元/, "細到看不見的色帶要有數字說明它是多少錢");
   assert.match(chart, /縱軸從 0 起算、沒有縮放/, "要解釋它為什麼看起來這麼薄");
 });
+
+// ── 控制項要在它所改的數字上方 ──────────────────────────────────
+// 起因：上一版把壓力測試與年薪收進折疊，實測它們落在主視覺下方 469~885px，
+// 按下去受影響的數字已經捲出畫面。用 DOM 順序斷言，不靠像素（像素會隨字型變）。
+test("controls that change the headline sit above it in the document", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const heroAt = html.indexOf('id="simHero"');
+  assert.ok(heroAt > 0);
+  for (const id of ["simTotal", "simAdd", "s100", "s80", "s60",
+                    "simSalary", "simFiling", "simDependents", "simNetIncome",
+                    "simOptimize", "simUseHoldings"]) {
+    const at = html.indexOf('id="' + id + '"');
+    assert.ok(at > 0, `${id} 應該存在`);
+    assert.ok(at < heroAt,
+      `${id} 會改變主視覺的數字，必須排在 simHero 之前——` +
+      "放在下方等於按了看不到效果");
+  }
+});
+
+// 反過來也要守：輸出就在旁邊的控制項不可被「一律搬到最上面」而離開它的結果。
+test("controls whose output is adjacent stay next to that output", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const pairs = [
+    ["pmAcc", "pmChart"], ["pmDist", "pmChart"], ["pm5", "pmChart"], ["pm10", "pmChart"],
+    ["pmReturn", "pmChart"], ["pmFee", "pmChart"],
+    ["gNetTotal", "suggestResult"],
+  ];
+  const heroAt = html.indexOf('id="simHero"');
+  for (const [control, output] of pairs) {
+    const c = html.indexOf('id="' + control + '"');
+    const o = html.indexOf('id="' + output + '"');
+    assert.ok(c > 0 && o > 0, `${control}／${output} 應該存在`);
+    assert.ok(c < o, `${control} 應該在它的輸出 ${output} 之前`);
+    assert.ok(c > heroAt,
+      `${control} 的輸出就在自己旁邊，不該被搬到主視覺上方——那會讓它離開結果`);
+  }
+});
+
+test("moving the controls out of the folds did not drop any of them", async () => {
+  const { html, app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  // 兩個折疊（風險分析／進階設定）整個移除，內容全部上移——一項都不能少
+  for (const id of ["s100", "s80", "s60", "simSalary", "simFiling", "simDependents",
+                    "simNetIncome", "simNetIncomeHint", "simOptimize", "simUseHoldings",
+                    "simOptimizeNote"]) {
+    assert.equal((html.match(new RegExp('id="' + id + '"', "g")) || []).length, 1,
+      `${id} 必須剛好出現一次——搬移時漏刪舊的會產生兩個同 id 的元素`);
+  }
+  // 提示用的 span 要等程式查詢過才會在假 DOM 裡建立節點，
+  // 所以只對 bind() 真的會綁事件的控制項斷言「抓得到」
+  for (const id of ["s100", "s80", "s60", "simSalary", "simFiling", "simDependents",
+                    "simNetIncome", "simOptimize", "simUseHoldings"]) {
+    assert.ok(elements.get(id), `${id} 必須抓得到，否則事件綁不上去`);
+  }
+  assert.doesNotMatch(html, /<summary>風險分析/, "風險分析折疊的外殼應該移除，內容已上移");
+  assert.doesNotMatch(html, /<summary>進階設定</, "進階設定折疊的外殼應該移除，內容已上移");
+});
+
+test("the pointer names the collapsed box the salary field now lives in", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await app.showTab("sim");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  set("simTotal", "5000000");
+  set("simNetIncome", "");
+  app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
+  set("pmReturn", "8");
+  const need = elements.get("pmNeed").innerHTML;
+  assert.match(need, /稅務與進階設定/,
+    "年薪搬進收合盒後，指路必須講得出先展開哪一個，否則指了也找不到");
+  assert.match(need, /算不出所得稅/);
+});
