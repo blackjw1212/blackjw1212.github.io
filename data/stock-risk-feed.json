@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-08-12T01:01:56.499Z",
+  "updatedAt": "2026-08-12T03:31:52.277Z",
   "eodUpdatedAt": "2026-08-11T23:02:49.982Z",
-  "eodTradingDate": "2026-08-11",
+  "eodTradingDate": "2026-08-12",
   "holdings": [
     "2330",
     "2317",
@@ -91,9 +91,9 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3955,
-      "change": 155,
-      "date": "2026-08-11"
+      "close": 4060,
+      "change": 105,
+      "date": "2026-08-12"
     },
     {
       "code": "6239",
@@ -199,7 +199,7 @@
   "errors": [
     {
       "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
     },
     {
       "source": "feed-preservation",
