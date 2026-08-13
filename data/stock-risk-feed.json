@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-13T01:03:31.830Z",
+  "updatedAt": "2026-08-13T03:35:54.360Z",
   "eodUpdatedAt": "2026-08-13T01:03:31.830Z",
   "eodTradingDate": "2026-08-13",
   "holdings": [
@@ -63,16 +63,16 @@
     {
       "code": "2382",
       "name": "廣達",
-      "close": 325.5,
-      "change": 10,
-      "date": "2026-08-12"
+      "close": 322.5,
+      "change": -3,
+      "date": "2026-08-13"
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2910,
-      "change": 150,
-      "date": "2026-08-12"
+      "close": 3200,
+      "change": 290,
+      "date": "2026-08-13"
     },
     {
       "code": "3231",
@@ -196,5 +196,14 @@
     "updatedAt": "2026-08-11T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
