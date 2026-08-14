@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-08-13T23:01:52.669Z",
+  "updatedAt": "2026-08-14T01:02:28.160Z",
   "eodUpdatedAt": "2026-08-13T23:01:52.669Z",
-  "eodTradingDate": "2026-08-13",
+  "eodTradingDate": "2026-08-14",
   "holdings": [
     "2330",
     "2317",
@@ -28,9 +28,9 @@
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1885,
-      "change": 95,
-      "date": "2026-08-13"
+      "close": 1955,
+      "change": 70,
+      "date": "2026-08-14"
     },
     {
       "code": "2317",
@@ -91,16 +91,16 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 4190,
-      "change": 135,
-      "date": "2026-08-13"
+      "close": 4350,
+      "change": 160,
+      "date": "2026-08-14"
     },
     {
       "code": "6239",
       "name": "力成",
-      "close": 283,
-      "change": 1.5,
-      "date": "2026-08-13"
+      "close": 287,
+      "change": 4,
+      "date": "2026-08-14"
     },
     {
       "code": "6669",
@@ -196,5 +196,18 @@
     "updatedAt": "2026-08-12T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    },
+    {
+      "source": "TPEX OpenAPI peratio analysis",
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 520"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 1 eod row(s), 1 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
