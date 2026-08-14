@@ -602,10 +602,14 @@ test("the redundant 試算 / 產生組合 buttons are gone and every input recom
   // 因此改用原始碼檢查：每個列內輸入的 handler 都必須自己呼叫 runSim()。
   const rowHandlers = html.match(/data-sim-(?:code|pct|shares|month)[\s\S]*?updateSimPctSum|input\.addEventListener\("input"[\s\S]{0,320}?\}\);/g) || [];
   const wiring = html.slice(html.indexOf("function renderSimRows"), html.indexOf("function syncSharesFromPct"));
+  // 先算出每個 handler 的起訖，再各自檢查。原本用固定 340 字切片，
+  // 在 handler 裡多加幾行註解就會把 runSim() 擠出視窗而假性失敗。
+  const starts = [...wiring.matchAll(/(\w+Idx) != null/g)].map((m) => ({ key: m[1], at: m.index }));
   for (const key of ["codeIdx", "pctIdx", "sharesIdx", "monthIdx"]) {
-    const at = wiring.indexOf(key + " != null");
-    assert.ok(at >= 0, key + " 的監聽必須存在");
-    assert.match(wiring.slice(at, at + 340), /runSim\(\)/, key + " 的 handler 必須自己觸發重算");
+    const idx = starts.findIndex((s) => s.key === key);
+    assert.ok(idx >= 0, key + " 的監聽必須存在");
+    const end = idx + 1 < starts.length ? starts[idx + 1].at : wiring.length;
+    assert.match(wiring.slice(starts[idx].at, end), /runSim\(\)/, key + " 的 handler 必須自己觸發重算");
   }
   assert.ok(rowHandlers.length >= 1);
   // 刪除列也要重算，否則移除標的後 KPI 會停在舊值
@@ -2511,4 +2515,137 @@ test("the pointer names the collapsed box the salary field now lives in", async 
   assert.match(need, /稅務與進階設定/,
     "年薪搬進收合盒後，指路必須講得出先展開哪一個，否則指了也找不到");
   assert.match(need, /算不出所得稅/);
+});
+
+// ── 配置方式：手動 vs 自動最佳化 ────────────────────────────────
+// optimizeSimAllocations() 是破壞性覆寫（先清空所有 pct/shares 再寫回），
+// 所以自動與手動必須互斥——不能一邊背景算、一邊讓人手填。
+async function simPanel() {
+  const { app, elements, html } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  const click = (id) => { const l = elements.get(id).listeners.get("click"); if (l) l(); };
+  const note = () => elements.get("simOptimizeNote").textContent;
+  const pcts = () => app.getSimAllocations().map((a) => a.pct);
+  return { app, elements, html, set, click, note, pcts };
+}
+
+test("manual mode behaves exactly as before — nothing is silently rewritten", async () => {
+  const p = await simPanel();
+  p.set("simTotal", "1000000");
+  p.app.setSimAllocations([
+    { code: "0056", pct: 30, shares: null, month: null },
+    { code: "00878", pct: 20, shares: null, month: null },
+  ]);
+  assert.equal(p.app.getAutoAllocate(), false, "預設必須是手動——預設自動會在載入當下洗掉存下來的配置");
+  // 手動模式下權重不可被背景改動
+  assert.deepEqual([...p.pcts()], [30, 20], "手動模式不可自動覆寫使用者填的比例");
+  assert.notEqual(p.elements.get("simOptimize").hidden, true,
+    "手動模式的「最佳分配」按鈕必須還在");
+  p.click("simOptimize");
+  assert.match(p.note(), /已計算 \d+ 組權重/, "手動模式仍要顯示計算過程");
+});
+
+test("auto mode applies weights without a button and hides the progress text", async () => {
+  const p = await simPanel();
+  p.set("simTotal", "1000000");
+  p.app.setSimAllocations([
+    { code: "0056", pct: 10, shares: null, month: null },
+    { code: "00878", pct: 10, shares: null, month: null },
+  ]);
+  p.app.setAutoAllocate(true);
+  await new Promise((resolve) => setTimeout(resolve, 350));   // debounce 200ms
+  assert.notDeepEqual([...p.pcts()], [10, 10], "自動模式應該把權重重算並套用");
+  assert.doesNotMatch(p.note(), /已計算/, "計算過程要隱藏");
+  assert.equal(p.elements.get("simOptimize").hidden, true, "自動模式不需要手動觸發鈕");
+  // 比例欄位要鎖住，否則使用者以為改得動、實際上下一次重算就被蓋掉
+  assert.match(p.elements.get("simRows").innerHTML, /data-sim-pct="0"[^>]*readonly/,
+    "自動模式的比例欄位必須唯讀");
+});
+
+// 這是實質揭露不是計算過程。一起藏掉的話，配息波動超標的標的會默默吃到大權重。
+test("the quality warning survives even when the progress text is hidden", async () => {
+  const p = await simPanel();
+  p.set("simTotal", "1000000");
+  // dualFeedMock 的 0056 配息 1.07/1.2/1.35，CV 低；用它驗「沒有警語時不亂加字」
+  p.app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
+  p.app.setAutoAllocate(true);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const clean = p.note();
+  assert.doesNotMatch(clean, /已計算/);
+  // qualityWarning 與手動模式共用同一段判斷，不會各寫一份而分叉
+  p.app.setAutoAllocate(false);
+  p.click("simOptimize");
+  const manual = p.note();
+  const warnInManual = /⚠ 配息波動超過/.test(manual);
+  const warnInAuto = /⚠ 配息波動超過/.test(clean);
+  assert.equal(warnInAuto, warnInManual,
+    "同一組配置在兩種模式下，品質警語的有無必須一致——分岔代表兩邊各寫了一份判斷");
+});
+
+// 實測踩到的 bug：syncSharesFromPct 會由比例自動填滿股數欄，
+// 所以「有股數」不等於「有持股」。沒有 sharesEntered 這個條件，
+// 只配置了 20% 的 150 萬會被縮成 30 萬。
+test("the total is only rebound when the user actually typed share counts", async () => {
+  const noHoldings = await simPanel();
+  noHoldings.set("simTotal", "1500000");
+  noHoldings.app.setSimAllocations([
+    { code: "0056", pct: 10, shares: null, month: null },
+    { code: "00878", pct: 10, shares: null, month: null },
+  ]);
+  noHoldings.app.setAutoAllocate(true);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.equal(noHoldings.elements.get("simTotal").value, "1500000",
+    "只用比例操作時沒有持股可言，總額不可被改掉——比例只配了 20% 會把 150 萬吃成 30 萬");
+
+  const withHoldings = await simPanel();
+  withHoldings.set("simTotal", "1500000");
+  withHoldings.app.setSimAllocations([
+    { code: "0056", pct: null, shares: 5000, month: null, sharesEntered: true },
+  ]);
+  withHoldings.app.setAutoAllocate(true);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const bound = Number(withHoldings.elements.get("simTotal").value);
+  assert.ok(bound > 0 && bound !== 1500000, `真的有持股時總額要綁定，實得 ${bound}`);
+  assert.ok(Math.abs(bound - 5000 * 50.2) < 5, `應為 5000 股 × 50.2，實得 ${bound}`);
+});
+
+test("repeated recalculation does not let the total drift downwards", async () => {
+  const p = await simPanel();
+  p.set("simTotal", "1000000");
+  p.app.setSimAllocations([
+    { code: "0056", pct: 50, shares: null, month: null },
+    { code: "00878", pct: 50, shares: null, month: null },
+  ]);
+  p.app.setAutoAllocate(true);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const start = p.elements.get("simTotal").value;
+  // 股數由 total×pct 推、總額若又由 Σ股數×現價 推回，每輪 floor 殘值會讓總額一路下漂
+  for (let i = 0; i < 3; i += 1) {
+    p.set("simTotal", start);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  assert.equal(p.elements.get("simTotal").value, start,
+    "總額只在切換進自動模式時綁定一次，重算不可讓它下漂");
+});
+
+// 第 11 檔起 simWeightBounds 把權重下限從 10% 降到 5%，
+// 窮舉空間由 1,251 組跳到 92,257 組，每組還要跑一次完整 simulate()。
+test("auto mode steps aside when the search space explodes", async () => {
+  const p = await simPanel();
+  p.set("simTotal", "1000000");
+  assert.equal(p.app.AUTO_ALLOCATE_MAX_FUNDS, 10,
+    "門檻改動會直接影響瀏覽器會不會卡住，必須是刻意的");
+  const codes = ["0056", "00878", "0050", "006208", "00632R", "00679B", "00999",
+                 "0056", "00878", "0050", "006208"];
+  p.app.setSimAllocations(codes.map((code) => ({ code, pct: null, shares: null, month: null })));
+  p.app.setAutoAllocate(true);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.match(p.note(), /超過自動計算上限/, "不硬跑，要講清楚為什麼");
+  assert.equal(p.elements.get("simOptimize").hidden, false, "並把手動按鈕交回去");
 });

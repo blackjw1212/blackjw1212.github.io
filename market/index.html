@@ -366,6 +366,14 @@
         <span class="count" id="simPctSum"></span>
       </div>
       <div class="toolrow">
+        <span class="fld" style="font-weight:700">配置方式</span>
+        <div class="presets">
+          <button class="btn on" id="simModeManual" type="button">手動</button>
+          <button class="btn" id="simModeAuto" type="button" title="背景自動算出配息最高的權重並套用；比例欄位改為唯讀">自動最佳化</button>
+        </div>
+        <span class="hint" style="margin:0" id="simModeNote">自動：加減標的後背景重算並直接套用，比例欄位會鎖住</span>
+      </div>
+      <div class="toolrow">
         <span class="fld" style="font-weight:700">配息打折試算</span>
         <div class="presets">
           <button class="btn on" id="s100" type="button">歷史基準</button>
@@ -2467,7 +2475,10 @@ function simRowHtml(index, allocation){
     + '<span class="nm2" id="simName' + index + '"></span>'
     + '<span class="px2" id="simPrice' + index + '">—</span>'
     + '<input type="number" value="' + escapeHtml(allocation.shares == null ? "" : allocation.shares) + '" data-sim-shares="' + index + '" placeholder="股數" min="0" step="1000" aria-label="持有股數（1 張＝1000 股）" />'
-    + '<input type="number" value="' + escapeHtml(allocation.pct == null ? "" : allocation.pct) + '" data-sim-pct="' + index + '" placeholder="比例%" step="5" aria-label="配置比例%" />'
+    // 自動模式下比例是背景算出來的，改了也會被下一次重算蓋掉——鎖住並講明原因，
+    // 讓人看得出「改不動」是刻意的，而不是壞掉
+    + '<input type="number" value="' + escapeHtml(allocation.pct == null ? "" : allocation.pct) + '" data-sim-pct="' + index + '" placeholder="比例%" step="5" aria-label="配置比例%"'
+      + (simAutoAllocate ? ' readonly title="自動最佳化模式：比例由背景計算，切回「手動」才能自己填" style="opacity:.55;cursor:not-allowed"' : '') + ' />'
     + '<input type="number" id="simMonth' + index + '" value="' + escapeHtml(allocation.month == null ? "" : allocation.month) + '" data-sim-month="' + index + '" placeholder="發放月" min="1" max="12" aria-label="發放月（ETF 自動帶入，僅個股需填）" />'
     + '<button class="btn" data-sim-del="' + index + '" type="button" aria-label="移除">✕</button>'
     + '</div>';
@@ -2494,6 +2505,10 @@ function renderSimRows(){
       });
       if (sharesIdx != null) input.addEventListener("input", function(){
         simAllocations[sharesIdx].shares = input.value === "" ? null : Number(input.value);
+        // 記下「這一列的股數是人親手打的」。syncSharesFromPct 會由比例自動填滿股數，
+        // 所以「有股數」不等於「有持股」——沒有這個旗標，切進自動模式時
+        // 「總額＝持股市值」會把只配置了 20% 的 150 萬硬縮成 30 萬。
+        simAllocations[sharesIdx].sharesEntered = input.value !== "";
         syncPctFromShares(sharesIdx);
         updateSimPctSum();
         runSim();
@@ -2505,7 +2520,7 @@ function renderSimRows(){
     }
     for (const button of box.querySelectorAll("button")) {
       const delIdx = button.dataset && button.dataset.simDel;
-      if (delIdx != null) button.addEventListener("click", function(){simAllocations.splice(Number(delIdx), 1); renderSimRows(); runSim();});
+      if (delIdx != null) button.addEventListener("click", function(){simAllocations.splice(Number(delIdx), 1); renderSimRows(); runSim(); autoAllocate();});
     }
   }
   updateSimNames();
@@ -2595,7 +2610,7 @@ function saveSimState(){
   if (!store) return;
   try { store.setItem(LS_SIM, JSON.stringify({total:($("simTotal") || {}).value || "", netIncome:($("simNetIncome") || {}).value || "",
     salary:($("simSalary") || {}).value || "", filing:($("simFiling") || {}).value || "", dependents:($("simDependents") || {}).value || "",
-    rows:simAllocations, stress:simStress})); } catch (error) {}
+    rows:simAllocations, stress:simStress, auto:simAutoAllocate})); } catch (error) {}
 }
 
 function loadSimState(){
@@ -2611,7 +2626,95 @@ function loadSimState(){
     if ($("simDependents") && saved.dependents) $("simDependents").value = saved.dependents;
     if (Array.isArray(saved.rows)) simAllocations = saved.rows.slice(0, 10);
     if (saved.stress === 0.8 || saved.stress === 0.6 || saved.stress === 1) simStress = saved.stress;
+    if (saved.auto === true) simAutoAllocate = true;
   } catch (error) {}
+}
+
+/* ---- 配置方式：手動 vs 自動最佳化 ---- */
+// **兩者必須互斥。** optimizeSimAllocations() 是破壞性覆寫——它先把所有列的
+// pct 與 shares 清空再寫入最佳權重，所以「一邊自動算、一邊讓人手填」做不到，
+// 手填的值會在下一次重算被蓋掉。做成模式切換，手動模式的行為與改動前完全相同。
+//
+// 預設 false：預設開啟會在載入當下把回訪使用者存下來的手動配置直接洗掉。
+let simAutoAllocate = false;
+let autoAllocateBusy = false;      // re-entrancy：最佳化會 renderSimRows，別讓它回頭再觸發自己
+let autoAllocateTimer = null;
+
+// 自動只跑到 10 檔。這不是隨便取的門檻——simWeightBounds() 在第 11 檔把權重下限
+// 從 10% 降到 5%，窮舉空間從 1,251 組跳到 92,257 組，而每組都要跑一次完整的
+// simulate()（比配置產生器用的 evaluatePortfolio 重）。11 檔以上保留手動按鈕。
+const AUTO_ALLOCATE_MAX_FUNDS = 10;
+
+function setAutoAllocate(on){
+  const was = simAutoAllocate;
+  simAutoAllocate = Boolean(on);
+  const manual = $("simModeManual"), auto = $("simModeAuto");
+  if (manual) manual.className = simAutoAllocate ? "btn" : "btn on";
+  if (auto) auto.className = simAutoAllocate ? "btn on" : "btn";
+  const optBtn = $("simOptimize");
+  // 自動模式下手動觸發鈕沒有意義——除非標的太多、自動不跑，那時要留給使用者
+  if (optBtn) optBtn.hidden = simAutoAllocate && simAllocations.length <= AUTO_ALLOCATE_MAX_FUNDS;
+  // 進入自動模式時把總額對齊到實際持股市值——**只做這一次**。
+  // 持續綁定會產生回饋迴圈：股數由 total×pct 推、總額又由 Σ股數×現價 推回，
+  // 每輪的 Math.floor 殘值會讓總額一路往下漂。需求原文也是「切換至…時」。
+  if (simAutoAllocate && !was) bindTotalToHoldingsOnce();
+  saveSimState();
+  if (simAutoAllocate) autoAllocate(); else { renderSimRows(); runSim(); }
+}
+
+// 只在有人真的填了股數時才綁。全部用比例操作（預設流程）時沒有持股可言，
+// 硬綁會把總額歸零、整頁數字跟著歸零。
+function bindTotalToHoldingsOnce(){
+  // **只算「人親手輸入股數」的列。** syncSharesFromPct 會由比例自動填滿股數欄，
+  // 所以不加 sharesEntered 這個條件的話，每一列都會被當成持股，
+  // 而只配置了 20% 的 150 萬會被縮成 30 萬——使用者填的預算被默默吃掉（實測過）。
+  let value = 0;
+  simAllocations.forEach(function(allocation){
+    if (!allocation.sharesEntered) return;
+    const security = lookupSecurity(allocation.code);
+    const shares = Number(allocation.shares);
+    if (security && security.price > 0 && Number.isFinite(shares) && shares > 0) value += shares * security.price;
+  });
+  if (!(value > 0)) return false;
+  const totalNode = $("simTotal");
+  if (totalNode) totalNode.value = Math.round(value);
+  // 只往「股數 → 比例」這個方向推，不反推回股數，迴圈才斷得掉
+  simAllocations.forEach(function(_, index){ syncPctFromShares(index); });
+  return true;
+}
+
+// 背景自動配置。標的增刪、總額變更、壓力測試切換都會呼叫它。
+function autoAllocate(){
+  if (!simAutoAllocate || autoAllocateBusy) return;
+  if (autoAllocateTimer) clearTimeout(autoAllocateTimer);
+  autoAllocateTimer = setTimeout(function(){
+    autoAllocateTimer = null;
+    if (!simAutoAllocate || autoAllocateBusy) return;
+    autoAllocateBusy = true;
+    try {
+      const note = $("simOptimizeNote");
+      const optBtn = $("simOptimize");
+      if (simAllocations.length > AUTO_ALLOCATE_MAX_FUNDS) {
+        // 不硬跑：92,257 組 × 完整 simulate() 會讓畫面卡住。講清楚並把按鈕交回去。
+        if (note) note.textContent = "標的 " + simAllocations.length + " 檔，超過自動計算上限（"
+          + AUTO_ALLOCATE_MAX_FUNDS + " 檔），請按「最佳分配」手動觸發。";
+        if (optBtn) optBtn.hidden = false;
+        renderSimRows();
+        runSim();
+        return;
+      }
+      if (optBtn) optBtn.hidden = true;
+      const outcome = optimizeSimAllocations();   // 已查證它不會呼叫 runSim()，不遞迴
+      if (note) {
+        // **只隱藏「已計算 N 組」這種計算過程，品質警語照常顯示。**
+        // 一起藏掉的話，配息波動 0.89 的標的會默默吃到 40% 而毫無警示。
+        note.textContent = (outcome && outcome.ok) ? qualityWarning() : ((outcome && outcome.reason) || "");
+      }
+      runSim();
+    } finally {
+      autoAllocateBusy = false;
+    }
+  }, 200);
 }
 
 // 依「投入總額」把上方這些標的的權重窮舉算到最佳。
@@ -2674,21 +2777,26 @@ function runSimOptimize(){
     return outcome;
   }
   if (note) {
-    // 這裡刻意不替使用者換標的——但他自己填的標的若沒過品質門檻，必須講出來，
-    // 否則「最佳分配」會讓一檔配息波動 0.89 的標的吃到 40% 而毫無警示
-    const flagged = simAllocations.map(function(allocation){
-      if (!(allocation.pct > 0)) return null;
-      const security = lookupSecurity(allocation.code);
-      if (!security || security.kind !== "etf" || security.cv == null) return null;
-      return security.cv > QUALITY.maxCv ? allocation.code + "（近24月配息波動 " + security.cv + "）" : null;
-    }).filter(Boolean);
     note.textContent = "已計算 " + fmt(outcome.evaluated, 0) + " 組權重"
       + (outcome.skipped ? "（略過 " + outcome.skipped + " 個無法辨識的代碼）" : "")
       + "。只決定權重，不替你換標的。"
-      + (flagged.length ? "　⚠ 配息波動超過 " + QUALITY.maxCv + " 門檻：" + flagged.join("、") : "");
+      + (qualityWarning() ? "　" + qualityWarning() : "");
   }
   runSim();
   return outcome;
+}
+
+// 品質警語。**這是實質揭露，不是計算過程**——自動模式隱藏「已計算 N 組」時
+// 必須保留它，否則配息波動 0.89 的標的會默默吃到 40% 而毫無警示。
+// 抽成獨立函式讓手動與自動兩條路徑共用同一段判斷，不會各寫一份而分叉。
+function qualityWarning(){
+  const flagged = simAllocations.map(function(allocation){
+    if (!(allocation.pct > 0)) return null;
+    const security = lookupSecurity(allocation.code);
+    if (!security || security.kind !== "etf" || security.cv == null) return null;
+    return security.cv > QUALITY.maxCv ? allocation.code + "（近24月配息波動 " + security.cv + "）" : null;
+  }).filter(Boolean);
+  return flagged.length ? "⚠ 配息波動超過 " + QUALITY.maxCv + " 門檻：" + flagged.join("、") : "";
 }
 
 function setStress(value, buttonId){
@@ -2698,6 +2806,8 @@ function setStress(value, buttonId){
     if (node) node.className = id === buttonId ? "btn on" : "btn";
   }
   runSim();
+  // 壓力乘數會改變目標函數，最佳權重跟著變
+  autoAllocate();
 }
 
 // 稅的 KPI。沒填綜合所得淨額就完全不顯示——不要用 0 冒充「不用繳稅」。
@@ -3697,6 +3807,7 @@ function bind(){
     simAllocations.push({code:"", pct:null, shares:null, month:null});
     renderSimRows();
     runSim();
+    autoAllocate();
   });
   const simOptimize = $("simOptimize");
   if (simOptimize) simOptimize.addEventListener("click", runSimOptimize);
@@ -3782,7 +3893,13 @@ function bind(){
     updateSimPctSum();
     saveSimState();
     runSim();
+    // 總額變了，最佳權重也可能變（零股 floor 讓門檻附近的最佳解會跳）
+    autoAllocate();
   });
+  const modeManual = $("simModeManual");
+  if (modeManual) modeManual.addEventListener("click", function(){ setAutoAllocate(false); });
+  const modeAuto = $("simModeAuto");
+  if (modeAuto) modeAuto.addEventListener("click", function(){ setAutoAllocate(true); });
 
   /* --- 配置產生器 --- */
   const goalButtons = [["gNetTotal", "netTotal"], ["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"], ["gAfterTax", "afterTax"]];
@@ -3815,6 +3932,11 @@ async function init(){
   // 否則著陸頁是空的——showTab 原本只在使用者點擊時才跑。
   // 排在 load() 之後：lookupSecurity 會查 allStocks，個股標的要等 market-feed 到位。
   if (activeTab !== "stock") showTab(activeTab);
+  // 還原存下來的配置方式。必須排在 load() 之後——loadSimState() 在 feed 到位前就跑了，
+  // 那時 lookupSecurity 查不到標的，最佳化會全部略過。
+  // 此處 simAutoAllocate 已是 true，setAutoAllocate 的 `!was` 條件為 false，
+  // 不會重複執行「總額＝持股市值」那個一次性綁定。
+  if (simAutoAllocate) setAutoAllocate(true);
 }
 
 const marketApp = {
@@ -3835,6 +3957,9 @@ const marketApp = {
   runOverlap:runOverlap,
   getSimAllocations:function(){return simAllocations;},
   setSimAllocations:function(rows){simAllocations = rows; renderSimRows();},
+  setAutoAllocate:setAutoAllocate,
+  getAutoAllocate:function(){return simAutoAllocate;},
+  AUTO_ALLOCATE_MAX_FUNDS:AUTO_ALLOCATE_MAX_FUNDS,
   syncPctFromShares:syncPctFromShares,
   syncSharesFromPct:syncSharesFromPct,
   runSim:runSim,
