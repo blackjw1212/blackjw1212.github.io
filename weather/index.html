@@ -247,6 +247,26 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 地區標籤兼作 Windy 雷達入口：地區文字維持原色，只有 CTA 著色 */
+.radar-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  text-decoration: none;
+  /* 觸控熱區撐到 45px 以上，用負 margin 吸收，標題列高度不變 */
+  padding-block: 15px;
+  margin-block: -15px;
+}
+.radar-link-region {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.radar-link-cta {
+  flex: 0 0 auto;
+  color: var(--link);
+}
+.radar-link:hover .radar-link-cta { text-decoration: underline; }
 
 /* ─── Card ───────────────────────────────────────────────── */
 .card {
@@ -1125,6 +1145,7 @@ const TOWN_FORECAST_ENDPOINTS = [
   { county: "連江縣", endpoint: "F-D0047-081", geocodePrefix: "09007" },
   { county: "金門縣", endpoint: "F-D0047-085", geocodePrefix: "09020" },
 ];
+const WINDY_RADAR_ZOOM = 9;
 const BOAT_WAVE_LIMIT = 0.5;
 const BOAT_BFT_LIMIT = 3;
 const TIDE_LEVEL_MIN_CM = -80;
@@ -1389,6 +1410,27 @@ function renderCoastSelect(configs, selectedName, disabled = false) {
 function coastExternalUrl(cfg) {
   if (!cfg?.pointID || !cfg?.cID) return "https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html";
   return `https://www.cwa.gov.tw/V8/C/M/TownCoastal/TownCoastal.html?cID=${encodeURIComponent(cfg.cID)}&pointID=${encodeURIComponent(cfg.pointID)}`;
+}
+
+/* Windy 氣象雷達深連結。query 格式為 ?overlay,lat,lon,zoom（Windy 官方 URL 參數說明），
+   實測 overlay=radar 會把 product 切到雷達並顯示 dBZ 圖例。 */
+function windyRadarUrl(lat, lon) {
+  if (lat == null || lon == null) return null; // Number(null) 是 0，會變成 Null Island
+  const la = Number(lat), lo = Number(lon);
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
+  return `https://www.windy.com/-Weather-radar-radar?radar,${la.toFixed(3)},${lo.toFixed(3)},${WINDY_RADAR_ZOOM}`;
+}
+
+/* 雷達對準點：GPS 比對到的鄉鎮優先，退回選單地區（座標同樣來自 CWA feed）。
+   兩者都沒有就回 null —— 寧可不給入口，也不寫死一組編出來的經緯度。 */
+function radarPoint(weatherInfo, coastCfg) {
+  if (Number.isFinite(weatherInfo?.lat) && Number.isFinite(weatherInfo?.lon)) {
+    return { lat: weatherInfo.lat, lon: weatherInfo.lon, gps: true };
+  }
+  if (Number.isFinite(coastCfg?.lat) && Number.isFinite(coastCfg?.lon)) {
+    return { lat: coastCfg.lat, lon: coastCfg.lon, gps: false };
+  }
+  return null;
 }
 
 function getGpsPosition() {
@@ -1953,6 +1995,19 @@ async function loadAll() {
       weatherInfo.county || GPS_FALLBACK.county,
       weatherInfo.location || GPS_FALLBACK.location,
     ].filter(Boolean).join(" ");
+    const radarPt = radarPoint(weatherInfo, selectedCoast);
+    const radarHref = radarPt ? windyRadarUrl(radarPt.lat, radarPt.lon) : null;
+    // 雷達對準點未必等於天氣卡的鄉鎮：GPS 失敗時用的是選單地區，標籤要照實說
+    const radarTargetLabel = radarPt?.gps ? currentRegionLabel : selectedCoast.label;
+    const radarHint = `在 Windy 開啟 ${radarTargetLabel} 氣象雷達（外部連結）`;
+    const regionHeadHtml = radarHref
+      ? `<a class="current-region-label radar-link" href="${esc(radarHref)}"
+            target="_blank" rel="noopener noreferrer"
+            title="${esc(radarHint)}" aria-label="${esc(radarHint)}">
+           <span class="radar-link-region">${esc(currentRegionLabel)}</span>
+           <span class="radar-link-cta">雷達 →</span>
+         </a>`
+      : `<div class="current-region-label">${esc(currentRegionLabel)}</div>`;
     const coastTitle = `${selectedCoast.label}風浪（6 小時）`;
     const waveTimeInfo = coastTimeInfo(coastRes.data);
 
@@ -2252,7 +2307,7 @@ async function loadAll() {
           <div class="dash-block dash-weather">
             <div class="weather-section-head">
               <div class="section-lbl">${esc(weatherSectionTitle)}</div>
-              <div class="current-region-label">${esc(currentRegionLabel)}</div>
+              ${regionHeadHtml}
             </div>
             <div class="card">
               ${currentFocusHtml}

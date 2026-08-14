@@ -344,6 +344,20 @@ test("weather page uses the Worker proxy without exposing CWA credentials", asyn
   assert.doesNotMatch(html, /CWA-|Authorization:\s*API_KEY|opendata\.cwa\.gov\.tw\/api|opendata\.cwa\.gov\.tw\/fileapi/);
 });
 
+test("weather page links out to the Windy radar for the located point", async () => {
+  const htmlPath = fileURLToPath(new URL("../../weather/index.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+
+  assert.match(html, /www\.windy\.com\/-Weather-radar-radar\?radar,/);
+  assert.match(html, /class="current-region-label radar-link"[\s\S]*?rel="noopener noreferrer"/);
+  assert.match(html, /aria-label="\$\{esc\(radarHint\)\}"/);
+  // 標籤要指向雷達真正對準的點，不是天氣卡的鄉鎮
+  assert.match(html, /radarPt\?\.gps \? currentRegionLabel : selectedCoast\.label/);
+  // 座標必須來自 GPS 或選單地區，不得寫死
+  assert.match(html, /function radarPoint\(weatherInfo, coastCfg\)/);
+  assert.doesNotMatch(html, /radar,\d+\.\d+,\d+\.\d+,/);
+});
+
 test("legacy weather page redirects to the retained weather route", async () => {
   const htmlPath = fileURLToPath(new URL("../../bjkw_weather.html", import.meta.url));
   const html = await readFile(htmlPath, "utf8");
