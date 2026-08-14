@@ -2672,3 +2672,64 @@ test("auto allocation steps aside when the search space explodes", async () => {
   assert.match(p.note(), /超過自動計算上限/, "不硬跑，要講清楚為什麼");
   assert.match(p.note(), /重新自動配置/, "並指出可以手動觸發哪一顆");
 });
+
+// ── 使用者回報的兩個 bug ────────────────────────────────────────
+// 「比例我有留白了還是沒有自動算，而且還會有負的數據出現」
+
+// bug 1：pct: 0 的存檔會讓自動配置永久停手。
+// 遷移寫成 `a.pct != null` 時，0 != null 是 true → 被判成「使用者填過 0%」
+// → hasManualInput() 為真 → 優化器停手 → 畫面永遠卡在一年 0 元。
+test("a saved state full of zero weights still gets auto-allocated", async () => {
+  const zeroState = JSON.stringify({
+    total: "1500000",
+    rows: [{ code: "0056", pct: 0, shares: 0, month: null },
+           { code: "0050", pct: 0, shares: 0, month: null }],
+    stress: 1,
+  });
+  const backing = new Map([["bjkw-market-sim-v1", zeroState]]);
+  const store = {
+    getItem: (k) => (backing.has(k) ? backing.get(k) : null),
+    setItem: (k, v) => backing.set(k, String(v)),
+    removeItem: (k) => backing.delete(k),
+  };
+  const { app } = await loadMarket(dualFeedMock(), { localStorage: store });
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(app.hasManualInput(), false,
+    "0% 不是刻意的配置，不可被當成「使用者填過」");
+  const pcts = app.getSimAllocations().map((a) => a.pct);
+  assert.equal([...pcts].reduce((a, b) => a + b, 0), 100,
+    `全 0 的存檔要被自動配置救回來，實得 ${JSON.stringify([...pcts])}`);
+});
+
+// 已經寫進 localStorage 的 pctEntered:true 也要救得到——
+// 所以條件放在 hasManualInput() 而不是只修遷移。
+test("a persisted entered-flag on a zero weight does not wedge the optimiser", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  app.setSimAllocations([
+    { code: "0056", pct: 0, shares: 0, month: null, pctEntered: true },
+    { code: "0050", pct: 0, shares: 0, month: null, pctEntered: true },
+  ]);
+  assert.equal(app.hasManualInput(), false,
+    "旗標為真但值是 0 時仍不算手動，否則舊資料會永久卡住");
+});
+
+// bug 2：比例欄有 step="5" 卻沒有 min，從 0 按一下向下鍵就是 −5。
+// 實測輸入 −20 會算出股數 −9,069、市值 −300,003、年配息 −34,580。
+test("a negative weight can neither be entered nor propagate", async () => {
+  const { html, app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.match(html, /data-sim-pct="' \+ index \+ '" placeholder="[^"]*" min="0"/,
+    "比例欄要有 min=0，否則上下鍵會轉出負數");
+  app.setSimAllocations([{ code: "0056", pct: 30, shares: 100, month: null, pctEntered: true }]);
+  // 直接走 handler 邏輯：負值必須被當成「沒填」，而不是存成 -20
+  const rows = elements.get("simRows");
+  assert.ok(rows);
+  const src = html.slice(html.indexOf("if (pctIdx != null)"), html.indexOf("if (sharesIdx != null)"));
+  assert.match(src, /raw <= 0\) \? null : raw/, "≤0 一律當成沒填");
+  assert.match(src, /if \(clean == null\) simAllocations\[pctIdx\]\.shares = null;/,
+    "清掉比例時股數也要清，否則 syncSharesFromPct 提早 return 會留下舊的負股數");
+  assert.match(src, /autoAllocate\(\);/, "清空後要把控制權交還自動，否則欄位就空在那裡");
+});
