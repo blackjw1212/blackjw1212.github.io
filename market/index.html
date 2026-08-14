@@ -377,34 +377,34 @@
         </div>
         <span class="hint" style="margin:0">看配息縮水時，現金流剩多少</span>
       </div>
-    </div>
-
-    <details class="fold" id="simAdvanced">
-      <summary>稅務與進階設定<span>填年薪才算得出所得稅</span></summary>
-      <div class="fold-body">
-        <div class="toolrow">
-          <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
-          <span class="fld">申報方式
-            <select id="simFiling" aria-label="申報方式">
-              <option value="single">單身</option>
-              <option value="joint2">夫妻合併·雙薪</option>
-              <option value="joint1">夫妻合併·單薪</option>
-            </select>
-          </span>
-          <span class="fld">扶養親屬 <input id="simDependents" type="number" min="0" max="10" step="1" inputmode="numeric" style="width:56px" aria-label="扶養親屬人數" value="0" /> 人</span>
-        </div>
-        <div class="toolrow">
-          <span class="fld">綜合所得淨額 <input id="simNetIncome" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="綜合所得淨額（元）" placeholder="填年薪會自動換算" /> 元</span>
-          <span class="hint" style="margin:0">知道確切數字就直接填，它在你去年綜所稅申報書上。</span>
-        </div>
-        <div class="toolrow"><span class="hint" style="margin:0" id="simNetIncomeHint"></span></div>
-        <div class="toolrow">
-          <button class="btn" id="simOptimize" type="button" title="放棄手填的比例與股數，交還給自動：以投入總額窮舉計算，取扣費後年配息最高的權重">重新自動配置</button>
-          <button class="btn" id="simUseHoldings" type="button" title="把投入總額設為目前所有持股的市值合計，讓比例%以實際持股為基準">總額＝目前持股市值</button>
-        </div>
-        <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
+      <!-- 配置類的按鈕與它的警語留在這一組。上一版把它們收進「稅務與進階設定」，
+           但它們跟稅完全無關——那是搬動控制項時把舊折疊的內容整批移過去造成的。 -->
+      <div class="toolrow">
+        <button class="btn" id="simOptimize" type="button" title="只重新計算上方這幾檔各佔多少 %，不會替你換標的">重算比例</button>
+        <span class="hint" style="margin:0">只動比例，<b>不會換掉你的標的</b>；手填過的也會一併交還自動</span>
       </div>
-    </details>
+      <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
+      <div class="toolrow" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px">
+        <span class="fld" style="font-weight:700">稅務設定</span>
+        <span class="hint" style="margin:0">填了才算得出所得稅；不填只估二代健保</span>
+      </div>
+      <div class="toolrow">
+        <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
+        <span class="fld">申報方式
+          <select id="simFiling" aria-label="申報方式">
+            <option value="single">單身</option>
+            <option value="joint2">夫妻合併·雙薪</option>
+            <option value="joint1">夫妻合併·單薪</option>
+          </select>
+        </span>
+        <span class="fld">扶養親屬 <input id="simDependents" type="number" min="0" max="10" step="1" inputmode="numeric" style="width:56px" aria-label="扶養親屬人數" value="0" /> 人</span>
+      </div>
+      <div class="toolrow">
+        <span class="fld">綜合所得淨額 <input id="simNetIncome" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="綜合所得淨額（元）" placeholder="填年薪會自動換算" /> 元</span>
+        <span class="hint" style="margin:0">知道確切數字就直接填，它在你去年綜所稅申報書上。</span>
+      </div>
+      <div class="toolrow"><span class="hint" style="margin:0" id="simNetIncomeHint"></span></div>
+    </div>
 
     <div id="simHero"></div>
 
@@ -469,7 +469,7 @@
   </details>
 
   <details class="fold">
-    <summary id="suggestHeading">自動配置<span>讓程式窮舉出配息最高的權重組合</span></summary>
+    <summary id="suggestHeading">幫我挑標的<span>從全市場挑，按「套用到上方試算」才會換掉你上面的清單</span></summary>
     <div class="fold-body">
     <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
       <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
@@ -2651,7 +2651,7 @@ function loadSimState(){
 // 而是**他有沒有自己填過**：
 //   只填代碼        → 沒人告訴我怎麼分，自動算
 //   手填比例或股數  → 以他的為準，優化器停手
-//   按「重新自動配置」→ 清掉手動旗標，交還給自動
+//   按「重算比例」    → 清掉手動旗標，交還給自動
 //
 // **「欄位有值」不等於「人填的」**：syncSharesFromPct／syncPctFromShares 會互相
 // 填滿欄位，不靠旗標分不出來。上一版沒有 sharesEntered 時，只配置了 20% 的
@@ -2676,7 +2676,7 @@ function hasManualInput(){
 }
 
 // 把控制權交還給自動：清掉手動旗標再跑一次。這是手填之後回到自動的唯一路徑，
-// 所以「重新自動配置」那顆按鈕不能拿掉。
+// 所以「重算比例」那顆按鈕不能拿掉。
 function resetToAuto(){
   simAllocations.forEach(function(a){ a.pctEntered = false; a.sharesEntered = false; });
   saveSimState();
@@ -2731,7 +2731,7 @@ function autoAllocate(){
       if (simAllocations.length > AUTO_ALLOCATE_MAX_FUNDS) {
         // 不硬跑：92,257 組 × 完整 simulate() 會讓畫面卡住。講清楚並把按鈕交回去。
         if (note) note.textContent = "標的 " + simAllocations.length + " 檔，超過自動計算上限（"
-          + AUTO_ALLOCATE_MAX_FUNDS + " 檔），請按「重新自動配置」手動觸發。";
+          + AUTO_ALLOCATE_MAX_FUNDS + " 檔），請按「重算比例」手動觸發。";
         renderSimRows();
         runSim();
         return;
@@ -3844,22 +3844,6 @@ function bind(){
   });
   const simOptimize = $("simOptimize");
   if (simOptimize) simOptimize.addEventListener("click", resetToAuto);
-  const useHoldings = $("simUseHoldings");
-  if (useHoldings) useHoldings.addEventListener("click", function(){
-    // 已持有者的比例基準若沿用舊總額會失真，這裡把總額對齊到實際持股市值
-    let value = 0;
-    simAllocations.forEach(function(allocation){
-      const security = lookupSecurity(allocation.code);
-      const shares = Number(allocation.shares);
-      if (security && security.price > 0 && Number.isFinite(shares) && shares > 0) value += shares * security.price;
-    });
-    if (!(value > 0)) return;
-    const totalNode = $("simTotal");
-    if (totalNode) totalNode.value = Math.round(value);
-    simAllocations.forEach(function(_, index){syncPctFromShares(index);});
-    renderSimRows();
-    runSim();
-  });
   const s100 = $("s100");
   if (s100) s100.addEventListener("click", function(){setStress(1, "s100");});
   const s80 = $("s80");

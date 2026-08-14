@@ -2451,7 +2451,7 @@ test("controls that change the headline sit above it in the document", async () 
   assert.ok(heroAt > 0);
   for (const id of ["simTotal", "simAdd", "s100", "s80", "s60",
                     "simSalary", "simFiling", "simDependents", "simNetIncome",
-                    "simOptimize", "simUseHoldings"]) {
+                    "simOptimize"]) {
     const at = html.indexOf('id="' + id + '"');
     assert.ok(at > 0, `${id} 應該存在`);
     assert.ok(at < heroAt,
@@ -2483,9 +2483,11 @@ test("moving the controls out of the folds did not drop any of them", async () =
   const { html, app, elements } = await loadMarket(dualFeedMock());
   await app.init();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  // 兩個折疊（風險分析／進階設定）整個移除，內容全部上移——一項都不能少
+  // 折疊整個移除、內容全部上移——一項都不能少。
+  // simUseHoldings 是刻意刪掉的：手填股數已會自動綁定總額，而它加總所有有股數的列
+  // （含優化器算出來的），在自動配置後按下去會把總額削掉零股殘值。
   for (const id of ["s100", "s80", "s60", "simSalary", "simFiling", "simDependents",
-                    "simNetIncome", "simNetIncomeHint", "simOptimize", "simUseHoldings",
+                    "simNetIncome", "simNetIncomeHint", "simOptimize",
                     "simOptimizeNote"]) {
     assert.equal((html.match(new RegExp('id="' + id + '"', "g")) || []).length, 1,
       `${id} 必須剛好出現一次——搬移時漏刪舊的會產生兩個同 id 的元素`);
@@ -2493,7 +2495,7 @@ test("moving the controls out of the folds did not drop any of them", async () =
   // 提示用的 span 要等程式查詢過才會在假 DOM 裡建立節點，
   // 所以只對 bind() 真的會綁事件的控制項斷言「抓得到」
   for (const id of ["s100", "s80", "s60", "simSalary", "simFiling", "simDependents",
-                    "simNetIncome", "simOptimize", "simUseHoldings"]) {
+                    "simNetIncome", "simOptimize"]) {
     assert.ok(elements.get(id), `${id} 必須抓得到，否則事件綁不上去`);
   }
   assert.doesNotMatch(html, /<summary>風險分析/, "風險分析折疊的外殼應該移除，內容已上移");
@@ -2544,7 +2546,7 @@ test("no allocation mode selector is shown at all", async () => {
   assert.doesNotMatch(html, /id="simModeManual"/, "不該再有模式切換器");
   assert.doesNotMatch(html, /id="simModeAuto"/);
   // 回到自動的唯一路徑必須留著，否則手填過就再也回不去
-  assert.match(html, /id="simOptimize"[^>]*>重新自動配置</, "「重新自動配置」是回到自動的唯一入口");
+  assert.match(html, /id="simOptimize"[^>]*>重算比例</, "「重算比例」是回到自動的唯一入口");
 });
 
 test("leaving the weights blank lets the optimiser fill them in", async () => {
@@ -2670,7 +2672,7 @@ test("auto allocation steps aside when the search space explodes", async () => {
   p.set("simTotal", "1000000");
   await p.settle();
   assert.match(p.note(), /超過自動計算上限/, "不硬跑，要講清楚為什麼");
-  assert.match(p.note(), /重新自動配置/, "並指出可以手動觸發哪一顆");
+  assert.match(p.note(), /重算比例/, "並指出可以手動觸發哪一顆");
 });
 
 // ── 使用者回報的兩個 bug ────────────────────────────────────────
@@ -2732,4 +2734,67 @@ test("a negative weight can neither be entered nor propagate", async () => {
   assert.match(src, /if \(clean == null\) simAllocations\[pctIdx\]\.shares = null;/,
     "清掉比例時股數也要清，否則 syncSharesFromPct 提早 return 會留下舊的負股數");
   assert.match(src, /autoAllocate\(\);/, "清空後要把控制權交還自動，否則欄位就空在那裡");
+});
+
+// ── 一個版面 ＋ 按鈕命名釐清 ────────────────────────────────────
+test("every top control lives in one flat panel, nothing folded away", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  assert.doesNotMatch(html, /id="simAdvanced"/, "稅務折疊已合併進同一個版面");
+  const heroAt = html.indexOf('id="simHero"');
+  // 主視覺之前不可再有任何 details——那代表控制項又被收起來了
+  const before = html.slice(0, heroAt);
+  assert.equal((before.match(/<details/g) || []).length, 0,
+    "主視覺上方的控制項一律平鋪，不再有折疊");
+  for (const id of ["simTotal", "simAdd", "s100", "s80", "s60", "simOptimize",
+                    "simSalary", "simFiling", "simDependents", "simNetIncome"]) {
+    assert.ok(before.includes('id="' + id + '"'), `${id} 必須在同一個版面內、且在主視覺之前`);
+  }
+});
+
+// 兩個都叫「自動配置」時，使用者分不出哪個會換掉他的標的。
+test("the two allocation actions are named apart and say what they change", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const topBtn = (html.match(/id="simOptimize"[^>]*>([^<]+)</) || [])[1];
+  const lowerTitle = (html.match(/id="suggestHeading">([^<]+)</) || [])[1];
+  assert.equal(topBtn, "重算比例");
+  assert.equal(lowerTitle, "幫我挑標的");
+  assert.notEqual(topBtn, lowerTitle, "兩個動作不可同名——一個換標的、一個不換");
+  // 上方要講明「不換標的」
+  const topRow = html.slice(html.indexOf('id="simOptimize"'), html.indexOf('id="simOptimizeNote"'));
+  assert.match(topRow, /不會換掉你的標的/, "上方要講明它只動比例");
+  // 下方要講明「會換標的」——原本寫「窮舉出配息最高的權重組合」，沒提會換掉清單
+  const lowerRow = html.slice(html.indexOf('id="suggestHeading"'), html.indexOf('id="suggestHeading"') + 200);
+  assert.match(lowerRow, /換掉你上面的清單/, "下方要講明套用後會換掉標的");
+});
+
+// 它加總所有有股數的列（含優化器算出來的），在自動配置後按下去會把總額
+// 削掉零股殘值：1,500,000 → 1,499,744。手填股數已由 scheduleHoldingsBind 處理。
+test("the redundant hold-value button is gone, markup and handler alike", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  assert.doesNotMatch(html, /simUseHoldings/,
+    "按鈕與它的 handler 都要移除，留著 handler 會是死碼");
+  assert.match(html, /scheduleHoldingsBind/, "手填股數自動綁定總額的路徑要留著");
+});
+
+test("the total keeps its value through repeated auto-allocation", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  app.setSimAllocations([
+    { code: "0056", pct: null, shares: null, month: null },
+    { code: "0050", pct: null, shares: null, month: null },
+  ]);
+  set("simTotal", "1500000");
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  for (let i = 0; i < 3; i += 1) {
+    app.resetToAuto();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  assert.equal(elements.get("simTotal").value, "1500000",
+    "反覆自動配置不可把總額削成 1,499,744 這種「原值減零股殘值」");
 });
