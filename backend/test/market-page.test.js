@@ -2193,7 +2193,7 @@ function heroFeedMock() {
 }
 
 async function heroPanel(allocations, overrides = {}) {
-  const { app, elements } = await loadMarket(heroFeedMock());
+  const { app, elements, html } = await loadMarket(heroFeedMock());
   await app.init();
   await new Promise((resolve) => setTimeout(resolve, 0));
   const set = (id, value) => {
@@ -2205,8 +2205,80 @@ async function heroPanel(allocations, overrides = {}) {
   // 靠後面 simTotal 的 input 事件觸發 runSim() 才會更新主視覺
   if (allocations) app.setSimAllocations(allocations);
   set("simTotal", overrides.total == null ? "1000000" : overrides.total);
-  return { app, elements, set, hero: () => elements.get("simHero").innerHTML };
+  return { app, elements, set, html, hero: () => elements.get("simHero").innerHTML };
 }
+
+// ── 階段三：資訊層級化 ────────────────────────────────────────
+// 收合起來的區塊只剩一個標題，使用者無從判斷值不值得展開。副標改成帶當次結果的
+// 摘要，但**必須由計算結果寫入**——寫死一個數字比留白更糟，它會在組合換了之後說謊。
+test("collapsed folds carry the result in their title, computed not hardcoded", async () => {
+  const { elements } = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }],
+    { total: "1000000" });
+  const perf = elements.get("simPerfSummary").textContent;
+  const exposure = elements.get("simExpSummary").textContent;
+  assert.match(perf, /月均 [\d,]+ 元/, "詳細績效收合時要看得到月均現金流");
+  assert.match(exposure, /最重 .+ [\d.]+%/, "成分股收合時要看得到最重的那一檔");
+
+  // 換一個總額，摘要必須跟著變——不變就是寫死的
+  const doubled = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }],
+    { total: "2000000" });
+  assert.notEqual(doubled.elements.get("simPerfSummary").textContent, perf,
+    "總額加倍後月均沒變，代表副標是寫死的而不是算出來的");
+});
+
+test("a fold with nothing to report falls back to its static subtitle", async () => {
+  const { app, elements, set, html } = await heroPanel(
+    [{ code: "0050", pct: 100, shares: null, month: null }], { total: "1000000" });
+  // fake DOM 不解析靜態文字，span 一開始是空的；照瀏覽器的實情把 HTML 裡的副標填回去，
+  // 否則測到的是「空字串還原成空字串」，等於什麼都沒驗
+  const staticSub = html.match(/<span id="simPerfSummary">([^<]*)<\/span>/)[1];
+  assert.ok(staticSub.trim().length > 0, "HTML 裡本來就該有一個靜態副標");
+
+  const node = elements.get("simPerfSummary");
+  node.textContent = staticSub;
+  node.dataset.foldFallback = null;
+  set("simTotal", "1000000");
+  assert.match(node.textContent, /月均/, "有結果時要換成結果摘要");
+
+  set("simTotal", "");
+  assert.equal(node.textContent, staticSub,
+    "清掉總額後副標必須回到原本的說明，留白會讓收合區變成一個沒有說明的標題");
+  assert.doesNotMatch(node.textContent, /月均/, "沒有結果就不該留著上一次的月均");
+});
+
+// 移進折疊區的資訊仍然要在 DOM 裡。用 textContent 而非 innerText：
+// 收合的 <details> 其 innerText 是空字串，用它做斷言會全部假通過。
+test("hierarchy changes moved information, they did not delete it", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  for (const kept of [
+    "證券交易稅條例第 2 條第 2 款", "第 2-1 條第 2 項只到 2026-12-31",
+    "0.1425% 為券商公告標準費率",
+    "滾動 12 個月已除息配息", "保送規模前 3 大的合格標的入池", "不判斷配息可持續性",
+    "刻意不問的事", "再平衡頻率",
+  ]) {
+    assert.ok(html.includes(kept), `「${kept}」在層級化過程中被刪掉了——只能移位，不能移除`);
+  }
+});
+
+test("the projection's annual table sits behind a disclosure, its warnings do not", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  assert.match(html, /▸ 查看年度明細與費用依據/, "逐年 10 列是佐證，不該擋在結論前面");
+  // 警語不可跟著被收進去：它們是「這個數字有多可信」，收起來等於沒講
+  const notes = html.slice(html.indexOf("function projectionNotes"));
+  const detailsAt = notes.indexOf("▸ 查看年度明細");
+  for (const warn of ["沒有計入所得稅", "配息型反而勝出"]) {
+    assert.ok(notes.indexOf(warn) < detailsAt && notes.indexOf(warn) > -1,
+      `「${warn}」被收進折疊區了——警語必須常駐`);
+  }
+});
+
+test("the exposure block does not repeat its own fold title as a heading", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  assert.doesNotMatch(html, /<h2 style="margin-top:26px">實質曝險/,
+    "fold 內再放一個 h2 等於把 summary 講第二次，層級也錯（h2 排在 h3 之後）");
+  assert.match(html, /<summary>成分股與重疊：實質曝險/,
+    "標題只能併進 summary，不能整個消失");
+});
 
 test("the landing tab is the simulator, not the 1,958-row stock table", async () => {
   const { app, elements } = await loadMarket(dualFeedMock());
@@ -2502,8 +2574,12 @@ test("moving the controls out of the folds did not drop any of them", async () =
   assert.doesNotMatch(html, /<summary>進階設定</, "進階設定折疊的外殼應該移除，內容已上移");
 });
 
-test("the pointer names the collapsed box the salary field now lives in", async () => {
-  const { app, elements } = await loadMarket(dualFeedMock());
+// 這條原本只比對一個寫死的字串，結果 5dd083e6 把稅務區拆出折疊、標籤改成「稅務設定」後，
+// 測試反而把**已經過時的文案固定住**：畫面叫使用者「展開」一個不再收合的區塊，
+// 名字也對不上。改成結構性斷言——指路提到的名稱必須真的出現在頁面上，
+// 而且不得叫人展開沒有收合的東西。這樣下次版面再動，測試會抓到而不是幫忙掩蓋。
+test("the pointer to the salary field names something that actually exists on the page", async () => {
+  const { app, elements, html } = await loadMarket(dualFeedMock());
   await app.init();
   await app.showTab("sim");
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -2517,9 +2593,23 @@ test("the pointer names the collapsed box the salary field now lives in", async 
   app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
   set("pmReturn", "8");
   const need = elements.get("pmNeed").innerHTML;
-  assert.match(need, /稅務與進階設定/,
-    "年薪搬進收合盒後，指路必須講得出先展開哪一個，否則指了也找不到");
   assert.match(need, /算不出所得稅/);
+
+  // 指路裡用「」框起來的每個名稱，都必須是頁面上找得到的標籤
+  const named = [...need.matchAll(/「<b>([^<]+)<\/b>」/g)].map((m) => m[1]);
+  assert.ok(named.length > 0, "指路必須指名一個具體的控制項，不能只說「上面」");
+  for (const label of named) {
+    assert.ok(html.includes(">" + label + "<") || html.includes(label + " <input"),
+      `指路提到「${label}」，但頁面上沒有這個標籤——指了也找不到`);
+  }
+  assert.ok(named.includes("稅務設定"),
+    "年薪欄位目前在「稅務設定」這一組底下，指路要講得出是哪一組");
+
+  // 稅務欄位在 5dd083e6 之後是平鋪的，不可再叫人「展開」
+  assert.doesNotMatch(need, /展開/,
+    "稅務欄位已平鋪展開，叫使用者去展開它會讓人在畫面上找不到那個動作");
+  assert.ok(!/id="simAdvanced"/.test(html),
+    "simAdvanced 已移除；若它回來了，上面那條「不可寫展開」的判斷就要重新檢討");
 });
 
 // ── 配置方式：不給選項，由輸入行為推斷 ────────────────────────

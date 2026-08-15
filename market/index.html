@@ -354,9 +354,8 @@
   <div id="simPanel">
   <section aria-labelledby="simHeading">
     <h2 id="simHeading">你這樣買，一年能領多少？ <em>SIMULATOR</em></h2>
-    <p class="hint">填金額、挑幾檔 ETF，馬上算出一年大概能領多少、每月平均多少。
-      這是<b>試算不是預測</b>，用的是各檔過去實際發過的配息；<b>不是投資或稅務建議</b>。
-      算法與稅制假設都在最下面的「這些數字是怎麼算的」。</p>
+    <p class="hint">填金額、挑幾檔 ETF 就會算。這是<b>試算不是預測</b>，用的是各檔過去實際發過的配息；
+      <b>不是投資或稅務建議</b>，算法與稅制假設都在最下面的「這些數字是怎麼算的」。</p>
     <!-- 會改變下方主視覺數字的控制項一律放在**主視覺上方**。
          上一版把壓力測試與年薪收進折疊，實測按鈕落在主視覺下方 469~885px，
          按下去受影響的數字已經捲出畫面——等於看不到自己按了什麼。
@@ -413,7 +412,7 @@
     <div class="sim-rows" id="simRows"></div>
 
     <details class="fold">
-      <summary>詳細績效<span>每月現金流、逐檔明細</span></summary>
+      <summary>詳細績效<span id="simPerfSummary">每月現金流、逐檔明細</span></summary>
       <div class="fold-body">
         <div class="sim-summary" id="simSummary"></div>
         <div class="sim-chart" id="simChart"></div>
@@ -421,8 +420,10 @@
       </div>
     </details>
 
+    <!-- 「實質曝險」原本是 fold 內的一個 h2，等於把 summary 再講一次，
+         而且 h2 出現在 h3 之後、藏在收合區裡，層級是錯的。標題併進 summary。 -->
     <details class="fold">
-      <summary>成分股與重疊<span>實際買到哪些股票、哪個產業最重</span></summary>
+      <summary>成分股與重疊：實質曝險<span id="simExpSummary">實際買到哪些股票、哪個產業最重</span></summary>
       <div class="fold-body"><div id="simExposure"></div></div>
     </details>
 
@@ -430,7 +431,7 @@
 
   <h2 style="margin-top:24px">進階分析與說明 <em>MORE</em></h2>
   <details class="fold">
-    <summary id="pmHeading">配息分析：領股息會被課多少稅？<span>稅與手續費十年吃掉多少</span></summary>
+    <summary id="pmHeading">配息分析：領股息會被課多少稅？<span id="pmFoldSummary">稅與手續費十年吃掉多少</span></summary>
     <div class="fold-body">
     <p class="hint">此為拿同一檔標的「有領股息」與「不領股息」比較，讓你一眼看出被扣了多少稅與手續費。
       <strong>台灣買不到「不配息版本」的同一檔 ETF</strong>——那條線是拿來當尺量摩擦的，
@@ -473,12 +474,17 @@
   <details class="fold">
     <summary id="suggestHeading">幫我挑標的<span>從全市場挑，按「套用到上方試算」才會換掉你上面的清單</span></summary>
     <div class="fold-body">
-    <p class="hint">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
+    <!-- 這六段是方法論與限制，全部要留（多處受測試鎖定），但它們擋在問卷前面，
+         等於逼使用者先讀完六段才碰得到第一個控制項。原文一字不改，只降一層。 -->
+    <details>
+    <summary style="cursor:pointer;font-size:13px;color:var(--faint)">▸ 計算方法、殖利率定義與限制</summary>
+    <p class="hint" style="margin-top:8px">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
       <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
       <strong>配息波動改看近 24 個月</strong>（殖利率仍是近 12 個月）：只看 12 個月的季配標的僅有 4 筆，會系統性低估波動——實測 006208 配息由 0.989 漲到 4.75，12 月窗算出 0.16、24 月窗才是 0.65。水準跳升對「用近 12 月配息推估未來」正是最該標出來的風險。
       <strong>稅後總報酬最大化（預設）</strong>：目標為<strong>價差＋配息−所得稅−二代健保</strong>。價差取 Yahoo adjclose 近一年、已自行校正分割；台股個人證所稅停徵，因此價差免稅而配息要課稅，兩者的稅負待遇不同會實質改變最佳解。候選池改依總報酬排序並排除總報酬為負者，需先在上方模擬器填綜合所得淨額。<strong>這一段全部是近一年回測，不是預測</strong>——以總報酬為目標等於「買去年表現最好的」，請當成比較的起點而非結論。滿一年歷史不足或價格有無法解釋跳動的標的不發布報酬，也不會進入這個目標的候選池。
       <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息，需先在上方模擬器填綜合所得淨額。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>。
       注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。<strong>「最高配息」「補滿 12 個月」「分散類型」「稅後配息」四個目標只看配息現金流、不含資本利得</strong>——一檔配 10% 卻跌 12% 的標的在那些目標下會排很前面，但它在賠錢；要看實際賺多少請用預設的總報酬目標。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
+    </details>
     <div class="profile-form">
       <div class="profile-head">先描述你的情況，下面的目標與約束會自動設定</div>
       <div class="profile-row">
@@ -512,9 +518,12 @@
       </div>
       <div class="profile-note" id="pfNote"></div>
       <div class="profile-note">
-        <b>刻意不問的事</b>：年齡（只是投資期限的代理，問了會重複計數）、每月投入金額（最佳化器算的是權重，定期定額不改變權重）、
+        <details>
+        <summary style="cursor:pointer"><b>刻意不問的事</b></summary>
+        年齡（只是投資期限的代理，問了會重複計數）、每月投入金額（最佳化器算的是權重，定期定額不改變權重）、
         既有其他資產（本站沒有那些資料）、再平衡頻率（沒有回測再平衡的能力，給建議等於編造）。
         槓桿與反向 ETF 恆不納入，不提供開關。收集了卻不影響結果的問題，問了只是裝飾。
+        </details>
       </div>
     </div>
     <div class="toolbar">
@@ -2894,6 +2903,8 @@ function runSim(){
     summary.innerHTML = "";
     chart.innerHTML = "";
     if (detail) detail.innerHTML = "";
+    setFoldSummary("simPerfSummary", "");
+    setFoldSummary("simExpSummary", "");
     // 投影區塊的「還差一步」提示正是為了這個狀態而存在，
     // 早退時不呼叫它，缺總額的人就永遠看不到那句指路。
     runProjection();
@@ -2939,8 +2950,20 @@ function runSim(){
         }).join("")
       + '</tbody></table></div>';
   }
+  setFoldSummary("simPerfSummary",
+    "月均 " + fmt(Math.round(result.totalNet / 12), 0) + " 元 · " + result.holdings.length + " 檔");
   renderExposure();
   runProjection();
+}
+
+// 折疊標題帶上結果摘要：收合時也看得出裡面算出了什麼，不必先展開才知道值不值得展開。
+// 一律由當次計算結果寫入，**不寫死數字**；算不出來時回到原本的靜態副標，不留空白。
+function setFoldSummary(id, text){
+  const node = $(id);
+  if (!node) return;
+  if (node.dataset.foldFallback == null) node.dataset.foldFallback = node.textContent;
+  // textContent 而非 innerHTML：摘要含標的名稱，走文字節點就不必再擔心跳脫
+  node.textContent = text || node.dataset.foldFallback;
 }
 
 /* ---- 主視覺：結論先講，細節收折 ---- */
@@ -3183,9 +3206,9 @@ function runProjection(){
   if (need) {
     const missing = [];
     if (!(total > 0)) missing.push('先在上面的「<b>投入總額</b>」填你打算投入多少錢。');
-    // 年薪已搬到主視覺上方，但那個盒子預設是收合的——指路要講得出「先展開哪一個」，
-    // 只寫「上面填年薪」會讓人在畫面上找不到那一格。
-    if (netIncome == null) missing.push('展開上面的「<b>稅務與進階設定</b>」填年薪，就會自動換算所得；不填的話<b>算不出所得稅</b>，差距會被低估。');
+    // 指路必須指得到畫面上真的有的東西。稅務欄位已在 5dd083e6 平鋪展開、
+    // 標籤改為「稅務設定」，舊文案叫人「展開」一個不再收合的區塊、名字也對不上。
+    if (netIncome == null) missing.push('在上面的「<b>稅務設定</b>」填年薪，就會自動換算所得；不填的話<b>算不出所得稅</b>，差距會被低估。');
     need.innerHTML = missing.length ? '<div class="need">還差一步：' + missing.join(' ') + '</div>' : "";
   }
 
@@ -3195,11 +3218,20 @@ function runProjection(){
     if (verdict) verdict.innerHTML = "";
     chart.innerHTML = "";
     if (detail) detail.innerHTML = "";
+    setFoldSummary("pmFoldSummary", "");
     return;
   }
 
   const money = function(v){ return fmt(Math.round(v), 0); };
   const flipped = out.distEnd > out.accEnd;
+  // 標成「情境」而不是年數本身：這是依假設報酬率外推的一條路徑，不是會發生的事。
+  // **假設報酬率必須跟著金額一起出現。** 收合狀態下看不到底下的 pmAssumeNote，
+  // 只印金額等於把一個外推值端出去當結論——牛市窗外推十年會得到億級數字，
+  // 旁邊沒有「假設每年 N%」的話，使用者無從判斷那是什麼。
+  const assumed = Number((returnNode || {}).value);
+  setFoldSummary("pmFoldSummary",
+    pmYears + " 年情境（假設每年 " + (Number.isFinite(assumed) ? fmt(assumed, 1) : "?") + "%）："
+      + "兩者差 " + money(Math.abs(out.delta)) + " 元");
 
   // ── 一句話總結。**依方向改寫，不是換個正負號。**
   // 低所得時 8.5% 股利抵減大於應納稅額 → 領股息反而退稅、配息型勝出。
@@ -3219,6 +3251,8 @@ function runProjection(){
           + '<div class="sub">合併計稅的 8.5% 股利抵減（上限 8 萬）大於你的應納稅額，'
           + out.refundYears + ' 個年度是<b>退稅</b>——在這個所得水準，配息的稅務成本是負的。</div>'
         : '<div class="big">' + pmYears + ' 年後，不配息的版本多留住 <span class="neg">' + money(gap) + ' 元</span>' + monthText + '。</div>'
+          // 「台灣沒有這種商品」看似與上方前導段重複，但**結論會被單獨閱讀**：
+          // 只看這一塊的人不能被導向去買一個不存在的標的。這是刻意的重複，不要精簡掉。
           + '<div class="sub">這筆錢是你的配息被課走的稅與手續費。'
           + '它<b>不是</b>叫你去買不配息的 ETF（台灣沒有這種商品），'
           + '而是告訴你：<b>配息越多，這條摩擦成本越大</b>——這會影響你要不要偏好高股息標的。</div>')
@@ -3331,13 +3365,18 @@ function projectionNotes(out, flipped){
       ? '<p class="hint">二代健保從<b>第 ' + out.nhiFirstYear + ' 年</b>才開始扣：'
         + '單筆配息一開始未達 2 萬門檻，隨再投資複利成長後跨過去。</p>'
       : '')
-    + '<p class="hint">出場成本的證交稅依證券交易稅條例第 2 條第 2 款（ETF 賣方 0.1%）。'
+    // 逐年 10 列 × 6 欄與法條說明都是佐證，不是結論。結論在上面的 verdict 與三個 KPI，
+    // 攤開在這裡只會把它們推出畫面。**警語不進來**，它們仍常駐在上方。
+    + '<details style="margin-top:12px">'
+    + '<summary style="cursor:pointer;font-size:13px;color:var(--faint)">▸ 查看年度明細與費用依據</summary>'
+    + '<p class="hint" style="margin-top:8px">出場成本的證交稅依證券交易稅條例第 2 條第 2 款（ETF 賣方 0.1%）。'
       + '<b>債券 ETF 現行免徵，但依同條例第 2-1 條第 2 項只到 2026-12-31</b>，'
       + '投影期的賣出時點在那之後，故一律計入。手續費預設 0.1425% 為券商公告標準費率，'
       + '依折扣不同可自行調整。投影期允許零股（單年度試算仍為整股）。</p>'
     + '<div class="table-scroll"><table style="min-width:520px"><thead><tr>'
     + '<th>年</th><th>配息型資產</th><th>累積型資產</th><th>當年配息</th><th>所得稅</th><th>二代健保</th>'
-    + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+    + '</details>';
 }
 
 // 常駐顯示：多檔 ETF 疊起來後，單一股票實際佔了你多少錢。
@@ -3353,6 +3392,7 @@ function renderExposure(){
       ? '<p class="hint" style="margin-top:14px">所選標的沒有人工維護的成分股資料，無法計算實質曝險（目前僅精選 ETF 具備）。</p>'
         + marginalHtml(simAllocations)
       : "";
+    setFoldSummary("simExpSummary", "");
     return;
   }
   const codes = [];
@@ -3375,8 +3415,8 @@ function renderExposure(){
     ? '成分股資料日 ' + escapeHtml(oldest) + (ageDays != null ? '（' + ageDays + ' 天前）' : '')
     : '';
   const e = exposure.exposure;
-  box.innerHTML = '<h2 style="margin-top:26px">實質曝險 <em>EXPOSURE</em></h2>'
-    + '<p class="hint">各檔前十大成分股權重 × 該檔佔總資金比例，加總後即為單一股票實際佔你多少資金。'
+  // 標題已在 fold summary；算法定義移到 title，畫面上只留「這份數字涵蓋多少、多新」。
+  box.innerHTML = '<p class="hint" title="各檔前十大成分股權重 × 該檔佔總資金比例，加總後即為單一股票實際佔你多少資金">'
       + '涵蓋 ' + fmt(exposure.coveredPct, 0) + '% 的配置'
       + (exposure.uncoveredPct > 0 ? '；其餘 ' + fmt(exposure.uncoveredPct, 0) + '% 無成分股資料未計入' : '')
       + (freshness ? '。<span' + (ageDays != null && ageDays > 45 ? ' style="color:var(--amber)"' : '') + '>' + freshness + '</span>' : '') + '。</p>'
@@ -3398,6 +3438,8 @@ function renderExposure(){
     + '</tbody></table></div>'
     + exposureSectorHtml(e)
     + marginalHtml(simAllocations);
+  setFoldSummary("simExpSummary",
+    top[0] ? "最重 " + top[0].name + " " + fmt(exposure.top1, 2) + "%" : "");
 }
 
 // 集中度。三個數字都**只在可見的那段曝險內成立**，標題與說明都要講出來——
@@ -3407,21 +3449,21 @@ function concentrationHtml(e){
   const eff = e.effectiveHoldings;
   // 有效持股數 = 1/Σw²。等權 N 檔剛好等於 N，愈集中愈小。
   const tone = eff == null ? "" : (eff < 5 ? ' class="neg"' : (eff < 10 ? ' style="color:var(--amber)"' : ''));
+  // 三個定義原本各佔一行常駐文字。定義只有第一次需要，之後每次看都是雜訊——
+  // 移到 title，數字本身留在畫面上。「（可見）」的標記留著，那是誠實邊界不是說明。
   return '<div class="sim-summary" style="margin-top:10px">'
-    + '<div class="sim-kpi"><b>有效持股數<span style="font-weight:400">（可見）</span></b><span' + tone + '>'
-      + (eff == null ? "—" : fmt(eff, 1) + " 檔") + '</span>'
-      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">'
-      + e.visibleNames + ' 個看得到的名字，1/Σw²</span></div>'
-    + '<div class="sim-kpi"><b>HHI<span style="font-weight:400">（可見）</span></b><span>'
-      + (e.hhi == null ? "—" : fmt(e.hhi * 100, 1)) + '</span>'
-      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">滿分 100＝全押一檔</span></div>'
-    + '<div class="sim-kpi"><b>槓桿曝險</b><span' + (e.leveragePct > 0 ? ' style="color:var(--amber)"' : '') + '>'
-      + fmt(e.leveragePct, 1) + '%</span>'
-      + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">正2／反1 佔配置比重</span></div>'
+    + '<div class="sim-kpi" title="1/Σw²：等權 N 檔剛好等於 N，愈集中愈小。目前分母是 '
+      + e.visibleNames + ' 個看得到的名字"><b>有效持股數<span style="font-weight:400">（可見）</span></b><span' + tone + '>'
+      + (eff == null ? "—" : fmt(eff, 1) + " 檔") + '</span></div>'
+    + '<div class="sim-kpi" title="赫芬達爾指數 Σw²，換算成滿分 100：100＝全押一檔，愈低愈分散">'
+      + '<b>HHI<span style="font-weight:400">（可見）</span></b><span>'
+      + (e.hhi == null ? "—" : fmt(e.hhi * 100, 1)) + '</span></div>'
+    + '<div class="sim-kpi" title="正2／反1 這類槓桿標的佔配置的比重">'
+      + '<b>槓桿曝險</b><span' + (e.leveragePct > 0 ? ' style="color:var(--amber)"' : '') + '>'
+      + fmt(e.leveragePct, 1) + '%</span></div>'
     + '</div>'
-    + '<p class="hint">有效持股數與 HHI 以<b>看得到的 ' + e.visibleNames + ' 檔前十大成分股</b>為分母計算，'
-    + '不是整個組合的真實持股數（一檔 ETF 常持有上百檔，公開資料只到前十大）。'
-    + '拿它跟別的組合比是有意義的，拿它當「我真的只持有這幾檔」則不是。</p>';
+    + '<p class="hint">分母是<b>看得到的 ' + e.visibleNames + ' 檔前十大成分股</b>，'
+    + '不是真實持股數——拿來跟別的組合比有意義，當成「我只持有這幾檔」則不是。</p>';
 }
 
 // 產業曝險：與上面的個股曝險同一份資料換個維度，不重新掃持股。
@@ -3436,10 +3478,9 @@ function exposureSectorHtml(e){
         + '<td class="num"><span class="stale">' + fmt(e.unclassifiedWeight, 1) + '%</span></td></tr>'
       : "");
   const top = e.sectors[0];
-  return '<h3 style="font-size:14px;margin-top:18px">產業曝險</h3>'
-    + '<p class="hint">同一份可見曝險換個維度加總。'
-    + (top ? '最大產業<b>' + escapeHtml(top.name) + ' ' + fmt(top.weight, 1) + '%</b>——'
-      + '不同股票也可能是同一個產業，這是個股重疊看不出來的那一半。' : '') + '</p>'
+  return '<h3 style="font-size:14px;margin-top:18px" title="與上面的個股曝險同一份資料，換成依產業加總">產業曝險</h3>'
+    // 「不同股票也可能是同一個產業」主視覺的重疊提示已經講過一次，這裡只留數字。
+    + (top ? '<p class="hint">最大產業<b>' + escapeHtml(top.name) + ' ' + fmt(top.weight, 1) + '%</b>。</p>' : '')
     + '<div class="table-scroll"><table style="min-width:360px"><thead><tr>'
     + '<th style="text-align:left">產業</th><th>佔總資金</th></tr></thead><tbody>'
     + rows + '</tbody></table></div>';
@@ -3456,14 +3497,18 @@ function marginalHtml(allocations){
     if (v == null) return '<td class="num">—</td>';
     return '<td class="num ' + toneClass(v) + '">' + signed(v, digits) + (suffix || "") + '</td>';
   };
-  return '<h3 style="font-size:14px;margin-top:18px">移除這一檔會怎樣</h3>'
-    + '<p class="hint">拿掉該檔、其餘依原比例重新正規化後，整體指標的變化。'
-    + '正值＝這檔把該指標往上帶。殖利率、報酬、Calmar、回撤<b>不依賴持股資料，是精確的</b>；'
-    + '最大單一持股與有效持股數仍只看得到前十大。回撤用加權平均，是<b>樂觀下界</b>——'
-    + '實際上各檔不會同時見底。</p>'
+  // 逐欄的性質（哪些精確、哪些只看得到前十大、回撤是樂觀下界）掛回各自的表頭，
+  // 常駐段落只留讀表真正需要的那一句。
+  return '<h3 style="font-size:14px;margin-top:18px" title="拿掉該檔、其餘依原比例重新正規化後，整體指標的變化">移除這一檔會怎樣</h3>'
+    + '<p class="hint">正值＝這檔把該指標往上帶。</p>'
     + '<div class="table-scroll"><table style="min-width:600px"><thead><tr>'
-    + '<th style="text-align:left">標的</th><th>配置%</th><th>殖利率</th><th>' + label + '</th>'
-    + '<th>加權回撤</th><th>Calmar</th><th>最大單一持股</th><th>有效持股數</th>'
+    + '<th style="text-align:left">標的</th><th>配置%</th>'
+    + '<th title="不依賴成分股資料，這個差額是精確的">殖利率</th>'
+    + '<th title="不依賴成分股資料，這個差額是精確的">' + label + '</th>'
+    + '<th title="各檔回撤的加權平均，是樂觀下界——實際上各檔不會同時見底">加權回撤</th>'
+    + '<th title="不依賴成分股資料，這個差額是精確的">Calmar</th>'
+    + '<th title="只看得到各檔前十大成分股">最大單一持股</th>'
+    + '<th title="只看得到各檔前十大成分股">有效持股數</th>'
     + '</tr></thead><tbody>'
     + rows.map(function(r){
         return '<tr><td style="text-align:left"><span class="code">' + escapeHtml(r.code) + '</span> '
