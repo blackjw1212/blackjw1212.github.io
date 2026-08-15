@@ -93,7 +93,7 @@
   .mode-card.on{border-color:var(--teal);box-shadow:inset 3px 0 0 var(--teal)}
   .mode-card b{display:block;font-size:15px}
   .mode-card span{display:block;margin-top:3px;color:var(--faint);font-size:12px;line-height:1.5}
-  .verdict{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:16px 18px;margin-top:12px}
+  .verdict{border:1px solid var(--line);border-radius:10px;background:var(--panel2);padding:16px 18px;margin-top:12px}
   .verdict .big{font-size:clamp(20px,4.5vw,30px);font-weight:900;line-height:1.25}
   .verdict .sub{margin-top:8px;color:var(--soft);font-size:13px;line-height:1.6}
   .need{border:1px solid var(--amber);border-radius:10px;padding:12px 14px;margin-top:10px;color:var(--amber);font-size:13px;line-height:1.6}
@@ -102,12 +102,12 @@
   .hero-group-label{font-size:13px;font-weight:900;color:var(--soft)}
   .hero-group-label span{margin-left:8px;font-size:12px;font-weight:400;color:var(--faint)}
   .hero-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:6px}
-  .hero-kpi{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:14px 16px}
+  .hero-kpi{border:1px solid var(--line);border-radius:10px;background:var(--panel2);padding:14px 16px}
   .hero-kpi b{display:block;color:var(--soft);font-size:12px;font-weight:700}
   .hero-kpi>span{display:block;margin-top:6px;font-size:clamp(19px,3.4vw,27px);font-weight:900;line-height:1.15;font-family:"Roboto Mono",monospace}
   .hero-kpi .sub{display:block;margin-top:6px;font-size:11px;font-weight:400;color:var(--faint);font-family:inherit;line-height:1.5}
   /* 折疊區：資訊沒有刪，只是收起來 */
-  .fold{border:1px solid var(--line);border-radius:10px;margin-top:10px;background:var(--surface)}
+  .fold{border:1px solid var(--line);border-radius:10px;margin-top:10px;background:var(--panel)}
   .fold>summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:14px;list-style:none}
   .fold>summary::-webkit-details-marker{display:none}
   .fold>summary::before{content:"▸ ";color:var(--faint)}
@@ -157,6 +157,9 @@
   .sim-kpi{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.025);padding:9px 11px}
   .sim-kpi b{display:block;font-size:11px;color:var(--faint);font-weight:500}
   .sim-kpi span{font-family:"Roboto Mono",monospace;font-size:16px;font-weight:600}
+  /* 稅務欄位改用自適應網格，取代原本的兩列 flex-wrap，桌面整齊、手機自動收成單欄 */
+  .sim-taxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px}
+  .sim-taxgrid .fld{margin:0}
   /* 手機拆三列：代碼+移除 / 名稱 / 收盤·股數·比例·發放月，避免 7 欄擠爆 */
   @media (max-width:760px){
     .sim-row{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:6px}
@@ -388,7 +391,7 @@
         <span class="fld" style="font-weight:700">稅務設定</span>
         <span class="hint" style="margin:0">填了才算得出所得稅；不填只估二代健保</span>
       </div>
-      <div class="toolrow">
+      <div class="sim-taxgrid">
         <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
         <span class="fld">申報方式
           <select id="simFiling" aria-label="申報方式">
@@ -398,11 +401,9 @@
           </select>
         </span>
         <span class="fld">扶養親屬 <input id="simDependents" type="number" min="0" max="10" step="1" inputmode="numeric" style="width:56px" aria-label="扶養親屬人數" value="0" /> 人</span>
-      </div>
-      <div class="toolrow">
         <span class="fld">綜合所得淨額 <input id="simNetIncome" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="綜合所得淨額（元）" placeholder="填年薪會自動換算" /> 元</span>
-        <span class="hint" style="margin:0">知道確切數字就直接填，它在你去年綜所稅申報書上。</span>
       </div>
+      <div class="toolrow"><span class="hint" style="margin:0">知道確切數字就直接填，它在你去年綜所稅申報書上。</span></div>
       <div class="toolrow"><span class="hint" style="margin:0" id="simNetIncomeHint"></span></div>
     </div>
 
@@ -427,7 +428,8 @@
 
   </section>
 
-  <details class="fold" style="margin-top:18px">
+  <h2 style="margin-top:24px">進階分析與說明 <em>MORE</em></h2>
+  <details class="fold">
     <summary id="pmHeading">配息分析：領股息會被課多少稅？<span>稅與手續費十年吃掉多少</span></summary>
     <div class="fold-body">
     <p class="hint">此為拿同一檔標的「有領股息」與「不領股息」比較，讓你一眼看出被扣了多少稅與手續費。
