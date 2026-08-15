@@ -35,6 +35,30 @@ function assertNoMatch(rel, text, pattern, label = String(pattern)) {
   if (pattern.test(text)) fail(`${rel} still contains forbidden content: ${label}`);
 }
 
+// 每一頁的 CSS 自訂屬性都必須在同一頁定義過（各頁的 <style> 是自足的，沒有共用樣式表）。
+//
+// 實測踩過：market/index.html 用了 var(--panel-2) 與 var(--surface)，
+// 但那一頁定義的是 --panel2 與 --panel——變數名是從 index.html 抄過來的，兩頁命名不同。
+// 結果 .hero-kpi / .verdict / .fold 的背景整個變成透明，而且跨了好幾個 commit 沒被發現：
+// HTML 不會壞、CI 不會紅、瀏覽器只是靜靜忽略那條宣告，既有檢查一條都抓不到。
+//
+// 使用端要掃**整份檔案**而不只是 <style>：inline style 屬性、JS 樣板字串裡的
+// style="color:var(--amber)"、SVG 的 fill="var(--teal)" 都會用到變數。
+// 定義端同理不能只看 :root——media query 或其他選擇器裡也可以定義。
+function checkCssVariables(rel, html) {
+  const defined = new Set(html.match(/--[A-Za-z0-9_-]+(?=\s*:)/g) || []);
+  const missing = new Set();
+  for (const match of html.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)\s*([,)])/g)) {
+    // var(--x, 備援值) 缺定義仍會正常顯示，不是錯誤
+    if (match[2] === ",") continue;
+    if (!defined.has(match[1])) missing.add(match[1]);
+  }
+  // 同一個變數用十次只報一行，否則一個錯字會洗版
+  for (const name of missing) {
+    fail(`${rel} uses undefined CSS variable ${name}`);
+  }
+}
+
 function publicTargetExists(target) {
   if (!target.startsWith("/") || target.startsWith("//")) return true;
   const clean = target.split(/[?#]/)[0].replace(/^\/+/, "");
@@ -259,6 +283,7 @@ for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weat
   for (const match of html.matchAll(/url\(\s*["']?(\/[^"')?#]+(?:#[^"')]+)?)["']?\s*\)/g)) {
     checkPublicTarget(rel, match[1]);
   }
+  checkCssVariables(rel, html);
 }
 
 if (has("assets/images/site.webmanifest")) {
