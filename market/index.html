@@ -512,7 +512,10 @@
           </select>
         </span>
         <label class="fld" style="cursor:pointer"><input type="checkbox" id="pfCashflow" style="accent-color:var(--amber)" /> 需要月月有現金流</label>
-        <label class="fld" style="cursor:pointer"><input type="checkbox" id="pfActive" style="accent-color:var(--amber)" /> 納入主動型</label>
+        <!-- 這裡原本是 pfActive，與下方目標區的 gActive 是同一個設定卻各有一個勾選框，
+             而且只有「按下依我的情況計算」時 pf→g 單向同步：實測直接勾下面那個，
+             上面這個仍顯示未勾，但設定其實已生效。合併成一個，放在使用者會看到的這一列。 -->
+        <label class="fld" style="cursor:pointer" title="經理人選股，費用率較高；預設不含，且一律不列為核心"><input type="checkbox" id="gActive" style="accent-color:var(--amber)" /> 納入主動型 ETF</label>
         <label class="fld" style="cursor:pointer" title="正向槓桿（代碼 L 結尾）。反向 ETF 恆不納入。回撤閘門仍優先——00631L 近一年回撤 −31.3%，忍受度選 30% 以內仍會被排除"><input type="checkbox" id="pfLeveraged" style="accent-color:var(--amber)" /> 納入槓桿正2</label>
         <button class="btn" id="pfRun" type="button">依我的情況計算</button>
       </div>
@@ -526,20 +529,25 @@
         </details>
       </div>
     </div>
-    <div class="toolbar">
-      <div class="toolrow">
-        <div class="presets">
-          <button class="btn on" id="gNetTotal" type="button" title="以近一年稅後總報酬（價差＋配息−稅−健保）為目標；價差在台股個人免證所稅。需先在上方模擬器填入綜合所得淨額">稅後總報酬最大化（計算）</button>
-          <button class="btn" id="gYield" type="button">最高配息（計算）</button>
-          <button class="btn" id="gMonthly" type="button">補滿 12 個月（計算）</button>
-          <button class="btn" id="gLowOverlap" type="button">分散類型（計算）</button>
-          <button class="btn" id="gAfterTax" type="button" title="以扣費並扣掉估算所得稅後的年配息為目標；需先在上方模擬器填綜合所得淨額">稅後配息最大化（計算）</button>
+    <!-- 目標按鈕是第二條入口，做的事跟上面的問卷一樣。兩條都攤在明面上時，
+         新手不知道該用哪一條，而且按了下面這排會**靜默作廢**問卷的所有約束。
+         問卷是主路徑（它自己就寫著「下面的目標與約束會自動設定」），這排降為進階。
+         文件順序不變：gNetTotal 仍在 suggestResult 之前、simHero 之後。
+         「（計算）」五顆都有，等於沒講——拿掉。 -->
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--faint)">▸ 自己選目標（進階，會蓋掉上面問卷的條件）</summary>
+      <div class="toolbar" style="margin-top:8px">
+        <div class="toolrow">
+          <div class="presets">
+            <button class="btn on" id="gNetTotal" type="button" title="以近一年稅後總報酬（價差＋配息−稅−健保）為目標；價差在台股個人免證所稅。需先在上方模擬器填入綜合所得淨額">稅後總報酬最大化</button>
+            <button class="btn" id="gYield" type="button">最高配息</button>
+            <button class="btn" id="gMonthly" type="button">補滿 12 個月</button>
+            <button class="btn" id="gLowOverlap" type="button">分散類型</button>
+            <button class="btn" id="gAfterTax" type="button" title="以扣費並扣掉估算所得稅後的年配息為目標；需先在上方模擬器填綜合所得淨額">稅後配息最大化</button>
+          </div>
         </div>
       </div>
-      <div class="toolrow">
-        <label class="fld" style="cursor:pointer"><input type="checkbox" id="gActive" style="accent-color:var(--amber)" /> 納入主動型 ETF（經理人選股，費用率較高；預設不含，且一律不列為核心）</label>
-      </div>
-    </div>
+    </details>
     <div id="suggestResult"></div>
     <p class="hint" style="margin-top:12px">二代健保補充保費以「單一標的單次給付 ≥ 20,000 元 × 2.11%」全額估算；配息中非股利成分（收益平準金、資本利得、境外債息）之適用規則未查證，實際扣費可能較低。稅負、匯費與健保細部規則不在本模擬範圍。</p>
     </div>
@@ -3835,7 +3843,8 @@ function bind(){
       maxLossPct: val("pfLoss"),
       maxWeightPct: val("pfMaxW"),
       needCashflow: Boolean(($("pfCashflow") || {}).checked),
-      includeActive: Boolean(($("pfActive") || {}).checked),
+      // 主動型只剩 gActive 一個勾選框（原本 pfActive／gActive 兩個、單向同步）
+      includeActive: Boolean(($("gActive") || {}).checked),
       includeLeveraged: Boolean(($("pfLeveraged") || {}).checked),
     });
     // 問卷同時決定目標，按鈕的高亮要跟著動，否則畫面顯示的目標是假的
@@ -3844,7 +3853,8 @@ function bind(){
       const button = $(entry[0]);
       if (button) button.className = entry[1] === suggestGoal ? "btn on" : "btn";
     }
-    if ($("gActive")) $("gActive").checked = Boolean(activeProfile.includeActive);
+    // 原本這裡把 activeProfile.includeActive 寫回 gActive；合併成單一勾選框後
+    // 它就是自己指派給自己，拿掉。
     const note = $("pfNote");
     if (note) {
       note.innerHTML = '<b>已套用</b>：目標 ' + escapeHtml(suggestGoal === "monthly" ? "補滿 12 個月現金流" : "稅後總報酬最大化")
@@ -3963,16 +3973,28 @@ function bind(){
 
   /* --- 配置產生器 --- */
   const goalButtons = [["gNetTotal", "netTotal"], ["gYield", "netYield"], ["gMonthly", "monthly"], ["gLowOverlap", "diverse"], ["gAfterTax", "afterTax"]];
+  const GOAL_LABEL = {netTotal:"稅後總報酬最大化", netYield:"最高配息", monthly:"補滿 12 個月",
+    diverse:"分散類型", afterTax:"稅後配息最大化"};
   for (const pair of goalButtons) {
     const node = $(pair[0]);
     if (!node) continue;
     node.addEventListener("click", function(){
+      const hadProfile = activeProfile != null;
       suggestGoal = pair[1];
       // 直接按目標按鈕＝放棄問卷的約束。不清掉的話使用者以為換了目標，
       // 實際上仍被問卷的 goal 蓋回去，畫面與行為對不上。
       activeProfile = null;
+      // **但問卷的六個欄位仍顯示使用者剛才選的值。** 舊版把 pfNote 清成空白，
+      // 於是畫面上寫著「最多能忍受跌 10%」而那條件其實已經沒在套用——
+      // 唯一的線索是一行字消失，沒有人會注意到。改成明講作廢了什麼、怎麼要回來。
       const note = $("pfNote");
-      if (note) note.textContent = "";
+      if (note) {
+        note.innerHTML = hadProfile
+          ? '已改用「<b>' + escapeHtml(GOAL_LABEL[pair[1]] || pair[1]) + '</b>」為目標，'
+            + '<b>上面問卷的條件不再套用</b>（回撤上限、單檔上限、最少檔數）。'
+            + '要用回你的條件，再按一次「依我的情況計算」。'
+          : "";
+      }
       for (const entry of goalButtons) {
         const button = $(entry[0]);
         if (button) button.className = entry[0] === pair[0] ? "btn on" : "btn";

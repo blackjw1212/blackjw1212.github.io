@@ -2888,3 +2888,81 @@ test("the total keeps its value through repeated auto-allocation", async () => {
   assert.equal(elements.get("simTotal").value, "1500000",
     "反覆自動配置不可把總額削成 1,499,744 這種「原值減零股殘值」");
 });
+
+// ── 「幫我挑標的」：一條主路徑，衝突要講出來 ──────────────────
+// 這一區原本有兩條做同一件事的入口（問卷、5 顆目標按鈕），實測會互相破壞。
+
+// 實測：勾下方 gActive 後，上方 pfActive 仍顯示未勾，但設定其實已生效——
+// 只有「按下依我的情況計算」時 pf→g 單向同步，反向從來沒有。
+test("one setting has exactly one control", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const boxes = [...html.matchAll(/<input type="checkbox" id="(\w+)"/g)].map((m) => m[1]);
+  const active = boxes.filter((id) => /Active$/.test(id));
+  assert.deepEqual(active, ["gActive"],
+    `「納入主動型」只能有一個勾選框，實得 ${active.join("／")}——` +
+    "兩個同義控制項只單向同步，畫面會顯示與實際相反的狀態");
+  assert.ok(!html.includes('$("pfActive")'), "讀取端也要一起收斂，否則兩邊各讀各的");
+});
+
+// 問卷自己就寫著「下面的目標與約束會自動設定」，它是主路徑；
+// 目標按鈕是第二條入口且會蓋掉問卷，降為進階。
+test("the questionnaire is the visible path and the goal buttons are one level down", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const suggestAt = html.indexOf('id="suggestHeading"');
+  const resultAt = html.indexOf('id="suggestResult"');
+  const region = html.slice(suggestAt, resultAt);
+
+  assert.ok(region.indexOf('id="pfRun"') > -1, "問卷的按鈕要留在明面上");
+  assert.match(region, /▸ 自己選目標/, "目標按鈕要收在一層折疊底下");
+
+  // 目標按鈕必須落在那個折疊之後——落在前面等於根本沒收起來
+  const foldAt = region.indexOf("▸ 自己選目標");
+  for (const id of ["gNetTotal", "gYield", "gMonthly", "gLowOverlap", "gAfterTax"]) {
+    const at = region.indexOf('id="' + id + '"');
+    assert.ok(at > -1, `${id} 不可消失`);
+    assert.ok(at > foldAt, `${id} 仍在折疊之外，等於沒有降級`);
+  }
+  // 既有規則不可回歸：控制項仍要排在自己的輸出之前
+  assert.ok(html.indexOf('id="gNetTotal"') < resultAt, "gNetTotal 仍須排在 suggestResult 之前");
+
+  // 五顆按鈕都寫「（計算）」＝沒有資訊量。只看按鈕文字，不掃整段 HTML——
+  // 那會連解釋這件事的註解一起命中。
+  for (const id of ["gNetTotal", "gYield", "gMonthly", "gLowOverlap", "gAfterTax"]) {
+    const label = (region.match(new RegExp('id="' + id + '"[^>]*>([^<]+)<')) || [])[1];
+    assert.ok(label, `${id} 應該有文字`);
+    assert.doesNotMatch(label, /（計算）/, `「${label}」——每顆都會計算，這三個字不區分任何東西`);
+  }
+});
+
+// 最關鍵的一條：按目標按鈕會讓問卷的約束全部失效，但問卷六個欄位仍顯示舊值。
+// 舊版把 pfNote 清成空白——畫面於是寫著「最多能忍受跌 10%」而它根本沒在套用。
+test("discarding the questionnaire's constraints is stated, not silent", async () => {
+  const { app, elements, document } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // fake DOM 只在頁面程式呼叫過 getElementById 時才建節點；pfLoss 要到
+  // pfRun 的 handler 裡才會被讀到，所以這裡得自己把它取出來（取用即建立）
+  document.getElementById("pfLoss").value = "10";
+  elements.get("pfRun").fire("click");
+  const applied = elements.get("pfNote").innerHTML;
+  assert.match(applied, /已套用/, "先確認問卷真的套用了，否則後面測的是空狀態");
+  assert.match(applied, /回撤/, "套用時要講出它加了什麼條件");
+
+  elements.get("gMonthly").fire("click");
+  const after = elements.get("pfNote").innerHTML;
+  assert.notEqual(after.trim(), "",
+    "清成空白＝靜默作廢；問卷欄位還顯示著那些條件，使用者不會知道它們已失效");
+  assert.match(after, /不再套用/, "要明講上面的條件已經不算數");
+  assert.match(after, /補滿 12 個月/, "要講出現在改用的是哪個目標");
+  assert.match(after, /依我的情況計算/, "要講得出怎麼把自己的條件要回來");
+});
+
+test("the discard notice does not appear for someone who never used the questionnaire", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  elements.get("gYield").fire("click");
+  assert.equal(elements.get("pfNote").innerHTML.trim(), "",
+    "沒填過問卷卻說「你的條件不再套用」，是憑空捏造一個使用者沒做過的動作");
+});
