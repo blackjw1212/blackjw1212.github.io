@@ -2607,6 +2607,51 @@ test("the add button heals its own state if it is clicked before the first rende
   assert.match(add.textContent, new RegExp("上限 " + cap + " 檔"));
 });
 
+// 新列附加在清單底部，而「＋ 加入標的」在清單上方：實測 375px 畫面、已有 4 檔以上時
+// 新列落在畫面外（5 檔時距畫面頂 1,138px）。把游標放進新列的代碼欄可同時解決
+// 「看不到」與「還要自己去點」兩件事。
+//
+// 這是**結構性**測試：fake DOM 不解析 innerHTML、也沒有 activeElement，
+// 焦點行為只能在瀏覽器量（已實測焦點在 50→1200ms 全程留在新列）。
+// 這裡守的是兩條會被重構默默弄壞的順序不變式。
+test("adding a row puts the cursor in it, and the cursor survives the re-render", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+
+  // ① 新增後才聚焦。順序反了就會聚焦到舊節點——renderSimRows 會整批換掉節點。
+  // 終點不能用第一個「});」——handler 裡的 push({...}); 就長那樣，會提早截斷。
+  // 用 handler 的最後一個語句 autoAllocate(); 當界線。
+  const handler = html.slice(html.indexOf('const simAdd = $("simAdd");'));
+  const body = handler.slice(0, handler.indexOf("autoAllocate();") + 15);
+  const renderAt = body.indexOf("renderSimRows()");
+  const focusAt = body.indexOf("focusNewRow()");
+  assert.ok(focusAt > -1, "新增一列之後必須把游標放進去，否則使用者要自己捲下去找");
+  assert.ok(renderAt > -1 && focusAt > renderAt,
+    "focusNewRow() 必須排在 renderSimRows() 之後——之前的話會聚焦到即將被換掉的節點");
+
+  // ② renderSimRows 必須「先記住、後還原」。實測 autoAllocate 會在 250ms 後
+  //    再重繪一次並把焦點打回 body；少了還原，游標只活得了兩百毫秒。
+  const render = html.slice(html.indexOf("function renderSimRows(){"));
+  const fn = render.slice(0, render.indexOf("\n}"));
+  const capture = fn.indexOf("capturedRowFocus()");
+  const write = fn.indexOf("box.innerHTML =");
+  const restore = fn.indexOf("restoreRowFocus(");
+  assert.ok(capture > -1 && write > -1 && restore > -1,
+    "renderSimRows 要記住並還原游標所在的欄位");
+  assert.ok(capture < write, "要在 innerHTML 被覆寫**之前**記住，之後就讀不到了");
+  assert.ok(restore > write, "還原必須發生在重繪之後");
+
+  // 還原不可把畫面拉走；捲動只該在真的新增一列時、由 scrollIntoView 明確做。
+  // 逐一檢查**每一處**聚焦：只斷言「存在一處帶 preventScroll」的話，
+  // 另一處被改掉也照樣通過（實測 mutation 就是這樣溜過去的）。
+  const focusCalls = [...html.matchAll(/input\.focus\(([^)]*)\)/g)].map((m) => m[1]);
+  assert.ok(focusCalls.length >= 2,
+    `新增與還原各要有一次聚焦，實得 ${focusCalls.length} 處`);
+  for (const args of focusCalls) {
+    assert.match(args, /preventScroll:\s*true/,
+      `input.focus(${args}) 少了 preventScroll——背景重繪會把使用者的畫面拽回清單`);
+  }
+});
+
 // 反過來也要守：輸出就在旁邊的控制項不可被「一律搬到最上面」而離開它的結果。
 test("controls whose output is adjacent stay next to that output", async () => {
   const { html } = await loadMarket(dualFeedMock());

@@ -2509,9 +2509,32 @@ function simRowHtml(index, allocation){
     + '</div>';
 }
 
+// 重繪前記住游標停在哪一列的代碼欄。box.innerHTML 會把節點整個換掉，
+// 而新增一列之後 autoAllocate 會在 200ms 後再重繪一次（實測 250ms 時焦點掉回 body）——
+// 沒有這段，「把游標放進新列」只活得了兩百毫秒。只認代碼欄：
+// 那是新增後唯一要接著打字的欄位，範圍放大只會多出還原錯欄位的機會。
+function capturedRowFocus(){
+  const active = DOC && DOC.activeElement;
+  if (!active || !active.dataset || active.dataset.simCode == null) return null;
+  return {index:active.dataset.simCode, start:active.selectionStart, end:active.selectionEnd};
+}
+
+function restoreRowFocus(keep){
+  const box = $("simRows");
+  if (!keep || !box || !box.querySelector) return;
+  const input = box.querySelector('[data-sim-code="' + keep.index + '"]');
+  if (!input || !input.focus) return;
+  // preventScroll：還原焦點不該把畫面拉走，捲動只在真的新增一列時才做
+  input.focus({preventScroll:true});
+  if (keep.start != null && input.setSelectionRange) {
+    try { input.setSelectionRange(keep.start, keep.end); } catch (error) {}
+  }
+}
+
 function renderSimRows(){
   const box = $("simRows");
   if (!box) return;
+  const keep = capturedRowFocus();
   box.innerHTML = simAllocations.map(function(allocation, index){return simRowHtml(index, allocation);}).join("");
   if (box.querySelectorAll) {
     for (const input of box.querySelectorAll("input")) {
@@ -2567,6 +2590,21 @@ function renderSimRows(){
   updateSimNames();
   updateSimPctSum();
   syncAddLimit();
+  restoreRowFocus(keep);
+}
+
+// 新列附加在清單**底部**，而「＋ 加入標的」在清單上方。實測 375px 畫面、
+// 已有 4 檔以上時，新列會落在畫面外（5 檔時距畫面頂 1,138px，畫面高 812），
+// 使用者按了看不到任何事發生。把游標放進新列的代碼欄——那既是下一步要做的事，
+// 也順帶把它捲進畫面；焦點本身由 renderSimRows 的還原機制撐過後續重繪。
+function focusNewRow(){
+  const box = $("simRows");
+  if (!box || !box.querySelectorAll) return;
+  const inputs = box.querySelectorAll("[data-sim-code]");
+  const input = inputs[inputs.length - 1];
+  if (!input) return;
+  if (input.scrollIntoView) input.scrollIntoView({block:"center"});
+  if (input.focus) input.focus({preventScroll:true});
 }
 
 // 到達上限時的回饋掛在**按鈕自己身上**。放 simOptimizeNote 不行——
@@ -3927,6 +3965,7 @@ function bind(){
     if (simAllocations.length >= AUTO_ALLOCATE_MAX_FUNDS) { syncAddLimit(); return; }
     simAllocations.push({code:"", pct:null, shares:null, month:null});
     renderSimRows();
+    focusNewRow();
     runSim();
     autoAllocate();
   });
