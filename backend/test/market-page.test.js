@@ -2532,6 +2532,81 @@ test("controls that change the headline sit above it in the document", async () 
   }
 });
 
+// ── 手順：控制項要跟它的輸出擺在一起 ────────────────────────────
+// 上面那條規則只顧到「控制項 → 主視覺」，漏掉 simAdd／simOptimize 的**主要輸出
+// 其實是 #simRows**。實測（375px、5 檔）它們離自己的清單 1,538px／1,261px，
+// 按「＋ 加入標的」時新列落在畫面外 2,028px 處、頁面不捲動——按了看不到任何事發生。
+test("the add and rebalance buttons sit with the list they act on", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const at = (id) => html.indexOf('id="' + id + '"');
+  const rows = at("simRows");
+  assert.ok(rows > 0);
+
+  // 清單夾在兩顆按鈕之間：加入在上、重算在下
+  assert.ok(at("simAdd") < rows, "「＋ 加入標的」要排在它產生的清單之前");
+  assert.ok(at("simOptimize") > rows, "「重算比例」改寫的是清單裡的比例，要緊跟在清單之後");
+
+  // 中間不得再夾進別的區塊——夾了就等於又被推開
+  const between = html.slice(at("simAdd"), at("simOptimize"));
+  for (const intruder of ["s100", "s80", "s60", "simSalary", "simFiling",
+                          "simDependents", "simNetIncome", "simHero"]) {
+    assert.ok(!between.includes('id="' + intruder + '"'),
+      `${intruder} 夾在「加入標的」與「重算比例」之間，會把它們跟清單推開`);
+  }
+  // 清單本身仍要在主視覺之前，否則第一條規則會被破壞
+  assert.ok(rows < at("simHero"), "清單要在主視覺之前，控制項才不會被迫離開它");
+});
+
+// 舊版滿 10 檔時 handler 直接 return：列數不變、按鈕外觀不變、一句話都沒有。
+test("hitting the holdings cap says so instead of doing nothing", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const cap = app.AUTO_ALLOCATE_MAX_FUNDS;
+  const add = elements.get("simAdd");
+
+  app.setSimAllocations(Array.from({ length: cap - 1 },
+    () => ({ code: "0050", pct: null, shares: null, month: null })));
+  assert.equal(add.disabled, false, "還沒到上限就不該擋");
+  assert.match(add.textContent, /加入標的/, "沒到上限時按鈕維持原本的邀請語");
+
+  app.setSimAllocations(Array.from({ length: cap },
+    () => ({ code: "0050", pct: null, shares: null, month: null })));
+  assert.equal(add.disabled, true, "到上限了還讓人按，按了又沒反應");
+  assert.match(add.textContent, new RegExp("上限 " + cap + " 檔"),
+    `按鈕要自己講出上限是 ${cap} 檔——訊息不能放 simOptimizeNote，autoAllocate 每次都會覆寫它`);
+  assert.match(add.title, /移除一檔/, "要講得出怎麼解除，否則使用者卡在這裡");
+
+  // 移除後要能恢復，否則使用者永遠加不回來
+  app.setSimAllocations([{ code: "0050", pct: null, shares: null, month: null }]);
+  assert.equal(add.disabled, false, "降到上限以下必須解除 disabled");
+  assert.match(add.textContent, /加入標的/, "文字也要換回來");
+});
+
+// init() 的順序是 loadSimState() → bind() → await load() → showTab() 才 renderSimRows()。
+// 也就是說**按鈕在 feed 載入完成前就已經可以按，但還沒同步過上限狀態**。
+// 回訪使用者存了滿額持股又在這個空窗按下去，就會回到「按了沒反應」。
+// handler 自己也要能修好狀態，不能只依賴 renderSimRows。
+test("the add button heals its own state if it is clicked before the first render", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const cap = app.AUTO_ALLOCATE_MAX_FUNDS;
+  const add = elements.get("simAdd");
+
+  app.setSimAllocations(Array.from({ length: cap },
+    () => ({ code: "0050", pct: null, shares: null, month: null })));
+  // 手動把按鈕打回「尚未同步」的樣子，重現那個空窗
+  add.disabled = false;
+  add.textContent = "＋ 加入標的";
+
+  add.fire("click");
+  assert.equal(app.getSimAllocations().length, cap, "上限本身不可被繞過");
+  assert.equal(add.disabled, true,
+    "handler 在擋掉這次點擊的同時要把按鈕狀態修好，否則使用者會一直按一顆沒反應的按鈕");
+  assert.match(add.textContent, new RegExp("上限 " + cap + " 檔"));
+});
+
 // 反過來也要守：輸出就在旁邊的控制項不可被「一律搬到最上面」而離開它的結果。
 test("controls whose output is adjacent stay next to that output", async () => {
   const { html } = await loadMarket(dualFeedMock());

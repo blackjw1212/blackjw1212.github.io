@@ -114,9 +114,16 @@
   .fold[open]>summary::before{content:"▾ "}
   .fold>summary span{margin-left:8px;color:var(--faint);font-size:12px;font-weight:400}
   .fold-body{padding:0 14px 14px}
+  /* 空的提示節點仍會撐開一行（實測各 11px）。JS 常態性地把它們寫成空字串，
+     所以不佔高要由 CSS 負責，不要去改寫入端。 */
+  #simOptimizeNote:empty, #simNetIncomeHint:empty{display:none}
+  .toolrow:has(> .hint:only-child:empty){display:none}
   @media (max-width:640px){
     .mode-cards{grid-template-columns:1fr}
-    .hero-row{grid-template-columns:1fr}
+    /* .hero-row 這裡原本被覆寫成 1fr，六張 KPI 卡在手機上排成單欄、
+       每張 347px 寬卻只放一個短數字，主視覺高達 836px——那正是把
+       「＋ 加入標的」與它產生的清單隔開的那道牆。實測改回兩欄後降到 557px，
+       卡片 169×116px，無文字溢出也無橫向溢出。 */
   }
   /* 回測警語刻意做成擋不掉的一整條，不是塞在說明文字裡的一句話：
      以總報酬為目標等於「買去年漲最多的」，看起來比配息目標更權威，也更容易害人。 */
@@ -356,11 +363,16 @@
     <h2 id="simHeading">你這樣買，一年能領多少？ <em>SIMULATOR</em></h2>
     <p class="hint">填金額、挑幾檔 ETF 就會算。這是<b>試算不是預測</b>，用的是各檔過去實際發過的配息；
       <b>不是投資或稅務建議</b>，算法與稅制假設都在最下面的「這些數字是怎麼算的」。</p>
-    <!-- 會改變下方主視覺數字的控制項一律放在**主視覺上方**。
-         上一版把壓力測試與年薪收進折疊，實測按鈕落在主視覺下方 469~885px，
-         按下去受影響的數字已經捲出畫面——等於看不到自己按了什麼。
-         輸出就在自己旁邊的控制項（模式切換、年期、自動配置目標）留在原地，
-         搬上來反而會離開它們的結果。 -->
+    <!-- 版面依**任務**分組，不依控制項類型：
+         【你買什麼】投入總額 → ＋加入標的 → 你的標的清單 → 重算比例
+         【假設】配息打折 → 稅務設定
+         【結果】主視覺
+         關鍵在於 simAdd 與 simOptimize 的**主要輸出是 #simRows，不是主視覺**。
+         舊版把它們一律推到最上面，實測（375px、5 檔持股）它們離自己的清單
+         1,538px／1,261px；按「＋ 加入標的」時新列落在畫面外 2,028px 處、
+         頁面不捲動，使用者按了看不到任何事發生。
+         「會改變主視覺的控制項必須排在主視覺之前」這條規則**沒有放寬**——
+         下面十個控制項全部仍在 #simHero 之前，只是不再全擠在最頂端。 -->
     <div class="toolbar">
       <div class="toolrow">
         <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
@@ -370,7 +382,18 @@
       <div class="toolrow">
         <span class="hint" style="margin:0" id="simModeNote">比例留白就自動幫你算最佳配置；你一填比例或股數，就以你填的為準。</span>
       </div>
-      <div class="toolrow">
+
+      <h3 style="font-size:14px;margin-top:14px">你的標的</h3>
+      <div class="sim-rows" id="simRows"></div>
+
+      <!-- 「重算比例」改寫的是上面每一列的比例，所以緊貼清單下方，不放回頂端 -->
+      <div class="toolrow" style="margin-top:12px">
+        <button class="btn" id="simOptimize" type="button" title="只重新計算上方這幾檔各佔多少 %，不會替你換標的">重算比例</button>
+        <span class="hint" style="margin:0">只動比例，<b>不會換掉你的標的</b>；手填過的也會一併交還自動</span>
+      </div>
+      <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
+
+      <div class="toolrow" style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px">
         <span class="fld" style="font-weight:700">配息打折試算</span>
         <div class="presets">
           <button class="btn on" id="s100" type="button">歷史基準</button>
@@ -379,13 +402,6 @@
         </div>
         <span class="hint" style="margin:0">看配息縮水時，現金流剩多少</span>
       </div>
-      <!-- 配置類的按鈕與它的警語留在這一組。上一版把它們收進「稅務與進階設定」，
-           但它們跟稅完全無關——那是搬動控制項時把舊折疊的內容整批移過去造成的。 -->
-      <div class="toolrow">
-        <button class="btn" id="simOptimize" type="button" title="只重新計算上方這幾檔各佔多少 %，不會替你換標的">重算比例</button>
-        <span class="hint" style="margin:0">只動比例，<b>不會換掉你的標的</b>；手填過的也會一併交還自動</span>
-      </div>
-      <div class="toolrow"><span class="hint" style="margin:0" id="simOptimizeNote"></span></div>
       <div class="toolrow" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px">
         <span class="fld" style="font-weight:700">稅務設定</span>
         <span class="hint" style="margin:0">填了才算得出所得稅；不填只估二代健保</span>
@@ -407,9 +423,6 @@
     </div>
 
     <div id="simHero"></div>
-
-    <h3 style="font-size:14px;margin-top:20px">你的標的</h3>
-    <div class="sim-rows" id="simRows"></div>
 
     <details class="fold">
       <summary>詳細績效<span id="simPerfSummary">每月現金流、逐檔明細</span></summary>
@@ -2553,6 +2566,21 @@ function renderSimRows(){
   }
   updateSimNames();
   updateSimPctSum();
+  syncAddLimit();
+}
+
+// 到達上限時的回饋掛在**按鈕自己身上**。放 simOptimizeNote 不行——
+// autoAllocate() 每次都會覆寫那一格，訊息活不過下一次輸入。
+// 舊版滿 10 檔時直接 return：列數不變、按鈕外觀不變、一句話都沒有。
+function syncAddLimit(){
+  const button = $("simAdd");
+  if (!button) return;
+  const full = simAllocations.length >= AUTO_ALLOCATE_MAX_FUNDS;
+  button.disabled = full;
+  button.textContent = full ? "已達上限 " + AUTO_ALLOCATE_MAX_FUNDS + " 檔" : "＋ 加入標的";
+  button.title = full
+    ? "最多 " + AUTO_ALLOCATE_MAX_FUNDS + " 檔——再多會讓自動配置的組合數爆掉。移除一檔才能再加。"
+    : "";
 }
 
 // 比例% → 股數。只寫股數欄，不再由新股數回推比例（避免 floor 造成漂移）。
@@ -2652,7 +2680,8 @@ function loadSimState(){
     if ($("simSalary") && saved.salary) $("simSalary").value = saved.salary;
     if ($("simFiling") && saved.filing) $("simFiling").value = saved.filing;
     if ($("simDependents") && saved.dependents) $("simDependents").value = saved.dependents;
-    if (Array.isArray(saved.rows)) simAllocations = saved.rows.slice(0, 10);
+    // 與「＋ 加入標的」用同一個上限常數。這裡原本寫死 10，改了常數就會靜默不一致。
+    if (Array.isArray(saved.rows)) simAllocations = saved.rows.slice(0, AUTO_ALLOCATE_MAX_FUNDS);
     if (saved.stress === 0.8 || saved.stress === 0.6 || saved.stress === 1) simStress = saved.stress;
     // 遷移：舊存檔沒有 pctEntered。以 falsy 判定的話，回訪使用者手調過的
     // 30/20/50 會在載入當下被優化器靜默覆寫。舊版沒有自動配置，
@@ -3893,7 +3922,9 @@ function bind(){
   /* --- 模擬器 --- */
   const simAdd = $("simAdd");
   if (simAdd) simAdd.addEventListener("click", function(){
-    if (simAllocations.length >= 10) return;
+    // 舊版在這裡直接 return：滿 10 檔後按下去列數不變、按鈕外觀不變、
+    // 一句話都沒有，使用者只會以為頁面壞了。上限本身保留，改成講出來。
+    if (simAllocations.length >= AUTO_ALLOCATE_MAX_FUNDS) { syncAddLimit(); return; }
     simAllocations.push({code:"", pct:null, shares:null, month:null});
     renderSimRows();
     runSim();
