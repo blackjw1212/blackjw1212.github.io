@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-14T22:39:53.534Z",
+  "updatedAt": "2026-08-17T00:37:47.469Z",
   "eodUpdatedAt": "2026-08-14T22:39:53.534Z",
   "eodTradingDate": "2026-08-14",
   "holdings": [
@@ -196,5 +196,26 @@
     "updatedAt": "2026-08-13T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TWSE OpenAPI STOCK_DAY_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+    },
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    },
+    {
+      "source": "TWSE MIS same-day quotes",
+      "message": "https://mis.twse.com.tw/stock/api/getStockInfo.jsp returned HTTP 502"
+    },
+    {
+      "source": "TWSE OpenAPI BWIBBU_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 13 eod row(s), 12 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
