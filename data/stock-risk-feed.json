@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-08-18T03:13:34.869Z",
-  "eodUpdatedAt": "2026-08-18T02:08:41.742Z",
-  "eodTradingDate": "2026-08-17",
+  "updatedAt": "2026-08-18T04:03:40.615Z",
+  "eodUpdatedAt": "2026-08-18T04:03:40.615Z",
+  "eodTradingDate": "2026-08-18",
   "holdings": [
     "2330",
     "2317",
@@ -28,9 +28,9 @@
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1885,
-      "change": 0,
-      "date": "2026-08-17"
+      "close": 1825,
+      "change": -60,
+      "date": "2026-08-18"
     },
     {
       "code": "2317",
@@ -196,14 +196,5 @@
     "updatedAt": "2026-08-14T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
