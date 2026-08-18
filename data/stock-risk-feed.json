@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-18T05:29:19.605Z",
-  "eodUpdatedAt": "2026-08-18T04:03:40.615Z",
+  "updatedAt": "2026-08-18T05:55:09.730Z",
+  "eodUpdatedAt": "2026-08-18T05:55:09.730Z",
   "eodTradingDate": "2026-08-18",
   "holdings": [
     "2330",
@@ -21,93 +21,93 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 720,
-      "change": 10,
-      "date": "2026-08-17"
+      "close": 714,
+      "change": -6,
+      "date": "2026-08-18"
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1885,
-      "change": 0,
-      "date": "2026-08-17"
+      "close": 1820,
+      "change": -65,
+      "date": "2026-08-18"
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 255,
-      "change": -4.5,
-      "date": "2026-08-17"
+      "close": 249,
+      "change": -6,
+      "date": "2026-08-18"
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2400,
-      "change": 5,
-      "date": "2026-08-17"
+      "close": 2380,
+      "change": -20,
+      "date": "2026-08-18"
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 66.7,
-      "change": -3.2,
-      "date": "2026-08-17"
+      "close": 64.9,
+      "change": -1.8,
+      "date": "2026-08-18"
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 358,
-      "change": -39.5,
-      "date": "2026-08-17"
+      "close": 348,
+      "change": -10,
+      "date": "2026-08-18"
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 333.5,
-      "change": 6,
-      "date": "2026-08-17"
+      "close": 327,
+      "change": -6.5,
+      "date": "2026-08-18"
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 3150,
-      "change": -85,
-      "date": "2026-08-17"
+      "close": 3035,
+      "change": -115,
+      "date": "2026-08-18"
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 187,
-      "change": -6.5,
-      "date": "2026-08-17"
+      "close": 181,
+      "change": -6,
+      "date": "2026-08-18"
     },
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 1005,
-      "change": -5,
-      "date": "2026-08-17"
+      "close": 978,
+      "change": -27,
+      "date": "2026-08-18"
     },
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 4060,
-      "change": -150,
-      "date": "2026-08-17"
+      "close": 3715,
+      "change": -345,
+      "date": "2026-08-18"
     },
     {
       "code": "6239",
       "name": "力成",
-      "close": 268,
-      "change": -10,
+      "close": 265.5,
+      "change": -12.5,
       "date": "2026-08-18"
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 6620,
-      "change": 185,
-      "date": "2026-08-17"
+      "close": 6400,
+      "change": -220,
+      "date": "2026-08-18"
     }
   ],
   "valuation": {
@@ -196,22 +196,5 @@
     "updatedAt": "2026-08-14T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "TWSE MIS same-day quotes",
-      "message": "https://mis.twse.com.tw/stock/api/getStockInfo.jsp returned HTTP 502"
-    },
-    {
-      "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 12 eod row(s), 12 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
