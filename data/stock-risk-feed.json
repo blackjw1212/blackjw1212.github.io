@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-08-19T03:22:19.913Z",
+  "updatedAt": "2026-08-19T04:04:52.188Z",
   "eodUpdatedAt": "2026-08-19T02:11:22.757Z",
-  "eodTradingDate": "2026-08-18",
+  "eodTradingDate": "2026-08-19",
   "holdings": [
     "2330",
     "2317",
@@ -77,9 +77,9 @@
     {
       "code": "3231",
       "name": "緯創",
-      "close": 181,
-      "change": -6,
-      "date": "2026-08-18"
+      "close": 180.5,
+      "change": -0.5,
+      "date": "2026-08-19"
     },
     {
       "code": "3324",
