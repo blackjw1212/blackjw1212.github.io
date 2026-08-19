@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-19T05:30:46.101Z",
-  "eodUpdatedAt": "2026-08-19T05:30:46.101Z",
+  "updatedAt": "2026-08-19T06:24:38.524Z",
+  "eodUpdatedAt": "2026-08-19T06:24:38.524Z",
   "eodTradingDate": "2026-08-19",
   "holdings": [
     "2330",
@@ -42,23 +42,23 @@
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2345,
-      "change": -35,
+      "close": 2350,
+      "change": -30,
       "date": "2026-08-19"
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 64.9,
-      "change": -1.8,
-      "date": "2026-08-18"
+      "close": 65.2,
+      "change": 0.3,
+      "date": "2026-08-19"
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 348,
-      "change": -10,
-      "date": "2026-08-18"
+      "close": 348.5,
+      "change": 0.5,
+      "date": "2026-08-19"
     },
     {
       "code": "2382",
@@ -91,9 +91,9 @@
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3715,
-      "change": -345,
-      "date": "2026-08-18"
+      "close": 3630,
+      "change": -85,
+      "date": "2026-08-19"
     },
     {
       "code": "6239",
@@ -105,8 +105,8 @@
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 6355,
-      "change": -45,
+      "close": 6375,
+      "change": -25,
       "date": "2026-08-19"
     }
   ],
@@ -196,10 +196,5 @@
     "updatedAt": "2026-08-17T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    }
-  ]
+  "errors": []
 }
