@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-20T07:14:25.389Z",
-  "eodUpdatedAt": "2026-08-20T07:14:25.389Z",
+  "updatedAt": "2026-08-20T08:02:23.907Z",
+  "eodUpdatedAt": "2026-08-20T08:02:23.907Z",
   "eodTradingDate": "2026-08-20",
   "holdings": [
     "2330",
@@ -196,10 +196,5 @@
     "updatedAt": "2026-08-18T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    }
-  ]
+  "errors": []
 }
