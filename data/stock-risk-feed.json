@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-08-24T00:39:03.461Z",
-  "eodUpdatedAt": "2026-08-24T00:39:03.461Z",
-  "eodTradingDate": "2026-08-21",
+  "updatedAt": "2026-08-24T02:16:00.667Z",
+  "eodUpdatedAt": "2026-08-24T02:16:00.667Z",
+  "eodTradingDate": "2026-08-24",
   "holdings": [
     "2330",
     "2317",
@@ -70,9 +70,9 @@
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2865,
-      "change": -120,
-      "date": "2026-08-21"
+      "close": 2915,
+      "change": 50,
+      "date": "2026-08-24"
     },
     {
       "code": "3231",
