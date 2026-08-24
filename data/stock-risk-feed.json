@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-24T10:07:56.072Z",
-  "eodUpdatedAt": "2026-08-24T10:07:56.072Z",
+  "updatedAt": "2026-08-24T10:59:35.465Z",
+  "eodUpdatedAt": "2026-08-24T10:59:35.465Z",
   "eodTradingDate": "2026-08-24",
   "holdings": [
     "2330",
@@ -167,9 +167,9 @@
     },
     "3324": {
       "code": "3324",
-      "pe": 22.35,
-      "dividendYield": 1.23,
-      "pbRatio": 6.8
+      "pe": 23.41,
+      "dividendYield": 1.17,
+      "pbRatio": 7.12
     },
     "3661": {
       "code": "3661",
@@ -196,18 +196,5 @@
     "updatedAt": "2026-08-20T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 403"
-    },
-    {
-      "source": "TPEX OpenAPI peratio analysis",
-      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 403"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 0 eod row(s), 1 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
