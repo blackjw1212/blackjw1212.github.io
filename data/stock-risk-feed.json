@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-24T09:10:16.875Z",
-  "eodUpdatedAt": "2026-08-24T09:10:16.875Z",
+  "updatedAt": "2026-08-24T10:07:56.072Z",
+  "eodUpdatedAt": "2026-08-24T10:07:56.072Z",
   "eodTradingDate": "2026-08-24",
   "holdings": [
     "2330",
@@ -199,7 +199,15 @@
   "errors": [
     {
       "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 403"
+    },
+    {
+      "source": "TPEX OpenAPI peratio analysis",
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 403"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 0 eod row(s), 1 valuation entr(ies) from previous feed due to upstream gaps"
     }
   ]
 }
