@@ -1105,7 +1105,7 @@ body {
     <div class="area-control">
       <label class="area-label" for="coastSelect">地區</label>
       <select id="coastSelect" aria-label="選擇台灣海線地區" disabled>
-        <option value="東石鄉沿海">東石鄉沿海</option>
+        <option value="">定位中…</option>
       </select>
     </div>
   </div>
@@ -1119,7 +1119,9 @@ const WEATHER_PROXY_BASE = String(window.WEATHER_PROXY_BASE || "https://bjkw-wea
 const TZ      = "Asia/Taipei";
 const DEFAULT_COAST_LOCATION = "東石鄉沿海";
 const COAST_DATA_ID = "F-D0047-095";
-const SELECTED_COAST_KEY = "bjkw_selected_coast_location";
+const AUTO_COAST_KEY = "bjkw_auto_coast_v1"; // 上次定位成功推得的海域，只在定位失敗時回填
+// 本身沒有沿海預報點、且被同名縣包圍的市；南投縣無天然對應，走全台最近
+const INLAND_COUNTY_COAST = { "嘉義市": "嘉義縣", "臺北市": "新北市" };
 const GPS_FALLBACK = { endpoint: "F-D0047-057", county: "嘉義市", location: "東區" };
 const TOWN_FORECAST_ENDPOINTS = [
   { county: "宜蘭縣", endpoint: "F-D0047-001", geocodePrefix: "10002" },
@@ -1240,19 +1242,20 @@ function cacheKey(...parts) {
   return parts.map(p => encodeURIComponent(String(p ?? ""))).join("_");
 }
 
-function getStoredCoastName() {
+/* 找不到就回 null——不可回預設值，否則定位成功時也會被舊紀錄蓋掉 */
+function getLastAutoCoastName() {
   try {
-    return localStorage.getItem(SELECTED_COAST_KEY) || DEFAULT_COAST_LOCATION;
+    return localStorage.getItem(AUTO_COAST_KEY) || null;
   } catch(e) {
-    return DEFAULT_COAST_LOCATION;
+    return null;
   }
 }
 
-function saveSelectedCoastName(name) {
+function saveAutoCoastName(name) {
   try {
-    localStorage.setItem(SELECTED_COAST_KEY, name);
+    localStorage.setItem(AUTO_COAST_KEY, name);
   } catch(e) {
-    console.warn("地區偏好儲存失敗", e);
+    console.warn("海域定位結果儲存失敗", e);
   }
 }
 
@@ -1339,9 +1342,39 @@ function buildCoastConfigs(data) {
   return configs.length ? configs : [fallbackCoastConfig()];
 }
 
-function resolveSelectedCoast(configs) {
-  const wanted = getStoredCoastName();
-  return configs.find(c => c.label === wanted)
+/* 依定位挑海域。沿海預報點在外海且各點離岸距離不一，純比距離會挑錯行政區
+   （站在東石鄉時最近的是布袋鎮沿海），所以先對行政區、再比距離。 */
+function autoCoastConfig(configs, weatherInfo) {
+  const pos = weatherInfo?.gpsPos;
+  if (!pos) return null;
+  const pts = configs.filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lon));
+  if (!pts.length) return null;
+  const nearest = list => list
+    .map(c => ({ c, d: distanceKm(pos.lat, pos.lon, c.lat, c.lon) }))
+    .sort((a, b) => a.d - b.d)[0].c;
+
+  const sameTown = pts.find(c => c.county === weatherInfo.county && c.baseTown === weatherInfo.location);
+  if (sameTown) return sameTown;
+
+  const county = INLAND_COUNTY_COAST[weatherInfo.county] || weatherInfo.county;
+  const inCounty = pts.filter(c => c.county === county);
+  if (inCounty.length) return nearest(inCounty);
+
+  return nearest(pts);
+}
+
+/* 手動選取只在本次瀏覽有效；重新載入即回到定位結果 */
+let manualCoastLabel = null;
+
+function resolveSelectedCoast(configs, weatherInfo) {
+  if (manualCoastLabel) {
+    const hit = configs.find(c => c.label === manualCoastLabel);
+    if (hit) return hit;
+  }
+  const auto = autoCoastConfig(configs, weatherInfo);
+  if (auto) return auto;
+  const last = getLastAutoCoastName();
+  return configs.find(c => c.label === last)
       || configs.find(c => c.label === DEFAULT_COAST_LOCATION)
       || configs[0]
       || fallbackCoastConfig();
@@ -1489,7 +1522,7 @@ async function fallbackWeatherForecast() {
 
 async function resolveGpsWeatherForecast() {
   const pos = await getGpsPosition();
-  if (!pos) return fallbackWeatherForecast();
+  if (!pos) return { ...(await fallbackWeatherForecast()), gpsPos: null };
 
   const feeds = await Promise.all(TOWN_FORECAST_ENDPOINTS.map(cfg =>
     tryFetch(cfg.endpoint, {}, cacheKey("weather-full", cfg.endpoint))
@@ -1518,8 +1551,8 @@ async function resolveGpsWeatherForecast() {
   }
   towns.sort((a, b) => a.distanceKm - b.distanceKm);
   const nearest = towns[0];
-  if (!nearest) return fallbackWeatherForecast();
-  return { ...nearest, gps: true };
+  if (!nearest) return { ...(await fallbackWeatherForecast()), gpsPos: pos };
+  return { ...nearest, gps: true, gpsPos: pos };
 }
 
 function nearestObservationStations(obs, coastCfg, limit = 3) {
@@ -1949,7 +1982,7 @@ async function loadAll() {
     const today = twDateKey(n);
     const tomorrow = twDateKey(addDays(n, 1));
 
-    // 海線地區由選單控制；天氣卡由 GPS 判定，GPS 失敗時 fallback 東區。
+    // 海線地區與天氣卡都由 GPS 判定；GPS 失敗時海域退回上次結果、天氣卡 fallback 東區。
     const [coastRes, obsRes, weatherInfo] = await Promise.all([
       tryFileFetch(COAST_DATA_ID, {}, cacheKey("coast", COAST_DATA_ID)),
       tryFetch("O-A0001-001", {}, "obs"),
@@ -1957,8 +1990,9 @@ async function loadAll() {
     ]);
 
     const coastConfigs = buildCoastConfigs(coastRes.data);
-    const selectedCoast = resolveSelectedCoast(coastConfigs);
-    saveSelectedCoastName(selectedCoast.label);
+    const selectedCoast = resolveSelectedCoast(coastConfigs, weatherInfo);
+    // 只記錄定位推得的結果，手動選取不可污染這條退路
+    if (weatherInfo.gpsPos && !manualCoastLabel) saveAutoCoastName(selectedCoast.label);
     renderCoastSelect(coastConfigs, selectedCoast.label, true);
 
     const [tideRes, astroRes] = await Promise.all([
@@ -2377,7 +2411,7 @@ async function loadAll() {
 
 document.getElementById("coastSelect")?.addEventListener("change", e => {
   fitCoastSelectWidth(e.target);
-  saveSelectedCoastName(e.target.value);
+  manualCoastLabel = e.target.value;
   loadAll();
 });
 

@@ -358,6 +358,28 @@ test("weather page links out to the Windy radar for the located point", async ()
   assert.doesNotMatch(html, /radar,\d+\.\d+,\d+\.\d+,/);
 });
 
+test("weather page picks the sea area from GPS, not a hard-coded default", async () => {
+  const htmlPath = fileURLToPath(new URL("../../weather/index.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+  const has = (snippet) => assert.ok(html.includes(snippet), `weather page is missing: ${snippet}`);
+  const lacks = (snippet) => assert.ok(!html.includes(snippet), `weather page should no longer contain: ${snippet}`);
+
+  has("function autoCoastConfig(configs, weatherInfo)");
+  // 三層：同鄉鎮 → 同縣市（內陸市對照）→ 全台最近
+  has("const sameTown = pts.find(c => c.county === weatherInfo.county && c.baseTown === weatherInfo.location);");
+  has("const county = INLAND_COUNTY_COAST[weatherInfo.county] || weatherInfo.county;");
+  has("return nearest(pts);");
+  // 原始定位座標必須離開 resolveGpsWeatherForecast，否則挑不了海域
+  has("return { ...nearest, gps: true, gpsPos: pos };");
+  // 舊的「使用者偏好」key 必須整組移除，否則舊值會把人永遠釘在東石
+  for (const dead of ["SELECTED_COAST_KEY", "getStoredCoastName", "saveSelectedCoastName"]) lacks(dead);
+  // 手動選取只存記憶體，不得寫進 localStorage（會污染定位失敗時的退路）
+  has("manualCoastLabel = e.target.value;");
+  assert.doesNotMatch(html, /manualCoastLabel[^\n]{0,80}localStorage/);
+  // 只有定位成功且非手動時才回寫
+  has("if (weatherInfo.gpsPos && !manualCoastLabel) saveAutoCoastName(selectedCoast.label);");
+});
+
 test("legacy weather page redirects to the retained weather route", async () => {
   const htmlPath = fileURLToPath(new URL("../../bjkw_weather.html", import.meta.url));
   const html = await readFile(htmlPath, "utf8");
