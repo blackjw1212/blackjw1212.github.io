@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-27T05:41:38.272Z",
-  "eodUpdatedAt": "2026-08-27T05:41:38.272Z",
+  "updatedAt": "2026-08-27T17:03:36.225Z",
+  "eodUpdatedAt": "2026-08-27T17:03:36.225Z",
   "eodTradingDate": "2026-08-27",
   "holdings": [
     "2330",
@@ -167,9 +167,9 @@
     },
     "3324": {
       "code": "3324",
-      "pe": 24.79,
-      "dividendYield": 1.11,
-      "pbRatio": 7.54
+      "pe": 24.45,
+      "dividendYield": 1.12,
+      "pbRatio": 7.44
     },
     "3661": {
       "code": "3661",
@@ -196,14 +196,5 @@
     "updatedAt": "2026-08-25T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "fetch failed"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 0 eod row(s), 12 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
