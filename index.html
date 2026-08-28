@@ -78,6 +78,7 @@
   .weather-accent{box-shadow:inset 4px 0 0 rgba(103,199,229,.72)}
   .esp32-accent{box-shadow:inset 4px 0 0 rgba(217,166,76,.7)}
   .forscan-accent{box-shadow:inset 4px 0 0 rgba(119,214,110,.7)}
+  .flight-accent{box-shadow:inset 4px 0 0 rgba(154,127,209,.7)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (prefers-reduced-motion:reduce){
     .entry,.status-card{transition:none}
@@ -226,6 +227,27 @@
       <div class="entry-foot">
         <div class="entry-limit">內容：社群交叉比對整理</div>
         <a class="entry-button" data-primary-entry="forscan" href="/forscan/" aria-label="開啟 FORScan 觀察台 /forscan/">開啟 FORScan 觀察台 /forscan/</a>
+      </div>
+    </article>
+
+    <article class="entry flight-accent">
+      <div>
+        <div class="entry-head">
+          <div class="entry-title">
+            <small>FLIGHT COST</small>
+            <h2>機票總成本決策台</h2>
+          </div>
+          <img src="/assets/images/favicon.svg" alt="" width="40" height="40">
+        </div>
+        <p>把票價、行李、附加費、機場交通與轉機風險加總成同一個數字，用來比較不同航班組合的實際負擔。</p>
+        <ul>
+          <li>票價需自行到各查價網站確認。</li>
+          <li>輸入的資料只留在本機瀏覽器，不上傳。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">內容：手動輸入的試算工具</div>
+        <a class="entry-button" data-primary-entry="flight" href="/flight/" aria-label="開啟機票總成本決策台 /flight/">開啟機票決策台 /flight/</a>
       </div>
     </article>
   </nav>

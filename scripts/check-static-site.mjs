@@ -92,6 +92,7 @@ for (const rel of [
   "forscan/index.html",
   "forscan/service/index.html",
   "forscan/sync3/index.html",
+  "flight/index.html",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -151,13 +152,14 @@ if (has("index.html")) {
   assertMatch("index.html", html, /id="stockFeedStatus"/, "stock status id");
   assertMatch("index.html", html, /id="weatherStatus"/, "weather status id");
   assertMatch("index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev\/health/, "root weather health endpoint");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/ and forscan:/forscan/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/ and flight:/flight/, got ${primaryLinks.join(", ")}`);
   }
   assertMatch("index.html", html, /開啟股票投資觀察台 \/stocks\//, "visible stocks CTA");
   assertMatch("index.html", html, /開啟天氣觀察台 \/weather\//, "visible weather CTA");
   assertMatch("index.html", html, /開啟 ESP32 觀察台 \/esp32\//, "visible esp32 CTA");
   assertMatch("index.html", html, /開啟 FORScan 觀察台 \/forscan\//, "visible forscan CTA");
+  assertMatch("index.html", html, /開啟機票決策台 \/flight\//, "visible flight CTA");
   assertNoMatch("index.html", html, /\/ai\/|AI 供應鏈觀察台|開啟 AI 觀察台|AI Feed/);
   assertNoMatch("index.html", html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/i);
   assertNoMatch("index.html", html, /保證|可放心|買進|賣出|投資建議|安全資訊/);
@@ -265,13 +267,30 @@ if (has("forscan/service/index.html")) {
   assertMatch("forscan/service/index.html", html, /14 Nm/, "service filter torque");
 }
 
+if (has("flight/index.html")) {
+  const html = await read("flight/index.html");
+  assertMatch("flight/index.html", html, /<html lang="zh-Hant">/, "flight document language");
+  assertMatch("flight/index.html", html, /<title>機票總成本決策台<\/title>/, "flight title");
+  assertMatch("flight/index.html", html, /rel="canonical" href="\/flight\/"/, "flight canonical");
+  assertMatch("flight/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "flight manifest");
+  // 這一頁刻意用 #0E1621 而不是其他深色頁的 #101418——整套 panel/line 色階是配著它調的，
+  // 只改這個 meta 會讓 iOS 狀態列與頁面背景對不上。要統一得連 CSS 變數一起改。
+  assertMatch("flight/index.html", html, /name="theme-color" content="#0E1621"/, "flight theme color");
+  assertMatch("flight/index.html", html, /apple-mobile-web-app-status-bar-style" content="black"/, "flight ios status bar");
+  assertMatch("flight/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "flight service worker registration");
+  // 純前端試算：資料只進 localStorage，不打任何後端。畫布專屬的 window.storage 在網站上不存在，
+  // 殘留的話重新整理就會掉資料，而且不會有任何錯誤訊息。
+  assertMatch("flight/index.html", html, /localStorage/, "flight local storage");
+  assertNoMatch("flight/index.html", html, /window\.storage/);
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

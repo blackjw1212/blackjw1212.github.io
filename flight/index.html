@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>機票總成本決策台</title>
+<meta name="description" content="把票價、行李、附加費、機場交通與轉機風險加總成同一個數字，判斷現在買還是繼續等。">
+<meta name="theme-color" content="#0E1621">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="機票決策台">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="canonical" href="/flight/">
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+:root{
+  --ink:#0E1621; --panel:#16222F; --panel2:#1C2B3A; --line:#2B3C4E;
+  --text:#E6EDF3; --dim:#8FA3B5; --dimmer:#63788B;
+  --amber:#F0B429; --green:#35B37E; --red:#E5544B; --blue:#5AA9E6; --violet:#9A7FD1;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Roboto Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%}
+a{color:var(--blue)}
+.wrap{max-width:860px;margin:0 auto;padding:0 14px 80px}
+header.board{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#13202D,#0E1621)}
+.board-inner{max-width:860px;margin:0 auto;padding:18px 14px 14px}
+.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--amber);text-transform:uppercase}
+h1{font-family:var(--mono);font-size:20px;letter-spacing:.06em;margin:6px 0 4px;font-weight:600}
+.sub{color:var(--dim);font-size:12.5px;margin:0}
+.flip{display:flex;gap:3px;margin-top:12px;flex-wrap:wrap}
+.flip span{font-family:var(--mono);font-size:11px;background:#0A121B;border:1px solid var(--line);border-radius:3px;padding:3px 6px;color:var(--dim)}
+.flip span b{color:var(--amber);font-weight:600}
+nav{position:sticky;top:0;z-index:20;background:rgba(14,22,33,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.nav-inner{display:flex;gap:2px;max-width:860px;margin:0 auto;padding:0 8px;min-width:max-content}
+.tabbtn{background:none;border:0;border-bottom:2px solid transparent;color:var(--dimmer);font-family:var(--mono);font-size:12px;letter-spacing:.06em;padding:12px 9px;cursor:pointer;white-space:nowrap}
+.tabbtn[aria-selected="true"]{color:var(--amber);border-bottom-color:var(--amber)}
+.tabbtn:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+section.tab{display:none;padding-top:18px}
+section.tab.on{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+h2{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--amber);text-transform:uppercase;margin:24px 0 10px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+h2:first-child{margin-top:0}
+p.note{color:var(--dim);font-size:12.5px;margin:6px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+@media(max-width:520px){.grid3{grid-template-columns:1fr 1fr}}
+.f{display:flex;flex-direction:column;gap:4px}
+.f label{font-size:11px;color:var(--dim);font-family:var(--mono);letter-spacing:.05em}
+input,select,textarea{background:#0B131C;border:1px solid var(--line);border-radius:5px;color:var(--text);padding:9px 10px;font-size:14px;font-family:var(--sans);width:100%}
+input[type=number],input.mono{font-family:var(--mono)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue)}
+textarea{min-height:60px;resize:vertical}
+.chk{display:flex;align-items:flex-start;gap:8px;font-size:13.5px;padding:5px 0}
+.chk input{width:18px;height:18px;flex:none;margin-top:2px;accent-color:var(--amber)}
+button.btn{background:var(--amber);color:#14202C;border:0;border-radius:6px;padding:11px 16px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--sans)}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+button.sm{padding:5px 9px;font-size:11.5px;font-family:var(--mono);border-radius:4px}
+button.btn:active{transform:translateY(1px)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.leg{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--panel);overflow:hidden}
+.leg-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--panel2)}
+.leg-code{font-family:var(--mono);font-size:13px}
+.leg-code b{color:var(--amber)}
+.leg-date{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:auto;text-align:right}
+.leg-body{padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.lnk{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:4px;padding:5px 8px;text-decoration:none;color:var(--text);background:#0B131C;cursor:pointer;display:inline-block}
+.lnk:hover{border-color:var(--amber);color:var(--amber)}
+.px{width:112px!important;font-family:var(--mono);font-size:13px}
+.tagrow{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid var(--line);color:var(--dim)}
+.tag.alt{border-color:var(--violet);color:var(--violet)}
+.tag.base{border-color:var(--amber);color:var(--amber)}
+.ac{position:relative}
+.acbox{position:absolute;top:100%;left:0;right:0;z-index:60;background:#0B131C;border:1px solid var(--amber);border-top:0;border-radius:0 0 6px 6px;max-height:250px;overflow:auto;display:none;box-shadow:0 10px 24px rgba(0,0,0,.5)}
+.acbox.on{display:block}
+.acitem{padding:9px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13.5px}
+.acitem:last-child{border-bottom:0}
+.acitem.sel{background:var(--panel2)}
+.acitem b{font-family:var(--mono);color:var(--amber);margin-right:7px;font-weight:600}
+.acitem span{color:var(--dimmer);font-size:11px;font-family:var(--mono);margin-left:5px}
+.acname{font-size:11.5px;color:var(--green);font-family:var(--mono);min-height:15px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;min-height:20px}
+.chip{font-family:var(--mono);font-size:11px;border:1px solid var(--violet);color:var(--violet);border-radius:999px;padding:3px 5px 3px 9px;display:inline-flex;gap:5px;align-items:center}
+.chip button{background:none;border:0;color:var(--violet);cursor:pointer;font-size:14px;padding:0 3px;line-height:1}
+.plan{border:1px solid var(--line);border-radius:8px;background:var(--panel);margin-bottom:14px;overflow:hidden}
+.plan-top{display:flex;gap:8px;align-items:center;padding:10px 12px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.plan-top input{background:transparent;border:0;font-weight:700;padding:2px 0}
+.plan-body{padding:12px}
+details.sub-d{border-top:1px dashed var(--line);margin-top:10px;padding-top:8px}
+details.sub-d summary{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;color:var(--dim);cursor:pointer;list-style:none}
+details.sub-d summary::-webkit-details-marker{display:none}
+details.sub-d summary:before{content:"▸ ";color:var(--amber)}
+details.sub-d[open] summary:before{content:"▾ "}
+.costbar{display:flex;height:26px;border-radius:4px;overflow:hidden;border:1px solid var(--line);margin:10px 0 6px;background:#0B131C}
+.costbar i{display:block;transition:width .3s ease}
+@media (prefers-reduced-motion:reduce){.costbar i{transition:none}*{animation:none!important}}
+.seg-fare{background:var(--blue)}
+.seg-bag{background:var(--amber)}
+.seg-fee{background:#54687A}
+.seg-move{background:var(--violet)}
+.seg-risk{background:repeating-linear-gradient(45deg,var(--red),var(--red) 4px,#8f2f29 4px,#8f2f29 8px)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.total{font-family:var(--mono);font-size:19px;font-weight:700}
+.subtle{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.badge{font-family:var(--mono);font-size:10px;padding:3px 7px;border-radius:999px;border:1px solid;letter-spacing:.06em;white-space:nowrap}
+.b-green{color:var(--green);border-color:var(--green)}
+.b-amber{color:var(--amber);border-color:var(--amber)}
+.b-red{color:var(--red);border-color:var(--red)}
+.b-dim{color:var(--dim);border-color:var(--line)}
+table{width:100%;border-collapse:collapse;font-size:12.5px;font-family:var(--mono)}
+th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+th{color:var(--dim);font-weight:500;font-size:10.5px;letter-spacing:.08em}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.verdict{border-left:3px solid var(--line);padding:10px 12px;border-radius:0 6px 6px 0;background:var(--panel2);margin:10px 0}
+.v-green{border-left-color:var(--green)}
+.v-amber{border-left-color:var(--amber)}
+.v-red{border-left-color:var(--red)}
+.v-head{font-family:var(--mono);font-size:13px;font-weight:700}
+.unk{color:var(--dimmer);font-family:var(--mono);font-size:12px}
+.empty{border:1px dashed var(--line);border-radius:8px;padding:22px 14px;text-align:center;color:var(--dim);font-size:13px}
+.warn{border:1px solid var(--amber);background:rgba(240,180,41,.08);border-radius:6px;padding:10px 12px;font-size:12.5px;color:#F3D999;margin:10px 0}
+.air{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
+.air-n{font-size:13.5px;font-weight:600;min-width:96px}
+.air .px{width:96px!important}
+footer{color:var(--dimmer);font-size:11.5px;font-family:var(--mono);text-align:center;padding:26px 0 10px;border-top:1px solid var(--line);margin-top:30px}
+.saveflag{position:fixed;bottom:14px;right:14px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--dim);z-index:30}
+svg.spark{width:100%;height:120px;display:block}
+#urlbox{position:fixed;inset:auto 0 0 0;background:var(--panel2);border-top:1px solid var(--amber);padding:12px 14px;z-index:40;display:none}
+#urlbox.on{display:block}
+#urlbox textarea{min-height:74px;font-family:var(--mono);font-size:11.5px}
+</style>
+</head>
+<body>
+
+<header class="board">
+  <div class="board-inner">
+    <div class="eyebrow">Total cost console</div>
+    <h1>機票總成本決策台</h1>
+    <p class="sub">不猜價格。你負責查，它負責把票價、行李、附加費、交通與轉機風險加成同一個數字，然後給你「買」或「等」。</p>
+    <div class="flip">
+      <span>方案 <b id="fMeta1">0</b></span>
+      <span>最低風險調整後 <b id="fMeta2">—</b></span>
+      <span>官網最低 <b id="fMeta4">—</b></span>
+      <span>距出發 <b id="fMeta3">—</b></span>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="nav-inner" role="tablist">
+    <button class="tabbtn" role="tab" data-t="t1" aria-selected="true">1 行程</button>
+    <button class="tabbtn" role="tab" data-t="t2" aria-selected="false">2 查價清單</button>
+    <button class="tabbtn" role="tab" data-t="t6" aria-selected="false">3 官網報價</button>
+    <button class="tabbtn" role="tab" data-t="t3" aria-selected="false">4 方案比價</button>
+    <button class="tabbtn" role="tab" data-t="t4" aria-selected="false">5 決策</button>
+    <button class="tabbtn" role="tab" data-t="t5" aria-selected="false">6 追蹤與匯出</button>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<section class="tab on" id="t1">
+  <h2>航段</h2>
+  <div class="card">
+    <div class="grid">
+      <div class="f"><label>出發機場</label><div class="ac"><input id="from" autocomplete="off" placeholder="打「桃園」「Taipei」或 TPE"><div class="acbox" id="fromBox"></div></div><div class="acname" id="fromName"></div></div>
+      <div class="f"><label>目的機場</label><div class="ac"><input id="to" autocomplete="off" placeholder="打「東京」「Tokyo」或 NRT"><div class="acbox" id="toBox"></div></div><div class="acname" id="toName"></div></div>
+      <div class="f"><label>出發日</label><input id="dep" type="date"></div>
+      <div class="f"><label>回程日（單程留空）</label><input id="ret" type="date"></div>
+      <div class="f"><label>日期彈性（±天）</label><input id="flex" type="number" inputmode="numeric" value="2" min="0" max="14"></div>
+      <div class="f"><label>人數</label><input id="pax" type="number" inputmode="numeric" value="1" min="1" max="9"></div>
+      <div class="f"><label>艙等</label><select id="cabin">
+        <option value="economy">經濟艙</option><option value="premiumeconomy">豪華經濟艙</option>
+        <option value="business">商務艙</option><option value="first">頭等艙</option></select></div>
+      <div class="f"><label>刷卡外幣手續費 %</label><input id="cardFee" type="number" inputmode="decimal" value="1.5" step="0.1"></div>
+    </div>
+  </div>
+
+  <h2>替代機場</h2>
+  <div class="card">
+    <p class="note">只填「交通時間與成本你真的願意承受」的機場。填進來的每一個都會進入查價清單。</p>
+    <div class="grid">
+      <div class="f"><label>替代出發（搜尋後加入）</label><div class="ac"><input id="altFromQ" autocomplete="off" placeholder="例：松山、高雄"><div class="acbox" id="altFromBox"></div></div><div class="chips" id="altFromChips"></div></div>
+      <div class="f"><label>替代目的（搜尋後加入）</label><div class="ac"><input id="altToQ" autocomplete="off" placeholder="例：羽田、關西"><div class="acbox" id="altToBox"></div></div><div class="chips" id="altToChips"></div></div>
+      <div class="f"><label>前往替代出發機場的來回交通（每人 NT$）</label><input id="altCost" type="number" inputmode="numeric" value="0"></div>
+      <div class="f"><label>外站出發的額外住宿（每人 NT$）</label><input id="altStay" type="number" inputmode="numeric" value="0"></div>
+    </div>
+  </div>
+
+  <h2>可接受的條件</h2>
+  <div class="card">
+    <label class="chk"><input type="checkbox" id="okLcc"><span>接受廉價航空（票價不含行李、選位、餐點，需另計）</span></label>
+    <label class="chk"><input type="checkbox" id="okRed"><span>接受紅眼／深夜抵達（可能多一晚住宿或機場過夜）</span></label>
+    <label class="chk"><input type="checkbox" id="okSelf"><span>接受自行轉機／分開出票（行李通常無法直掛，延誤不受保障）</span></label>
+    <div class="f" style="margin-top:8px"><label>其他限制（簽證、假期、必須抵達時間…）</label><textarea id="limits" placeholder="例：9/8 前必須回到台灣；不接受在中國轉機"></textarea></div>
+  </div>
+  <div class="row"><button class="btn" id="goMatrix">產生查價清單 →</button><button class="btn ghost" id="resetAll">清除全部資料</button></div>
+</section>
+
+<section class="tab" id="t2">
+  <h2>查價清單</h2>
+  <div class="warn" id="linkHint">
+    連結會開新分頁。若瀏覽器擋掉彈出視窗，用每列的「複製網址」把網址貼過去也一樣。
+    比價結果存在這台裝置的瀏覽器裡，換裝置不會同步。
+  </div>
+  <p class="note">每一列都是一次真實搜尋。查到最低票面價就填回來 —— 這只是<b>票面價</b>，用來縮小範圍，不是總成本。</p>
+  <div id="matrixWarn"></div>
+  <div id="matrix"><div class="empty">回到「1 行程」填好航段後，按「產生查價清單」。</div></div>
+
+  <h2>套利路線檢查</h2>
+  <p class="note">這幾種組合不會出現在一般來回搜尋裡，得手動查。可以直接開的我都給連結了。</p>
+  <div class="card" id="arb"></div>
+</section>
+
+<section class="tab" id="t6">
+  <h2>航空公司官網</h2>
+  <p class="note">OTA 的價格是導引價，官網才是最終結帳價。這裡依目的地列出實際在飛這條線的航空公司，把官網查到的每人票價填進去 —— 填完可以一鍵變成方案。</p>
+  <div id="airlines"></div>
+  <h2>區域型 OTA</h2>
+  <div class="card" id="otas"></div>
+</section>
+
+<section class="tab" id="t3">
+  <h2>方案</h2>
+  <p class="note">把你真的查到的方案建進來。所有金額填<b>每人</b>金額；人數會自動乘上去。</p>
+  <div class="row" style="margin-bottom:12px"><button class="btn" id="addPlan">＋ 新增方案</button></div>
+  <div id="plans"></div>
+</section>
+
+<section class="tab" id="t4">
+  <h2>排行</h2>
+  <div id="rank"></div>
+  <h2>價格錨點</h2>
+  <div class="card">
+    <p class="note">沒有可靠的歷史資料就不要填 —— 空著會顯示「資料不足」，而不是編一個給你。你可以在 Google Flights 的日期網格或 Skyscanner 整月檢視上看出這條航線的常見區間。</p>
+    <div class="grid">
+      <div class="f"><label>觀察到的低價（每人票面 NT$）</label><input id="anchorLow" type="number" inputmode="numeric"></div>
+      <div class="f"><label>觀察到的常見價（每人票面 NT$）</label><input id="anchorMid" type="number" inputmode="numeric"></div>
+    </div>
+  </div>
+  <h2>買，還是等</h2>
+  <div id="decide"></div>
+  <h2>監控策略</h2>
+  <div id="monitor"></div>
+</section>
+
+<section class="tab" id="t5">
+  <h2>價格紀錄</h2>
+  <div class="card">
+    <div class="grid3">
+      <div class="f"><label>日期</label><input id="logDate" type="date"></div>
+      <div class="f"><label>方案／說明</label><input id="logName" placeholder="長榮官網 9/3"></div>
+      <div class="f"><label>總成本 NT$</label><input id="logVal" type="number" inputmode="numeric"></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="addLog">記一筆</button></div>
+  </div>
+  <div id="logView"></div>
+  <h2>匯出</h2>
+  <p class="note">產生一份完整摘要。貼回對話裡，我可以幫你判讀風險、找漏掉的成本，或檢查哪些數字互相矛盾。</p>
+  <div class="row"><button class="btn" id="doExport">產生摘要</button><button class="btn ghost" id="doCopy">複製</button></div>
+  <textarea id="exportBox" style="margin-top:10px;min-height:260px;font-family:var(--mono);font-size:12px"></textarea>
+</section>
+
+<footer>
+  不連任何票價 API，也不預測價格。所有數字由你輸入，計算在你的裝置上完成。<br>
+  兒童票、嬰兒票與哩程票的計價規則不同，此工具以成人票為準。
+</footer>
+</div>
+
+<div id="urlbox">
+  <div class="row" style="justify-content:space-between;margin-bottom:6px">
+    <span class="subtle" id="urlTitle">複製後貼到瀏覽器開啟</span>
+    <button class="btn ghost sm" id="urlClose">關閉</button>
+  </div>
+  <textarea id="urlText" readonly></textarea>
+  <div class="row" style="margin-top:6px"><button class="btn sm" id="urlCopy">全選並複製</button></div>
+</div>
+<div class="saveflag" id="saveflag">尚未儲存</div>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const NT=n=>'NT$'+Math.round(n||0).toLocaleString('en-US');
+const esc=s=>String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const KEY='flight-cost-console:v2';
+
+/* ---------- 航線地區判定 ---------- */
+/* ---------- 機場資料庫（中文、英文或代碼皆可搜尋） ---------- */
+const AP_RAW='TPE|台北 桃園|Taipei Taoyuan|TW;TSA|台北 松山|Taipei Songshan|TW;KHH|高雄 小港|Kaohsiung|TW;RMQ|台中|Taichung|TW;TNN|台南|Tainan|TW;HUN|花蓮|Hualien|TW;MZG|澎湖 馬公|Magong|TW;KNH|金門|Kinmen|TW;TTT|台東|Taitung|TW;NRT|東京 成田|Tokyo Narita|JP;HND|東京 羽田|Tokyo Haneda|JP;KIX|大阪 關西|Osaka Kansai|JP;ITM|大阪 伊丹|Osaka Itami|JP;UKB|神戶|Kobe|JP;NGO|名古屋 中部|Nagoya Chubu|JP;CTS|札幌 新千歲|Sapporo Chitose|JP;FUK|福岡|Fukuoka|JP;OKA|沖繩 那霸|Okinawa Naha|JP;KMQ|金澤 小松|Komatsu|JP;HIJ|廣島|Hiroshima|JP;SDJ|仙台|Sendai|JP;TAK|高松|Takamatsu|JP;KOJ|鹿兒島|Kagoshima|JP;OIT|大分|Oita|JP;KMJ|熊本|Kumamoto|JP;MYJ|松山 愛媛|Matsuyama|JP;ISG|石垣島|Ishigaki|JP;MMY|宮古島|Miyako|JP;AXT|秋田|Akita|JP;KIJ|新潟|Niigata|JP;TOY|富山|Toyama|JP;HKD|函館|Hakodate|JP;AOJ|青森|Aomori|JP;FSZ|靜岡|Shizuoka|JP;OKJ|岡山|Okayama|JP;KKJ|北九州|Kitakyushu|JP;NGS|長崎|Nagasaki|JP;ICN|首爾 仁川|Seoul Incheon|KR;GMP|首爾 金浦|Seoul Gimpo|KR;PUS|釜山 金海|Busan|KR;CJU|濟州|Jeju|KR;TAE|大邱|Daegu|KR;KWJ|光州|Gwangju|KR;RSU|麗水|Yeosu|KR;MWX|務安|Muan|KR;HKG|香港|Hong Kong|HK;MFM|澳門|Macau|HK;PVG|上海 浦東|Shanghai Pudong|CN;SHA|上海 虹橋|Shanghai Hongqiao|CN;PEK|北京 首都|Beijing Capital|CN;PKX|北京 大興|Beijing Daxing|CN;CAN|廣州|Guangzhou|CN;SZX|深圳|Shenzhen|CN;XMN|廈門|Xiamen|CN;HGH|杭州|Hangzhou|CN;NKG|南京|Nanjing|CN;CTU|成都 雙流|Chengdu Shuangliu|CN;TFU|成都 天府|Chengdu Tianfu|CN;CKG|重慶|Chongqing|CN;TAO|青島|Qingdao|CN;TSN|天津|Tianjin|CN;WUH|武漢|Wuhan|CN;CSX|長沙|Changsha|CN;FOC|福州|Fuzhou|CN;SYX|三亞|Sanya|CN;HAK|海口|Haikou|CN;KMG|昆明|Kunming|CN;XIY|西安|Xian|CN;TNA|濟南|Jinan|CN;NGB|寧波|Ningbo|CN;WNZ|溫州|Wenzhou|CN;HFE|合肥|Hefei|CN;ZUH|珠海|Zhuhai|CN;SHE|瀋陽|Shenyang|CN;DLC|大連|Dalian|CN;HRB|哈爾濱|Harbin|CN;CGO|鄭州|Zhengzhou|CN;URC|烏魯木齊|Urumqi|CN;SIN|新加坡 樟宜|Singapore Changi|SEA;BKK|曼谷 蘇凡納布|Bangkok Suvarnabhumi|SEA;DMK|曼谷 廊曼|Bangkok Don Mueang|SEA;HKT|普吉島|Phuket|SEA;CNX|清邁|Chiang Mai|SEA;KBV|喀比|Krabi|SEA;USM|蘇美島|Koh Samui|SEA;UTP|烏打拋 芭達雅|U-Tapao|SEA;KUL|吉隆坡|Kuala Lumpur|SEA;PEN|檳城|Penang|SEA;LGK|蘭卡威|Langkawi|SEA;BKI|亞庇 沙巴|Kota Kinabalu|SEA;KCH|古晉|Kuching|SEA;CGK|雅加達|Jakarta|SEA;DPS|峇里島 登巴薩|Bali Denpasar|SEA;SUB|泗水|Surabaya|SEA;JOG|日惹|Yogyakarta|SEA;MNL|馬尼拉|Manila|SEA;CEB|宿霧|Cebu|SEA;CRK|克拉克|Clark|SEA;KLO|卡利博 長灘島|Kalibo Boracay|SEA;PPS|巴拉望 公主港|Palawan|SEA;DVO|達沃|Davao|SEA;SGN|胡志明市|Ho Chi Minh City|SEA;HAN|河內|Hanoi|SEA;DAD|峴港|Da Nang|SEA;CXR|芽莊|Nha Trang|SEA;PQC|富國島|Phu Quoc|SEA;HPH|海防|Hai Phong|SEA;PNH|金邊|Phnom Penh|SEA;REP|暹粒 吳哥|Siem Reap|SEA;RGN|仰光|Yangon|SEA;VTE|永珍|Vientiane|SEA;LPQ|龍坡邦|Luang Prabang|SEA;BWN|汶萊|Brunei|SEA;DEL|德里|Delhi|SA;BOM|孟買|Mumbai|SA;MAA|清奈|Chennai|SA;BLR|班加羅爾|Bengaluru|SA;HYD|海德拉巴|Hyderabad|SA;CCU|加爾各答|Kolkata|SA;COK|科欽|Kochi|SA;CMB|可倫坡|Colombo|SA;KTM|加德滿都|Kathmandu|SA;MLE|馬爾地夫 馬累|Maldives Male|SA;DAC|達卡|Dhaka|SA;ISB|伊斯蘭瑪巴德|Islamabad|SA;KHI|喀拉蚩|Karachi|SA;LHE|拉合爾|Lahore|SA;DXB|杜拜|Dubai|ME;DOH|杜哈|Doha|ME;AUH|阿布達比|Abu Dhabi|ME;JED|吉達|Jeddah|ME;RUH|利雅德|Riyadh|ME;TLV|特拉維夫|Tel Aviv|ME;AMM|安曼|Amman|ME;KWI|科威特|Kuwait|ME;BAH|巴林|Bahrain|ME;MCT|馬斯喀特|Muscat|ME;IKA|德黑蘭|Tehran|ME;LHR|倫敦 希斯洛|London Heathrow|EU;LGW|倫敦 蓋特威|London Gatwick|EU;STN|倫敦 史坦斯特|London Stansted|EU;MAN|曼徹斯特|Manchester|EU;EDI|愛丁堡|Edinburgh|EU;DUB|都柏林|Dublin|EU;CDG|巴黎 戴高樂|Paris CDG|EU;ORY|巴黎 奧利|Paris Orly|EU;NCE|尼斯|Nice|EU;LYS|里昂|Lyon|EU;MRS|馬賽|Marseille|EU;AMS|阿姆斯特丹|Amsterdam|EU;BRU|布魯塞爾|Brussels|EU;FRA|法蘭克福|Frankfurt|EU;MUC|慕尼黑|Munich|EU;BER|柏林|Berlin|EU;DUS|杜塞道夫|Dusseldorf|EU;HAM|漢堡|Hamburg|EU;STR|斯圖加特|Stuttgart|EU;ZRH|蘇黎世|Zurich|EU;GVA|日內瓦|Geneva|EU;VIE|維也納|Vienna|EU;PRG|布拉格|Prague|EU;BUD|布達佩斯|Budapest|EU;WAW|華沙|Warsaw|EU;KRK|克拉科夫|Krakow|EU;CPH|哥本哈根|Copenhagen|EU;ARN|斯德哥爾摩|Stockholm|EU;OSL|奧斯陸|Oslo|EU;HEL|赫爾辛基|Helsinki|EU;KEF|雷克雅維克|Reykjavik|EU;FCO|羅馬 菲烏米奇諾|Rome Fiumicino|EU;MXP|米蘭 馬爾彭薩|Milan Malpensa|EU;LIN|米蘭 利納特|Milan Linate|EU;VCE|威尼斯|Venice|EU;NAP|拿坡里|Naples|EU;FLR|佛羅倫斯|Florence|EU;BCN|巴塞隆納|Barcelona|EU;MAD|馬德里|Madrid|EU;AGP|馬拉加|Malaga|EU;PMI|帕爾馬 馬約卡|Palma Mallorca|EU;LIS|里斯本|Lisbon|EU;OPO|波爾圖|Porto|EU;ATH|雅典|Athens|EU;IST|伊斯坦堡|Istanbul|EU;SAW|伊斯坦堡 薩比哈|Istanbul Sabiha|EU;ZAG|札格瑞布|Zagreb|EU;OTP|布加勒斯特|Bucharest|EU;SOF|索菲亞|Sofia|EU;RIX|里加|Riga|EU;TLL|塔林|Tallinn|EU;VNO|維爾紐斯|Vilnius|EU;SVO|莫斯科|Moscow|EU;LED|聖彼得堡|St Petersburg|EU;LAX|洛杉磯|Los Angeles|NA;SFO|舊金山|San Francisco|NA;SJC|聖荷西|San Jose|NA;OAK|奧克蘭 加州|Oakland|NA;SAN|聖地牙哥|San Diego|NA;SNA|橘郡|Santa Ana|NA;ONT|安大略 加州|Ontario CA|NA;LGB|長灘|Long Beach|NA;LAS|拉斯維加斯|Las Vegas|NA;PHX|鳳凰城|Phoenix|NA;SEA|西雅圖|Seattle|NA;PDX|波特蘭|Portland|NA;DEN|丹佛|Denver|NA;SLC|鹽湖城|Salt Lake City|NA;ORD|芝加哥 歐海爾|Chicago OHare|NA;MDW|芝加哥 中途|Chicago Midway|NA;DTW|底特律|Detroit|NA;MSP|明尼亞波利斯|Minneapolis|NA;JFK|紐約 甘迺迪|New York JFK|NA;EWR|紐約 紐華克|Newark|NA;LGA|紐約 拉瓜地亞|LaGuardia|NA;BOS|波士頓|Boston|NA;PHL|費城|Philadelphia|NA;IAD|華盛頓 杜勒斯|Washington Dulles|NA;DCA|華盛頓 雷根|Washington Reagan|NA;BWI|巴爾的摩|Baltimore|NA;ATL|亞特蘭大|Atlanta|NA;MIA|邁阿密|Miami|NA;MCO|奧蘭多|Orlando|NA;FLL|羅德岱堡|Fort Lauderdale|NA;TPA|坦帕|Tampa|NA;IAH|休士頓|Houston|NA;DFW|達拉斯|Dallas|NA;AUS|奧斯汀|Austin|NA;STL|聖路易|St Louis|NA;HNL|檀香山 夏威夷|Honolulu|NA;OGG|茂宜島|Maui Kahului|NA;KOA|科納|Kona|NA;ANC|安克拉治|Anchorage|NA;GUM|關島|Guam|NA;SPN|塞班島|Saipan|NA;YVR|溫哥華|Vancouver|NA;YYZ|多倫多|Toronto|NA;YUL|蒙特婁|Montreal|NA;YYC|卡加利|Calgary|NA;YEG|艾德蒙頓|Edmonton|NA;MEX|墨西哥城|Mexico City|NA;CUN|坎昆|Cancun|NA;SYD|雪梨|Sydney|OC;MEL|墨爾本|Melbourne|OC;BNE|布里斯本|Brisbane|OC;PER|伯斯|Perth|OC;ADL|阿德雷德|Adelaide|OC;OOL|黃金海岸|Gold Coast|OC;CNS|凱恩斯|Cairns|OC;AKL|奧克蘭 紐西蘭|Auckland|OC;CHC|基督城|Christchurch|OC;ZQN|皇后鎮|Queenstown|OC;WLG|威靈頓|Wellington|OC;NAN|斐濟 楠迪|Fiji Nadi|OC;PPT|大溪地|Tahiti|OC;CAI|開羅|Cairo|AF;JNB|約翰尼斯堡|Johannesburg|AF;CPT|開普敦|Cape Town|AF;NBO|奈洛比|Nairobi|AF;ADD|阿迪斯阿貝巴|Addis Ababa|AF;CMN|卡薩布蘭卡|Casablanca|AF;RAK|馬拉喀什|Marrakesh|AF;MRU|模里西斯|Mauritius|AF;SEZ|塞席爾|Seychelles|AF;GRU|聖保羅|Sao Paulo|SAM;GIG|里約熱內盧|Rio de Janeiro|SAM;EZE|布宜諾斯艾利斯|Buenos Aires|SAM;SCL|聖地牙哥 智利|Santiago|SAM;LIM|利馬|Lima|SAM;BOG|波哥大|Bogota|SAM';
+const AIRPORTS=AP_RAW.split(';').filter(Boolean).map(function(t){var p=t.split('|');return{c:p[0],z:p[1],e:p[2],r:p[3]}});
+const AP_BY={};AIRPORTS.forEach(function(a){AP_BY[a.c]=a});
+function apName(c){var a=AP_BY[(c||'').toUpperCase()];return a?a.z:''}
+function apEn(c){var a=AP_BY[(c||'').toUpperCase()];return a?a.e:''}
+function regionOf(code){var a=AP_BY[(code||'').toUpperCase()];return a?a.r:null}
+function searchAP(q){
+  q=(q||'').trim().toLowerCase(); if(!q)return[];
+  var out=[];
+  for(var i=0;i<AIRPORTS.length;i++){
+    var a=AIRPORTS[i],c=a.c.toLowerCase(),zc=a.z.replace(/ /g,''),e=a.e.toLowerCase(),sc=-1;
+    if(c===q)sc=0; else if(c.indexOf(q)===0)sc=1;
+    else if(zc.indexOf(q)===0)sc=2; else if(zc.indexOf(q)>=0)sc=3;
+    else if(e.indexOf(q)===0)sc=4; else if(e.indexOf(q)>=0)sc=5;
+    if(sc>=0)out.push([sc,i,a]);
+  }
+  out.sort(function(x,y){return x[0]-y[0]||x[1]-y[1]});
+  return out.slice(0,8).map(function(x){return x[2]});
+}
+/* [中文名, 英文名(用於 Google Flights 篩選), 官網] */
+const CARRIERS={
+ TW:[['中華航空','China Airlines','https://www.china-airlines.com/tw/zh'],
+     ['長榮航空','EVA Air','https://www.evaair.com/zh-tw/index.html'],
+     ['星宇航空','STARLUX Airlines','https://www.starlux-airlines.com/zh-TW'],
+     ['台灣虎航','Tigerair Taiwan','https://www.tigerairtw.com/zh-tw'],
+     ['立榮航空','UNI Air','https://www.uniair.com.tw']],
+ JP:[['日本航空','Japan Airlines','https://www.jal.co.jp/tw/zh/'],
+     ['全日空','ANA','https://www.ana.co.jp/zh-tw/tw/'],
+     ['樂桃航空','Peach','https://www.flypeach.com/tw'],
+     ['捷星日本','Jetstar Japan','https://www.jetstar.com/tw/zh/home'],
+     ['ZIPAIR','ZIPAIR','https://www.zipair.net/zh-tw']],
+ KR:[['大韓航空','Korean Air','https://www.koreanair.com'],
+     ['韓亞航空','Asiana Airlines','https://flyasiana.com'],
+     ['濟州航空','Jeju Air','https://www.jejuair.net'],
+     ['德威航空','T\u2019way Air','https://www.twayair.com'],
+     ['真航空','Jin Air','https://www.jinair.com']],
+ HK:[['國泰航空','Cathay Pacific','https://www.cathaypacific.com/cx/zh_TW.html'],
+     ['香港快運','HK Express','https://www.hkexpress.com/zh-hk'],
+     ['大灣區航空','Greater Bay Airlines','https://www.greaterbayairlines.com'],
+     ['澳門航空','Air Macau','https://www.airmacau.com.mo']],
+ CN:[['中國國際航空','Air China','https://www.airchina.com.tw'],
+     ['中國東方航空','China Eastern','https://tw.ceair.com'],
+     ['中國南方航空','China Southern','https://www.csair.com'],
+     ['廈門航空','Xiamen Air','https://www.xiamenair.com']],
+ SEA:[['新加坡航空','Singapore Airlines','https://www.singaporeair.com'],
+     ['酷航','Scoot','https://www.flyscoot.com'],
+     ['泰國航空','Thai Airways','https://www.thaiairways.com'],
+     ['越捷航空','VietJet Air','https://www.vietjetair.com'],
+     ['越南航空','Vietnam Airlines','https://www.vietnamairlines.com'],
+     ['亞洲航空','AirAsia','https://www.airasia.com'],
+     ['馬來西亞航空','Malaysia Airlines','https://www.malaysiaairlines.com'],
+     ['菲律賓航空','Philippine Airlines','https://www.philippineairlines.com'],
+     ['宿霧太平洋','Cebu Pacific','https://www.cebupacificair.com'],
+     ['泰國獅子航空','Thai Lion Air','https://www.lionairthai.com']],
+ SA:[['印度航空','Air India','https://www.airindia.com'],
+     ['斯里蘭卡航空','SriLankan Airlines','https://www.srilankan.com'],
+     ['新加坡航空','Singapore Airlines','https://www.singaporeair.com'],
+     ['泰國航空','Thai Airways','https://www.thaiairways.com']],
+ NA:[['聯合航空','United Airlines','https://www.united.com'],
+     ['達美航空','Delta Air Lines','https://www.delta.com'],
+     ['美國航空','American Airlines','https://www.aa.com'],
+     ['加拿大航空','Air Canada','https://www.aircanada.com'],
+     ['日本航空','Japan Airlines','https://www.jal.co.jp/tw/zh/'],
+     ['大韓航空','Korean Air','https://www.koreanair.com']],
+ EU:[['荷蘭皇家航空','KLM','https://www.klm.com'],
+     ['法國航空','Air France','https://www.airfrance.com'],
+     ['漢莎航空','Lufthansa','https://www.lufthansa.com'],
+     ['土耳其航空','Turkish Airlines','https://www.turkishairlines.com'],
+     ['英國航空','British Airways','https://www.britishairways.com'],
+     ['芬蘭航空','Finnair','https://www.finnair.com'],
+     ['阿聯酋航空','Emirates','https://www.emirates.com']],
+ ME:[['阿聯酋航空','Emirates','https://www.emirates.com'],
+     ['卡達航空','Qatar Airways','https://www.qatarairways.com'],
+     ['阿提哈德航空','Etihad Airways','https://www.etihad.com'],
+     ['土耳其航空','Turkish Airlines','https://www.turkishairlines.com']],
+ OC:[['澳洲航空','Qantas','https://www.qantas.com'],
+     ['紐西蘭航空','Air New Zealand','https://www.airnewzealand.com'],
+     ['捷星航空','Jetstar','https://www.jetstar.com']],
+ AF:[['阿聯酋航空','Emirates','https://www.emirates.com'],
+     ['卡達航空','Qatar Airways','https://www.qatarairways.com'],
+     ['衣索比亞航空','Ethiopian Airlines','https://www.ethiopianairlines.com'],
+     ['土耳其航空','Turkish Airlines','https://www.turkishairlines.com']],
+ SAM:[['美國航空','American Airlines','https://www.aa.com'],
+     ['達美航空','Delta Air Lines','https://www.delta.com'],
+     ['阿聯酋航空','Emirates','https://www.emirates.com'],
+     ['土耳其航空','Turkish Airlines','https://www.turkishairlines.com']]
+};
+const REGION_NAME={TW:'台灣線',JP:'日本線',KR:'韓國線',HK:'港澳線',CN:'中國線',SEA:'東南亞線',SA:'南亞線',NA:'美加線',EU:'歐洲線',ME:'中東線',OC:'紐澳線',AF:'非洲線',SAM:'南美線'};
+const OTAS=[['易遊網 ezTravel','https://flight.eztravel.com.tw'],['雄獅旅遊','https://www.liontravel.com'],
+  ['Agoda 機票','https://www.agoda.com/zh-tw/flights'],['Expedia 台灣','https://www.expedia.com.tw'],
+  ['Kiwi.com（自行轉機專長）','https://www.kiwi.com/tw/'],['Trip.com 台灣','https://tw.trip.com/flights/']];
+
+/* ---------- 儲存：localStorage，失敗時退回記憶體 ---------- */
+const MEM={};
+const store={
+  get:function(k){try{var v=localStorage.getItem(k);return Promise.resolve(v==null?null:{key:k,value:v})}
+    catch(e){return Promise.resolve(MEM[k]==null?null:{key:k,value:MEM[k]})}},
+  set:function(k,v){try{localStorage.setItem(k,v)}catch(e){MEM[k]=v}return Promise.resolve({key:k,value:v})},
+  del:function(k){try{localStorage.removeItem(k)}catch(e){delete MEM[k]}return Promise.resolve({key:k,deleted:true})}
+};
+
+/* ---------- state ---------- */
+function blank(){return{trip:{},alt:{},flags:{},checks:{},prices:{},arb:{},plans:[],log:[],anchor:{},air:{}}}
+let S=blank();
+
+async function persist(){
+  const flag=$('#saveflag');
+  try{await store.set(KEY,JSON.stringify(S));
+    flag.textContent='已儲存 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})}
+  catch(e){flag.textContent='僅存在本次工作階段'}
+}
+const save=(()=>{let t;return()=>{clearTimeout(t);t=setTimeout(persist,500)}})();
+async function restore(){
+  try{const r=await store.get(KEY);
+    if(r&&r.value){S=Object.assign(blank(),JSON.parse(r.value));hydrate();$('#saveflag').textContent='已載入上次資料';return}}
+  catch(e){}
+  $('#saveflag').textContent='新的工作階段';
+}
+
+/* ---------- 連結：可點也可複製 ---------- */
+function openURL(u){
+  try{const w=window.open(u,'_blank','noopener');if(w)return true}catch(e){}
+  return false;
+}
+function showURLs(title,urls){
+  $('#urlTitle').textContent=title;
+  $('#urlText').value=urls.join('\n');
+  $('#urlbox').classList.add('on');
+  $('#urlText').focus();$('#urlText').select();
+}
+$('#urlClose').onclick=()=>$('#urlbox').classList.remove('on');
+$('#urlCopy').onclick=async()=>{
+  const t=$('#urlText');t.select();
+  try{await navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}
+  $('#urlCopy').textContent='已複製';setTimeout(()=>$('#urlCopy').textContent='全選並複製',1500);
+};
+document.addEventListener('click',e=>{
+  const a=e.target.closest('[data-url]');
+  if(!a)return;
+  e.preventDefault();
+  const u=a.dataset.url;
+  if(!openURL(u))showURLs('這個連結被沙箱擋住了，複製後貼到瀏覽器：',[u]);
+});
+
+/* ---------- tabs ---------- */
+$$('.tabbtn').forEach(b=>b.onclick=()=>{
+  $$('.tabbtn').forEach(x=>x.setAttribute('aria-selected',x===b));
+  $$('.tab').forEach(s=>s.classList.toggle('on',s.id===b.dataset.t));
+  window.scrollTo({top:0});
+  if(b.dataset.t==='t4'){renderRank();renderDecide()}
+  if(b.dataset.t==='t5'){renderLog()}
+  if(b.dataset.t==='t6'){renderAirlines()}
+});
+function goTab(id){const b=$('.tabbtn[data-t="'+id+'"]');if(b)b.click()}
+
+/* ---------- fields ---------- */
+const TF=['dep','ret','flex','pax','cabin','cardFee'];
+const AF=['altCost','altStay'];
+const FF=['okLcc','okRed','okSelf'];
+TF.forEach(id=>$('#'+id).addEventListener('input',()=>{S.trip[id]=$('#'+id).value;save();meta()}));
+AF.forEach(id=>$('#'+id).addEventListener('input',()=>{S.alt[id]=$('#'+id).value;save()}));
+FF.forEach(id=>$('#'+id).addEventListener('change',()=>{S.flags[id]=$('#'+id).checked;save()}));
+$('#limits').addEventListener('input',()=>{S.trip.limits=$('#limits').value;save()});
+['anchorLow','anchorMid'].forEach(id=>$('#'+id).addEventListener('input',()=>{S.anchor[id]=$('#'+id).value;save();renderDecide()}));
+
+function hydrate(){
+  TF.forEach(id=>{if(S.trip[id]!=null)$('#'+id).value=S.trip[id]});
+  AF.forEach(id=>{if(S.alt[id]!=null)$('#'+id).value=S.alt[id]});
+  showAP('from');showAP('to');renderChips('altFrom');renderChips('altTo');
+  FF.forEach(id=>{$('#'+id).checked=!!S.flags[id]});
+  $('#limits').value=S.trip.limits||'';
+  $('#anchorLow').value=S.anchor.anchorLow||'';$('#anchorMid').value=S.anchor.anchorMid||'';
+  renderArb();renderPlans();renderAirlines();meta();
+  if(S.matrix)buildMatrix();
+}
+function meta(){
+  $('#fMeta1').textContent=S.plans.length;
+  const r=ranked();
+  $('#fMeta2').textContent=r.length?NT(r[0].adj):'—';
+  const ap=Object.values(S.air||{}).map(x=>Number(x&&x.p)).filter(x=>x>0);
+  $('#fMeta4').textContent=ap.length?NT(Math.min.apply(null,ap)):'—';
+  const d=daysToDep();
+  $('#fMeta3').textContent=d==null?'—':(d<0?'已過期':d+' 天');
+}
+function daysToDep(){
+  if(!S.trip.dep)return null;
+  const d=new Date(S.trip.dep+'T00:00:00'),now=new Date();now.setHours(0,0,0,0);
+  return Math.round((d-now)/86400000);
+}
+
+/* ---------- 搜尋連結 ---------- */
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const yy=s=>{const p=s.split('-');return p[0].slice(2)+p[1]+p[2]};
+const shift=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return iso(d)};
+const WD=['日','一','二','三','四','五','六'];
+const wd=s=>WD[new Date(s+'T00:00:00').getDay()];
+function offsets(f){
+  f=Math.max(0,Math.min(14,Number(f)||0));
+  if(f<=3){const a=[];for(let i=-f;i<=f;i++)a.push(i);return a}
+  return [-f,-3,-2,-1,0,1,2,3,f];
+}
+function gfQuery(o,d,dd,rd,airline){
+  let q='Flights from '+o+' to '+d+' on '+dd+(rd?' through '+rd:'');
+  if(airline)q+=' on '+airline;
+  return 'https://www.google.com/travel/flights?q='+encodeURIComponent(q);
+}
+function links(o,d,dd,rd){
+  const pax=Number(S.trip.pax)||1, cab=S.trip.cabin||'economy';
+  const sky='https://www.skyscanner.com.tw/transport/flights/'+o.toLowerCase()+'/'+d.toLowerCase()+'/'+yy(dd)+'/'+(rd?yy(rd)+'/':'')+'?adultsv2='+pax+'&cabinclass='+cab+(rd?'&rtn=1':'&rtn=0');
+  const kiwi='https://www.kiwi.com/en/search/results/'+o+'/'+d+'/'+dd+(rd?'/'+rd:'');
+  const kay='https://www.kayak.com.tw/flights/'+o+'-'+d+'/'+dd+(rd?'/'+rd:'')+(pax>1?'/'+pax+'adults':'')+'?sort=bestflight_a';
+  const trip='https://tw.trip.com/flights/showfarefirst?dcity='+o.toLowerCase()+'&acity='+d.toLowerCase()+'&ddate='+dd+(rd?'&rdate='+rd+'&triptype=rt':'&triptype=ow')+'&class=y&quantity='+pax;
+  const exp='https://www.expedia.com.tw/Flights-Search?mode=search&trip='+(rd?'roundtrip':'oneway')+
+    '&leg1=from:'+o+',to:'+d+',departure:'+dd+'TANYT'+(rd?'&leg2=from:'+d+',to:'+o+',departure:'+rd+'TANYT':'')+
+    '&passengers=adults:'+pax+'&options=cabinclass:'+(cab==='premiumeconomy'?'premium_economy':cab);
+  return [['Google Flights',gfQuery(o,d,dd,rd)],['Skyscanner',sky],['Kiwi',kiwi],['Kayak',kay],['Trip.com',trip],['Expedia',exp]];
+}
+
+$('#goMatrix').onclick=()=>{
+  if(!S.trip.from||!S.trip.to||!S.trip.dep){alert('先填出發機場、目的機場與出發日。');return}
+  S.matrix=true;buildMatrix();renderAirlines();save();goTab('t2');
+};
+
+function buildMatrix(){
+  const from=(S.trip.from||'').toUpperCase().trim(), to=(S.trip.to||'').toUpperCase().trim();
+  if(!from||!to||!S.trip.dep)return;
+  const list=s=>(s||'').toUpperCase().split(/[,，\s]+/).filter(x=>x.length===3);
+  const origins=[from].concat(list(S.alt.altFrom).filter(x=>x!==from));
+  const dests=[to].concat(list(S.alt.altTo).filter(x=>x!==to));
+  const offs=offsets(S.trip.flex), rows=[];
+  origins.forEach(o=>dests.forEach(d=>{
+    offs.forEach(k=>{
+      rows.push({o,d,dd:shift(S.trip.dep,k),rd:S.trip.ret?shift(S.trip.ret,k):'',k});
+    });
+    if(S.trip.ret&&offs.length>1){
+      [-2,-1,1,2].forEach(k2=>rows.push({o,d,dd:S.trip.dep,rd:shift(S.trip.ret,k2),k:0,k2,dur:true}));
+    }
+  }));
+  rows.forEach(r=>r.alt=(r.o!==from||r.d!==to));
+  const cap=64, over=rows.length>cap, shown=rows.slice(0,cap);
+  $('#matrixWarn').innerHTML=over
+    ? '<div class="warn">組合有 '+rows.length+' 種，只列出前 '+cap+' 列。把日期彈性或替代機場減少，會得到比較能真的查完的清單。</div>'
+    : '<p class="note">共 '+rows.length+' 種組合。先查基準那幾列，看出價格走向再往外擴。</p>';
+
+  $('#matrix').innerHTML=shown.map(r=>{
+    const id=[r.o,r.d,r.dd,r.rd].join('_');
+    const tags=[];
+    if(!r.alt&&r.k===0&&!r.dur)tags.push('<span class="tag base">基準</span>');
+    if(r.alt)tags.push('<span class="tag alt">替代機場</span>');
+    if(r.dur)tags.push('<span class="tag">天數 '+(r.k2>0?'+':'')+r.k2+'</span>');
+    else if(r.k!==0)tags.push('<span class="tag">'+(r.k>0?'+':'')+r.k+' 天</span>');
+    return '<div class="leg"><div class="leg-head">'+
+      '<input type="checkbox" data-ck="'+id+'" '+(S.checks[id]?'checked':'')+' style="width:18px;height:18px;accent-color:var(--amber)">'+
+      '<span class="leg-code"><b>'+r.o+'</b> → <b>'+r.d+'</b></span>'+
+      '<span class="leg-date">'+r.dd+'（'+wd(r.dd)+'）'+(r.rd?'<br>⇄ '+r.rd+'（'+wd(r.rd)+'）':' 單程')+'</span></div>'+
+      '<div class="leg-body">'+links(r.o,r.d,r.dd,r.rd).map(l=>'<a class="lnk" data-url="'+esc(l[1])+'" href="'+esc(l[1])+'" target="_blank" rel="noopener">'+l[0]+'</a>').join('')+
+      '<button class="lnk" data-all="'+id+'">複製網址</button>'+
+      '<input class="px" type="number" inputmode="numeric" placeholder="票面價" data-px="'+id+'" value="'+(S.prices[id]||'')+'"></div>'+
+      (tags.length?'<div class="leg-body" style="padding-top:0"><div class="tagrow">'+tags.join('')+'</div></div>':'')+
+      '</div>';
+  }).join('');
+
+  $$('[data-ck]').forEach(el=>el.onchange=()=>{S.checks[el.dataset.ck]=el.checked;save()});
+  $$('[data-px]').forEach(el=>el.oninput=()=>{S.prices[el.dataset.px]=el.value;save()});
+  $$('[data-all]').forEach(b=>b.onclick=()=>{
+    const p=b.dataset.all.split('_');
+    showURLs(p[0]+'→'+p[1]+' '+p[2]+'　複製後貼到瀏覽器：',links(p[0],p[1],p[2],p[3]).map(l=>l[0]+'\n'+l[1]));
+  });
+  renderArb();
+}
+
+/* ---------- 套利檢查 ---------- */
+function arbItems(){
+  const o=(S.trip.from||'').toUpperCase(), d=(S.trip.to||'').toUpperCase();
+  const dd=S.trip.dep, rd=S.trip.ret;
+  const ok=o&&d&&dd;
+  const L=(o2,d2,dd2,rd2)=>ok?links(o2,d2,dd2,rd2):[];
+  return [
+   {id:'split',t:'去回程分開買（不同航空公司）',h:'把去程與回程當成兩張單程票分別搜尋。單程票常常不是來回票的一半，要真的查過才知道。',
+    urls:ok?L(o,d,dd,'').slice(0,3).concat(rd?L(d,o,rd,'').slice(0,3):[]):[]},
+   {id:'openjaw',t:'Open-jaw（進出不同城市）',h:'去 A 城、從 B 城回。省下的錢要扣掉城市之間的陸運費用。用下面的替代目的機場欄位組合搜尋。',urls:[]},
+   {id:'multi',t:'Multi-city 多段',h:'把中途城市寫成獨立航段，有時比來回票加一段區間線便宜。',
+    urls:ok?[['Skyscanner 多城市','https://www.skyscanner.com.tw/transport/flights-multi-city/']]:[]},
+   {id:'self',t:'Self-transfer 自行轉機',h:'兩張不同票號的票自己接。行李通常要提出重掛，第一段延誤時第二段不受保障。Kiwi 是專門做這種組合的。',
+    urls:ok?[['Kiwi 自行轉機','https://www.kiwi.com/en/search/results/'+o+'/'+d+'/'+dd+(rd?'/'+rd:'')]]:[]},
+   {id:'airport',t:'替代機場組合',h:'TPE↔TSA、NRT↔HND、KIX↔ITM、BKK↔DMK、LAX↔SNA/ONT。差價要扣掉機場交通。',urls:[]},
+   {id:'origin',t:'外站出發',h:'香港、澳門、福岡、首爾、曼谷出發。必須加上前往外站的機票／交通、住宿與時間成本才算數。',urls:[]},
+   {id:'mile',t:'哩程／信用卡點數兌換',h:'查手上的哩程換這條航線要多少，換算成現金價值再跟現金票比。',urls:[]}
+  ];
+}
+function renderArb(){
+  $('#arb').innerHTML=arbItems().map(a=>{
+    const v=S.arb[a.id]||{};
+    const ls=(a.urls||[]).map(l=>'<a class="lnk" data-url="'+esc(l[1])+'" href="'+esc(l[1])+'" target="_blank" rel="noopener">'+esc(l[0])+'</a>').join('');
+    return '<div style="padding:9px 0;border-bottom:1px dashed var(--line)">'+
+      '<div style="font-size:13.5px;font-weight:600">'+a.t+'</div>'+
+      '<div class="note" style="margin:2px 0 6px">'+a.h+'</div>'+
+      (ls?'<div class="row" style="margin-bottom:6px">'+ls+'</div>':'')+
+      '<div class="row"><select data-arb="'+a.id+'" style="width:auto;flex:none;font-size:12px;padding:6px 8px">'+
+      ['未查','更便宜','沒有比較便宜','不適用'].map(x=>'<option '+(v.r===x?'selected':'')+'>'+x+'</option>').join('')+
+      '</select><input data-arbn="'+a.id+'" placeholder="查到什麼" value="'+esc(v.n||'')+'" style="flex:1;min-width:140px;font-size:12.5px;padding:6px 8px"></div></div>';
+  }).join('');
+  $$('[data-arb]').forEach(el=>el.onchange=()=>{const k=el.dataset.arb;S.arb[k]=Object.assign({},S.arb[k],{r:el.value});save()});
+  $$('[data-arbn]').forEach(el=>el.oninput=()=>{const k=el.dataset.arbn;S.arb[k]=Object.assign({},S.arb[k],{n:el.value});save()});
+}
+
+/* ---------- 官網報價 ---------- */
+function renderAirlines(){
+  const o=(S.trip.from||'').toUpperCase(), d=(S.trip.to||'').toUpperCase();
+  const dd=S.trip.dep, rd=S.trip.ret;
+  const reg=regionOf(d);
+  let groups=[];
+  if(o&&['TPE','TSA','KHH','RMQ','TNN','HUN'].includes(o))groups.push(['台灣籍航空',CARRIERS.TW]);
+  if(reg&&CARRIERS[reg])groups.push([REGION_NAME[reg]+'　目的地端航空',CARRIERS[reg]]);
+  if(!groups.length)groups=[['台灣籍航空',CARRIERS.TW],['主要國際航空',CARRIERS.SEA.slice(0,4).concat(CARRIERS.NA.slice(0,3),CARRIERS.EU.slice(0,3))]];
+
+  let html='';
+  if(!d)html+='<div class="warn">還沒填目的地機場，先列出台灣籍航空。填好之後這裡會換成實際在飛那條線的航空公司。</div>';
+  else if(!reg)html+='<div class="warn">'+d+' 不在內建的航線對照表裡，先列出台灣籍與主要國際航空。你也可以用最下面的欄位自己加。</div>';
+
+  groups.forEach(g=>{
+    html+='<h3 style="font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:var(--dim);margin:16px 0 4px">'+g[0]+'</h3><div class="card">';
+    html+=g[1].map(c=>{
+      const k=c[1], v=S.air[k]||{};
+      const gf=(o&&d&&dd)?gfQuery(o,d,dd,rd,c[1]):null;
+      return '<div class="air"><span class="air-n">'+c[0]+'</span>'+
+        '<a class="lnk" data-url="'+esc(c[2])+'" href="'+esc(c[2])+'" target="_blank" rel="noopener">官網</a>'+
+        (gf?'<a class="lnk" data-url="'+esc(gf)+'" href="'+esc(gf)+'" target="_blank" rel="noopener">先看價位</a>':'')+
+        '<input class="px" type="number" inputmode="numeric" placeholder="官網價/人" data-air="'+esc(k)+'" value="'+esc(v.p||'')+'">'+
+        (v.p?'<button class="lnk" data-mk="'+esc(k)+'|'+esc(c[0])+'">建立方案</button>':'')+
+        '</div>';
+    }).join('')+'</div>';
+  });
+
+  html+='<div class="card"><div class="f"><label>自己補一家（名稱）</label>'+
+    '<div class="row"><input id="airAdd" placeholder="例：日本航空" style="flex:1;min-width:140px">'+
+    '<input id="airAddP" class="px" type="number" inputmode="numeric" placeholder="官網價/人">'+
+    '<button class="btn sm" id="airAddBtn">記下</button></div></div>';
+  const custom=Object.keys(S.air).filter(k=>S.air[k]&&S.air[k].custom);
+  if(custom.length)html+='<div style="margin-top:8px">'+custom.map(k=>
+    '<div class="air"><span class="air-n">'+esc(k)+'</span><span class="subtle">'+NT(S.air[k].p)+'／人</span>'+
+    '<button class="lnk" data-mk="'+esc(k)+'|'+esc(k)+'">建立方案</button>'+
+    '<button class="lnk" data-rm="'+esc(k)+'">刪</button></div>').join('')+'</div>';
+  html+='</div>';
+
+  const vals=Object.keys(S.air).map(k=>[k,Number(S.air[k]&&S.air[k].p)]).filter(x=>x[1]>0).sort((a,b)=>a[1]-b[1]);
+  if(vals.length)html='<div class="verdict v-green"><div class="v-head">官網最低：'+esc(vals[0][0])+'　'+NT(vals[0][1])+'／人</div>'+
+    (vals.length>1?'<div class="subtle">次低 '+esc(vals[1][0])+' '+NT(vals[1][1])+'　·　已登記 '+vals.length+' 家</div>':'')+'</div>'+html;
+
+  $('#airlines').innerHTML=html;
+  $('#otas').innerHTML=OTAS.map(t=>'<a class="lnk" style="margin:3px" data-url="'+esc(t[1])+'" href="'+esc(t[1])+'" target="_blank" rel="noopener">'+esc(t[0])+'</a>').join('');
+
+  $$('[data-air]').forEach(el=>el.oninput=()=>{
+    const k=el.dataset.air;S.air[k]=Object.assign({},S.air[k],{p:el.value});save();meta();
+  });
+  $$('[data-air]').forEach(el=>el.onblur=()=>renderAirlines());
+  $$('[data-mk]').forEach(b=>b.onclick=()=>{
+    const p=b.dataset.mk.split('|');
+    newPlanFrom(p[1],Number(S.air[p[0]].p)||0);
+  });
+  $$('[data-rm]').forEach(b=>b.onclick=()=>{delete S.air[b.dataset.rm];renderAirlines();save();meta()});
+  const ab=$('#airAddBtn');
+  if(ab)ab.onclick=()=>{
+    const n=$('#airAdd').value.trim(), p=Number($('#airAddP').value);
+    if(!n||!p){alert('填名稱與價格。');return}
+    S.air[n]={p:p,custom:true};$('#airAdd').value='';$('#airAddP').value='';
+    renderAirlines();save();meta();
+  };
+}
+function newPlanFrom(name,fare){
+  S.plans.push(Object.assign({},PDEF,{name:name+' 官網',airline:name,buyAt:'航空公司官網',fare:fare,
+    unsure:'行李、選位與退改規則尚未在結帳頁確認'}));
+  renderPlans();save();meta();goTab('t3');
+}
+
+/* ---------- 方案 ---------- */
+const PDEF={name:'新方案',airline:'',buyAt:'航空公司官網',tkt:'single',refund:'不可退',
+  fare:0,tax:0,bag:0,seat:0,ota:0,move:0,stay:0,visa:0,
+  layover:0,intl:true,claim:false,recheck:false,immig:false,term:false,sec:false,
+  failRate:null,rebuy:null,unsure:''};
+$('#addPlan').onclick=()=>{S.plans.push(Object.assign({},PDEF,{name:'方案 '+(S.plans.length+1)}));renderPlans();save();meta()};
+
+function mct(p){
+  let m=45;
+  if(p.intl)m+=30; if(p.claim)m+=30; if(p.recheck)m+=45;
+  if(p.immig)m+=45; if(p.term)m+=45; if(p.sec)m+=25;
+  if(p.tkt==='separate')m+=30;
+  return{min:m,safe:Math.round(m*1.5)};
+}
+function autoFail(p){
+  if(p.tkt!=='separate')return 0;
+  const lo=Number(p.layover)||0; if(!lo)return 12;
+  const r=lo/mct(p).min;
+  if(r<1)return 35; if(r<1.25)return 18; if(r<1.5)return 10; if(r<2)return 5; return 3;
+}
+function calc(p){
+  const pax=Number(S.trip.pax)||1, cf=Number(S.trip.cardFee)||0, n=k=>Number(p[k])||0;
+  const t=n('fare')+n('tax')+n('bag')+n('seat')+n('ota');
+  const pay=t*cf/100, move=n('move')+n('stay')+n('visa');
+  const per=t+pay+move, total=per*pax;
+  const fail=(p.failRate===''||p.failRate==null)?autoFail(p):Number(p.failRate);
+  const rebuy=(p.rebuy===''||p.rebuy==null)?Math.round(n('fare')*1.8+3000):Number(p.rebuy);
+  const riskCost=(p.tkt==='separate')?(fail/100)*rebuy*pax:0;
+  return{pax,pay,per,total,fail,rebuy,riskCost,adj:total+riskCost,
+    parts:{fare:(n('fare')+n('tax'))*pax,bag:n('bag')*pax,fee:(n('seat')+n('ota')+pay)*pax,move:move*pax,risk:riskCost}};
+}
+function riskLabel(p){
+  const c=calc(p);
+  if(p.tkt!=='separate'){
+    const m=mct(p).min;
+    if(p.layover&&Number(p.layover)<m)return{k:'中',cls:'b-amber',why:'同一票號，航空公司有責任重新安排，但轉機時間低於建議值 '+m+' 分'};
+    return{k:'低',cls:'b-green',why:'同一票號，延誤由航空公司負責銜接'};
+  }
+  if(c.fail>=25)return{k:'極高',cls:'b-red',why:'分開票且轉機時間明顯不足'};
+  if(c.fail>=15)return{k:'高',cls:'b-red',why:'分開票，緩衝偏緊'};
+  if(c.fail>=8)return{k:'中',cls:'b-amber',why:'分開票，緩衝尚可'};
+  return{k:'中低',cls:'b-amber',why:'分開票但緩衝充足；行李仍可能無法直掛'};
+}
+function ranked(){
+  return S.plans.map((p,i)=>Object.assign({i,p},calc(p))).filter(x=>x.total>0).sort((a,b)=>a.adj-b.adj);
+}
+function renderPlans(){
+  if(!S.plans.length){$('#plans').innerHTML='<div class="empty">還沒有方案。在「官網報價」填一個價格後按「建立方案」，或直接按上面新增。</div>';return}
+  $('#plans').innerHTML=S.plans.map((p,i)=>{
+    const c=calc(p), r=riskLabel(p), m=mct(p);
+    const tot=Math.max(1,c.parts.fare+c.parts.bag+c.parts.fee+c.parts.move+c.parts.risk);
+    const w=v=>(v/tot*100).toFixed(1)+'%';
+    const cb=(k,l)=>'<label class="chk"><input type="checkbox" data-p="'+i+'" data-k="'+k+'" '+(p[k]?'checked':'')+'><span>'+l+'</span></label>';
+    const num=(k,l)=>'<div class="f"><label>'+l+'</label><input type="number" inputmode="numeric" data-p="'+i+'" data-k="'+k+'" value="'+(p[k]||'')+'"></div>';
+    const opt=(v,t)=>'<option value="'+v+'" '+(p.tkt===v?'selected':'')+'>'+t+'</option>';
+    const ropt=v=>'<option '+(p.refund===v?'selected':'')+'>'+v+'</option>';
+    return '<div class="plan"><div class="plan-top">'+
+      '<input data-p="'+i+'" data-k="name" value="'+esc(p.name)+'">'+
+      '<span class="badge '+r.cls+'">風險 '+r.k+'</span>'+
+      '<button class="btn ghost sm" data-del="'+i+'">刪</button></div><div class="plan-body">'+
+      '<div class="grid"><div class="f"><label>航空公司／航班</label><input data-p="'+i+'" data-k="airline" value="'+esc(p.airline)+'" placeholder="BR198 / 長榮"></div>'+
+      '<div class="f"><label>購買平台</label><input data-p="'+i+'" data-k="buyAt" value="'+esc(p.buyAt)+'"></div></div>'+
+      '<div class="grid" style="margin-top:8px"><div class="f"><label>票務型態</label><select data-p="'+i+'" data-k="tkt">'+
+        opt('single','單一票號（含轉機）')+opt('alliance','聯程／同盟聯運')+opt('separate','分開出票／Self-transfer')+'</select></div>'+
+      '<div class="f"><label>退改條件</label><select data-p="'+i+'" data-k="refund">'+
+        ropt('不可退')+ropt('可退需手續費')+ropt('可免費改期')+ropt('全額可退')+ropt('未確認')+'</select></div></div>'+
+      '<div class="costbar"><i class="seg-fare" style="width:'+w(c.parts.fare)+'"></i><i class="seg-bag" style="width:'+w(c.parts.bag)+'"></i>'+
+        '<i class="seg-fee" style="width:'+w(c.parts.fee)+'"></i><i class="seg-move" style="width:'+w(c.parts.move)+'"></i>'+
+        '<i class="seg-risk" style="width:'+w(c.parts.risk)+'"></i></div>'+
+      '<div class="legend"><span><i class="seg-fare"></i>票價＋稅</span><span><i class="seg-bag"></i>行李</span>'+
+        '<span><i class="seg-fee"></i>選位／手續／刷卡</span><span><i class="seg-move"></i>交通住宿簽證</span>'+
+        '<span><i class="seg-risk"></i>風險成本</span></div>'+
+      '<div style="margin:10px 0 2px"><span class="total">'+NT(c.adj)+'</span> <span class="subtle">風險調整後總成本 · '+c.pax+' 人</span></div>'+
+      '<div class="subtle">實付 '+NT(c.total)+'　＋　風險成本 '+NT(c.riskCost)+'　／　每人 '+NT(c.per)+'</div>'+
+      '<details class="sub-d"><summary>費用明細（每人 NT$）</summary><div class="grid3" style="margin-top:8px">'+
+        num('fare','票價')+num('tax','稅金與燃油')+num('bag','託運行李')+num('seat','選位')+
+        num('ota','OTA 手續費')+num('move','機場來回交通')+num('stay','額外住宿')+num('visa','簽證／過境')+
+      '</div><p class="note">刷卡外幣手續費 '+(Number(S.trip.cardFee)||0)+'% 自動加計 '+NT(c.pay)+'／人。</p></details>'+
+      '<details class="sub-d"'+(p.tkt==='separate'?' open':'')+'><summary>轉機與風險</summary>'+
+        '<div class="grid" style="margin-top:8px">'+num('layover','轉機時間（分鐘）')+
+        '<div class="f"><label>建議 / 安全緩衝</label><input value="'+m.min+' / '+m.safe+' 分" disabled></div></div>'+
+        cb('intl','國際線轉機（需通關流程）')+cb('claim','需提領行李重掛')+cb('recheck','需重新 Check-in')+
+        cb('immig','需入境或過境查驗')+cb('term','需更換航廈')+cb('sec','需重新安檢')+
+        (p.tkt==='separate'?'<div class="grid" style="margin-top:8px">'+
+          '<div class="f"><label>銜接失敗率 %（估計，可改）</label><input type="number" inputmode="decimal" data-p="'+i+'" data-k="failRate" value="'+(p.failRate==null||p.failRate===''?autoFail(p):p.failRate)+'"></div>'+
+          '<div class="f"><label>失敗時重買成本／人 NT$</label><input type="number" inputmode="numeric" data-p="'+i+'" data-k="rebuy" value="'+(p.rebuy==null||p.rebuy===''?Math.round((Number(p.fare)||0)*1.8+3000):p.rebuy)+'"></div></div>':'')+
+        '<p class="note">'+r.why+'。'+(p.tkt==='separate'?'風險成本＝失敗率 × 重買成本，已計入上方總額。':'風險成本以 0 計入。')+'</p></details>'+
+      '<details class="sub-d"><summary>未確認項目</summary>'+
+        '<textarea data-p="'+i+'" data-k="unsure" placeholder="例：行李費未在結帳頁確認；OTA 退改規則未查">'+esc(p.unsure)+'</textarea>'+
+        '<p class="note">寫在這裡的項目會標進最後的摘要，提醒你這個總價還沒被驗證完。</p></details>'+
+      '</div></div>';
+  }).join('');
+
+  const RE=['fare','tax','bag','seat','ota','move','stay','visa','layover','failRate','rebuy','tkt','intl','claim','recheck','immig','term','sec'];
+  $$('[data-p]').forEach(el=>{
+    const i=+el.dataset.p, k=el.dataset.k;
+    const ev=(el.type==='checkbox'||el.tagName==='SELECT')?'change':'input';
+    el.addEventListener(ev,()=>{
+      S.plans[i][k]=el.type==='checkbox'?el.checked:el.value;
+      save();meta();
+      if(RE.includes(k)){
+        const a=document.activeElement, id=(a&&a.dataset&&a.dataset.p!=null)?[a.dataset.p,a.dataset.k]:null;
+        renderPlans();
+        if(id){const b=$('[data-p="'+id[0]+'"][data-k="'+id[1]+'"]');
+          if(b){b.focus();try{b.setSelectionRange(b.value.length,b.value.length)}catch(e){}}}
+      }
+    });
+  });
+  $$('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('刪除這個方案？')){S.plans.splice(+b.dataset.del,1);renderPlans();save();meta()}});
+}
+
+/* ---------- 排行 ---------- */
+function renderRank(){
+  const r=ranked();
+  if(!r.length){$('#rank').innerHTML='<div class="empty">先建立至少一個有票價的方案。</div>';return}
+  const best=r[0], cheapest=r.slice().sort((a,b)=>a.total-b.total)[0];
+  const safe=r.find(x=>['低','中低'].includes(riskLabel(x.p).k));
+  let h='<div class="scroll"><table><tr><th>方案</th><th>票價+稅</th><th>行李</th><th>其他費</th><th>交通</th><th>實付</th><th>風險</th><th>風險調整後</th></tr>'+
+    r.map(x=>'<tr><td>'+esc(x.p.name)+(x.p.unsure?' <span class="badge b-dim">未確認</span>':'')+'</td><td>'+NT(x.parts.fare)+'</td><td>'+NT(x.parts.bag)+
+    '</td><td>'+NT(x.parts.fee)+'</td><td>'+NT(x.parts.move)+'</td><td>'+NT(x.total)+'</td><td>'+riskLabel(x.p).k+'</td><td><b>'+NT(x.adj)+'</b></td></tr>').join('')+'</table></div>';
+  h+='<div class="verdict v-green"><div class="v-head">🏆 最佳方案 · '+esc(best.p.name)+'</div>'+
+    '<div class="subtle">'+esc(best.p.airline||'—')+' · '+esc(best.p.buyAt||'—')+' · 退改：'+esc(best.p.refund||'未確認')+'</div>'+
+    '<div style="margin-top:6px">風險調整後總成本 <b>'+NT(best.adj)+'</b>（實付 '+NT(best.total)+'）</div></div>';
+  if(cheapest.i!==best.i)
+    h+='<div class="verdict v-amber"><div class="v-head">💰 最便宜（只看實付）· '+esc(cheapest.p.name)+'</div>'+
+      '<div>實付 '+NT(cheapest.total)+'，把銜接失敗的期望成本算進去後變成 '+NT(cheapest.adj)+'，比最佳方案貴 '+NT(cheapest.adj-best.adj)+'。</div></div>';
+  else h+='<div class="verdict v-green"><div class="v-head">💰 最便宜方案</div><div>票面最便宜的同時也是風險調整後最便宜的，兩者是同一個。</div></div>';
+  if(safe&&safe.i!==best.i)
+    h+='<div class="verdict"><div class="v-head">⭐ 最佳性價比 · '+esc(safe.p.name)+'</div>'+
+      '<div>多花 '+NT(safe.adj-best.adj)+'，換到單一票號的銜接保障與行李直掛。</div></div>';
+  const un=r.filter(x=>x.p.unsure);
+  if(un.length)h+='<div class="warn">還有 '+un.length+' 個方案有未確認項目。在這些欄位確認之前，上面的排序都只是暫定的。</div>';
+  $('#rank').innerHTML=h;
+}
+
+/* ---------- 決策 ---------- */
+function renderDecide(){
+  const r=ranked(), d=daysToDep();
+  if(!r.length||d==null){$('#decide').innerHTML='<div class="empty">需要出發日與至少一個方案。</div>';$('#monitor').innerHTML='';return}
+  const pax=Number(S.trip.pax)||1, nowFare=Number(r[0].p.fare)||0;
+  const lo=Number(S.anchor.anchorLow)||0, mid=Number(S.anchor.anchorMid)||0;
+  let cls='v-amber', head='🟡 建議持續監控', body=[], phase;
+  if(d<0)phase='出發日已過。';
+  else if(d<=10)phase='距出發 '+d+' 天。這個階段票價通常只會往上，等待的期望報酬是負的。';
+  else if(d<=21)phase='距出發 '+d+' 天。剩餘座位開始被高票價艙等吃掉，降價機會變少。';
+  else if(d<=60)phase='距出發 '+d+' 天。這是多數航線價格最有機會落在合理區間的時候。';
+  else if(d<=120)phase='距出發 '+d+' 天。票價常常還沒真正開跑，特價多半還在後面。';
+  else phase='距出發 '+d+' 天。太早了，除了促銷期以外沒什麼理由現在下手。';
+  body.push(phase+'（這是航線常見的節奏，不是價格預測。）');
+  if(!lo&&!mid){
+    body.push('<span class="unk">【資料不足，無法確認】</span>沒有價格錨點，無法判斷目前這個價格算便宜還是貴。先填入你在整月檢視裡看到的低價與常見價。');
+    if(d>=0&&d<=14){cls='v-green';head='🟢 傾向現在買';body.push('即使沒有錨點：這麼接近出發日，繼續等的下檔風險大於上檔空間。')}
+  }else{
+    const L=lo||Math.round(mid*0.8), M=mid||Math.round(lo*1.25);
+    const buyAt=Math.round(L*1.05);
+    if(nowFare&&nowFare<=buyAt){cls='v-green';head='🟢 建議立即購買';
+      body.push('目前 '+NT(nowFare)+' 已在低價區間（門檻 '+NT(buyAt)+'）之內，再等的空間有限。')}
+    else if(nowFare&&nowFare<=M){cls='v-amber';head='🟡 可以買，但值得再等幾天';
+      body.push('目前 '+NT(nowFare)+' 落在低價 '+NT(L)+' 與常見價 '+NT(M)+' 之間。'+(d<=21?'不過只剩 '+d+' 天，繼續等的風險偏高。':'還有 '+d+' 天，可以再觀察。'))}
+    else{cls=d<=14?'v-amber':'v-red';head=d<=14?'🟡 價格偏高但時間不多':'🔴 建議等待';
+      body.push('目前 '+NT(nowFare)+' 高於常見價 '+NT(M)+'。'+(d<=14?'時間壓力下可能只能接受，但先確認替代日期與替代機場。':'這條航線近期出現過更低的價格，沒有理由現在買。'))}
+    body.push('<b>立即購買門檻</b> '+NT(buyAt)+'／人　·　<b>考慮門檻</b> '+NT(M)+'／人　·　'+pax+' 人合計約 '+NT(buyAt*pax)+' 起。');
+  }
+  $('#decide').innerHTML='<div class="verdict '+cls+'"><div class="v-head">'+head+'</div><div style="margin-top:6px">'+body.join('<br>')+'</div></div>';
+  const stop=S.trip.dep?shift(S.trip.dep,-14):'';
+  const checked=Object.values(S.checks).filter(Boolean).length;
+  const airn=Object.keys(S.air).filter(k=>S.air[k]&&Number(S.air[k].p)>0).length;
+  $('#monitor').innerHTML='<div class="card"><ul style="margin:0;padding-left:18px;font-size:13.5px">'+
+    '<li>監控日期：查價清單裡已勾選的 '+checked+' 組組合中價格最低的三組。</li>'+
+    '<li>監控官網：已登記報價的 '+airn+' 家航空公司，官網促銷通常不會出現在 OTA 上。</li>'+
+    '<li>監控工具：Google Flights 價格追蹤、Skyscanner 價格警報。</li>'+
+    '<li>最晚停止等待：<b>'+(stop||'—')+'</b>（出發前 14 天）。到這天還沒買，就在當下最低的方案裡直接選一個。</li>'+
+    '<li>價格警報只是變動通知，不保證按那個價格成交 —— 收到通知還是要進到結帳頁確認。</li></ul></div>';
+}
+
+/* ---------- 紀錄 ---------- */
+$('#addLog').onclick=()=>{
+  const d=$('#logDate').value||iso(new Date()), n=$('#logName').value.trim(), v=Number($('#logVal').value);
+  if(!v){alert('填一個總成本數字。');return}
+  S.log.push({d,n:n||'未命名',v});S.log.sort((a,b)=>a.d<b.d?-1:1);
+  $('#logName').value='';$('#logVal').value='';renderLog();save();
+};
+function renderLog(){
+  if(!S.log.length){$('#logView').innerHTML='<div class="empty">每次查到價格就記一筆，幾天後就看得出這條航線在往哪邊走。</div>';return}
+  const vs=S.log.map(x=>x.v), mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs), span=Math.max(1,mx-mn), n=S.log.length;
+  const pts=S.log.map((x,i)=>[(n===1?50:i/(n-1)*100),100-((x.v-mn)/span)*82-9]);
+  const path=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  $('#logView').innerHTML='<div class="card"><svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none">'+
+    '<path d="'+path+'" fill="none" stroke="var(--amber)" stroke-width="1.2" vector-effect="non-scaling-stroke"/>'+
+    pts.map(p=>'<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="1.4" fill="var(--amber)" vector-effect="non-scaling-stroke"/>').join('')+
+    '</svg><div class="subtle">最低 '+NT(mn)+' · 最高 '+NT(mx)+' · '+n+' 筆</div>'+
+    '<div class="scroll" style="margin-top:8px"><table><tr><th>日期</th><th>說明</th><th>總成本</th><th></th></tr>'+
+    S.log.map((x,i)=>'<tr><td>'+x.d+'</td><td>'+esc(x.n)+'</td><td>'+NT(x.v)+(x.v===mn?' ★':'')+'</td><td><button class="btn ghost sm" data-dl="'+i+'">刪</button></td></tr>').join('')+
+    '</table></div></div>';
+  $$('[data-dl]').forEach(b=>b.onclick=()=>{S.log.splice(+b.dataset.dl,1);renderLog();save()});
+}
+
+/* ---------- 匯出 ---------- */
+$('#doExport').onclick=()=>{
+  renderDecide();
+  const r=ranked(), d=daysToDep(), pax=Number(S.trip.pax)||1;
+  const okList=[S.flags.okLcc&&'廉航',S.flags.okRed&&'紅眼',S.flags.okSelf&&'自行轉機'].filter(Boolean).join('、');
+  let o=['# 機票總成本評估','',
+    '- 航段：'+(S.trip.from||'?')+' → '+(S.trip.to||'?'),
+    '- 日期：'+(S.trip.dep||'?')+(S.trip.ret?' ⇄ '+S.trip.ret:'（單程）')+'，彈性 ±'+(S.trip.flex||0)+' 天',
+    '- 人數：'+pax+'　艙等：'+(S.trip.cabin||'economy')+'　距出發：'+(d==null?'—':d+' 天'),
+    '- 可接受：'+(okList||'（未指定）')];
+  if(S.trip.limits)o.push('- 其他限制：'+S.trip.limits);
+  const air=Object.keys(S.air).map(k=>[k,Number(S.air[k]&&S.air[k].p)]).filter(x=>x[1]>0).sort((a,b)=>a[1]-b[1]);
+  if(air.length){o.push('','## 官網報價（每人票價）','');air.forEach(a=>o.push('- '+a[0]+'：'+NT(a[1])))}
+  o.push('','## 方案比較（風險調整後排序）','');
+  if(!r.length)o.push('（尚未建立方案）');
+  else{
+    o.push('| 方案 | 票價+稅 | 行李 | 其他費 | 交通 | 實付 | 風險 | 風險調整後 |','|---|---|---|---|---|---|---|---|');
+    r.forEach(x=>o.push('| '+x.p.name+' | '+NT(x.parts.fare)+' | '+NT(x.parts.bag)+' | '+NT(x.parts.fee)+' | '+NT(x.parts.move)+' | '+NT(x.total)+' | '+riskLabel(x.p).k+' | '+NT(x.adj)+' |'));
+    const b=r[0];
+    o.push('','**最佳方案：'+b.p.name+'**','- 航班：'+(b.p.airline||'—'),'- 購買平台：'+(b.p.buyAt||'—'),
+      '- 票務型態：'+({single:'單一票號',alliance:'聯程',separate:'分開出票'}[b.p.tkt]||'—'),
+      '- 退改條件：'+(b.p.refund||'未確認'),
+      '- 風險：'+riskLabel(b.p).k+'（'+riskLabel(b.p).why+'）',
+      '- 實付 '+NT(b.total)+'，風險成本 '+NT(b.riskCost)+'，合計 '+NT(b.adj));
+    const un=r.filter(x=>x.p.unsure);
+    if(un.length){o.push('','### 未確認項目');un.forEach(x=>o.push('- '+x.p.name+'：'+x.p.unsure))}
+  }
+  o.push('','## 套利路線檢查','');
+  arbItems().forEach(a=>{const v=S.arb[a.id]||{};o.push('- '+a.t+'：'+(v.r||'未查')+(v.n?'　—　'+v.n:''))});
+  o.push('','## 價格錨點與判斷','');
+  if(!S.anchor.anchorLow&&!S.anchor.anchorMid)o.push('【資料不足，無法確認】未提供歷史價格區間，買／等的判斷僅依距出發天數。');
+  else o.push('- 觀察低價：'+NT(S.anchor.anchorLow||0)+'／人','- 觀察常見價：'+NT(S.anchor.anchorMid||0)+'／人');
+  const dv=($('#decide').innerText||'').trim();
+  if(dv)o.push('','判斷：'+dv.replace(/\s*\n+\s*/g,' '));
+  if(S.log.length){o.push('','## 價格紀錄','');S.log.forEach(x=>o.push('- '+x.d+'　'+x.n+'　'+NT(x.v)))}
+  o.push('','---','所有金額為使用者實查後輸入；未經結帳頁二次驗證的項目已標示為未確認。');
+  $('#exportBox').value=o.join('\n');
+};
+$('#doCopy').onclick=async()=>{
+  const t=$('#exportBox'); if(!t.value)$('#doExport').click();
+  try{await navigator.clipboard.writeText(t.value)}catch(e){t.select();document.execCommand('copy')}
+  $('#doCopy').textContent='已複製';setTimeout(()=>$('#doCopy').textContent='複製',1600);
+};
+
+$('#resetAll').onclick=async()=>{
+  if(!confirm('清除所有行程、方案與紀錄？這個動作無法復原。'))return;
+  S=blank();
+  try{await store.del(KEY)}catch(e){}
+  TF.concat(AF).forEach(id=>$('#'+id).value='');
+  ['from','to'].forEach(w=>{$('#'+w).value='';$('#'+w+'Name').textContent=''});
+  $('#altFromQ').value='';$('#altToQ').value='';renderChips('altFrom');renderChips('altTo');
+  FF.forEach(id=>$('#'+id).checked=false);
+  $('#limits').value='';$('#anchorLow').value='';$('#anchorMid').value='';
+  $('#matrix').innerHTML='<div class="empty">回到「1 行程」填好航段後，按「產生查價清單」。</div>';
+  $('#matrixWarn').innerHTML='';$('#exportBox').value='';
+  renderArb();renderPlans();renderAirlines();renderLog();meta();
+};
+
+
+/* ---------- 機場自動完成 ---------- */
+function attachAC(input,box,onPick){
+  var items=[],sel=-1;
+  function close(){box.classList.remove('on');box.innerHTML='';items=[];sel=-1}
+  function draw(){
+    box.innerHTML=items.map(function(a,i){
+      return '<div class="acitem'+(i===sel?' sel':'')+'" data-i="'+i+'"><b>'+a.c+'</b>'+esc(a.z)+'<span>'+esc(a.e)+'</span></div>'}).join('');
+    box.classList.toggle('on',items.length>0);
+    Array.prototype.forEach.call(box.children,function(el){
+      el.onmousedown=function(e){e.preventDefault();pick(+el.dataset.i)};
+      el.ontouchstart=function(e){e.preventDefault();pick(+el.dataset.i)};
+    });
+  }
+  function pick(i){var a=items[i];if(!a)return;close();onPick(a)}
+  input.addEventListener('input',function(){items=searchAP(input.value);sel=items.length?0:-1;draw()});
+  input.addEventListener('focus',function(){if(input.value){items=searchAP(input.value);sel=items.length?0:-1;draw()}});
+  input.addEventListener('blur',function(){setTimeout(close,150)});
+  input.addEventListener('keydown',function(e){
+    if(!items.length)return;
+    if(e.key==='ArrowDown'){e.preventDefault();sel=(sel+1)%items.length;draw()}
+    else if(e.key==='ArrowUp'){e.preventDefault();sel=(sel-1+items.length)%items.length;draw()}
+    else if(e.key==='Enter'){e.preventDefault();pick(sel<0?0:sel)}
+    else if(e.key==='Escape'){close()}
+  });
+}
+function showAP(w){
+  var c=(S.trip[w]||'').toUpperCase();
+  $('#'+w).value=c?c+'　'+apName(c):'';
+  $('#'+w+'Name').textContent=c?(apName(c)?apName(c)+'（'+apEn(c)+'）':'代碼 '+c+'：不在內建清單裡，仍可使用'):'';
+}
+function setAP(w,code){
+  S.trip[w]=code?code.toUpperCase():'';
+  showAP(w);save();meta();renderAirlines();
+  if(S.matrix)buildMatrix();
+}
+function resolveAP(w){
+  var v=$('#'+w).value.trim();
+  if(!v){setAP(w,'');return}
+  var m=v.match(/^([A-Za-z]{3})(\s|　|$)/);
+  if(m){setAP(w,m[1]);return}
+  var r=searchAP(v);
+  setAP(w,r.length?r[0].c:'');
+}
+['from','to'].forEach(function(w){
+  attachAC($('#'+w),$('#'+w+'Box'),function(a){setAP(w,a.c)});
+  $('#'+w).addEventListener('blur',function(){setTimeout(function(){resolveAP(w)},170)});
+});
+function altCodes(k){return (S.alt[k]||'').toUpperCase().split(/[,，\s]+/).filter(function(x){return x.length===3})}
+function renderChips(k){
+  var el=$('#'+k+'Chips'),cs=altCodes(k);
+  el.innerHTML=cs.length?cs.map(function(c){
+    return '<span class="chip">'+c+' '+esc(apName(c))+'<button data-chip="'+k+'|'+c+'">×</button></span>'}).join('')
+    :'<span class="subtle">尚未加入</span>';
+  $$('[data-chip]',el).forEach(function(b){
+    b.onclick=function(){
+      var q=b.dataset.chip.split('|');
+      S.alt[q[0]]=altCodes(q[0]).filter(function(x){return x!==q[1]}).join(',');
+      renderChips(q[0]);save();if(S.matrix)buildMatrix();
+    };
+  });
+}
+['altFrom','altTo'].forEach(function(k){
+  attachAC($('#'+k+'Q'),$('#'+k+'Box'),function(a){
+    var cur=altCodes(k);
+    if(cur.indexOf(a.c)<0)cur.push(a.c);
+    S.alt[k]=cur.join(',');$('#'+k+'Q').value='';
+    renderChips(k);save();if(S.matrix)buildMatrix();
+  });
+});
+
+$('#logDate').value=iso(new Date());
+renderArb();renderPlans();renderAirlines();renderChips('altFrom');renderChips('altTo');meta();
+restore();
+</script>
+</body>
+</html>
