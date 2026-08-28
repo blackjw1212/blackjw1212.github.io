@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="機票決策台">
 <meta name="mobile-web-app-capable" content="yes">
+<meta name="color-scheme" content="dark">
 <link rel="canonical" href="/flight/">
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -24,6 +25,10 @@
 </script>
 <style>
 :root{
+  /* 少了這行，Chrome 會用淺色 UA 主題畫原生表單元件：input[type=date] 的日曆圖示是
+     深灰 SVG，落在 #0B131C 的欄位上等於隱形，欄位看起來就是「點不開」。
+     select 的選單、number 的微調鈕與捲軸同理。 */
+  color-scheme:dark;
   --ink:#0E1621; --panel:#16222F; --panel2:#1C2B3A; --line:#2B3C4E;
   --text:#E6EDF3; --dim:#8FA3B5; --dimmer:#63788B;
   --amber:#F0B429; --green:#35B37E; --red:#E5544B; --blue:#5AA9E6; --violet:#9A7FD1;
