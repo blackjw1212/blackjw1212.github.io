@@ -330,17 +330,43 @@ test("known ETFs land in the expected quality bands", async () => {
     assert.ok(feed.stocks.some((row) => row.type === type), `feed 應涵蓋 ${type}`);
   }
 
-  // 波動度改看 24 個月後的實際落點（與 Yahoo 2 年資料獨立算過、逐檔相符）。
-  // 大型穩配標的仍在安全區——核心部位不會因為換窗而消失：
-  assert.ok(by["0050"].dividendCv < 0.6, `0050 cv ${by["0050"].dividendCv} should be safe`);
-  assert.ok(by["0056"].dividendCv < 0.3, `0056 cv ${by["0056"].dividendCv} should be very safe`);
-  assert.ok(by["00878"].dividendCv < 0.3, `00878 cv ${by["00878"].dividendCv} should be very safe`);
-  assert.ok(by["00919"].dividendCv < 0.3, `00919 cv ${by["00919"].dividendCv} should be very safe`);
-  // 006208 的配息由 0.989 跳到 4.75。12 個月窗只看到 4.75 那一段而算出 0.16，
-  // 24 個月窗才看得到跳升（0.65）。這是刻意的行為改變：本工具用近 12 月配息推估
-  // 未來年配息，水準跳升正是該被標出來的推估風險，不是「誤殺成長股」。
-  assert.ok(by["006208"].dividendCv > 0.6, `006208 cv ${by["006208"].dividendCv} should now surface the level shift`);
-  assert.ok(by["00905"].dividendCv > 0.6, `00905 cv ${by["00905"].dividendCv} should be flagged volatile`);
+  // 波動度不綁單一代碼。分級門檻在 market/index.html 的 cvGrade()：
+  // ≤0.15 極穩、≤0.30 穩定、≤0.60 普通、≤1.00 波動、>1.00 很不穩。
+  //
+  // 這裡原本寫死 00878 < 0.3「should be very safe」。2026-08-18 00878 的官方配息
+  // 由 0.66 跳到 1.01（TWSE etfDiv 查得），24 月窗的 CV 隨之由 0.18 升到 0.35，
+  // 斷言就此永久失敗——它沒抓到任何 bug，只是把「當時的市場事實」寫成了契約。
+  // 代價是 update-market-feed 卡在 Validate feed schemas 連續失敗 11 天，而驗證
+  // 排在 commit 之前，所以 data/ 一次都沒更新，feed 凍結在 2026-08-17。
+  // 水準跳升正是這個欄位該標出來的東西，測試不該反過來禁止它發生。
+  // 分級行為改由下面那條純函式測試鎖住，這裡只驗 feed 的結構性質。
+  const graded = feed.stocks.filter((row) => row.dividendCv != null && row.dividendCvSamples >= 4);
+  assert.ok(graded.length > 50, `expected many gradable ETFs, got ${graded.length}`);
+  assert.ok(graded.every((row) => Number.isFinite(row.dividendCv) && row.dividendCv >= 0),
+    "CV 必須是非負有限數");
+  // 全市場不可能全部落在同一格：真落在同一格就是 CV 被常數填掉或窗算壞了。
+  assert.ok(graded.some((row) => row.dividendCv <= 0.3), "全市場應有配息穩定的標的");
+  assert.ok(graded.some((row) => row.dividendCv > 0.6), "全市場應有被標出波動的標的");
+});
+
+// 分級行為綁在純函式上、用固定輸入。綁 feed 裡的特定代碼一定會被市場事實推翻——
+// 00878 就是這樣把 pipeline 停了 11 天（原委寫在上一條測試裡）。本檔第 315 行
+// 還記著 00625K 的同型事故，這已經是第二次。
+test("dividendCv stays quiet on steady payers and surfaces level shifts", () => {
+  const series = (...amounts) => amounts.map((a, i) => ({ d: `2025-${String((i % 12) + 1).padStart(2, "0")}`, a }));
+
+  // 金額完全相同 → 沒有變異
+  assert.equal(dividendCv(series(0.4, 0.4, 0.4, 0.4)), 0);
+  // 緩降緩升、幅度有限 → 留在「穩定」帶（≤0.30）
+  assert.equal(dividendCv(series(0.55, 0.5, 0.47, 0.4, 0.4, 0.42, 0.66)), 0.18);
+  // 00878 的真實序列，補上 2026-08-18 那筆 1.01：一次跳升就該離開安全帶，
+  // 但不該被誇大成「波動」（>0.6）——那一格留給 006208 那種數量級的跳升。
+  assert.equal(dividendCv(series(0.55, 0.5, 0.47, 0.4, 0.4, 0.42, 0.66, 1.01)), 0.35);
+  // 006208：0.989 → 4.75
+  assert.ok(dividendCv(series(0.989, 0.989, 4.75, 4.75)) > 0.6);
+  // 少於 2 筆無從判斷，必須回 null 而不是 0——回 0 會被 cvGrade 標成「極穩」
+  assert.equal(dividendCv([]), null);
+  assert.equal(dividendCv(series(0.4)), null);
 });
 
 test("curated domicile entries carry evidence and reach the feed", async () => {
