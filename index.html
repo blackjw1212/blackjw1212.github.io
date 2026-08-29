@@ -79,6 +79,7 @@
   .esp32-accent{box-shadow:inset 4px 0 0 rgba(217,166,76,.7)}
   .forscan-accent{box-shadow:inset 4px 0 0 rgba(119,214,110,.7)}
   .flight-accent{box-shadow:inset 4px 0 0 rgba(154,127,209,.7)}
+  .dash-accent{box-shadow:inset 4px 0 0 rgba(234,179,8,.7)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (prefers-reduced-motion:reduce){
     .entry,.status-card{transition:none}
@@ -248,6 +249,28 @@
       <div class="entry-foot">
         <div class="entry-limit">內容：手動輸入的試算工具</div>
         <a class="entry-button" data-primary-entry="flight" href="/flight/" aria-label="開啟機票總成本決策台 /flight/">開啟機票決策台 /flight/</a>
+      </div>
+    </article>
+
+    <article class="entry dash-accent">
+      <div>
+        <div class="entry-head">
+          <div class="entry-title">
+            <small>RIDE TELEMETRY</small>
+            <h2>騎乘儀表板</h2>
+          </div>
+          <img src="/assets/images/favicon.svg" alt="" width="40" height="40">
+        </div>
+        <p>把手機當儀表：GPS 車速與里程、手機姿態換算的傾角、即時 G 力、海拔與行駛時間，並在記錄期間讓螢幕保持常亮。</p>
+        <ul>
+          <li>騎乘中請勿操作手機，設定與校正出發前做完。</li>
+          <li>數值僅供參考，非儀器級量測。</li>
+          <li>資料只留在本機瀏覽器，不上傳、不記錄行經路線。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">資料：手機 GPS 與姿態感測器</div>
+        <a class="entry-button" data-primary-entry="dash" href="/dash/" aria-label="開啟騎乘儀表板 /dash/">開啟騎乘儀表板 /dash/</a>
       </div>
     </article>
   </nav>

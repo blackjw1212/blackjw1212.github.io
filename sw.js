@@ -1,5 +1,5 @@
 /* BJKW Public Console — service worker */
-const VERSION = "bjkw-v2";
+const VERSION = "bjkw-v3";
 const CACHE = `bjkw-${VERSION}`;
 
 /* App shell：可導覽頁面 + 必要圖示。刻意保持輕量，不預載 512k 大圖。 */
@@ -12,6 +12,7 @@ const PRECACHE = [
   "/forscan/service/",
   "/forscan/sync3/",
   "/flight/",
+  "/dash/",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",

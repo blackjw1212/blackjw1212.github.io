@@ -93,6 +93,7 @@ for (const rel of [
   "forscan/service/index.html",
   "forscan/sync3/index.html",
   "flight/index.html",
+  "dash/index.html",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -152,14 +153,15 @@ if (has("index.html")) {
   assertMatch("index.html", html, /id="stockFeedStatus"/, "stock status id");
   assertMatch("index.html", html, /id="weatherStatus"/, "weather status id");
   assertMatch("index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev\/health/, "root weather health endpoint");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/ and flight:/flight/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/ and dash:/dash/, got ${primaryLinks.join(", ")}`);
   }
   assertMatch("index.html", html, /開啟股票投資觀察台 \/stocks\//, "visible stocks CTA");
   assertMatch("index.html", html, /開啟天氣觀察台 \/weather\//, "visible weather CTA");
   assertMatch("index.html", html, /開啟 ESP32 觀察台 \/esp32\//, "visible esp32 CTA");
   assertMatch("index.html", html, /開啟 FORScan 觀察台 \/forscan\//, "visible forscan CTA");
   assertMatch("index.html", html, /開啟機票決策台 \/flight\//, "visible flight CTA");
+  assertMatch("index.html", html, /開啟騎乘儀表板 \/dash\//, "visible dash CTA");
   assertNoMatch("index.html", html, /\/ai\/|AI 供應鏈觀察台|開啟 AI 觀察台|AI Feed/);
   assertNoMatch("index.html", html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/i);
   assertNoMatch("index.html", html, /保證|可放心|買進|賣出|投資建議|安全資訊/);
@@ -284,13 +286,34 @@ if (has("flight/index.html")) {
   assertNoMatch("flight/index.html", html, /window\.storage/);
 }
 
+if (has("dash/index.html")) {
+  const html = await read("dash/index.html");
+  assertMatch("dash/index.html", html, /<html lang="zh-Hant">/, "dash document language");
+  assertMatch("dash/index.html", html, /<title>騎乘儀表板｜BJKW<\/title>/, "dash title");
+  assertMatch("dash/index.html", html, /rel="canonical" href="\/dash\/"/, "dash canonical");
+  assertMatch("dash/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "dash manifest");
+  // 這一頁刻意用 #09090b 而不是其他深色頁的 #101418——HUD 的 panel/line 色階與 LED 螢光色
+  // 是配著純黑調的，只改這個 meta 會讓 iOS 狀態列與頁面背景對不上。
+  assertMatch("dash/index.html", html, /name="theme-color" content="#09090b"/, "dash theme color");
+  assertMatch("dash/index.html", html, /apple-mobile-web-app-status-bar-style" content="black"/, "dash ios status bar");
+  assertMatch("dash/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "dash service worker registration");
+  // 純前端：感測資料只進 localStorage，不打任何後端、不記錄座標。
+  assertMatch("dash/index.html", html, /localStorage/, "dash local storage");
+  assertMatch("dash/index.html", html, /不記錄行經路線/, "dash must state it keeps no track log");
+  assertNoMatch("dash/index.html", html, /window\.storage/);
+  // 三條必要揭露。手機量到的是自身姿態而非車身傾角，少了這句整頁就是在誤導。
+  assertMatch("dash/index.html", html, /騎乘中請勿操作手機/, "dash must tell riders not to operate the phone");
+  assertMatch("dash/index.html", html, /非儀器級量測/, "dash must disclose the readings are not instrument grade");
+  assertMatch("dash/index.html", html, /傾角量的是手機姿態，不是車身傾角/, "dash must distinguish phone attitude from lean angle");
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {
