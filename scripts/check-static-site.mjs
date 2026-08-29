@@ -105,6 +105,10 @@ for (const rel of [
   "assets/images/site.webmanifest",
   "assets/images/android-chrome-192x192.png",
   "assets/images/android-chrome-512x512.png",
+  // 儀表的數字字型。走自帶而不是 Google Fonts：實機上 CDN 字型沒載到時，iOS 會退到
+  // ui-monospace（SF Mono），它的零帶斜線，放大當車速看起來像缺字符的方塊。
+  "assets/fonts/chakra-petch-600-digits.woff2",
+  "assets/fonts/chakra-petch-700-digits.woff2",
 ]) {
   mustExist(rel);
 }
