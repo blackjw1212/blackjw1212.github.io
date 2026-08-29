@@ -15,7 +15,11 @@ class FakeElement {
     this.dataset = {};
     this.listeners = new Map();
     this.children = [];
+    this.attributes = new Map();
   }
+  // SVG 元素的 className 是 SVGAnimatedString，頁面只能走 setAttribute，假 DOM 要跟上
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
   get textContent() { return this._textContent; }
   set textContent(value) { this._textContent = String(value); }
   get innerHTML() { return this._innerHTML; }
@@ -46,6 +50,7 @@ function buildDocument(html) {
     hidden: false,
     addEventListener() {},
     createElement() { return new FakeElement(); },
+    createElementNS(_ns, tag) { const node = new FakeElement(); node.tag = tag; return node; },
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, new FakeElement(id));
       return elements.get(id);
@@ -156,19 +161,84 @@ test("fallback speed refuses to divide by a non-positive time delta", async () =
   assert.equal(speedFromFixes(a, { ...b, lat: null }), null);
 });
 
-test("standing still reads as zero so the odometer does not grow at a red light", async () => {
+test("displacement inside the accuracy radius is noise, not movement", async () => {
+  const { app } = await loadDash();
+  const { movementBetween } = app.helpers;
+  const at = (lat, accuracy) => ({ lat, lon: 121.5654, accuracy, t: 0 });
+
+  // 這就是實機回報的情境：人在家裡沒動，精度回報 8m，定位點每秒跳 2m，
+  // 舊邏輯換算成 7.2 km/h 顯示出來。位移小於精度半徑時那是雜訊。
+  const twoMetres = 2 / 111194.93;
+  const still = movementBetween(at(25.033, 8), at(25.033 + twoMetres, 8));
+  assert.equal(still.moving, false, "2m 位移搭配 8m 精度必須判定為沒動");
+  assert.ok(Math.abs(still.meters - 2) < 0.1);
+
+  const twentyMetres = 20 / 111194.93;
+  const rolling = movementBetween(at(25.033, 8), at(25.033 + twentyMetres, 8));
+  assert.equal(rolling.moving, true, "20m 位移遠超過 8m 精度，這是真的在動");
+  assert.ok(Math.abs(rolling.meters - 20) < 0.1);
+
+  // 精度爛掉時門檻自動變嚴，因為雜訊本來就更大
+  assert.equal(movementBetween(at(25.033, 50), at(25.033 + twentyMetres, 50)).moving, false);
+  // 兩筆精度不同時取比較差的那個當雜訊底線
+  assert.equal(movementBetween(at(25.033, 4), at(25.033 + twentyMetres, 60)).moving, false);
+
+  assert.deepEqual({ ...movementBetween(null, at(25.033, 8)) }, { moving: false, meters: 0 });
+  assert.deepEqual({ ...movementBetween(at(25.033, 8), { lat: null, lon: null }) }, { moving: false, meters: 0 });
+});
+
+test("speed needs to clear the threshold, the noise floor and a second confirming fix", async () => {
   const { app } = await loadDash();
   const { stillFilter } = app.helpers;
-  const { STILL_KMH, BAD_ACCURACY_M } = app.constants;
+  const { STILL_KMH, MOVING_STREAK } = app.constants;
 
-  assert.equal(stillFilter(1.8, 5), 0, "GPS 靜止時會漂出 1~3 km/h");
-  assert.equal(stillFilter(STILL_KMH, 5), STILL_KMH, "門檻值本身算有在動");
-  assert.equal(stillFilter(30, 5), 30);
-  assert.equal(stillFilter(null, 5), 0);
-  // 精度爛掉時，門檻放寬到兩倍
-  assert.equal(stillFilter(4, BAD_ACCURACY_M + 10), 0);
-  assert.equal(stillFilter(4, 5), 4);
-  assert.equal(stillFilter(30, BAD_ACCURACY_M + 10), 30, "精度差不代表高速讀數是假的");
+  assert.equal(stillFilter(30, true, MOVING_STREAK), 30, "三個條件都過才顯示");
+  assert.equal(stillFilter(STILL_KMH, true, MOVING_STREAK), STILL_KMH, "門檻值本身算有在動");
+  assert.equal(stillFilter(STILL_KMH - 0.1, true, MOVING_STREAK), 0, "低於步行速度一律當靜止");
+  assert.equal(stillFilter(30, false, MOVING_STREAK), 0, "位移在雜訊裡，再快的讀數都不算");
+  assert.equal(stillFilter(30, true, MOVING_STREAK - 1), 0, "單筆跳點不讓數字跳出來");
+  assert.equal(stillFilter(null, true, MOVING_STREAK), 0);
+  assert.equal(stillFilter(30, true, null), 0);
+});
+
+test("a stationary phone never accumulates speed or distance", async () => {
+  const { app } = await loadDash();
+  app.init();
+  app.getState().trip.running = true;   // 記錄中才會累加里程，不開的話這條斷言是白過的
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+
+  // 室內漂移：精度 8m，每筆跳 2m。餵十筆，儀表必須從頭到尾是 0。
+  for (let i = 0; i < 10; i++) {
+    lat += 2 * metre;
+    app.applyFix({ kmh: null, accuracy: 8, lat, lon: 121.5654, t: 1000 * (i + 1) });
+  }
+  const state = app.getState();
+  assert.equal(state.gps.kmh, 0, "停著不能有時速");
+  assert.equal(state.gps.moving, false);
+  assert.equal(state.trip.distanceM, 0, "停著不能長里程");
+  assert.equal(state.trip.topSpeed, 0);
+  assert.equal(app.getState().gps.hasFix, true, "有收到定位，只是判定為沒在動");
+});
+
+test("real movement takes one confirming fix to show up, then reads through", async () => {
+  const { app } = await loadDash();
+  app.init();
+  app.getState().trip.running = true;   // 里程與極速只在記錄中累加
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+  const roll = (t) => { lat += 20 * metre; app.applyFix({ kmh: 72, accuracy: 8, lat, lon: 121.5654, t }); };
+
+  roll(1000);   // 第一筆只建立基準，沒有前一點可比
+  assert.equal(app.getState().gps.kmh, 0);
+  roll(2000);   // 有位移了，但只有一筆，還在等確認
+  assert.equal(app.getState().gps.kmh, 0, "保守策略：起步後要多一筆才承認");
+  roll(3000);
+  assert.ok(app.getState().gps.kmh > 0, "連續兩筆都在動就讀得出來");
+
+  const { trip } = app.getState();
+  assert.ok(trip.distanceM > 15 && trip.distanceM < 45, `里程應該累加一到兩段 20m，實得 ${trip.distanceM}`);
+  assert.ok(trip.topSpeed > 0);
 });
 
 test("unit switching converts both the number and the label", async () => {
@@ -237,6 +307,83 @@ test("led bar lights up from green through amber to red", async () => {
 
   assert.equal(ledStates(null, LED_COUNT).filter((s) => s !== "off").length, 0);
   assert.equal(ledStates(1, 0).length, LED_COUNT, "燈數無效時退回預設");
+});
+
+test("the arc gauge and the led bar agree on where green becomes amber becomes red", async () => {
+  const { app } = await loadDash();
+  const { sweepColor, ledStates } = app.helpers;
+  const { LED_COUNT } = app.constants;
+
+  assert.equal(sweepColor(0), "green");
+  assert.equal(sweepColor(0.55), "green", "分界值算在較低的那一段");
+  assert.equal(sweepColor(0.56), "amber");
+  assert.equal(sweepColor(0.82), "amber");
+  assert.equal(sweepColor(0.83), "red");
+  assert.equal(sweepColor(1), "red");
+  assert.equal(sweepColor(5), "red", "超出範圍要夾住");
+  assert.equal(sweepColor(null), "green");
+
+  // 燈條與弧錶共用同一組門檻，兩個元件不能對同一個速度給出不同顏色
+  const lit = ledStates(1, LED_COUNT);
+  for (let i = 0; i < LED_COUNT; i++) {
+    assert.equal(lit[i], sweepColor((i + 1) / LED_COUNT), `第 ${i + 1} 顆燈要與弧錶同色`);
+  }
+});
+
+test("arc progress runs from fully retracted to fully drawn", async () => {
+  const { app } = await loadDash();
+  const { arcDashOffset } = app.helpers;
+  const { ARC_LENGTH } = app.constants;
+
+  assert.equal(arcDashOffset(0, ARC_LENGTH), ARC_LENGTH, "0 時完全收起");
+  assert.equal(arcDashOffset(1, ARC_LENGTH), 0, "滿格時填滿");
+  assert.ok(Math.abs(arcDashOffset(0.5, ARC_LENGTH) - ARC_LENGTH / 2) < 1e-9);
+  assert.equal(arcDashOffset(3, ARC_LENGTH), 0, "超出範圍不能算出負的 offset");
+  assert.equal(arcDashOffset(-1, ARC_LENGTH), ARC_LENGTH);
+  assert.equal(arcDashOffset(0.5, 0), 0);
+  assert.equal(arcDashOffset(0.5, null), 0);
+
+  // 弧長是算出來的，不是量 DOM 得到的：240° × r
+  const { ARC_R, ARC_SWEEP_DEG } = app.constants;
+  assert.ok(Math.abs(ARC_LENGTH - ARC_R * Math.abs(ARC_SWEEP_DEG) * Math.PI / 180) < 1e-9);
+});
+
+test("arc points land bottom-left, top and bottom-right", async () => {
+  const { app } = await loadDash();
+  const { arcPoint } = app.helpers;
+  const { ARC_CX, ARC_CY, ARC_R, ARC_START_DEG, ARC_SWEEP_DEG } = app.constants;
+  const at = (ratio) => arcPoint(ratio, ARC_CX, ARC_CY, ARC_R, ARC_START_DEG, ARC_SWEEP_DEG);
+
+  const start = at(0), top = at(0.5), end = at(1);
+  assert.ok(start.x < ARC_CX && start.y > ARC_CY, "起點在左下");
+  assert.ok(Math.abs(top.x - ARC_CX) < 1e-6, "中點在正上方，x 與圓心對齊");
+  assert.ok(Math.abs(top.y - (ARC_CY - ARC_R)) < 1e-6, "SVG 的 y 軸向下，正上方是 cy - r");
+  assert.ok(end.x > ARC_CX && end.y > ARC_CY, "終點在右下");
+  // 240° 錶的兩端要等高，否則刻度看起來是歪的
+  assert.ok(Math.abs(start.y - end.y) < 1e-6);
+  assert.ok(Math.abs((ARC_CX - start.x) - (end.x - ARC_CX)) < 1e-6, "兩端要左右對稱");
+});
+
+test("lean peaks only accumulate once the bike is actually moving", async () => {
+  const { app } = await loadDash();
+  app.init();
+  const state = app.getState();
+
+  // 實測踩過：坐在家裡把手機拿起來看，就被記成「本趟最大傾角 60 度」，
+  // 按暫停還會存進永久個人最佳。低速下不可能維持壓車角。
+  state.trip.running = true;
+  state.gps.kmh = 0;
+  app.handleOrientation({ beta: 0, gamma: -55 });
+  assert.equal(app.getState().sensor.peakLeft, 0, "靜止時把手機翻過來不算壓車");
+  assert.equal(app.getState().sensor.lean, -55, "即時角度照樣要顯示，只是不記峰值");
+
+  state.gps.kmh = app.constants.LEAN_MIN_KMH - 1;
+  app.handleOrientation({ beta: 0, gamma: -40 });
+  assert.equal(app.getState().sensor.peakLeft, 0, "低於門檻仍不記");
+
+  state.gps.kmh = app.constants.LEAN_MIN_KMH + 10;
+  app.handleOrientation({ beta: 0, gamma: -32 });
+  assert.equal(Math.round(app.getState().sensor.peakLeft), 32, "騎起來之後才開始記");
 });
 
 test("lean angle picks the right axis for each screen rotation", async () => {
@@ -320,7 +467,7 @@ test("personal bests only ever go up and tolerate a corrupt save", async () => {
 });
 
 test("init renders a full dashboard without any device API present", async () => {
-  const { app, elements } = await loadDash();
+  const { app, elements, html } = await loadDash();
   app.init();
 
   assert.equal(elements.get("speed").textContent, "--", "沒有定位時車速留白");
@@ -336,6 +483,23 @@ test("init renders a full dashboard without any device API present", async () =>
   assert.equal(elements.get("batteryTile").hidden, true, "沒有 getBattery 的瀏覽器整格不顯示");
   assert.equal(elements.get("btnTilt").hidden, true, "不需要權限的瀏覽器不該出現要權限的按鈕");
   assert.equal(elements.get("lampGps").className, "lamp", "還沒定位時 GPS 燈不能是綠的");
+
+  // 弧的長度一定要走 inline style。實測踩過：用 presentation attribute 搭配
+  // stroke-dashoffset 的 CSS transition，會被一個永遠跑不完的 CSSTransition 卡住——
+  // 屬性寫滿格、畫面停在別的值，兩邊查不出關聯。
+  const sweep = elements.get("dialSweep");
+  assert.equal(sweep.getAttribute("stroke-dasharray"), String(app.constants.ARC_LENGTH));
+  assert.match(sweep.style.strokeDashoffset, /px$/, "長度要帶單位，SVG 才吃得到");
+  assert.ok(
+    Math.abs(parseFloat(sweep.style.strokeDashoffset) - app.constants.ARC_LENGTH) < 0.01,
+    `起始要完全收起，實得 ${sweep.style.strokeDashoffset}`
+  );
+  assert.equal(sweep.getAttribute("stroke-dashoffset"), null, "不可以同時用 attribute 設長度");
+  assert.equal(sweep.getAttribute("class"), "dial-sweep", "0 km/h 時是綠的");
+  // 整個弧形元件不能有任何 transition：長度會卡住，顏色會讓 getComputedStyle 回報舊值
+  const sweepRule = html.match(/\.dial-sweep\{[^}]*\}/)?.[0] || "";
+  assert.ok(sweepRule, ".dial-sweep 規則應該存在");
+  assert.doesNotMatch(sweepRule, /transition/, "弧形車速錶不可有 transition");
 });
 
 test("the mock switch is opt-in and announces itself", async () => {
