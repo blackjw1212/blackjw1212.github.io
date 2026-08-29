@@ -46,6 +46,20 @@ export function moneydjId(code, market) {
   return cleaned + (market === "tpex" ? ".TWO" : ".TW");
 }
 
+// MoneyDJ 會把現金部位當成一列持股。實測 00991B 貝萊德A級公司債（資料日 2026/08/21）：
+// 「TWD CASH 0 -」佔 99.91%，加上九檔真債券後前十大合計 110.39%——不可能的數字，
+// 而且 99.91% 會整包落進產業集中度的「未分類」，讓那一檔的集中度變成沒有意義的數字。
+//
+// 樣式刻意抓緊而不抓寬：只認「幣別 + CASH」與明確的中文現金字樣。
+// 放寬到 CASH\b 會誤殺 CASH AMERICA INTERNATIONAL 這種真的公司債發行人；
+// 放寬到附買回／國庫券／貨幣市場更糟——那些是真的持股，不是現金。
+// 漏網的現金列仍會被 etf-schema 的 coveredWeight <= 100.5 擋下來，是看得見的失敗；
+// 誤殺一檔真持股則是無聲的資料損失，兩種錯的代價不對等。
+export function isCashRow(name) {
+  const text = String(name == null ? "" : name).trim();
+  return /^[A-Z]{3}\s+CASH\b/i.test(text) || /^(現金|銀行存款|待交割)/.test(text);
+}
+
 // 以中文表頭定位欄位，不綁 CSS class——class 改名是最可能的改版方式，
 // 而「股票名稱／比例」是語意錨點，穩定得多。實測與舊 class 解析結果完全相同。
 // 頁面把持股拆成左右兩張 <table>，因此要走訪全部表格。
@@ -72,6 +86,7 @@ export function parseHoldings(html, topN = TOP_N) {
       const name = cells[nameIndex];
       const weight = Number(String(cells[weightIndex] == null ? "" : cells[weightIndex]).replace(/[^\d.]/g, ""));
       if (!name || !Number.isFinite(weight) || weight <= 0 || weight > 100) continue;
+      if (isCashRow(name)) continue;
       out.push({ name, weight: Math.round(weight * 100) / 100 });
       if (out.length >= topN) return out;
     }

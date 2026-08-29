@@ -568,7 +568,7 @@ test("tax params freshness is detected, never silently guessed", async () => {
 });
 
 test("holdings parser is anchored on header labels, not CSS classes", async () => {
-  const { parseHoldings, parseAsOf } = await import("../../scripts/fetch-etf-holdings.mjs");
+  const { parseHoldings, parseAsOf, isCashRow } = await import("../../scripts/fetch-etf-holdings.mjs");
 
   const table = (cls) => `<table id="Repeater1" class="datalist">
     <tr><th>股票名稱</th><th>持股(千股)</th><th>比例</th><th>增減</th></tr>
@@ -587,6 +587,23 @@ test("holdings parser is anchored on header labels, not CSS classes", async () =
   const many = `<table><tr><th>股票名稱</th><th>比例</th></tr>`
     + Array.from({ length: 30 }, (_, i) => `<tr><td>股${i}</td><td>${(30 - i) / 10}</td></tr>`).join("") + `</table>`;
   assert.equal(parseHoldings(many).length, 10);
+
+  // 現金不是持股。實測 00991B 貝萊德A級公司債（資料日 2026/08/21）的頁面把
+  // 「TWD CASH 0 -」列成 99.91% 的第一名，前十大因此合計 110.39%——不可能的數字，
+  // 而且那 99.91% 會整包灌進產業集中度的「未分類」。
+  const withCash = `<table><tr><th>股票名稱</th><th>比例</th></tr>`
+    + `<tr><td>TWD CASH 0 -</td><td>99.91</td></tr>`
+    + `<tr><td>MERCK CO INC 5.7 2055/9/15</td><td>1.32</td></tr>`
+    + `<tr><td>現金及約當現金</td><td>3.5</td></tr>`
+    + `<tr><td>銀行存款</td><td>2.1</td></tr></table>`;
+  assert.deepEqual(parseHoldings(withCash), [{ name: "MERCK CO INC 5.7 2055/9/15", weight: 1.32 }],
+    "現金列必須被排除，只留真正的持股");
+  assert.equal(isCashRow("TWD CASH 0 -"), true);
+  assert.equal(isCashRow("USD CASH"), true);
+  // 抓緊不抓寬：放寬到 CASH\b 或附買回／國庫券會誤殺真持股，而誤殺是無聲的資料損失
+  for (const keep of ["CASH AMERICA INTERNATIONAL 5.5 2030/1/1", "美國國庫券 2028/5/15", "附買回債券", "台積電"]) {
+    assert.equal(isCashRow(keep), false, `${keep} 是真的持股，不可被當成現金排除`);
+  }
 
   // 表頭不見了＝上游真的改版 → 回空陣列，讓呼叫端記為失敗並保留前次值
   assert.deepEqual(parseHoldings(`<table><tr><th>代號</th><th>數量</th></tr><tr><td>x</td><td>1</td></tr></table>`), []);
