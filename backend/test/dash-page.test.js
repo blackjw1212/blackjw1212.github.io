@@ -118,16 +118,20 @@ test("the readout font is self-hosted and never falls back to a monospace face",
   assert.doesNotMatch(numStack, /mono/i, "fallback 不可含等寬字型，那正是斜線零的來源");
 });
 
-test("the dial gets its height from an aspect ratio, not from the svg", async () => {
-  const { html } = await loadDash();
+test("the cluster is one panel and shows no gear indicator", async () => {
+  const { html, app } = await loadDash();
 
-  // 實機踩過：Safari 對 flex 容器裡 width:100%;height:auto 的 inline SVG 會把高度算成 0，
-  // 整個弧形儀表在 iPhone 上消失，中央又變回一個裸數字，桌機 Chromium 卻正常。
-  const dialRule = html.match(/\n\s*\.dial\{[^}]*\}/)?.[0] || "";
-  assert.match(dialRule, /aspect-ratio/, ".dial 要自己撐開高度");
-  const svgRule = html.match(/\.dial-svg\{[^}]*\}/)?.[0] || "";
-  assert.match(svgRule, /position:absolute/, "SVG 要絕對定位填滿，不靠內在尺寸");
-  assert.doesNotMatch(svgRule, /height:auto/, "不可依賴 SVG 的內在高度");
+  // 手機只有 GPS 速度，推不出檔位。之前那個「虛擬檔位」是拿速度區間編出來的，
+  // 掛在儀表上等於顯示一項不存在的車輛狀態。
+  assert.doesNotMatch(html, /GEAR|虛擬檔位|id="gear"/, "不可出現檔位指示");
+  assert.equal(app.helpers.virtualGear, undefined, "虛擬檔位的計算也要一併移除");
+
+  // 一整塊面板，不是三張並排的卡片：傾角、車速、G 力不是同等重要，
+  // 切成等寬卡片會讓騎車時最需要一眼看到的車速失去主導地位。
+  assert.equal((html.match(/class="cluster"/g) || []).length, 1);
+  assert.doesNotMatch(html, /class="card[ "]/, "不再有卡片");
+  assert.match(html, /class="hero"/, "車速要有自己的主區塊");
+  assert.match(html, /id="barScale"/, "速度條要有刻度");
 });
 
 test("device fields that come back null stay unknown instead of becoming zero", async () => {
@@ -283,23 +287,6 @@ test("unit switching converts both the number and the label", async () => {
   assert.equal(formatSpeed(undefined, "mph"), "--");
 });
 
-test("virtual gear puts every band boundary in the higher gear", async () => {
-  const { app } = await loadDash();
-  const { virtualGear } = app.helpers;
-  const bands = app.constants.GEAR_BANDS;   // [0, 25, 45, 70, 95, 125]
-
-  assert.equal(virtualGear(0, bands), 0, "0 = N");
-  assert.equal(virtualGear(null, bands), 0);
-  assert.equal(virtualGear(0.5, bands), 1);
-  assert.equal(virtualGear(24.9, bands), 1);
-  assert.equal(virtualGear(25, bands), 2, "邊界值屬於較高的一檔");
-  assert.equal(virtualGear(44.9, bands), 2);
-  assert.equal(virtualGear(45, bands), 3);
-  assert.equal(virtualGear(70, bands), 4);
-  assert.equal(virtualGear(95, bands), 5);
-  assert.equal(virtualGear(125, bands), 6);
-  assert.equal(virtualGear(300, bands), 6, "超過頂檔不能算出第七檔");
-});
 
 test("rev ratio stays inside 0..1 no matter what the speed is", async () => {
   const { app } = await loadDash();
@@ -338,59 +325,46 @@ test("led bar lights up from green through amber to red", async () => {
   assert.equal(ledStates(1, 0).length, LED_COUNT, "燈數無效時退回預設");
 });
 
-test("the arc gauge and the led bar agree on where green becomes amber becomes red", async () => {
+
+
+
+test("the speed bar ramps up from left to right", async () => {
   const { app } = await loadDash();
-  const { sweepColor, ledStates } = app.helpers;
-  const { LED_COUNT } = app.constants;
+  const { barSegmentHeight } = app.helpers;
+  const { LED_COUNT, BAR_MIN_H } = app.constants;
 
-  assert.equal(sweepColor(0), "green");
-  assert.equal(sweepColor(0.55), "green", "分界值算在較低的那一段");
-  assert.equal(sweepColor(0.56), "amber");
-  assert.equal(sweepColor(0.82), "amber");
-  assert.equal(sweepColor(0.83), "red");
-  assert.equal(sweepColor(1), "red");
-  assert.equal(sweepColor(5), "red", "超出範圍要夾住");
-  assert.equal(sweepColor(null), "green");
-
-  // 燈條與弧錶共用同一組門檻，兩個元件不能對同一個速度給出不同顏色
-  const lit = ledStates(1, LED_COUNT);
+  assert.ok(Math.abs(barSegmentHeight(0, LED_COUNT) - BAR_MIN_H) < 1e-9, "最左邊最矮");
+  assert.ok(Math.abs(barSegmentHeight(LED_COUNT - 1, LED_COUNT) - 1) < 1e-9, "最右邊滿高");
+  let prev = -1;
   for (let i = 0; i < LED_COUNT; i++) {
-    assert.equal(lit[i], sweepColor((i + 1) / LED_COUNT), `第 ${i + 1} 顆燈要與弧錶同色`);
+    const h = barSegmentHeight(i, LED_COUNT);
+    assert.ok(h > prev, `第 ${i} 段要比前一段高`);
+    assert.ok(h > 0 && h <= 1, "高度必須落在 0..1");
+    prev = h;
   }
+  assert.equal(barSegmentHeight(-5, LED_COUNT), BAR_MIN_H, "超出範圍要夾住");
+  assert.equal(barSegmentHeight(999, LED_COUNT), 1);
 });
 
-test("arc progress runs from fully retracted to fully drawn", async () => {
+test("bar scale labels are round numbers in the current unit", async () => {
   const { app } = await loadDash();
-  const { arcDashOffset } = app.helpers;
-  const { ARC_LENGTH } = app.constants;
+  const { barScaleValues } = app.helpers;
+  const { DEFAULT_REDLINE, BAR_SCALE_STEPS } = app.constants;
 
-  assert.equal(arcDashOffset(0, ARC_LENGTH), ARC_LENGTH, "0 時完全收起");
-  assert.equal(arcDashOffset(1, ARC_LENGTH), 0, "滿格時填滿");
-  assert.ok(Math.abs(arcDashOffset(0.5, ARC_LENGTH) - ARC_LENGTH / 2) < 1e-9);
-  assert.equal(arcDashOffset(3, ARC_LENGTH), 0, "超出範圍不能算出負的 offset");
-  assert.equal(arcDashOffset(-1, ARC_LENGTH), ARC_LENGTH);
-  assert.equal(arcDashOffset(0.5, 0), 0);
-  assert.equal(arcDashOffset(0.5, null), 0);
+  const kmh = barScaleValues(DEFAULT_REDLINE, "kmh", BAR_SCALE_STEPS);
+  assert.equal(kmh.length, BAR_SCALE_STEPS);
+  assert.equal(kmh[0], 0, "從 0 開始");
+  assert.equal(kmh[kmh.length - 1], DEFAULT_REDLINE, "最後一格是紅線");
+  // 儀表上出現 28、83 這種數字沒有人看得下去
+  assert.ok(kmh.every((v) => v % 5 === 0), `刻度要取整到 5，實得 ${kmh.join(",")}`);
+  for (let i = 1; i < kmh.length; i++) assert.ok(kmh[i] > kmh[i - 1], "刻度必須遞增");
 
-  // 弧長是算出來的，不是量 DOM 得到的：240° × r
-  const { ARC_R, ARC_SWEEP_DEG } = app.constants;
-  assert.ok(Math.abs(ARC_LENGTH - ARC_R * Math.abs(ARC_SWEEP_DEG) * Math.PI / 180) < 1e-9);
-});
+  const mph = barScaleValues(DEFAULT_REDLINE, "mph", BAR_SCALE_STEPS);
+  assert.ok(mph.every((v) => v % 5 === 0));
+  assert.ok(mph[mph.length - 1] < kmh[kmh.length - 1], "換成 mph 後上限數字要變小");
 
-test("arc points land bottom-left, top and bottom-right", async () => {
-  const { app } = await loadDash();
-  const { arcPoint } = app.helpers;
-  const { ARC_CX, ARC_CY, ARC_R, ARC_START_DEG, ARC_SWEEP_DEG } = app.constants;
-  const at = (ratio) => arcPoint(ratio, ARC_CX, ARC_CY, ARC_R, ARC_START_DEG, ARC_SWEEP_DEG);
-
-  const start = at(0), top = at(0.5), end = at(1);
-  assert.ok(start.x < ARC_CX && start.y > ARC_CY, "起點在左下");
-  assert.ok(Math.abs(top.x - ARC_CX) < 1e-6, "中點在正上方，x 與圓心對齊");
-  assert.ok(Math.abs(top.y - (ARC_CY - ARC_R)) < 1e-6, "SVG 的 y 軸向下，正上方是 cy - r");
-  assert.ok(end.x > ARC_CX && end.y > ARC_CY, "終點在右下");
-  // 240° 錶的兩端要等高，否則刻度看起來是歪的
-  assert.ok(Math.abs(start.y - end.y) < 1e-6);
-  assert.ok(Math.abs((ARC_CX - start.x) - (end.x - ARC_CX)) < 1e-6, "兩端要左右對稱");
+  assert.deepEqual([...barScaleValues(0, "kmh", 5)], []);
+  assert.deepEqual([...barScaleValues(null, "kmh", 5)], []);
 });
 
 test("lean peaks only accumulate once the bike is actually moving", async () => {
@@ -501,10 +475,9 @@ test("init renders a full dashboard without any device API present", async () =>
 
   assert.equal(elements.get("speed").textContent, "--", "沒有定位時車速留白");
   assert.equal(elements.get("speed").className, "speed idle", "等定位中的 -- 要淡化，看起來才不像壞掉");
-  assert.equal(elements.get("gear").textContent, "N");
+  assert.equal(elements.get("speedUnit").textContent, "km/h");
   assert.equal(elements.get("leanNow").textContent, "--°");
   assert.equal(elements.get("elapsed").textContent, "00:00:00");
-  assert.equal(elements.get("revPct").textContent, "0%");
   assert.equal(elements.get("btnRun").textContent, "開始記錄");
   assert.equal(elements.get("btnUnit").textContent, "切換 mph");
   assert.equal(elements.get("revBar").children.length, app.constants.LED_COUNT);
@@ -514,22 +487,26 @@ test("init renders a full dashboard without any device API present", async () =>
   assert.equal(elements.get("btnTilt").hidden, true, "不需要權限的瀏覽器不該出現要權限的按鈕");
   assert.equal(elements.get("lampGps").className, "lamp", "還沒定位時 GPS 燈不能是綠的");
 
-  // 弧的長度一定要走 inline style。實測踩過：用 presentation attribute 搭配
-  // stroke-dashoffset 的 CSS transition，會被一個永遠跑不完的 CSSTransition 卡住——
-  // 屬性寫滿格、畫面停在別的值，兩邊查不出關聯。
-  const sweep = elements.get("dialSweep");
-  assert.equal(sweep.getAttribute("stroke-dasharray"), String(app.constants.ARC_LENGTH));
-  assert.match(sweep.style.strokeDashoffset, /px$/, "長度要帶單位，SVG 才吃得到");
-  assert.ok(
-    Math.abs(parseFloat(sweep.style.strokeDashoffset) - app.constants.ARC_LENGTH) < 0.01,
-    `起始要完全收起，實得 ${sweep.style.strokeDashoffset}`
+  // 速度條的斜坡是 JS 逐段設進去的，不是 CSS 寫死的——刻度數與段數要能一起改
+  const leds = elements.get("revBar").children;
+  assert.match(leds[0].style.height, /%$/, "段高要帶單位");
+  assert.ok(parseFloat(leds[0].style.height) < parseFloat(leds[leds.length - 1].style.height),
+    "由左往右要遞增");
+  assert.equal(elements.get("barScale").children.length, app.constants.BAR_SCALE_STEPS);
+  assert.equal(elements.get("barScale").children[0].textContent, "0");
+  assert.equal(
+    elements.get("barScale").children[app.constants.BAR_SCALE_STEPS - 1].textContent,
+    String(app.constants.DEFAULT_REDLINE)
   );
-  assert.equal(sweep.getAttribute("stroke-dashoffset"), null, "不可以同時用 attribute 設長度");
-  assert.equal(sweep.getAttribute("class"), "dial-sweep", "0 km/h 時是綠的");
-  // 整個弧形元件不能有任何 transition：長度會卡住，顏色會讓 getComputedStyle 回報舊值
-  const sweepRule = html.match(/\.dial-sweep\{[^}]*\}/)?.[0] || "";
-  assert.ok(sweepRule, ".dial-sweep 規則應該存在");
-  assert.doesNotMatch(sweepRule, /transition/, "弧形車速錶不可有 transition");
+
+  // 儀表要貼著資料走，不留任何補間。實測踩過：對長度類屬性下 transition，
+  // render() 每 125~250ms 重設一次就會讓 CSSTransition 永遠跑不完而整個卡住，
+  // 屬性寫的是一個值、畫面停在另一個值，兩邊查不出關聯。
+  const ledRule = html.match(/\n\s*\.led\{[^}]*\}/)?.[0] || "";
+  assert.ok(ledRule, ".led 規則應該存在");
+  assert.doesNotMatch(ledRule, /transition/, "速度條不可有 transition");
+  const dotRule = html.match(/\.gdot\{[^}]*\}/)?.[0] || "";
+  assert.doesNotMatch(dotRule, /transition/, "G 力點也不可有 transition");
 });
 
 test("the mock switch is opt-in and announces itself", async () => {
@@ -547,7 +524,7 @@ test("unit preference round-trips through localStorage", async () => {
   const first = await loadDash({ localStorage: store });
   first.app.init();
   first.elements.get("btnUnit").fire("click");
-  assert.equal(first.elements.get("speedUnit").textContent, "M P H");
+  assert.equal(first.elements.get("speedUnit").textContent, "mph");
   assert.equal(first.app.getState().prefs.unit, "mph");
 
   const second = await loadDash({ localStorage: store });
