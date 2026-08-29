@@ -214,7 +214,7 @@ svg.spark{width:100%;height:120px;display:block}
   <div id="matrix"><div class="empty">回到「1 行程」填好航段後，按「產生查價清單」。</div></div>
 
   <h2>套利路線檢查</h2>
-  <p class="note">這幾種組合不會出現在一般來回搜尋裡，得手動查。可以直接開的我都給連結了。</p>
+  <p class="note">這幾種組合不會出現在一般來回搜尋裡，得手動查。備得到網址的，按「查價網址」在頁面內取。</p>
   <div class="card" id="arb"></div>
 </section>
 
@@ -564,7 +564,9 @@ function arbItems(){
   const L=(o2,d2,dd2,rd2)=>ok?links(o2,d2,dd2,rd2):[];
   return [
    {id:'split',t:'去回程分開買（不同航空公司）',h:'把去程與回程當成兩張單程票分別搜尋。單程票常常不是來回票的一半，要真的查過才知道。',
-    urls:ok?L(o,d,dd,'').slice(0,3).concat(rd?L(d,o,rd,'').slice(0,3):[]):[]},
+    // 去程與回程會用到同樣三個站，網址清單改成純文字後名稱是唯一的區分，得標明方向
+    urls:ok?L(o,d,dd,'').slice(0,3).map(l=>['去程 '+l[0],l[1]])
+      .concat(rd?L(d,o,rd,'').slice(0,3).map(l=>['回程 '+l[0],l[1]]):[]):[]},
    {id:'openjaw',t:'Open-jaw（進出不同城市）',h:'去 A 城、從 B 城回。省下的錢要扣掉城市之間的陸運費用。回「1 行程」把目的機場換成另一個城市各查一次，再自己相加比較。',urls:[]},
    {id:'multi',t:'Multi-city 多段',h:'把中途城市寫成獨立航段，有時比來回票加一段區間線便宜。',
     urls:ok?[['Skyscanner 多城市','https://www.skyscanner.com.tw/transport/flights-multi-city/']]:[]},
@@ -578,7 +580,7 @@ function arbItems(){
 function renderArb(){
   $('#arb').innerHTML=arbItems().map(a=>{
     const v=S.arb[a.id]||{};
-    const ls=(a.urls||[]).map(l=>'<a class="lnk" data-url="'+esc(l[1])+'" href="'+esc(l[1])+'" target="_blank" rel="noopener">'+esc(l[0])+'</a>').join('');
+    const ls=(a.urls||[]).length?'<button class="lnk" data-arburl="'+a.id+'">查價網址</button>':'';
     return '<div style="padding:9px 0;border-bottom:1px dashed var(--line)">'+
       '<div style="font-size:13.5px;font-weight:600">'+a.t+'</div>'+
       '<div class="note" style="margin:2px 0 6px">'+a.h+'</div>'+
@@ -587,6 +589,11 @@ function renderArb(){
       ['未查','更便宜','沒有比較便宜','不適用'].map(x=>'<option '+(v.r===x?'selected':'')+'>'+x+'</option>').join('')+
       '</select><input data-arbn="'+a.id+'" placeholder="查到什麼" value="'+esc(v.n||'')+'" style="flex:1;min-width:140px;font-size:12.5px;padding:6px 8px"></div></div>';
   }).join('');
+  $$('[data-arburl]').forEach(b=>b.onclick=()=>{
+    const item=arbItems().find(x=>x.id===b.dataset.arburl);
+    if(!item||!item.urls.length)return;
+    showURLs(item.t+'　複製後貼到瀏覽器：',item.urls.map(l=>l[0]+'\n'+l[1]));
+  });
   $$('[data-arb]').forEach(el=>el.onchange=()=>{const k=el.dataset.arb;S.arb[k]=Object.assign({},S.arb[k],{r:el.value});save()});
   $$('[data-arbn]').forEach(el=>el.oninput=()=>{const k=el.dataset.arbn;S.arb[k]=Object.assign({},S.arb[k],{n:el.value});save()});
 }
