@@ -529,8 +529,42 @@ test("the scale sits in the same box as the bar so the labels line up", async ()
   const colAt = html.indexOf('<div class="bar-col">');
   assert.ok(colAt > 0 && colAt < barAt, "容器要包住速度條");
 
-  // 窄螢幕上燈號要讓出整列，否則條會被擠成一條細線
-  assert.match(html, /@media \(max-width:620px\)\{[^}]*\.bar-head\{flex-direction:column-reverse/);
+  // 燈號一律自己一列，速度條吃滿整個面板寬度。橫放時也一樣——先前只讓窄螢幕這樣排，
+  // 結果四顆燈在橫式吃掉 32% 的條寬（實測 567 / 838）。
+  const barHead = html.match(/\n\s*\.bar-head\{[^}]*\}/)?.[0] || "";
+  assert.match(barHead, /flex-direction:column-reverse/, "燈號要自己一列，不跟速度條搶寬度");
+});
+
+test("landscape fills the viewport instead of leaving dead space at the bottom", async () => {
+  const { html } = await loadDash();
+  const landscape = html.match(/@media \(orientation:landscape\)[^{]*\{[\s\S]*?\n  \}/)?.[0] || "";
+  assert.ok(landscape, "橫式規則應該存在");
+
+  // 實測踩過：內容到 347 而視窗 393，底部空了 46px。
+  // 先前只驗 scrollHeight === innerHeight，但 body 有 min-height:100vh，
+  // 那個等式只代表「沒有溢出」，不代表「有填滿」。
+  assert.match(landscape, /\.hud\{[^}]*min-height:100dvh/, "要撐滿動態視窗高度");
+  assert.match(landscape, /\.hud\{[^}]*min-height:100vh/, "要有 100vh 備援");
+  assert.doesNotMatch(landscape, /\.hud\{[^}]*[^-]height:100dvh;/, "要用 min-height，內容變高時不能被裁掉");
+  assert.match(landscape, /\.cluster\{[^}]*flex:1 1 auto/, "面板要吃掉剩下的高度");
+  assert.match(landscape, /\.hero\{[^}]*flex:1 1 auto/, "多出來的高度要給車速");
+});
+
+test("the control row divides evenly however many buttons are showing", async () => {
+  const { html } = await loadDash();
+
+  // 實測踩過：欄數寫死 6，但傾角按鈕拿到權限就自我隱藏，只剩 4 顆時
+  // 右側空掉 281px（佔整列 33%）。改成有幾顆就均分幾欄。
+  for (const [label, block] of [
+    ["寬螢幕", html.match(/@media \(min-width:760px\)\{[\s\S]*?\n  \}/)?.[0] || ""],
+    ["橫式", html.match(/@media \(orientation:landscape\)[^{]*\{[\s\S]*?\n  \}/)?.[0] || ""],
+  ]) {
+    assert.ok(block, `${label}規則應該存在`);
+    const rule = block.match(/\.controls\{[^}]*\}/)?.[0] || "";
+    assert.ok(rule, `${label}的 .controls 規則應該存在`);
+    assert.match(rule, /grid-auto-flow:column/, `${label}的控制列要自動均分`);
+    assert.doesNotMatch(rule, /grid-template-columns:repeat/, `${label}不可寫死欄數`);
+  }
 });
 
 test("red is reserved for faults, so the rec lamp uses another colour", async () => {

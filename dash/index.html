@@ -82,8 +82,11 @@
            padding:12px 14px;margin-top:10px}
 
   /* 頂部速度條。段高由左往右遞增，做出參考儀表那條斜坡狀的能量條 */
-  .bar-head{display:flex;align-items:flex-end;gap:12px}
-  .bar-col{flex:1 1 auto;min-width:0}
+  /* 燈號自己一列靠右，速度條吃滿整個面板寬度。
+     先前只有窄螢幕這樣排，但橫放時四顆燈一樣吃掉 32% 的條寬（實測 567 / 838）。
+     速度條是主要儀表，不該讓次要的狀態燈分走寬度。 */
+  .bar-head{display:flex;flex-direction:column-reverse;align-items:stretch;gap:8px}
+  .bar-col{min-width:0}
   .revbar{display:flex;align-items:flex-end;gap:3px;min-width:0;height:40px}
   .led{flex:1 1 0;height:100%;border-radius:3px;background:var(--off);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
   .led.green{background:var(--green);box-shadow:0 0 8px rgba(34,197,94,.65)}
@@ -91,7 +94,7 @@
   .led.red{background:var(--red);box-shadow:0 0 10px rgba(239,68,68,.75)}
   .revbar.shift .led{background:var(--red);box-shadow:0 0 12px rgba(239,68,68,.85);animation:shiftflash .14s steps(1) infinite}
   @keyframes shiftflash{50%{background:var(--off);box-shadow:none}}
-  .lamps{display:flex;gap:8px;flex:0 0 auto}
+  .lamps{display:flex;gap:8px;justify-content:flex-end}
   .lamp{display:flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;
         padding:3px 9px;font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em}
   .lamp i{width:8px;height:8px;border-radius:50%;background:var(--off);font-style:normal;flex:0 0 auto}
@@ -118,12 +121,6 @@
   .bar-scale{display:flex;justify-content:space-between;margin-top:5px;
              font-family:var(--num);font-weight:600;font-size:11px;color:var(--faint)}
 
-  /* 窄螢幕上四顆燈會吃掉整列七成寬度，把主要的速度條擠成一條細線（實測只剩 90px，
-     18 段各 5px）。狀態燈是次要資訊，這裡讓它自己一列，寬度全部還給速度條。 */
-  @media (max-width:620px){
-    .bar-head{flex-direction:column-reverse;align-items:stretch;gap:8px}
-    .lamps{justify-content:flex-end}
-  }
 
   /* 主讀數：整頁唯一的大字。單位靠基線對齊擺在右側，像真實儀表 */
   /* 高度釘死成有數字時的高度，第一次定位進來才不會整頁往下跳 */
@@ -210,26 +207,38 @@
   @media (min-width:760px){
     .strip{grid-template-columns:170px 170px 1fr}
     .readouts{grid-column:auto;grid-template-columns:repeat(4,minmax(0,1fr))}
-    .controls{grid-template-columns:repeat(4,minmax(0,1fr))}
-    .btn-primary,.btn-tilt{grid-column:span 2}
+    /* 有幾顆就均分幾欄。寫死欄數的話，傾角按鈕拿到權限自我隱藏之後
+       右側會空掉一大段（實測 281px，佔整列 33%）。 */
+    .controls{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:1fr}
+    .btn-tilt{grid-column:span 2}
   }
   /* 橫放架在車上：整頁必須在一屏內裝得下。
      實機踩過：先前 landscape 的內容高度是 592px 而視窗只有 393px，控制列被推到畫面外，
      使用者按不到「啟用傾角感測」，TILT 燈就永遠是灰的——看起來像感測器壞了。
      所以這裡每一段都壓過高度，寧可數字小一點也不要有東西掉出畫面。 */
   @media (orientation:landscape) and (max-height:560px){
-    .hud{width:calc(100% - 14px);padding:6px 0 8px}
+    /* 撐滿視窗高度。先前只驗過 scrollHeight === innerHeight，但 body 有 min-height:100vh，
+       那個等式只代表「沒有溢出」，不代表「有填滿」——實測底部空了 46px。
+       用 flex 讓儀表面板吃掉剩下的高度，再由 .hero 把空間讓給車速數字。
+       min-height 而不是 height：內容比視窗高時（錯誤橫幅＋傾角按鈕都在）要能長出去，不能被裁掉。
+       100dvh 讓 Safari 的動態工具列不會把底部推到看不見；舊瀏覽器退回 100vh。 */
+    .hud{width:calc(100% - 14px);padding:4px 0 6px;
+         display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
     .topbar,.notes{display:none}
-    .cluster{padding:10px 12px;margin-top:0}
+    .cluster{padding:10px 12px;margin-top:0;
+             display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+    .strip{flex:0 0 auto}
     .revbar{height:30px}
     .lamp{padding:2px 8px}
     .bar-scale{font-size:10px;margin-top:4px}
     /* 出錯時多這一條會讓整頁多出幾 px 而開始捲動，橫放時壓扁一點 */
     .gps-error{margin-top:6px;padding:5px 9px;font-size:10px;line-height:1.4}
-    /* min-height 要跟著橫式的字級走，沿用直式的 34vw 會憑空多出五十幾 px */
-    .hero{margin:6px 0 2px;min-height:calc(clamp(56px,21vh,88px) * .84)}
-    .speed{font-size:clamp(56px,21vh,88px)}
-    .speed.idle{font-size:clamp(30px,11vh,46px)}
+    /* flex:1 吸掉面板剩下的高度，數字靠 align-content 在其中置中。
+       這裡必須把 min-height 歸零：高度已經由 flex 分配決定，跟內容無關，
+       所以本來用來防跳版的 min-height 變成多餘的下限，會把整頁往下頂出視窗。 */
+    .hero{margin:6px 0 2px;flex:1 1 auto;min-height:0}
+    .speed{font-size:clamp(48px,24vh,110px)}
+    .speed.idle{font-size:clamp(30px,11vh,48px)}
     .speed-unit{font-size:11px}
     .strip{margin-top:8px;padding-top:8px;gap:8px 12px;grid-template-columns:150px 150px 1fr}
     .readouts{grid-column:auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 10px}
@@ -237,7 +246,9 @@
     .lean-now{font-size:18px;bottom:1px}
     .slot-sub{margin-top:4px;font-size:10px}
     .ro b{font-size:15px}
-    .controls{margin-top:8px;gap:6px;grid-template-columns:repeat(6,minmax(0,1fr))}
+    /* 同樣不可以寫死欄數，否則傾角按鈕隱藏後右側會空掉 */
+    .controls{margin-top:8px;gap:6px;flex:0 0 auto;
+              grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:1fr}
     button{min-height:44px;font-size:13px;padding:0 8px}
     .btn-primary{grid-column:span 2;min-height:44px;font-size:16px}
     .btn-tilt{grid-column:span 2}
