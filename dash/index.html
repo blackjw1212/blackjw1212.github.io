@@ -371,7 +371,9 @@ const MS_TO_KMH = 3.6;
 const KMH_TO_MPH = 0.621371;
 const LED_COUNT = 18;
 const LEAN_LIMIT = 60;              // 手機姿態超過這個角度多半是拿起來看，不是在過彎
-const DEFAULT_REDLINE = 110;        // 速度條滿格的速度，非速限建議
+// 速度條滿格的速度，非速限建議。國道正常就會到 110，用 110 當滿格的話
+// 整條燈條會一路閃紅，警示變成常態就等於沒有警示。220 讓 110 落在半格。
+const DEFAULT_REDLINE = 220;
 // 速度條每一段的高度（佔條高的比例），由左往右遞增做出斜坡
 const BAR_MIN_H = 0.42;
 const STILL_KMH = 5;                // 低於步行速度的讀數在機車儀表上沒有意義
@@ -610,7 +612,8 @@ function loadPrefs(){
     const saved = JSON.parse(raw);
     if (!saved || typeof saved !== "object") return;
     if (saved.unit === "mph" || saved.unit === "kmh") prefs.unit = saved.unit;
-    if (Number.isFinite(Number(saved.redlineKmh)) && Number(saved.redlineKmh) > 0) prefs.redlineKmh = Number(saved.redlineKmh);
+    // redlineKmh 刻意不從存檔讀。它沒有任何 UI 可以調，是常數不是偏好設定；
+    // 存起來的後果是改了程式也傳不到已經用過這頁的人手上——舊存檔會把新值蓋回去。
     if (Number.isFinite(Number(saved.zeroOffset))) prefs.zeroOffset = Number(saved.zeroOffset);
     const best = mergePersonalBest(saved, {});
     prefs.bestTopSpeed = best.bestTopSpeed;
@@ -624,7 +627,15 @@ function loadPrefs(){
 
 function savePrefs(){
   try {
-    if (ROOT.localStorage) ROOT.localStorage.setItem(STORE_KEY, JSON.stringify(prefs));
+    // 白名單，不要整包 prefs 序列化出去：只有使用者真的能改的東西才該落地。
+    // 常數寫進存檔的話，日後改程式就改不動已經用過這頁的裝置。
+    if (ROOT.localStorage) ROOT.localStorage.setItem(STORE_KEY, JSON.stringify({
+      unit: prefs.unit,
+      zeroOffset: prefs.zeroOffset,
+      bestTopSpeed: prefs.bestTopSpeed,
+      bestLeanLeft: prefs.bestLeanLeft,
+      bestLeanRight: prefs.bestLeanRight,
+    }));
   } catch (error) {
     console.warn("寫入本機設定失敗", error);
   }
