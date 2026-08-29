@@ -86,7 +86,6 @@ button.btn:active{transform:translateY(1px)}
 .px{width:112px!important;font-family:var(--mono);font-size:13px}
 .tagrow{display:flex;gap:6px;flex-wrap:wrap}
 .tag{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid var(--line);color:var(--dim)}
-.tag.alt{border-color:var(--violet);color:var(--violet)}
 .tag.base{border-color:var(--amber);color:var(--amber)}
 .ac{position:relative}
 .acbox{position:absolute;top:100%;left:0;right:0;z-index:60;background:#0B131C;border:1px solid var(--amber);border-top:0;border-radius:0 0 6px 6px;max-height:250px;overflow:auto;display:none;box-shadow:0 10px 24px rgba(0,0,0,.5)}
@@ -97,9 +96,6 @@ button.btn:active{transform:translateY(1px)}
 .acitem b{font-family:var(--mono);color:var(--amber);margin-right:7px;font-weight:600}
 .acitem span{color:var(--dimmer);font-size:11px;font-family:var(--mono);margin-left:5px}
 .acname{font-size:11.5px;color:var(--green);font-family:var(--mono);min-height:15px}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;min-height:20px}
-.chip{font-family:var(--mono);font-size:11px;border:1px solid var(--violet);color:var(--violet);border-radius:999px;padding:3px 5px 3px 9px;display:inline-flex;gap:5px;align-items:center}
-.chip button{background:none;border:0;color:var(--violet);cursor:pointer;font-size:14px;padding:0 3px;line-height:1}
 .plan{border:1px solid var(--line);border-radius:8px;background:var(--panel);margin-bottom:14px;overflow:hidden}
 .plan-top{display:flex;gap:8px;align-items:center;padding:10px 12px;background:var(--panel2);border-bottom:1px solid var(--line)}
 .plan-top input{background:transparent;border:0;font-weight:700;padding:2px 0}
@@ -196,17 +192,6 @@ svg.spark{width:100%;height:120px;display:block}
     </div>
   </div>
 
-  <h2>替代機場</h2>
-  <div class="card">
-    <p class="note">只填「交通時間與成本你真的願意承受」的機場。填進來的每一個都會進入查價清單。</p>
-    <div class="grid">
-      <div class="f"><label>替代出發（搜尋後加入）</label><div class="ac"><input id="altFromQ" autocomplete="off" placeholder="例：松山、高雄"><div class="acbox" id="altFromBox"></div></div><div class="chips" id="altFromChips"></div></div>
-      <div class="f"><label>替代目的（搜尋後加入）</label><div class="ac"><input id="altToQ" autocomplete="off" placeholder="例：羽田、關西"><div class="acbox" id="altToBox"></div></div><div class="chips" id="altToChips"></div></div>
-      <div class="f"><label>前往替代出發機場的來回交通（每人 NT$）</label><input id="altCost" type="number" inputmode="numeric" value="0"></div>
-      <div class="f"><label>外站出發的額外住宿（每人 NT$）</label><input id="altStay" type="number" inputmode="numeric" value="0"></div>
-    </div>
-  </div>
-
   <h2>可接受的條件</h2>
   <div class="card">
     <label class="chk"><input type="checkbox" id="okLcc"><span>接受廉價航空（票價不含行李、選位、餐點，需另計）</span></label>
@@ -220,7 +205,8 @@ svg.spark{width:100%;height:120px;display:block}
 <section class="tab" id="t2">
   <h2>查價清單</h2>
   <div class="warn" id="linkHint">
-    連結會開新分頁。若瀏覽器擋掉彈出視窗，用每列的「複製網址」把網址貼過去也一樣。
+    這裡不會自動開新分頁。按每一列的「查價網址」會在頁面內列出六個查價站的網址，複製後貼到瀏覽器去查，
+    查到最低票面價填回該列，比較就在第 4 分頁「方案比價」裡完成。
     比價結果存在這台裝置的瀏覽器裡，換裝置不會同步。
   </div>
   <p class="note">每一列都是一次真實搜尋。查到最低票面價就填回來 —— 這只是<b>票面價</b>，用來縮小範圍，不是總成本。</p>
@@ -407,7 +393,7 @@ const store={
 };
 
 /* ---------- state ---------- */
-function blank(){return{trip:{},alt:{},flags:{},checks:{},prices:{},arb:{},plans:[],log:[],anchor:{},air:{}}}
+function blank(){return{trip:{},flags:{},checks:{},prices:{},arb:{},plans:[],log:[],anchor:{},air:{}}}
 let S=blank();
 
 async function persist(){
@@ -462,18 +448,15 @@ function goTab(id){const b=$('.tabbtn[data-t="'+id+'"]');if(b)b.click()}
 
 /* ---------- fields ---------- */
 const TF=['dep','ret','flex','pax','cabin','cardFee'];
-const AF=['altCost','altStay'];
 const FF=['okLcc','okRed','okSelf'];
 TF.forEach(id=>$('#'+id).addEventListener('input',()=>{S.trip[id]=$('#'+id).value;save();meta()}));
-AF.forEach(id=>$('#'+id).addEventListener('input',()=>{S.alt[id]=$('#'+id).value;save()}));
 FF.forEach(id=>$('#'+id).addEventListener('change',()=>{S.flags[id]=$('#'+id).checked;save()}));
 $('#limits').addEventListener('input',()=>{S.trip.limits=$('#limits').value;save()});
 ['anchorLow','anchorMid'].forEach(id=>$('#'+id).addEventListener('input',()=>{S.anchor[id]=$('#'+id).value;save();renderDecide()}));
 
 function hydrate(){
   TF.forEach(id=>{if(S.trip[id]!=null)$('#'+id).value=S.trip[id]});
-  AF.forEach(id=>{if(S.alt[id]!=null)$('#'+id).value=S.alt[id]});
-  showAP('from');showAP('to');renderChips('altFrom');renderChips('altTo');
+  showAP('from');showAP('to');
   FF.forEach(id=>{$('#'+id).checked=!!S.flags[id]});
   $('#limits').value=S.trip.limits||'';
   $('#anchorLow').value=S.anchor.anchorLow||'';$('#anchorMid').value=S.anchor.anchorMid||'';
@@ -532,9 +515,7 @@ $('#goMatrix').onclick=()=>{
 function buildMatrix(){
   const from=(S.trip.from||'').toUpperCase().trim(), to=(S.trip.to||'').toUpperCase().trim();
   if(!from||!to||!S.trip.dep)return;
-  const list=s=>(s||'').toUpperCase().split(/[,，\s]+/).filter(x=>x.length===3);
-  const origins=[from].concat(list(S.alt.altFrom).filter(x=>x!==from));
-  const dests=[to].concat(list(S.alt.altTo).filter(x=>x!==to));
+  const origins=[from], dests=[to];
   const offs=offsets(S.trip.flex), rows=[];
   origins.forEach(o=>dests.forEach(d=>{
     offs.forEach(k=>{
@@ -544,25 +525,23 @@ function buildMatrix(){
       [-2,-1,1,2].forEach(k2=>rows.push({o,d,dd:S.trip.dep,rd:shift(S.trip.ret,k2),k:0,k2,dur:true}));
     }
   }));
-  rows.forEach(r=>r.alt=(r.o!==from||r.d!==to));
   const cap=64, over=rows.length>cap, shown=rows.slice(0,cap);
   $('#matrixWarn').innerHTML=over
-    ? '<div class="warn">組合有 '+rows.length+' 種，只列出前 '+cap+' 列。把日期彈性或替代機場減少，會得到比較能真的查完的清單。</div>'
+    ? '<div class="warn">組合有 '+rows.length+' 種，只列出前 '+cap+' 列。把日期彈性調小，會得到比較能真的查完的清單。</div>'
     : '<p class="note">共 '+rows.length+' 種組合。先查基準那幾列，看出價格走向再往外擴。</p>';
 
   $('#matrix').innerHTML=shown.map(r=>{
     const id=[r.o,r.d,r.dd,r.rd].join('_');
     const tags=[];
-    if(!r.alt&&r.k===0&&!r.dur)tags.push('<span class="tag base">基準</span>');
-    if(r.alt)tags.push('<span class="tag alt">替代機場</span>');
+    if(r.k===0&&!r.dur)tags.push('<span class="tag base">基準</span>');
     if(r.dur)tags.push('<span class="tag">天數 '+(r.k2>0?'+':'')+r.k2+'</span>');
     else if(r.k!==0)tags.push('<span class="tag">'+(r.k>0?'+':'')+r.k+' 天</span>');
     return '<div class="leg"><div class="leg-head">'+
       '<input type="checkbox" data-ck="'+id+'" '+(S.checks[id]?'checked':'')+' style="width:18px;height:18px;accent-color:var(--amber)">'+
       '<span class="leg-code"><b>'+r.o+'</b> → <b>'+r.d+'</b></span>'+
       '<span class="leg-date">'+r.dd+'（'+wd(r.dd)+'）'+(r.rd?'<br>⇄ '+r.rd+'（'+wd(r.rd)+'）':' 單程')+'</span></div>'+
-      '<div class="leg-body">'+links(r.o,r.d,r.dd,r.rd).map(l=>'<a class="lnk" data-url="'+esc(l[1])+'" href="'+esc(l[1])+'" target="_blank" rel="noopener">'+l[0]+'</a>').join('')+
-      '<button class="lnk" data-all="'+id+'">複製網址</button>'+
+      '<div class="leg-body">'+
+      '<button class="lnk" data-all="'+id+'">查價網址</button>'+
       '<input class="px" type="number" inputmode="numeric" placeholder="票面價" data-px="'+id+'" value="'+(S.prices[id]||'')+'"></div>'+
       (tags.length?'<div class="leg-body" style="padding-top:0"><div class="tagrow">'+tags.join('')+'</div></div>':'')+
       '</div>';
@@ -586,7 +565,7 @@ function arbItems(){
   return [
    {id:'split',t:'去回程分開買（不同航空公司）',h:'把去程與回程當成兩張單程票分別搜尋。單程票常常不是來回票的一半，要真的查過才知道。',
     urls:ok?L(o,d,dd,'').slice(0,3).concat(rd?L(d,o,rd,'').slice(0,3):[]):[]},
-   {id:'openjaw',t:'Open-jaw（進出不同城市）',h:'去 A 城、從 B 城回。省下的錢要扣掉城市之間的陸運費用。用下面的替代目的機場欄位組合搜尋。',urls:[]},
+   {id:'openjaw',t:'Open-jaw（進出不同城市）',h:'去 A 城、從 B 城回。省下的錢要扣掉城市之間的陸運費用。回「1 行程」把目的機場換成另一個城市各查一次，再自己相加比較。',urls:[]},
    {id:'multi',t:'Multi-city 多段',h:'把中途城市寫成獨立航段，有時比來回票加一段區間線便宜。',
     urls:ok?[['Skyscanner 多城市','https://www.skyscanner.com.tw/transport/flights-multi-city/']]:[]},
    {id:'self',t:'Self-transfer 自行轉機',h:'兩張不同票號的票自己接。行李通常要提出重掛，第一段延誤時第二段不受保障。Kiwi 是專門做這種組合的。',
@@ -926,9 +905,8 @@ $('#resetAll').onclick=async()=>{
   if(!confirm('清除所有行程、方案與紀錄？這個動作無法復原。'))return;
   S=blank();
   try{await store.del(KEY)}catch(e){}
-  TF.concat(AF).forEach(id=>$('#'+id).value='');
+  TF.forEach(id=>$('#'+id).value='');
   ['from','to'].forEach(w=>{$('#'+w).value='';$('#'+w+'Name').textContent=''});
-  $('#altFromQ').value='';$('#altToQ').value='';renderChips('altFrom');renderChips('altTo');
   FF.forEach(id=>$('#'+id).checked=false);
   $('#limits').value='';$('#anchorLow').value='';$('#anchorMid').value='';
   $('#matrix').innerHTML='<div class="empty">回到「1 行程」填好航段後，按「產生查價清單」。</div>';
@@ -984,31 +962,9 @@ function resolveAP(w){
   attachAC($('#'+w),$('#'+w+'Box'),function(a){setAP(w,a.c)});
   $('#'+w).addEventListener('blur',function(){setTimeout(function(){resolveAP(w)},170)});
 });
-function altCodes(k){return (S.alt[k]||'').toUpperCase().split(/[,，\s]+/).filter(function(x){return x.length===3})}
-function renderChips(k){
-  var el=$('#'+k+'Chips'),cs=altCodes(k);
-  el.innerHTML=cs.length?cs.map(function(c){
-    return '<span class="chip">'+c+' '+esc(apName(c))+'<button data-chip="'+k+'|'+c+'">×</button></span>'}).join('')
-    :'<span class="subtle">尚未加入</span>';
-  $$('[data-chip]',el).forEach(function(b){
-    b.onclick=function(){
-      var q=b.dataset.chip.split('|');
-      S.alt[q[0]]=altCodes(q[0]).filter(function(x){return x!==q[1]}).join(',');
-      renderChips(q[0]);save();if(S.matrix)buildMatrix();
-    };
-  });
-}
-['altFrom','altTo'].forEach(function(k){
-  attachAC($('#'+k+'Q'),$('#'+k+'Box'),function(a){
-    var cur=altCodes(k);
-    if(cur.indexOf(a.c)<0)cur.push(a.c);
-    S.alt[k]=cur.join(',');$('#'+k+'Q').value='';
-    renderChips(k);save();if(S.matrix)buildMatrix();
-  });
-});
 
 $('#logDate').value=iso(new Date());
-renderArb();renderPlans();renderAirlines();renderChips('altFrom');renderChips('altTo');meta();
+renderArb();renderPlans();renderAirlines();meta();
 restore();
 </script>
 </body>
