@@ -30,8 +30,11 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 
 比一般 lint 嚴格很多，改頁面前先知道它管什麼，否則 CI 會紅：
 
-- **首頁主要入口被釘死**為 `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/`，
-  順序與 href 都要一致。
+- **首頁主要入口被釘死**為
+  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/`，
+  順序與 href 都要一致。`data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
+  **同一份清單被釘在兩個地方**：這支腳本，以及 `backend/test/frontend-smoke.test.js`
+  的 `assert.deepEqual(primaryLinks, ...)`。只改一邊會讓 `npm test` 紅而靜態契約綠。
 - **各頁的 `<title>`、`canonical`、`theme-color`、CTA 文案逐字比對**。改標題要同步改這支腳本。
 - **禁詞**：首頁與 `/market/` 不得出現 `保證`、`可放心`、`買進(訊號)`、`賣出(訊號)`、
   `投資建議`、`實領淨收益`。**註解也算**——曾因為程式碼註解寫了「保證」而 CI 紅。
@@ -42,10 +45,11 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 ## 部署：`pages-deploy.yml` 的 allowlist
 
 ```
-cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather data assets dist/
+cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash data assets dist/
 ```
 
-**新增頂層頁面目錄一定要加進這行。** 否則 Site check 會過、Pages deploy 會失敗 ——
+**新增頂層頁面目錄一定要加進這行**，並同步加進 `sw.js` 的 `PRECACHE`（順手 bump `VERSION`，
+不然 cache key 沒變、舊使用者拿不到新清單）。否則 Site check 會過、Pages deploy 會失敗 ——
 兩個 workflow 檢查的東西不同，綠燈不代表上線成功。
 
 ## 前端測試的硬性前提

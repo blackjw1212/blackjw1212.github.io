@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>騎乘儀表板｜BJKW</title>
+<meta name="description" content="用手機的 GPS 與姿態感測器組成的騎乘儀表：車速、傾角、G 力、里程與螢幕常亮，資料只留在本機。" />
+<link rel="canonical" href="/dash/" />
+<meta property="og:title" content="騎乘儀表板｜BJKW" />
+<meta property="og:description" content="手機 GPS 車速、手機姿態傾角與 G 力的即時儀表，資料不上傳。" />
+<meta property="og:type" content="website" />
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#09090b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="騎乘儀表">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#09090b;--panel:#131317;--panel2:#1b1b21;--line:#2c2c34;--line2:#3f3f46;
+    --ink:#f4f4f5;--soft:#a1a1aa;--faint:#71717a;
+    --yellow:#eab308;--green:#22c55e;--red:#ef4444;--cyan:#22d3ee;
+    --off:#26262b;
+    --sans:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    /* Orbitron 沒有中文字符，中文一定要靠後面的 fallback 接住；離線抓不到字體時也一樣要能讀 */
+    --num:"Orbitron",ui-monospace,SFMono-Regular,Consolas,"Noto Sans TC",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;
+       padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  a{color:inherit}
+  .hud{width:min(1100px,calc(100% - 20px));margin:0 auto;padding:10px 0 24px}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .brand{display:flex;align-items:center;gap:9px;min-width:0}
+  .brand img{width:26px;height:26px;flex:0 0 auto}
+  .brand-kicker{font-family:var(--mono);color:var(--yellow);font-size:10px;line-height:1.1;letter-spacing:.08em}
+  .brand-title{font-weight:700;font-size:14px}
+  .back{color:var(--faint);font-family:var(--mono);font-size:12px;text-decoration:none}
+  .back:hover{color:var(--cyan)}
+  .back:focus-visible,button:focus-visible{outline:3px solid rgba(34,211,238,.75);outline-offset:3px}
+
+  /* 頂部 LED 燈條（Shift light） */
+  .revwrap{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;
+           background:var(--panel);padding:10px 12px}
+  .revbar{display:flex;flex:1 1 auto;gap:3px;min-width:0}
+  .led{flex:1 1 0;height:14px;border-radius:3px;background:var(--off);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+  .led.green{background:var(--green);box-shadow:0 0 8px rgba(34,197,94,.65)}
+  .led.amber{background:var(--yellow);box-shadow:0 0 8px rgba(234,179,8,.65)}
+  .led.red{background:var(--red);box-shadow:0 0 10px rgba(239,68,68,.75)}
+  .revbar.shift .led{background:var(--red);box-shadow:0 0 12px rgba(239,68,68,.85);animation:shiftflash .14s steps(1) infinite}
+  @keyframes shiftflash{50%{background:var(--off);box-shadow:none}}
+  .lamps{display:flex;gap:8px;flex:0 0 auto}
+  .lamp{display:flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;
+        padding:3px 9px;font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em}
+  .lamp i{width:8px;height:8px;border-radius:50%;background:var(--off);font-style:normal;flex:0 0 auto}
+  .lamp.ok{color:var(--green);border-color:rgba(34,197,94,.45)}
+  .lamp.ok i{background:var(--green);box-shadow:0 0 7px var(--green)}
+  .lamp.warn{color:var(--yellow);border-color:rgba(234,179,8,.45)}
+  .lamp.warn i{background:var(--yellow);box-shadow:0 0 7px var(--yellow)}
+  .lamp.bad{color:var(--red);border-color:rgba(239,68,68,.45)}
+  .lamp.bad i{background:var(--red);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:.15}}
+
+  /* 中央三欄 */
+  .cluster{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
+  .card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px}
+  .card-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--faint)}
+
+  .speedbox{display:flex;flex-direction:column;align-items:center;justify-content:center;
+            background:linear-gradient(180deg,#16161b 0%,#0d0d10 100%)}
+  .speed{font-family:var(--num);font-weight:900;font-size:clamp(84px,30vw,190px);line-height:.86;
+         letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .speed.hot{color:var(--red)}
+  .speed-unit{font-family:var(--mono);font-size:13px;letter-spacing:.24em;color:var(--soft);margin-top:6px}
+  .gearrow{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px}
+  .gear{font-family:var(--num);font-weight:900;font-size:40px;line-height:1;color:var(--yellow)}
+  .gear-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--faint)}
+
+  /* 傾角 */
+  .leanview{position:relative;height:112px;margin-top:8px;overflow:hidden;border-radius:8px;background:var(--panel2)}
+  .horizon{position:absolute;left:-20%;top:50%;width:140%;height:2px;background:var(--cyan);
+           transform-origin:50% 50%;box-shadow:0 0 8px rgba(34,211,238,.6)}
+  .bike{position:absolute;left:50%;top:50%;width:3px;height:44px;margin:-44px 0 0 -1.5px;
+        background:var(--yellow);transform-origin:50% 100%;box-shadow:0 0 8px rgba(234,179,8,.6)}
+  .lean-now{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-family:var(--num);
+            font-weight:800;font-size:30px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .peaks{display:flex;justify-content:space-between;gap:8px;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--soft)}
+  .peaks b{font-family:var(--num);font-weight:800;color:var(--yellow)}
+
+  /* G 力 */
+  .gpad{position:relative;height:112px;margin-top:8px;border-radius:8px;background:var(--panel2);overflow:hidden}
+  .gpad-v,.gpad-h{position:absolute;background:var(--line2)}
+  .gpad-v{left:50%;top:0;bottom:0;width:1px}
+  .gpad-h{top:50%;left:0;right:0;height:1px}
+  .gring{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;
+         border:1px solid var(--line2);border-radius:50%}
+  .gdot{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
+        background:var(--green);box-shadow:0 0 12px rgba(34,197,94,.7);transition:transform .08s linear}
+  .greadout{display:flex;justify-content:space-between;gap:8px;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--soft)}
+  .greadout b{font-family:var(--num);font-weight:800;color:var(--ink)}
+
+  /* 底部數據 */
+  .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+  .tile{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:11px 12px}
+  .tile .v{font-family:var(--num);font-weight:800;font-size:22px;margin-top:5px;font-variant-numeric:tabular-nums;
+           overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tile .u{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:4px;font-weight:400}
+
+  /* 控制列：戴手套也點得到，最小 56px */
+  .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+  button{min-height:56px;border-radius:10px;border:1px solid var(--line2);background:var(--panel2);
+         color:var(--ink);font-family:var(--sans);font-weight:700;font-size:15px;cursor:pointer;padding:0 12px}
+  button:hover{border-color:#52525b}
+  button[disabled]{opacity:.4;cursor:not-allowed}
+  .btn-primary{grid-column:1 / -1;background:var(--green);border-color:var(--green);color:#08130b;font-size:19px;min-height:66px}
+  .btn-primary.running{background:var(--yellow);border-color:var(--yellow);color:#1a1400}
+  .btn-tilt{grid-column:1 / -1;background:var(--panel);border-color:var(--yellow);color:var(--yellow)}
+  .btn-tilt[hidden]{display:none}
+
+  .notes{margin-top:16px;border-top:1px solid var(--line);padding-top:12px;color:var(--faint);
+         font-family:var(--mono);font-size:11px;line-height:1.85}
+  .notes b{color:var(--soft);font-weight:400}
+  .mockflag{margin-top:10px;border:1px dashed var(--yellow);border-radius:8px;padding:8px 10px;
+            color:var(--yellow);font-family:var(--mono);font-size:11px}
+  .mockflag[hidden]{display:none}
+
+  @media (min-width:760px){
+    .cluster{grid-template-columns:1fr 1.35fr 1fr}
+    .grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+    .controls{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .btn-primary,.btn-tilt{grid-column:span 2}
+  }
+  /* 橫放架在車上：砍掉非儀表元素，把三欄拉成寬螢幕 HUD */
+  @media (orientation:landscape) and (max-height:560px){
+    .hud{width:calc(100% - 14px);padding:6px 0 12px}
+    .topbar,.notes{display:none}
+    .cluster{grid-template-columns:1fr 1.5fr 1fr;gap:8px}
+    .speed{font-size:clamp(64px,15vh,120px)}
+    .leanview,.gpad{height:82px}
+    .grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+    .tile{padding:7px 9px}
+    .tile .v{font-size:17px}
+    button{min-height:46px}
+    .btn-primary{min-height:52px}
+  }
+  /* 閃爍在騎乘中很刺眼；使用者關掉動態效果時改為恆亮 */
+  @media (prefers-reduced-motion:reduce){
+    .revbar.shift .led{animation:none}
+    .lamp.bad i{animation:none}
+    .gdot{transition:none}
+  }
+</style>
+</head>
+<body>
+<main class="hud">
+  <header class="topbar">
+    <div class="brand">
+      <img src="/assets/images/favicon.svg" alt="" width="26" height="26">
+      <div>
+        <div class="brand-kicker">BJKW RIDE TELEMETRY</div>
+        <div class="brand-title">騎乘儀表板</div>
+      </div>
+    </div>
+    <a class="back" href="/">&larr; 回控制台 /</a>
+  </header>
+
+  <section class="revwrap" aria-label="速度燈條與感測狀態">
+    <div class="revbar" id="revBar" role="img" aria-label="速度燈條"></div>
+    <div class="lamps">
+      <span class="lamp" id="lampGps" title="GPS 定位狀態"><i></i><span id="lampGpsText">GPS</span></span>
+      <span class="lamp" id="lampTilt" title="姿態感測狀態"><i></i><span id="lampTiltText">TILT</span></span>
+      <span class="lamp" id="lampWake" title="螢幕常亮狀態"><i></i><span id="lampWakeText">LOCK</span></span>
+    </div>
+  </section>
+
+  <section class="cluster">
+    <article class="card">
+      <div class="card-label">LEAN ANGLE · 手機姿態</div>
+      <div class="leanview">
+        <div class="horizon" id="leanHorizon"></div>
+        <div class="bike" id="leanBike"></div>
+        <div class="lean-now" id="leanNow">--&deg;</div>
+      </div>
+      <div class="peaks">
+        <span>本趟 L <b id="peakLeft">0&deg;</b></span>
+        <span>R <b id="peakRight">0&deg;</b></span>
+      </div>
+      <div class="peaks">
+        <span>歷史 L <b id="bestLeft">0&deg;</b></span>
+        <span>R <b id="bestRight">0&deg;</b></span>
+      </div>
+    </article>
+
+    <article class="card speedbox">
+      <div class="speed" id="speed">--</div>
+      <div class="speed-unit" id="speedUnit">KM / H</div>
+      <div class="gearrow">
+        <span class="gear-label">GEAR</span>
+        <span class="gear" id="gear">N</span>
+        <span class="gear-label" id="revPct">0%</span>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-label">G-FORCE · 加減速與側向</div>
+      <div class="gpad">
+        <span class="gpad-v"></span><span class="gpad-h"></span>
+        <span class="gring"></span>
+        <span class="gdot" id="gDot"></span>
+      </div>
+      <div class="greadout">
+        <span>縱向 <b id="gLong">0.00</b></span>
+        <span>橫向 <b id="gLat">0.00</b></span>
+      </div>
+      <div class="greadout">
+        <span>方位 <b id="heading">--</b></span>
+        <span>精度 <b id="accuracy">--</b></span>
+      </div>
+    </article>
+  </section>
+
+  <section class="grid" aria-label="行程數據">
+    <div class="tile"><div class="card-label">TOP SPEED</div><div class="v" id="topSpeed">--<span class="u" id="topSpeedUnit">km/h</span></div></div>
+    <div class="tile"><div class="card-label">TRIP</div><div class="v" id="trip">0.00<span class="u" id="tripUnit">km</span></div></div>
+    <div class="tile"><div class="card-label">ALTITUDE</div><div class="v" id="altitude">--<span class="u">m</span></div></div>
+    <div class="tile"><div class="card-label">ELAPSED</div><div class="v" id="elapsed">00:00:00</div></div>
+    <div class="tile"><div class="card-label">BEST SPEED</div><div class="v" id="bestSpeed">--<span class="u" id="bestSpeedUnit">km/h</span></div></div>
+    <div class="tile" id="batteryTile" hidden><div class="card-label">BATTERY</div><div class="v" id="battery">--<span class="u">%</span></div></div>
+  </section>
+
+  <section class="controls">
+    <button type="button" class="btn-primary" id="btnRun">開始記錄</button>
+    <button type="button" class="btn-tilt" id="btnTilt" hidden>啟用傾角感測</button>
+    <button type="button" id="btnZero">傾角歸零</button>
+    <button type="button" id="btnUnit">切換 mph</button>
+    <button type="button" id="btnReset">清除本趟</button>
+    <button type="button" id="btnClearBest">清除歷史紀錄</button>
+  </section>
+
+  <div class="mockflag" id="mockFlag" hidden>模擬資料模式（?mock=1）：數值是產生出來的，不是真的感測結果。</div>
+
+  <footer class="notes">
+    <b>騎乘中請勿操作手機。</b>設定與校正在出發前做完，路上只看不碰。<br>
+    數值僅供參考，非儀器級量測：GPS 車速受衛星收訊與更新率影響，隧道與高樓間會漂移或中斷。<br>
+    <b>傾角量的是手機姿態，不是車身傾角。</b>手機感測到的是相對重力的方向，過彎時向心力會與重力合成，
+    直線加減速也會污染讀數，數值一律偏小且不可當作壓車角度。<br>
+    資料只留在本機瀏覽器的 localStorage（單位偏好、歸零校正、個人最佳速度與傾角），
+    不上傳、不記錄行經路線、不儲存任何座標。
+  </footer>
+</main>
+
+<script>
+(function(){
+const ROOT = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {});
+const DOC = typeof document !== "undefined" ? document : null;
+const NAV = typeof navigator !== "undefined" ? navigator : null;
+const SCREEN = typeof screen !== "undefined" ? screen : null;
+
+const STORE_KEY = "bjkw-dash:v1";
+const G_ACCEL = 9.80665;
+const EARTH_R = 6371008.8;          // IUGG 平均半徑
+const MS_TO_KMH = 3.6;
+const KMH_TO_MPH = 0.621371;
+const LED_COUNT = 18;
+const LEAN_LIMIT = 60;              // 手機姿態超過這個角度多半是拿起來看，不是在過彎
+const DEFAULT_REDLINE = 110;        // 燈條滿格的速度，非速限建議
+const GEAR_BANDS = [0, 25, 45, 70, 95, 125];
+const STILL_KMH = 2.5;              // GPS 靜止時會漂出 1~3 km/h 的假速度
+const BAD_ACCURACY_M = 35;
+const EMA_ALPHA = 0.35;
+
+/* ─────────── 純函式（測試的標的，不碰任何瀏覽器 API） ─────────── */
+
+// 感測器 API 拿不到值時回的是 null，而 Number(null) 是 0——直接用 Number()
+// 會把「沒有讀數」變成一個看起來很正常的 0：速度永遠是 0 就不會退回 Haversine，
+// 海拔會憑空長出 0 公尺。所有來自裝置的欄位一律走這裡。
+function numOrNaN(value){
+  return value === null || value === undefined || value === "" ? NaN : Number(value);
+}
+
+function msToKmh(ms){
+  const v = numOrNaN(ms);
+  return Number.isFinite(v) && v >= 0 ? v * MS_TO_KMH : null;
+}
+
+function kmhToMph(kmh){
+  const v = numOrNaN(kmh);
+  return Number.isFinite(v) ? v * KMH_TO_MPH : null;
+}
+
+function formatSpeed(kmh, unit){
+  const v = numOrNaN(kmh);
+  if (!Number.isFinite(v)) return "--";
+  return String(Math.round(unit === "mph" ? v * KMH_TO_MPH : v));
+}
+
+function emaSmooth(prev, next, alpha){
+  const n = numOrNaN(next);
+  if (!Number.isFinite(n)) return prev;
+  // 平滑值的起始狀態是 null。若讓 Number(null) 的 0 過關，第一筆讀數會被往零拉一截。
+  const p = numOrNaN(prev);
+  if (!Number.isFinite(p)) return n;
+  const a = Number.isFinite(numOrNaN(alpha)) ? Math.min(Math.max(Number(alpha), 0), 1) : EMA_ALPHA;
+  return p + a * (n - p);
+}
+
+function haversineMeters(a, b){
+  if (!a || !b) return null;
+  const la1 = numOrNaN(a.lat), lo1 = numOrNaN(a.lon), la2 = numOrNaN(b.lat), lo2 = numOrNaN(b.lon);
+  if (![la1, lo1, la2, lo2].every(Number.isFinite)) return null;
+  const rad = (d) => d * Math.PI / 180;
+  const dLat = rad(la2 - la1), dLon = rad(lo2 - lo1);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(rad(la1)) * Math.cos(rad(la2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+// coords.speed 有些裝置一律回 null，只好用前後兩點自己算。
+// dt <= 0 會把距離除爆，寧可回 null 讓上層沿用上一筆。
+function speedFromFixes(prev, next){
+  if (!prev || !next) return null;
+  const dt = (numOrNaN(next.t) - numOrNaN(prev.t)) / 1000;
+  if (!Number.isFinite(dt) || dt <= 0) return null;
+  const d = haversineMeters(prev, next);
+  if (!Number.isFinite(d)) return null;
+  return (d / dt) * MS_TO_KMH;
+}
+
+// 靜止時不歸零的話，里程會在停紅燈時自己長大。
+function stillFilter(kmh, accuracy){
+  const v = numOrNaN(kmh);
+  if (!Number.isFinite(v) || v < STILL_KMH) return 0;
+  const acc = numOrNaN(accuracy);
+  if (Number.isFinite(acc) && acc > BAD_ACCURACY_M && v < STILL_KMH * 2) return 0;
+  return v;
+}
+
+// 虛擬檔位：純粹是速域對照，跟實際變速箱無關。邊界值算進較高的一檔。
+function virtualGear(kmh, bands){
+  const list = Array.isArray(bands) && bands.length ? bands : GEAR_BANDS;
+  const v = numOrNaN(kmh);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  let gear = 1;
+  for (let i = 1; i < list.length; i++) {
+    if (v >= Number(list[i])) gear = i + 1;
+  }
+  return gear;
+}
+
+function revRatio(kmh, redline){
+  const v = numOrNaN(kmh), r = numOrNaN(redline);
+  if (!Number.isFinite(v) || !Number.isFinite(r) || r <= 0) return 0;
+  return Math.min(1, Math.max(0, v / r));
+}
+
+function ledStates(ratio, count){
+  const n = Number.isFinite(Number(count)) && Number(count) > 0 ? Math.floor(Number(count)) : LED_COUNT;
+  const r = Number.isFinite(Number(ratio)) ? Math.min(1, Math.max(0, Number(ratio))) : 0;
+  const lit = Math.round(r * n);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (i >= lit) { out.push("off"); continue; }
+    const pos = (i + 1) / n;
+    out.push(pos <= 0.55 ? "green" : pos <= 0.82 ? "amber" : "red");
+  }
+  return out;
+}
+
+// gamma / beta 哪個代表左右傾取決於螢幕轉了幾度；橫放時左右傾改由 beta 表示，
+// 而 90 度與 270 度的正負相反。zeroOffset 是出發前把當下姿態記成 0 度的校正量。
+function normalizeLean(orientation, screenAngle, zeroOffset){
+  if (!orientation) return null;
+  const beta = numOrNaN(orientation.beta), gamma = numOrNaN(orientation.gamma);
+  const a = Number.isFinite(numOrNaN(screenAngle)) ? ((Number(screenAngle) % 360) + 360) % 360 : 0;
+  let raw;
+  if (a === 90) raw = -beta;
+  else if (a === 270) raw = beta;
+  else if (a === 180) raw = -gamma;
+  else raw = gamma;
+  if (!Number.isFinite(raw)) return null;
+  const offset = Number.isFinite(Number(zeroOffset)) ? Number(zeroOffset) : 0;
+  return Math.min(LEAN_LIMIT, Math.max(-LEAN_LIMIT, raw - offset));
+}
+
+// 負 = 左傾、正 = 右傾。兩側各記各的，反向的值不能污染另一側。
+function updatePeakLean(peak, lean){
+  const src = peak && typeof peak === "object" ? peak : {};
+  const left = Number.isFinite(numOrNaN(src.left)) ? Number(src.left) : 0;
+  const right = Number.isFinite(numOrNaN(src.right)) ? Number(src.right) : 0;
+  const v = numOrNaN(lean);
+  if (!Number.isFinite(v)) return { left, right };
+  return {
+    left: v < 0 ? Math.max(left, Math.abs(v)) : left,
+    right: v > 0 ? Math.max(right, v) : right,
+  };
+}
+
+function gForce(accel){
+  if (!accel) return { long: 0, lat: 0 };
+  const x = numOrNaN(accel.x), y = numOrNaN(accel.y);
+  return {
+    long: Number.isFinite(y) ? y / G_ACCEL : 0,
+    lat: Number.isFinite(x) ? x / G_ACCEL : 0,
+  };
+}
+
+function formatElapsed(ms){
+  const v = numOrNaN(ms);
+  const total = Number.isFinite(v) && v > 0 ? Math.floor(v / 1000) : 0;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+}
+
+// 個人最佳只增不減；壞掉的存檔（非數字、缺欄位）當 0 處理，不能讓頁面炸掉。
+function mergePersonalBest(stored, trip){
+  const prev = stored && typeof stored === "object" ? stored : {};
+  const next = trip && typeof trip === "object" ? trip : {};
+  const pick = (a, b) => {
+    const x = numOrNaN(a) > 0 ? Number(a) : 0;
+    const y = numOrNaN(b) > 0 ? Number(b) : 0;
+    return Math.max(x, y);
+  };
+  return {
+    bestTopSpeed: pick(prev.bestTopSpeed, next.topSpeed),
+    bestLeanLeft: pick(prev.bestLeanLeft, next.peakLeft),
+    bestLeanRight: pick(prev.bestLeanRight, next.peakRight),
+  };
+}
+
+/* ─────────── State ─────────── */
+
+const gpsState = { rawKmh: null, kmh: null, altitude: null, heading: null, accuracy: null, lastFix: null, hasFix: false, error: "" };
+const sensorState = { lean: null, peakLeft: 0, peakRight: 0, gLong: 0, gLat: 0, permission: "idle" };
+const tripState = { running: false, topSpeed: 0, distanceM: 0, elapsedMs: 0, startedAt: null };
+const prefs = { unit: "kmh", redlineKmh: DEFAULT_REDLINE, zeroOffset: 0, bestTopSpeed: 0, bestLeanLeft: 0, bestLeanRight: 0 };
+
+let wakeState = "idle";
+let lastOrientation = null;
+
+/* ─────────── localStorage（唯一會落地的東西） ─────────── */
+
+function loadPrefs(){
+  try {
+    const raw = ROOT.localStorage && ROOT.localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!saved || typeof saved !== "object") return;
+    if (saved.unit === "mph" || saved.unit === "kmh") prefs.unit = saved.unit;
+    if (Number.isFinite(Number(saved.redlineKmh)) && Number(saved.redlineKmh) > 0) prefs.redlineKmh = Number(saved.redlineKmh);
+    if (Number.isFinite(Number(saved.zeroOffset))) prefs.zeroOffset = Number(saved.zeroOffset);
+    const best = mergePersonalBest(saved, {});
+    prefs.bestTopSpeed = best.bestTopSpeed;
+    prefs.bestLeanLeft = best.bestLeanLeft;
+    prefs.bestLeanRight = best.bestLeanRight;
+  } catch (error) {
+    // 存檔壞掉就用預設值跑，不要讓整頁掛掉
+    console.warn("讀取本機設定失敗，改用預設值", error);
+  }
+}
+
+function savePrefs(){
+  try {
+    if (ROOT.localStorage) ROOT.localStorage.setItem(STORE_KEY, JSON.stringify(prefs));
+  } catch (error) {
+    console.warn("寫入本機設定失敗", error);
+  }
+}
+
+/* ─────────── DOM ─────────── */
+
+const el = {};
+function bind(){
+  if (!DOC) return;
+  for (const id of ["revBar","lampGps","lampGpsText","lampTilt","lampTiltText","lampWake","lampWakeText",
+                    "leanHorizon","leanBike","leanNow","peakLeft","peakRight","bestLeft","bestRight",
+                    "speed","speedUnit","gear","revPct","gDot","gLong","gLat","heading","accuracy",
+                    "topSpeed","topSpeedUnit","trip","tripUnit","altitude","elapsed","bestSpeed","bestSpeedUnit",
+                    "batteryTile","battery","btnRun","btnTilt","btnZero","btnUnit","btnReset","btnClearBest","mockFlag"]) {
+    el[id] = DOC.getElementById(id);
+  }
+}
+
+function buildLeds(){
+  if (!el.revBar || !DOC) return;
+  el.revBar.innerHTML = "";
+  for (let i = 0; i < LED_COUNT; i++) {
+    const led = DOC.createElement("span");
+    led.className = "led";
+    el.revBar.appendChild(led);
+  }
+}
+
+function setLamp(node, textNode, tone, text){
+  if (node) node.className = tone ? `lamp ${tone}` : "lamp";
+  if (textNode) textNode.textContent = text;
+}
+
+function unitLabel(){
+  return prefs.unit === "mph" ? "mph" : "km/h";
+}
+
+function render(){
+  if (!DOC || !el.speed) return;
+
+  const kmh = Number.isFinite(gpsState.kmh) ? gpsState.kmh : null;
+  el.speed.textContent = formatSpeed(kmh, prefs.unit);
+  el.speedUnit.textContent = prefs.unit === "mph" ? "M P H" : "K M / H";
+
+  const ratio = revRatio(kmh, prefs.redlineKmh);
+  const states = ledStates(ratio, LED_COUNT);
+  const leds = el.revBar ? el.revBar.children : [];
+  for (let i = 0; i < leds.length; i++) {
+    leds[i].className = states[i] === "off" ? "led" : `led ${states[i]}`;
+  }
+  const overRedline = Number.isFinite(kmh) && kmh >= prefs.redlineKmh;
+  if (el.revBar) el.revBar.className = overRedline ? "revbar shift" : "revbar";
+  el.speed.className = overRedline ? "speed hot" : "speed";
+  el.revPct.textContent = `${Math.round(ratio * 100)}%`;
+
+  const gear = virtualGear(kmh, GEAR_BANDS);
+  el.gear.textContent = gear === 0 ? "N" : String(gear);
+
+  const lean = Number.isFinite(sensorState.lean) ? sensorState.lean : null;
+  el.leanNow.textContent = lean === null ? "--°" : `${Math.round(Math.abs(lean))}°`;
+  if (el.leanHorizon) el.leanHorizon.style.transform = `rotate(${lean === null ? 0 : -lean}deg)`;
+  if (el.leanBike) el.leanBike.style.transform = `rotate(${lean === null ? 0 : lean}deg)`;
+  el.peakLeft.textContent = `${Math.round(sensorState.peakLeft)}°`;
+  el.peakRight.textContent = `${Math.round(sensorState.peakRight)}°`;
+  el.bestLeft.textContent = `${Math.round(prefs.bestLeanLeft)}°`;
+  el.bestRight.textContent = `${Math.round(prefs.bestLeanRight)}°`;
+
+  el.gLong.textContent = sensorState.gLong.toFixed(2);
+  el.gLat.textContent = sensorState.gLat.toFixed(2);
+  if (el.gDot) {
+    const x = Math.min(1, Math.max(-1, sensorState.gLat)) * 36;
+    const y = Math.min(1, Math.max(-1, -sensorState.gLong)) * 36;
+    el.gDot.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+  }
+  el.heading.textContent = Number.isFinite(gpsState.heading) ? `${Math.round(gpsState.heading)}°` : "--";
+  el.accuracy.textContent = Number.isFinite(gpsState.accuracy) ? `${Math.round(gpsState.accuracy)}m` : "--";
+
+  el.topSpeed.innerHTML = `${formatSpeed(tripState.topSpeed, prefs.unit)}<span class="u">${unitLabel()}</span>`;
+  const distKm = tripState.distanceM / 1000;
+  const dist = prefs.unit === "mph" ? distKm * KMH_TO_MPH : distKm;
+  el.trip.innerHTML = `${dist.toFixed(2)}<span class="u">${prefs.unit === "mph" ? "mi" : "km"}</span>`;
+  el.altitude.innerHTML = `${Number.isFinite(gpsState.altitude) ? Math.round(gpsState.altitude) : "--"}<span class="u">m</span>`;
+  el.elapsed.textContent = formatElapsed(tripState.elapsedMs);
+  el.bestSpeed.innerHTML = `${formatSpeed(prefs.bestTopSpeed, prefs.unit)}<span class="u">${unitLabel()}</span>`;
+
+  el.btnRun.textContent = tripState.running ? "暫停記錄" : "開始記錄";
+  el.btnRun.className = tripState.running ? "btn-primary running" : "btn-primary";
+  el.btnUnit.textContent = prefs.unit === "mph" ? "切換 km/h" : "切換 mph";
+
+  if (gpsState.error) setLamp(el.lampGps, el.lampGpsText, "bad", "GPS");
+  else if (!gpsState.hasFix) setLamp(el.lampGps, el.lampGpsText, "", "GPS");
+  else if (Number.isFinite(gpsState.accuracy) && gpsState.accuracy > BAD_ACCURACY_M) setLamp(el.lampGps, el.lampGpsText, "warn", "GPS");
+  else setLamp(el.lampGps, el.lampGpsText, "ok", "GPS");
+
+  if (sensorState.permission === "granted") setLamp(el.lampTilt, el.lampTiltText, "ok", "TILT");
+  else if (sensorState.permission === "denied" || sensorState.permission === "unsupported") setLamp(el.lampTilt, el.lampTiltText, "bad", "TILT");
+  else setLamp(el.lampTilt, el.lampTiltText, "", "TILT");
+
+  if (wakeState === "active") setLamp(el.lampWake, el.lampWakeText, "ok", "LOCK");
+  else if (wakeState === "unsupported" || wakeState === "failed") setLamp(el.lampWake, el.lampWakeText, "warn", "LOCK");
+  else setLamp(el.lampWake, el.lampWakeText, "", "LOCK");
+}
+
+/* ─────────── GPS ─────────── */
+
+function applyFix(fix){
+  // fix: { kmh, altitude, heading, accuracy, lat, lon, t }
+  gpsState.hasFix = true;
+  gpsState.error = "";
+  gpsState.accuracy = Number.isFinite(fix.accuracy) ? fix.accuracy : null;
+  gpsState.altitude = Number.isFinite(fix.altitude) ? fix.altitude : gpsState.altitude;
+  gpsState.heading = Number.isFinite(fix.heading) ? fix.heading : gpsState.heading;
+
+  let kmh = Number.isFinite(fix.kmh) ? fix.kmh : null;
+  if (kmh === null) kmh = speedFromFixes(gpsState.lastFix, fix);
+  kmh = stillFilter(kmh, fix.accuracy);
+  gpsState.rawKmh = kmh;
+  gpsState.kmh = emaSmooth(gpsState.kmh, kmh, EMA_ALPHA);
+
+  if (tripState.running) {
+    if (gpsState.lastFix && kmh > 0) {
+      const step = haversineMeters(gpsState.lastFix, fix);
+      // 精度差的跳點會一次灌進幾百公尺，擋掉
+      if (Number.isFinite(step) && step < 500) tripState.distanceM += step;
+    }
+    if (Number.isFinite(gpsState.kmh) && gpsState.kmh > tripState.topSpeed) tripState.topSpeed = gpsState.kmh;
+  }
+  gpsState.lastFix = fix;
+  render();
+}
+
+function createGpsTracker(){
+  let watchId = null;
+  return {
+    start(){
+      if (!NAV || !NAV.geolocation) {
+        gpsState.error = "此瀏覽器不支援定位";
+        render();
+        return;
+      }
+      if (watchId !== null) return;
+      watchId = NAV.geolocation.watchPosition(
+        (pos) => {
+          const c = pos.coords || {};
+          applyFix({
+            kmh: msToKmh(c.speed),
+            altitude: numOrNaN(c.altitude),
+            heading: numOrNaN(c.heading),
+            accuracy: numOrNaN(c.accuracy),
+            lat: numOrNaN(c.latitude),
+            lon: numOrNaN(c.longitude),
+            t: numOrNaN(pos.timestamp) || Date.now(),
+          });
+        },
+        (err) => {
+          // 照 weather 頁的慣例：不 throw、不彈 alert，只在畫面上標示降級
+          console.warn("定位失敗", err);
+          gpsState.error = err && err.code === 1 ? "定位權限被拒" : "定位訊號中斷";
+          gpsState.hasFix = false;
+          render();
+        },
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+      );
+    },
+    stop(){
+      if (watchId !== null && NAV && NAV.geolocation) NAV.geolocation.clearWatch(watchId);
+      watchId = null;
+    },
+  };
+}
+
+/* ─────────── 姿態與 G 力 ─────────── */
+
+function screenAngle(){
+  if (SCREEN && SCREEN.orientation && Number.isFinite(Number(SCREEN.orientation.angle))) return Number(SCREEN.orientation.angle);
+  if (ROOT && Number.isFinite(Number(ROOT.orientation))) return Number(ROOT.orientation);
+  return 0;
+}
+
+function onOrientation(event){
+  lastOrientation = { beta: event.beta, gamma: event.gamma };
+  const lean = normalizeLean(lastOrientation, screenAngle(), prefs.zeroOffset);
+  sensorState.lean = lean;
+  if (tripState.running) {
+    const peak = updatePeakLean({ left: sensorState.peakLeft, right: sensorState.peakRight }, lean);
+    sensorState.peakLeft = peak.left;
+    sensorState.peakRight = peak.right;
+  }
+  render();
+}
+
+function onMotion(event){
+  // acceleration 已扣掉重力，但部分 Android 回 null，只好退回含重力那組
+  const raw = event.acceleration && Number.isFinite(Number(event.acceleration.x))
+    ? event.acceleration
+    : event.accelerationIncludingGravity;
+  const g = gForce(raw);
+  sensorState.gLong = emaSmooth(sensorState.gLong, g.long, 0.25);
+  sensorState.gLat = emaSmooth(sensorState.gLat, g.lat, 0.25);
+}
+
+function needsTiltPermission(){
+  return typeof DeviceOrientationEvent !== "undefined"
+    && typeof DeviceOrientationEvent.requestPermission === "function";
+}
+
+function attachTilt(){
+  if (!ROOT.addEventListener) return;
+  ROOT.addEventListener("deviceorientation", onOrientation);
+  ROOT.addEventListener("devicemotion", onMotion);
+  sensorState.permission = "granted";
+  render();
+}
+
+// iOS 13+ 只能在使用者手勢的呼叫堆疊裡要權限；自動要會直接被拒且之後要不回來。
+async function requestTilt(){
+  if (typeof DeviceOrientationEvent === "undefined") {
+    sensorState.permission = "unsupported";
+    render();
+    return;
+  }
+  if (!needsTiltPermission()) { attachTilt(); return; }
+  try {
+    const granted = await DeviceOrientationEvent.requestPermission();
+    if (granted !== "granted") {
+      sensorState.permission = "denied";
+      render();
+      return;
+    }
+    if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+      await DeviceMotionEvent.requestPermission().catch(() => {});
+    }
+    attachTilt();
+  } catch (error) {
+    console.warn("姿態感測權限請求失敗", error);
+    sensorState.permission = "denied";
+    render();
+  }
+}
+
+/* ─────────── 螢幕常亮 ─────────── */
+
+function createWakeLock(){
+  let lock = null;
+  const supported = !!(NAV && NAV.wakeLock && typeof NAV.wakeLock.request === "function");
+  async function acquire(){
+    if (!supported) { wakeState = "unsupported"; render(); return; }
+    try {
+      lock = await NAV.wakeLock.request("screen");
+      wakeState = "active";
+      lock.addEventListener("release", () => { wakeState = "idle"; render(); });
+    } catch (error) {
+      console.warn("螢幕常亮取得失敗", error);
+      wakeState = "failed";
+    }
+    render();
+  }
+  return {
+    supported,
+    acquire,
+    async release(){
+      try { if (lock) await lock.release(); } catch (error) { console.warn("釋放螢幕常亮失敗", error); }
+      lock = null;
+      if (wakeState === "active") wakeState = "idle";
+      render();
+    },
+    // 切到背景時系統會自動釋放，回前景要自己重拿
+    reacquire(){ if (tripState.running && wakeState !== "active") acquire(); },
+  };
+}
+
+/* ─────────── 模擬資料（桌機開發用，走同一條更新路徑） ─────────── */
+
+function createMockSource(){
+  let timer = null;
+  let t = 0;
+  let lat = 25.0330, lon = 121.5654;
+  return {
+    start(){
+      if (timer !== null || typeof setInterval !== "function") return;
+      timer = setInterval(() => {
+        t += 1;
+        const kmh = Math.max(0, 70 + 65 * Math.sin(t / 22));
+        lat += kmh / 3600 / 111.32 * 0.5;
+        applyFix({ kmh, altitude: 30 + 20 * Math.sin(t / 40), heading: (t * 3) % 360, accuracy: 6, lat, lon, t: Date.now() });
+        onOrientation({ beta: 0, gamma: 42 * Math.sin(t / 14) });
+        onMotion({ acceleration: { x: 4 * Math.sin(t / 9), y: 3 * Math.cos(t / 11) } });
+      }, 500);
+      sensorState.permission = "granted";
+      gpsState.hasFix = true;
+    },
+    stop(){ if (timer !== null) clearInterval(timer); timer = null; },
+  };
+}
+
+/* ─────────── 行程控制 ─────────── */
+
+let ticker = null;
+const gps = createGpsTracker();
+const wake = createWakeLock();
+const mock = createMockSource();
+let mockMode = false;
+
+function tick(){
+  if (!tripState.running) return;
+  tripState.elapsedMs += 250;
+  render();
+}
+
+function startTrip(){
+  tripState.running = true;
+  tripState.startedAt = Date.now();
+  if (mockMode) mock.start(); else gps.start();
+  wake.acquire();
+  if (ticker === null && typeof setInterval === "function") ticker = setInterval(tick, 250);
+  render();
+}
+
+function pauseTrip(){
+  tripState.running = false;
+  if (ticker !== null) { clearInterval(ticker); ticker = null; }
+  if (mockMode) mock.stop(); else gps.stop();
+  wake.release();
+  const merged = mergePersonalBest(prefs, { topSpeed: tripState.topSpeed, peakLeft: sensorState.peakLeft, peakRight: sensorState.peakRight });
+  prefs.bestTopSpeed = merged.bestTopSpeed;
+  prefs.bestLeanLeft = merged.bestLeanLeft;
+  prefs.bestLeanRight = merged.bestLeanRight;
+  savePrefs();
+  render();
+}
+
+function resetTrip(){
+  tripState.topSpeed = 0;
+  tripState.distanceM = 0;
+  tripState.elapsedMs = 0;
+  tripState.startedAt = null;
+  sensorState.peakLeft = 0;
+  sensorState.peakRight = 0;
+  gpsState.lastFix = null;
+  render();
+}
+
+function zeroLean(){
+  // 把當下姿態記成 0 度：架好手機、車停正後按一次
+  if (!lastOrientation) return;
+  const raw = normalizeLean(lastOrientation, screenAngle(), 0);
+  if (!Number.isFinite(raw)) return;
+  prefs.zeroOffset = raw;
+  sensorState.lean = 0;
+  savePrefs();
+  render();
+}
+
+function toggleUnit(){
+  prefs.unit = prefs.unit === "mph" ? "kmh" : "mph";
+  savePrefs();
+  render();
+}
+
+function clearBest(){
+  prefs.bestTopSpeed = 0;
+  prefs.bestLeanLeft = 0;
+  prefs.bestLeanRight = 0;
+  savePrefs();
+  render();
+}
+
+function readBattery(){
+  if (!NAV || typeof NAV.getBattery !== "function") return;   // Safari 沒有這個 API，整格不顯示
+  NAV.getBattery().then((batt) => {
+    if (!el.batteryTile) return;
+    el.batteryTile.hidden = false;
+    const paint = () => { el.battery.innerHTML = `${Math.round(batt.level * 100)}<span class="u">%</span>`; };
+    paint();
+    batt.addEventListener("levelchange", paint);
+  }).catch(() => {});
+}
+
+function init(){
+  bind();
+  loadPrefs();
+  buildLeds();
+  const search = (ROOT.location && ROOT.location.search) || "";
+  mockMode = /[?&]mock=1(?:&|$)/.test(search);
+  if (el.mockFlag) el.mockFlag.hidden = !mockMode;
+  if (el.btnTilt) el.btnTilt.hidden = !needsTiltPermission();
+  if (!needsTiltPermission() && !mockMode) attachTilt();
+
+  if (el.btnRun) el.btnRun.addEventListener("click", () => { if (tripState.running) pauseTrip(); else startTrip(); });
+  if (el.btnTilt) el.btnTilt.addEventListener("click", requestTilt);
+  if (el.btnZero) el.btnZero.addEventListener("click", zeroLean);
+  if (el.btnUnit) el.btnUnit.addEventListener("click", toggleUnit);
+  if (el.btnReset) el.btnReset.addEventListener("click", resetTrip);
+  if (el.btnClearBest) el.btnClearBest.addEventListener("click", clearBest);
+  if (DOC.addEventListener) DOC.addEventListener("visibilitychange", () => { if (!DOC.hidden) wake.reacquire(); });
+
+  readBattery();
+  render();
+}
+
+const dashApp = {
+  init,
+  getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs }),
+  helpers: {
+    numOrNaN, msToKmh, kmhToMph, formatSpeed, emaSmooth, haversineMeters, speedFromFixes, stillFilter,
+    virtualGear, revRatio, ledStates, normalizeLean, updatePeakLean, gForce, formatElapsed,
+    mergePersonalBest,
+  },
+  constants: { LED_COUNT, LEAN_LIMIT, GEAR_BANDS, DEFAULT_REDLINE, STILL_KMH, BAD_ACCURACY_M },
+};
+
+ROOT.DashApp = dashApp;
+
+if (DOC && !ROOT.__DASH_SKIP_AUTO_INIT__) {
+  if (DOC.readyState === "loading") DOC.addEventListener("DOMContentLoaded", init);
+  else init();
+}
+})();
+</script>
+</body>
+</html>
