@@ -19,9 +19,6 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="騎乘儀表">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <script>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
@@ -30,18 +27,38 @@
   }
 </script>
 <style>
+  /* 數字用自帶的子集字型（只含 0-9 與 N . : ° % - /，兩個檔各約 1.9KB）。
+     原本走 Google Fonts，但實機上根本沒載到：iOS 退回 fallback 鏈裡的 ui-monospace，
+     也就是 SF Mono，而 SF Mono 的零帶斜線，放大當車速看起來像缺字符的方塊。
+     儀表的主要讀數不該依賴 CDN——隧道裡沒有網路，一樣要看得懂。
+     fallback 也刻意避開所有等寬字型，就是為了避開那個斜線零。 */
+  @font-face{
+    font-family:"Dash Num";
+    font-style:normal;
+    font-weight:600;
+    font-display:swap;
+    src:url("/assets/fonts/chakra-petch-600-digits.woff2") format("woff2");
+    unicode-range:U+25,U+2d-3a,U+4e,U+b0;
+  }
+  @font-face{
+    font-family:"Dash Num";
+    font-style:normal;
+    font-weight:700;
+    font-display:swap;
+    src:url("/assets/fonts/chakra-petch-700-digits.woff2") format("woff2");
+    unicode-range:U+25,U+2d-3a,U+4e,U+b0;
+  }
   :root{
     color-scheme:dark;
     --bg:#09090b;--panel:#131317;--panel2:#1b1b21;--line:#2c2c34;--line2:#3f3f46;
-    --ink:#f4f4f5;--soft:#a1a1aa;--faint:#71717a;
+    /* 這頁會在大太陽下的機車上看。灰階都往上調過：原本的 #71717a 標籤在
+       面板底色上只有約 4:1，室外幾乎看不見。 */
+    --ink:#f4f4f5;--soft:#c7c7d0;--faint:#9a9aa6;
     --yellow:#eab308;--green:#22c55e;--red:#ef4444;--cyan:#22d3ee;
     --off:#26262b;
-    --sans:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    /* Chakra Petch 一樣沒有中文字符，中文靠後面的 fallback 接住；離線抓不到字體時也要能讀。
-       原本用 Orbitron，但它的 7 是一條沒有橫當的裸斜線、4 是封閉三角，
-       放大到 150px 當車速根本認不出來——實機看過。 */
-    --num:"Chakra Petch",ui-monospace,SFMono-Regular,Consolas,"Noto Sans TC",monospace;
+    --num:"Dash Num","Helvetica Neue",Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;
@@ -82,14 +99,20 @@
 
   /* 中央三欄 */
   .cluster{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
-  .card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px}
+  /* flex column：讓中間的圖形吃掉剩下的高度。固定高度的圖形塞在等高的卡片裡，
+     兩側就會各留一大片死空間，整排看起來像沒做完。 */
+  .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;
+        background:var(--panel);padding:14px}
   .card-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--faint)}
 
   .speedbox{display:flex;flex-direction:column;align-items:center;justify-content:center;
             background:linear-gradient(180deg,#16161b 0%,#0d0d10 100%)}
   /* 弧形車速錶：SVG 負責刻度與掃掠，數字用 HTML 疊在中央（字體與 tabular-nums 才控制得住） */
-  .dial{position:relative;width:100%;max-width:340px;margin:0 auto}
-  .dial-svg{display:block;width:100%;height:auto;overflow:visible}
+  /* 高度靠 aspect-ratio 撐開，SVG 再絕對定位填滿——不能靠 SVG 自己的內在高度。
+     實機踩過：Safari 對 flex 容器裡 width:100%;height:auto 的 inline SVG 會把高度算成 0，
+     整個弧形儀表在 iPhone 上完全消失，中央又變回一個裸數字，桌機 Chromium 卻正常。 */
+  .dial{position:relative;width:100%;max-width:340px;margin:0 auto;aspect-ratio:200 / 168}
+  .dial-svg{position:absolute;inset:0;display:block;width:100%;height:100%;overflow:visible}
   .dial-track{fill:none;stroke:var(--off);stroke-width:9;stroke-linecap:round}
   /* 這個元件刻意完全不用 transition。
      實測踩過：對 stroke-dashoffset 下 transition，而 render() 每 125~250ms 就重設一次長度，
@@ -101,23 +124,37 @@
   .dial-sweep.red{stroke:var(--red)}
   .dial-tick{stroke:var(--line2);stroke-width:2}
   .dial-tick.major{stroke:var(--faint);stroke-width:2.5}
-  .dial-num{fill:var(--faint);font-family:var(--mono);font-size:11px;text-anchor:middle;dominant-baseline:middle}
-  /* 數字疊在弧的圓心稍上方，留下弧底缺口給檔位 */
-  .dial-face{position:absolute;left:0;right:0;top:38%;transform:translateY(-50%);
+  .dial-num{fill:var(--faint);font-family:var(--num);font-weight:600;font-size:12px;text-anchor:middle;dominant-baseline:middle}
+  /* 數字與檔位都疊在弧裡：檔位落在弧底的開口，這是真實儀表的位置，
+     擺到錶外會讓開口空著、整個錶看起來沒做完。 */
+  .dial-face{position:absolute;left:6%;right:6%;top:44%;transform:translateY(-50%);
              display:flex;flex-direction:column;align-items:center;pointer-events:none}
-  .speed{font-family:var(--num);font-weight:700;font-size:clamp(58px,17vw,104px);line-height:.9;
-         letter-spacing:-.01em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .speed{font-family:var(--num);font-weight:700;font-size:clamp(64px,27vw,128px);line-height:.86;
+         letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums}
   .speed.hot{color:var(--red)}
-  .speed-unit{font-family:var(--mono);font-size:11px;letter-spacing:.24em;color:var(--soft);margin-top:2px}
-  .gearrow{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:-6px}
-  .gear{font-family:var(--num);font-weight:700;font-size:40px;line-height:1;color:var(--yellow)}
+  /* 還沒有定位時的 "--" 要看起來像在等，不是壞掉 */
+  .speed.idle{color:var(--faint)}
+  .speed-unit{font-family:var(--mono);font-size:11px;letter-spacing:.24em;color:var(--soft);margin-top:4px}
+  .gearrow{position:absolute;left:0;right:0;top:72%;display:flex;align-items:center;
+           justify-content:center;gap:12px;pointer-events:none}
+  .gear{font-family:var(--num);font-weight:700;font-size:38px;line-height:1;color:var(--yellow)}
   .gear-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--faint)}
 
   /* 傾角 */
-  .leanview{position:relative;height:112px;margin-top:8px;overflow:hidden;border-radius:8px;background:var(--panel2)}
+  .leanview{position:relative;flex:1 1 auto;min-height:104px;margin-top:8px;overflow:hidden;
+            border-radius:8px;background:var(--panel2)}
+  /* 固定的參考刻度。少了它，畫面上只剩兩條會動的線，看起來像一個十字而不是儀表 */
+  .lean-scale{position:absolute;left:0;right:0;top:6px;height:12px}
+  .lean-scale i{position:absolute;top:0;width:2px;height:7px;background:var(--line2);transform:translateX(-50%)}
+  .lean-scale i:nth-child(1){left:16%}
+  .lean-scale i:nth-child(2){left:33%}
+  .lean-scale i:nth-child(3){left:50%;height:12px;background:var(--faint)}
+  .lean-scale i:nth-child(4){left:67%}
+  .lean-scale i:nth-child(5){left:84%}
   .horizon{position:absolute;left:-20%;top:50%;width:140%;height:2px;background:var(--cyan);
            transform-origin:50% 50%;box-shadow:0 0 8px rgba(34,211,238,.6)}
-  .bike{position:absolute;left:50%;top:50%;width:3px;height:44px;margin:-44px 0 0 -1.5px;
+  /* 高度用百分比，圖形長高時指針才跟著長；下緣正好落在圓心（12% + 38% = 50%） */
+  .bike{position:absolute;left:50%;top:12%;width:3px;height:38%;margin-left:-1.5px;
         background:var(--yellow);transform-origin:50% 100%;box-shadow:0 0 8px rgba(234,179,8,.6)}
   .lean-now{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-family:var(--num);
             font-weight:800;font-size:30px;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -125,7 +162,8 @@
   .peaks b{font-family:var(--num);font-weight:800;color:var(--yellow)}
 
   /* G 力 */
-  .gpad{position:relative;height:112px;margin-top:8px;border-radius:8px;background:var(--panel2);overflow:hidden}
+  .gpad{position:relative;flex:1 1 auto;min-height:104px;margin-top:8px;border-radius:8px;
+        background:var(--panel2);overflow:hidden}
   .gpad-v,.gpad-h{position:absolute;background:var(--line2)}
   .gpad-v{left:50%;top:0;bottom:0;width:1px}
   .gpad-h{top:50%;left:0;right:0;height:1px}
@@ -167,18 +205,34 @@
     .controls{grid-template-columns:repeat(4,minmax(0,1fr))}
     .btn-primary,.btn-tilt{grid-column:span 2}
   }
-  /* 橫放架在車上：砍掉非儀表元素，把三欄拉成寬螢幕 HUD */
+  /* 橫放架在車上：整頁必須在一屏內裝得下。
+     實機踩過：先前 landscape 的內容高度是 592px 而視窗只有 393px，控制列被推到畫面外，
+     使用者按不到「啟用傾角感測」，TILT 燈就永遠是灰的——看起來像感測器壞了。
+     所以這裡每一段都壓過高度，寧可數字小一點也不要有東西掉出畫面。 */
   @media (orientation:landscape) and (max-height:560px){
-    .hud{width:calc(100% - 14px);padding:6px 0 12px}
+    .hud{width:calc(100% - 14px);padding:6px 0 8px}
     .topbar,.notes{display:none}
-    .cluster{grid-template-columns:1fr 1.5fr 1fr;gap:8px}
-    .speed{font-size:clamp(64px,15vh,120px)}
-    .leanview,.gpad{height:82px}
-    .grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
-    .tile{padding:7px 9px}
-    .tile .v{font-size:17px}
-    button{min-height:46px}
-    .btn-primary{min-height:52px}
+    .revwrap{padding:6px 10px;gap:8px}
+    .led{height:10px}
+    .lamp{padding:2px 8px}
+    .cluster{grid-template-columns:1fr 1.3fr 1fr;gap:8px;margin-top:8px}
+    .card{padding:10px 12px}
+    .dial{height:176px;width:auto;max-width:100%}
+    .dial-face{top:42%}
+    .speed{font-size:clamp(44px,15vh,64px)}
+    .speed-unit{font-size:9px;margin-top:2px}
+    .gearrow{gap:9px}
+    .gear{font-size:26px}
+    .leanview,.gpad{min-height:76px}
+    .lean-now{font-size:22px;bottom:2px}
+    .peaks,.greadout{margin-top:5px;font-size:11px}
+    .grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:8px}
+    .tile{padding:5px 8px}
+    .tile .v{font-size:15px;margin-top:2px}
+    .controls{margin-top:8px;gap:6px;grid-template-columns:repeat(6,minmax(0,1fr))}
+    button{min-height:44px;font-size:13px;padding:0 8px}
+    .btn-primary{grid-column:span 2;min-height:44px;font-size:16px}
+    .btn-tilt{grid-column:span 2}
   }
   /* 閃爍在騎乘中很刺眼；使用者關掉動態效果時改為恆亮 */
   @media (prefers-reduced-motion:reduce){
@@ -214,6 +268,7 @@
     <article class="card">
       <div class="card-label">LEAN ANGLE · 手機姿態</div>
       <div class="leanview">
+        <div class="lean-scale" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         <div class="horizon" id="leanHorizon"></div>
         <div class="bike" id="leanBike"></div>
         <div class="lean-now" id="leanNow">--&deg;</div>
@@ -239,11 +294,11 @@
           <div class="speed" id="speed">--</div>
           <div class="speed-unit" id="speedUnit">KM / H</div>
         </div>
-      </div>
-      <div class="gearrow">
-        <span class="gear-label">GEAR</span>
-        <span class="gear" id="gear">N</span>
-        <span class="gear-label" id="revPct">0%</span>
+        <div class="gearrow">
+          <span class="gear-label">GEAR</span>
+          <span class="gear" id="gear">N</span>
+          <span class="gear-label" id="revPct">0%</span>
+        </div>
       </div>
     </article>
 
@@ -654,7 +709,7 @@ function render(){
   }
   const overRedline = Number.isFinite(kmh) && kmh >= prefs.redlineKmh;
   if (el.revBar) el.revBar.className = overRedline ? "revbar shift" : "revbar";
-  el.speed.className = overRedline ? "speed hot" : "speed";
+  el.speed.className = overRedline ? "speed hot" : (Number.isFinite(kmh) ? "speed" : "speed idle");
   el.revPct.textContent = `${Math.round(ratio * 100)}%`;
 
   if (el.dialSweep) {
@@ -830,6 +885,8 @@ function attachTilt(){
   ROOT.addEventListener("deviceorientation", onOrientation);
   ROOT.addEventListener("devicemotion", onMotion);
   sensorState.permission = "granted";
+  // 授權後這顆按鈕就沒用了。橫放時控制列只有一排的高度，留著會把其他鍵擠到畫面外。
+  if (el.btnTilt) el.btnTilt.hidden = true;
   render();
 }
 

@@ -101,6 +101,35 @@ test("dash page ships the HUD contract and states what the numbers are not", asy
   assert.ok(app && typeof app.init === "function", "DashApp should be exposed for tests");
 });
 
+test("the readout font is self-hosted and never falls back to a monospace face", async () => {
+  const { html } = await loadDash();
+
+  // 實機踩過：字型走 Google Fonts，在使用者手機上根本沒載到，iOS 退回 fallback 鏈裡的
+  // ui-monospace（SF Mono）。SF Mono 的零帶斜線，放大當車速看起來像缺字符的方塊。
+  // 儀表的主要讀數不可以依賴 CDN——隧道裡沒網路一樣要看得懂。
+  assert.doesNotMatch(html, /fonts\.googleapis\.com|fonts\.gstatic\.com/, "不可依賴 Google Fonts");
+  assert.match(html, /@font-face/, "數字字型要自帶");
+  assert.match(html, /url\("\/assets\/fonts\/chakra-petch-600-digits\.woff2"\)/);
+  assert.match(html, /url\("\/assets\/fonts\/chakra-petch-700-digits\.woff2"\)/);
+
+  const numStack = html.match(/--num:([^;]+);/)?.[1] || "";
+  assert.ok(numStack, "--num 應該有定義");
+  assert.match(numStack, /"Dash Num"/, "第一順位是自帶字型");
+  assert.doesNotMatch(numStack, /mono/i, "fallback 不可含等寬字型，那正是斜線零的來源");
+});
+
+test("the dial gets its height from an aspect ratio, not from the svg", async () => {
+  const { html } = await loadDash();
+
+  // 實機踩過：Safari 對 flex 容器裡 width:100%;height:auto 的 inline SVG 會把高度算成 0，
+  // 整個弧形儀表在 iPhone 上消失，中央又變回一個裸數字，桌機 Chromium 卻正常。
+  const dialRule = html.match(/\n\s*\.dial\{[^}]*\}/)?.[0] || "";
+  assert.match(dialRule, /aspect-ratio/, ".dial 要自己撐開高度");
+  const svgRule = html.match(/\.dial-svg\{[^}]*\}/)?.[0] || "";
+  assert.match(svgRule, /position:absolute/, "SVG 要絕對定位填滿，不靠內在尺寸");
+  assert.doesNotMatch(svgRule, /height:auto/, "不可依賴 SVG 的內在高度");
+});
+
 test("device fields that come back null stay unknown instead of becoming zero", async () => {
   const { app } = await loadDash();
   const { numOrNaN, msToKmh } = app.helpers;
@@ -471,6 +500,7 @@ test("init renders a full dashboard without any device API present", async () =>
   app.init();
 
   assert.equal(elements.get("speed").textContent, "--", "沒有定位時車速留白");
+  assert.equal(elements.get("speed").className, "speed idle", "等定位中的 -- 要淡化，看起來才不像壞掉");
   assert.equal(elements.get("gear").textContent, "N");
   assert.equal(elements.get("leanNow").textContent, "--°");
   assert.equal(elements.get("elapsed").textContent, "00:00:00");

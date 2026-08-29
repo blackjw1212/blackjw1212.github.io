@@ -1,5 +1,5 @@
 /* BJKW Public Console — service worker */
-const VERSION = "bjkw-v3";
+const VERSION = "bjkw-v4";
 const CACHE = `bjkw-${VERSION}`;
 
 /* App shell：可導覽頁面 + 必要圖示。刻意保持輕量，不預載 512k 大圖。 */
@@ -17,6 +17,9 @@ const PRECACHE = [
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",
   "/assets/images/apple-touch-icon.png",
+  // 儀表的數字字型：各約 1.9KB，預載才能保證在隧道裡也是對的字
+  "/assets/fonts/chakra-petch-600-digits.woff2",
+  "/assets/fonts/chakra-petch-700-digits.woff2",
 ];
 
 self.addEventListener("install", (event) => {
