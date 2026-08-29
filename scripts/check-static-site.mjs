@@ -309,6 +309,8 @@ if (has("dash/index.html")) {
   assertMatch("dash/index.html", html, /騎乘中請勿操作手機/, "dash must tell riders not to operate the phone");
   assertMatch("dash/index.html", html, /非儀器級量測/, "dash must disclose the readings are not instrument grade");
   assertMatch("dash/index.html", html, /傾角量的是手機姿態，不是車身傾角/, "dash must distinguish phone attitude from lean angle");
+  // 沒有「開始記錄」按鈕了，載入頁面本身就會開始定位。這件事一定要講在前面。
+  assertMatch("dash/index.html", html, /開啟頁面就會開始定位/, "dash must disclose that opening the page starts positioning");
 }
 
 if (has("bjkw_weather.html")) {

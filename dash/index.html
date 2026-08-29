@@ -100,7 +100,15 @@
   .lamp.warn i{background:var(--yellow);box-shadow:0 0 7px var(--yellow)}
   .lamp.bad{color:var(--red);border-color:rgba(239,68,68,.45)}
   .lamp.bad i{background:var(--red);animation:blink 1s steps(1) infinite}
+  /* 記錄中。沒有開始/暫停鍵了，這盞燈是唯一能看出狀態的地方 */
+  .lamp.rec{color:var(--red);border-color:rgba(239,68,68,.6);background:rgba(239,68,68,.12)}
+  .lamp.rec i{background:var(--red);box-shadow:0 0 8px var(--red);animation:blink 1.6s steps(1) infinite}
   @keyframes blink{50%{opacity:.15}}
+
+  .gps-error{margin-top:8px;border:1px solid rgba(239,68,68,.5);border-radius:8px;
+             background:rgba(239,68,68,.1);padding:8px 10px;color:var(--red);
+             font-family:var(--mono);font-size:11px;line-height:1.6}
+  .gps-error[hidden]{display:none}
 
   /* 速度條下的刻度。只標到紅線，數字取整到 5——儀表上出現 28、83 沒有人看得下去 */
   .bar-scale{display:flex;justify-content:space-between;margin-top:5px;
@@ -197,6 +205,8 @@
     .revbar{height:30px}
     .lamp{padding:2px 8px}
     .bar-scale{font-size:10px;margin-top:4px}
+    /* 出錯時多這一條會讓整頁多出幾 px 而開始捲動，橫放時壓扁一點 */
+    .gps-error{margin-top:6px;padding:5px 9px;font-size:10px;line-height:1.4}
     .hero{margin:6px 0 2px}
     .speed{font-size:clamp(56px,21vh,88px)}
     .speed-unit{font-size:11px}
@@ -235,6 +245,7 @@
     <div class="bar-head">
       <div class="revbar" id="revBar" role="img" aria-label="速度條"></div>
       <div class="lamps">
+        <span class="lamp" id="lampRec" title="是否正在記錄"><i></i><span id="lampRecText">REC</span></span>
         <span class="lamp" id="lampGps" title="GPS 定位狀態"><i></i><span id="lampGpsText">GPS</span></span>
         <span class="lamp" id="lampTilt" title="姿態感測狀態"><i></i><span id="lampTiltText">TILT</span></span>
         <span class="lamp" id="lampWake" title="螢幕常亮狀態"><i></i><span id="lampWakeText">LOCK</span></span>
@@ -242,7 +253,10 @@
     </div>
     <div class="bar-scale" id="barScale" aria-hidden="true"></div>
 
-    <div class="hero">
+    <p class="gps-error" id="gpsError" hidden></p>
+
+    <!-- 刻意不用 aria-live：車速每秒都在變，會把螢幕閱讀器洗版 -->
+    <div class="hero" role="img" aria-label="目前車速">
       <div class="speed" id="speed">--</div>
       <div class="speed-unit" id="speedUnit">km/h</div>
     </div>
@@ -284,8 +298,7 @@
   </section>
 
   <section class="controls">
-    <button type="button" class="btn-primary" id="btnRun">開始記錄</button>
-    <button type="button" class="btn-tilt" id="btnTilt" hidden>啟用傾角感測</button>
+    <button type="button" class="btn-tilt" id="btnTilt" hidden>啟用傾角與螢幕常亮</button>
     <button type="button" id="btnZero">傾角歸零</button>
     <button type="button" id="btnUnit">切換 mph</button>
     <button type="button" id="btnReset">清除本趟</button>
@@ -296,6 +309,8 @@
 
   <footer class="notes">
     <b>騎乘中請勿操作手機。</b>設定與校正在出發前做完，路上只看不碰。<br>
+    <b>開啟頁面就會開始定位</b>，偵測到真的在移動才開始記錄，停下約 20 秒自動停止；
+    不想被記錄就關掉這個分頁。<br>
     數值僅供參考，非儀器級量測：GPS 車速受衛星收訊與更新率影響，隧道與高樓間會漂移或中斷。<br>
     <b>傾角量的是手機姿態，不是車身傾角。</b>手機感測到的是相對重力的方向，過彎時向心力會與重力合成，
     直線加減速也會污染讀數，數值一律偏小且不可當作壓車角度。<br>
@@ -323,6 +338,8 @@ const DEFAULT_REDLINE = 110;        // 速度條滿格的速度，非速限建�
 const BAR_MIN_H = 0.42;
 const STILL_KMH = 5;                // 低於步行速度的讀數在機車儀表上沒有意義
 const MOVING_STREAK = 2;            // 連續幾筆都在動才承認，單筆雜訊不讓數字跳出來
+const AUTO_PAUSE_MS = 20000;        // 這麼久沒有確認移動就自動停止記錄
+const IDLE_DOWNGRADE_MS = 120000;   // 靜止這麼久就把定位降級省電
 const LEAN_MIN_KMH = 15;            // 這以下不可能維持壓車角，峰值一定是拿手機造成的
 const BAD_ACCURACY_M = 35;          // 只給 GPS 狀態燈用，不參與速度判定
 const EMA_ALPHA = 0.35;
@@ -330,6 +347,13 @@ const EMA_ALPHA = 0.35;
 // 綠→黃→紅的分界
 const SWEEP_AMBER_AT = 0.55, SWEEP_RED_AT = 0.82;
 const BAR_SCALE_STEPS = 5;          // 速度條下方要標幾個刻度
+
+// 可注入的時鐘。自動啟停與計時全靠它，測試才不必等真實的 20 秒。
+// 比照既有的 __DASH_SKIP_AUTO_INIT__ 慣例。
+function now(){
+  const injected = ROOT.__DASH_NOW__;
+  return typeof injected === "function" ? injected() : Date.now();
+}
 
 /* ─────────── 純函式（測試的標的，不碰任何瀏覽器 API） ─────────── */
 
@@ -529,7 +553,10 @@ function mergePersonalBest(stored, trip){
 
 const gpsState = { rawKmh: null, kmh: null, altitude: null, heading: null, accuracy: null, lastFix: null, hasFix: false, moving: false, error: "" };
 const sensorState = { lean: null, peakLeft: 0, peakRight: 0, gLong: 0, gLat: 0, permission: "idle" };
-const tripState = { running: false, topSpeed: 0, distanceM: 0, elapsedMs: 0, startedAt: null };
+// running 的語意是「正在移動的區段」，由移動判定自動開關，只用來決定
+// 里程 / 極速 / 傾角峰值要不要累加。startedAt 整趟只設一次——ELAPSED 是
+// 從出發起算的總時間，中間停等照算，清除本趟才歸零。
+const tripState = { running: false, topSpeed: 0, distanceM: 0, startedAt: null, lastMovingAt: null };
 const prefs = { unit: "kmh", redlineKmh: DEFAULT_REDLINE, zeroOffset: 0, bestTopSpeed: 0, bestLeanLeft: 0, bestLeanRight: 0 };
 
 let wakeState = "idle";
@@ -570,11 +597,12 @@ function savePrefs(){
 const el = {};
 function bind(){
   if (!DOC) return;
-  for (const id of ["revBar","barScale","lampGps","lampGpsText","lampTilt","lampTiltText","lampWake","lampWakeText",
+  for (const id of ["revBar","barScale","gpsError","lampRec","lampRecText",
+                    "lampGps","lampGpsText","lampTilt","lampTiltText","lampWake","lampWakeText",
                     "leanHorizon","leanBike","leanNow","peakLeft","peakRight","bestLeft","bestRight",
                     "speed","speedUnit","gDot","gLong","gLat","heading","accuracy",
                     "topSpeed","trip","altitude","elapsed","bestSpeed",
-                    "batteryTile","battery","btnRun","btnTilt","btnZero","btnUnit","btnReset","btnClearBest","mockFlag"]) {
+                    "batteryTile","battery","btnTilt","btnZero","btnUnit","btnReset","btnClearBest","mockFlag"]) {
     el[id] = DOC.getElementById(id);
   }
 }
@@ -651,12 +679,23 @@ function render(){
   const dist = prefs.unit === "mph" ? distKm * KMH_TO_MPH : distKm;
   el.trip.innerHTML = `${dist.toFixed(2)}<span class="u">${prefs.unit === "mph" ? "mi" : "km"}</span>`;
   el.altitude.innerHTML = `${Number.isFinite(gpsState.altitude) ? Math.round(gpsState.altitude) : "--"}<span class="u">m</span>`;
-  el.elapsed.textContent = formatElapsed(tripState.elapsedMs);
+  // 從出發起算的總時間，用時戳相減算出來而不是逐筆累加：
+  // setInterval 在背景分頁會被節流，累加式計時會少算。
+  el.elapsed.textContent = formatElapsed(tripState.startedAt === null ? 0 : now() - tripState.startedAt);
   el.bestSpeed.innerHTML = `${formatSpeed(prefs.bestTopSpeed, prefs.unit)}<span class="u">${unitLabel()}</span>`;
 
-  el.btnRun.textContent = tripState.running ? "暫停記錄" : "開始記錄";
-  el.btnRun.className = tripState.running ? "btn-primary running" : "btn-primary";
   el.btnUnit.textContent = prefs.unit === "mph" ? "切換 km/h" : "切換 mph";
+
+  // 沒有開始/暫停鍵了，狀態只能靠這盞燈看出來
+  setLamp(el.lampRec, el.lampRecText, tripState.running ? "rec" : "", "REC");
+
+  // 定位被拒時要有可操作的文字，不能只有一盞紅燈——現在連能重按的按鈕都沒有了
+  if (el.gpsError) {
+    el.gpsError.hidden = !gpsState.error;
+    el.gpsError.textContent = gpsState.error
+      ? `${gpsState.error}。到系統設定開啟本站的定位權限後重新整理。`
+      : "";
+  }
 
   if (gpsState.error) setLamp(el.lampGps, el.lampGpsText, "bad", "GPS");
   else if (!gpsState.hasFix) setLamp(el.lampGps, el.lampGpsText, "", "GPS");
@@ -695,7 +734,14 @@ function applyFix(fix){
   gpsState.moving = confirmed;
   gpsState.kmh = emaSmooth(gpsState.kmh, kmh, EMA_ALPHA);
 
-  if (tripState.running && confirmed) {
+  if (confirmed) {
+    // 自動開始：不需要使用者按任何東西。startedAt 只在整趟第一次移動時設，
+    // 之後每一段移動都不再重設——ELAPSED 是總時間，不是本段時間。
+    tripState.lastMovingAt = now();
+    if (!tripState.running) tripState.running = true;
+    if (tripState.startedAt === null) tripState.startedAt = tripState.lastMovingAt;
+    setGpsMode("high");
+
     // 精度差的跳點會一次灌進幾百公尺，擋掉
     if (move.meters < 500) tripState.distanceM += move.meters;
     // 極速吃平滑後的值，但只在確認在動時才更新——否則停下來後殘值還會把它推高
@@ -705,9 +751,30 @@ function applyFix(fix){
   render();
 }
 
+// 高精度定位很吃電，而這頁一開就開始定位、停車也還開著。
+// 靜止久了降到低精度（改用 wifi / 基地台），偵測到移動再升回來。
+//
+// 代價要講清楚：低精度模式的 accuracy 可能到 50~100m，而移動判定的門檻是
+// 「位移超過精度半徑」，所以重新起步後可能要多花幾秒才升得回高精度。
+// 這是省電換來的，不是壞掉。
+const GPS_MODES = {
+  high: { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 },
+  low: { enableHighAccuracy: false, maximumAge: 10000, timeout: 30000 },
+};
+
 function createGpsTracker(){
   let watchId = null;
+  let mode = "high";
   return {
+    getMode(){ return mode; },
+    setMode(next){
+      if (next !== "high" && next !== "low") return;
+      if (next === mode) return;
+      mode = next;
+      if (watchId === null) return;   // 還沒開始就只記模式，start() 會用到
+      this.stop();
+      this.start();
+    },
     start(){
       if (!NAV || !NAV.geolocation) {
         gpsState.error = "此瀏覽器不支援定位";
@@ -735,7 +802,7 @@ function createGpsTracker(){
           gpsState.hasFix = false;
           render();
         },
-        { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+        GPS_MODES[mode]
       );
     },
     stop(){
@@ -783,13 +850,28 @@ function needsTiltPermission(){
     && typeof DeviceOrientationEvent.requestPermission === "function";
 }
 
+// 那顆按鈕只有在真的還缺東西時才出現：傾角還沒授權，或螢幕常亮沒拿到。
+function needsGesture(){
+  if (sensorState.permission !== "granted" && needsTiltPermission()) return true;
+  return wake.supported && wakeState !== "active";
+}
+
+// 把兩件需要手勢的事併在同一次點擊裡處理完
+async function enableSensors(){
+  await requestTilt();
+  await wake.acquire();
+  if (el.btnTilt) el.btnTilt.hidden = !needsGesture();
+  render();
+}
+
 function attachTilt(){
   if (!ROOT.addEventListener) return;
   ROOT.addEventListener("deviceorientation", onOrientation);
   ROOT.addEventListener("devicemotion", onMotion);
   sensorState.permission = "granted";
-  // 授權後這顆按鈕就沒用了。橫放時控制列只有一排的高度，留著會把其他鍵擠到畫面外。
-  if (el.btnTilt) el.btnTilt.hidden = true;
+  // 這顆按鈕同時負責螢幕常亮，所以要兩件事都拿到才收起來。
+  // 橫放時控制列只有一排的高度，留著會把其他鍵擠到畫面外。
+  if (el.btnTilt) el.btnTilt.hidden = !needsGesture();
   render();
 }
 
@@ -882,42 +964,49 @@ const wake = createWakeLock();
 const mock = createMockSource();
 let mockMode = false;
 
-function tick(){
-  if (!tripState.running) return;
-  tripState.elapsedMs += 250;
-  render();
+// 定位模式切換。切換必須重開 watch，而新舊精度的兩筆定位之間不可比，
+// 所以連續計數要歸零，否則第一筆新精度的 fix 會被誤判成移動。
+function setGpsMode(next){
+  if (mockMode || gps.getMode() === next) return;
+  gps.setMode(next);
+  movingStreak = 0;
 }
 
-function startTrip(){
-  tripState.running = true;
-  tripState.startedAt = Date.now();
-  if (mockMode) mock.start(); else gps.start();
-  wake.acquire();
-  if (ticker === null && typeof setInterval === "function") ticker = setInterval(tick, 250);
-  render();
-}
-
-function pauseTrip(){
-  tripState.running = false;
-  if (ticker !== null) { clearInterval(ticker); ticker = null; }
-  if (mockMode) mock.stop(); else gps.stop();
-  wake.release();
-  const merged = mergePersonalBest(prefs, { topSpeed: tripState.topSpeed, peakLeft: sensorState.peakLeft, peakRight: sensorState.peakRight });
+function commitBests(){
+  const merged = mergePersonalBest(prefs, {
+    topSpeed: tripState.topSpeed,
+    peakLeft: sensorState.peakLeft,
+    peakRight: sensorState.peakRight,
+  });
   prefs.bestTopSpeed = merged.bestTopSpeed;
   prefs.bestLeanLeft = merged.bestLeanLeft;
   prefs.bestLeanRight = merged.bestLeanRight;
   savePrefs();
+}
+
+// 每 250ms 跑一次：更新畫面上的總時間，並檢查該不該自動停止或降級。
+// 螢幕常亮刻意不在這裡釋放——停紅燈時螢幕暗掉，這頁就沒用了。
+function tick(){
+  const idleFor = tripState.lastMovingAt === null ? 0 : now() - tripState.lastMovingAt;
+  if (tripState.running && idleFor > AUTO_PAUSE_MS) {
+    tripState.running = false;
+    commitBests();
+  }
+  if (tripState.lastMovingAt !== null && idleFor > IDLE_DOWNGRADE_MS) setGpsMode("low");
   render();
 }
 
 function resetTrip(){
+  tripState.running = false;
   tripState.topSpeed = 0;
   tripState.distanceM = 0;
-  tripState.elapsedMs = 0;
   tripState.startedAt = null;
+  tripState.lastMovingAt = null;
   sensorState.peakLeft = 0;
   sensorState.peakRight = 0;
+  // 這兩個沒清的話，下一筆定位會拿舊的基準點比對而誤判成移動
   gpsState.lastFix = null;
+  movingStreak = 0;
   render();
 }
 
@@ -966,11 +1055,18 @@ function init(){
   const search = (ROOT.location && ROOT.location.search) || "";
   mockMode = /[?&]mock=1(?:&|$)/.test(search);
   if (el.mockFlag) el.mockFlag.hidden = !mockMode;
-  if (el.btnTilt) el.btnTilt.hidden = !needsTiltPermission();
   if (!needsTiltPermission() && !mockMode) attachTilt();
 
-  if (el.btnRun) el.btnRun.addEventListener("click", () => { if (tripState.running) pauseTrip(); else startTrip(); });
-  if (el.btnTilt) el.btnTilt.addEventListener("click", requestTilt);
+  // 沒有「開始記錄」了：一進頁面就定位、就常亮，偵測到移動自己開始記錄。
+  // 手機架好之後不該再去碰它——這頁自己的免責第一句就是「騎乘中請勿操作手機」。
+  if (mockMode) mock.start(); else gps.start();
+  wake.acquire();
+  if (ticker === null && typeof setInterval === "function") ticker = setInterval(tick, 250);
+
+  // iOS 的傾角權限只能在使用者手勢裡要，Wake Lock 在部分瀏覽器也是，
+  // 所以留這一顆把兩件事併在同一個手勢。兩者都拿到就自己隱藏。
+  if (el.btnTilt) el.btnTilt.hidden = !needsGesture();
+  if (el.btnTilt) el.btnTilt.addEventListener("click", enableSensors);
   if (el.btnZero) el.btnZero.addEventListener("click", zeroLean);
   if (el.btnUnit) el.btnUnit.addEventListener("click", toggleUnit);
   if (el.btnReset) el.btnReset.addEventListener("click", resetTrip);
@@ -987,7 +1083,9 @@ const dashApp = {
   // 三條路徑共用同一段判定，mock 綠燈才代表真的能跑。
   applyFix,
   handleOrientation: onOrientation,
-  getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs }),
+  // 自動停止與降級都在 tick 裡判斷。開出來讓測試用假時鐘驅動，不必等真實的 20 秒。
+  tick,
+  getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs, gpsMode: gps.getMode() }),
   helpers: {
     numOrNaN, msToKmh, kmhToMph, formatSpeed, emaSmooth, haversineMeters, speedFromFixes,
     movementBetween, stillFilter, revRatio, ledStates, sweepColor,
@@ -997,6 +1095,7 @@ const dashApp = {
   constants: {
     LED_COUNT, LEAN_LIMIT, DEFAULT_REDLINE, STILL_KMH, BAD_ACCURACY_M,
     MOVING_STREAK, LEAN_MIN_KMH, BAR_MIN_H, BAR_SCALE_STEPS,
+    AUTO_PAUSE_MS, IDLE_DOWNGRADE_MS, GPS_MODES,
   },
 };
 

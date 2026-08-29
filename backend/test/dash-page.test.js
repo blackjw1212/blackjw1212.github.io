@@ -71,21 +71,54 @@ function fakeStorage(seed) {
 
 // 這一頁沒有 navigator / screen / DeviceOrientationEvent 也必須載得起來：
 // 頁面裡每個裝置 API 都是 typeof 守衛過的，沙箱不給就是在測那條降級路徑。
+// 假的定位服務。記下每次 watchPosition 帶的選項，才驗得到高／低精度的切換。
+function fakeGeolocation() {
+  const watches = [];
+  let nextId = 1;
+  return {
+    watches,
+    get options() { return watches.map((w) => w.options); },
+    get activeCount() { return watches.filter((w) => !w.cleared).length; },
+    watchPosition(onOk, onErr, options) {
+      const id = nextId++;
+      watches.push({ id, onOk, onErr, options, cleared: false });
+      return id;
+    },
+    clearWatch(id) {
+      const found = watches.find((w) => w.id === id);
+      if (found) found.cleared = true;
+    },
+  };
+}
+
+// 可控時鐘。自動停止要等 20 秒、降級要等 2 分鐘，真的等就別測了。
+function fakeClock(start = 1_000_000) {
+  let t = start;
+  const clock = () => t;
+  clock.advance = (ms) => { t += ms; return t; };
+  return clock;
+}
+
 async function loadDash(options = {}) {
   const htmlPath = fileURLToPath(new URL("../../dash/index.html", import.meta.url));
   const html = await readFile(htmlPath, "utf8");
   const script = html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)?.[1];
   assert.ok(script, "dash inline script should be present");
   const { document, elements } = buildDocument(html);
+  const clock = options.clock || fakeClock();
+  const geolocation = options.geolocation === null ? null : (options.geolocation || fakeGeolocation());
   const window = {
     __DASH_SKIP_AUTO_INIT__: options.autoInit !== true,
+    __DASH_NOW__: clock,
     localStorage: options.localStorage || fakeStorage(),
     location: { href: "https://local.test/dash/", search: options.search || "" },
     addEventListener() {},
   };
-  const context = vm.createContext({ console, document, window });
+  const sandbox = { console, document, window };
+  if (geolocation) sandbox.navigator = { geolocation };
+  const context = vm.createContext(sandbox);
   vm.runInContext(script, context, { filename: "dash/index.html" });
-  return { context, document, elements, html, window, app: context.window.DashApp };
+  return { context, document, elements, html, window, clock, geolocation, app: context.window.DashApp };
 }
 
 test("dash page ships the HUD contract and states what the numbers are not", async () => {
@@ -237,11 +270,11 @@ test("speed needs to clear the threshold, the noise floor and a second confirmin
 test("a stationary phone never accumulates speed or distance", async () => {
   const { app } = await loadDash();
   app.init();
-  app.getState().trip.running = true;   // 記錄中才會累加里程，不開的話這條斷言是白過的
   const metre = 1 / 111194.93;
   let lat = 25.0330;
 
-  // 室內漂移：精度 8m，每筆跳 2m。餵十筆，儀表必須從頭到尾是 0。
+  // 室內漂移：精度 8m，每筆跳 2m。餵十筆，儀表必須從頭到尾是 0，
+  // 而且自動記錄不可以被這種雜訊觸發。
   for (let i = 0; i < 10; i++) {
     lat += 2 * metre;
     app.applyFix({ kmh: null, accuracy: 8, lat, lon: 121.5654, t: 1000 * (i + 1) });
@@ -251,13 +284,14 @@ test("a stationary phone never accumulates speed or distance", async () => {
   assert.equal(state.gps.moving, false);
   assert.equal(state.trip.distanceM, 0, "停著不能長里程");
   assert.equal(state.trip.topSpeed, 0);
-  assert.equal(app.getState().gps.hasFix, true, "有收到定位，只是判定為沒在動");
+  assert.equal(state.trip.running, false, "漂移不可以觸發自動記錄");
+  assert.equal(state.trip.startedAt, null, "沒出發過就不該有起算點");
+  assert.equal(state.gps.hasFix, true, "有收到定位，只是判定為沒在動");
 });
 
 test("real movement takes one confirming fix to show up, then reads through", async () => {
   const { app } = await loadDash();
   app.init();
-  app.getState().trip.running = true;   // 里程與極速只在記錄中累加
   const metre = 1 / 111194.93;
   let lat = 25.0330;
   const roll = (t) => { lat += 20 * metre; app.applyFix({ kmh: 72, accuracy: 8, lat, lon: 121.5654, t }); };
@@ -270,8 +304,159 @@ test("real movement takes one confirming fix to show up, then reads through", as
   assert.ok(app.getState().gps.kmh > 0, "連續兩筆都在動就讀得出來");
 
   const { trip } = app.getState();
+  assert.equal(trip.running, true, "不必按任何東西，確認在動就自己開始記錄");
+  assert.ok(trip.startedAt !== null, "起算點要被設定");
   assert.ok(trip.distanceM > 15 && trip.distanceM < 45, `里程應該累加一到兩段 20m，實得 ${trip.distanceM}`);
   assert.ok(trip.topSpeed > 0);
+});
+
+test("positioning starts on load, with nothing to press", async () => {
+  const { app, geolocation, elements, html } = await loadDash();
+  assert.equal(geolocation.activeCount, 0, "init 之前不該先要定位權限");
+
+  app.init();
+
+  assert.equal(geolocation.activeCount, 1, "一進頁面就開始定位");
+  assert.equal(geolocation.options[0].enableHighAccuracy, true, "預設走高精度");
+  // 手機架好之後不該再去碰它——這頁自己的免責第一句就是「騎乘中請勿操作手機」
+  assert.doesNotMatch(html, /id="btnRun"/, "不該還有開始／暫停鍵");
+  assert.doesNotMatch(html, /<button[^>]*>(?:開始|暫停)記錄<\/button>/);
+  assert.equal(elements.get("btnRun"), undefined);
+  // 一載入就定位這件事必須講在畫面上
+  assert.match(html, /開啟頁面就會開始定位/);
+});
+
+test("recording stops on its own after standing still, and keeps the screen awake", async () => {
+  const clock = fakeClock();
+  const { app } = await loadDash({ clock });
+  app.init();
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+  const roll = () => { lat += 20 * metre; app.applyFix({ kmh: 72, accuracy: 8, lat, lon: 121.5654, t: clock() }); };
+
+  roll(); clock.advance(1000); roll(); clock.advance(1000); roll();
+  assert.equal(app.getState().trip.running, true);
+
+  // 還沒到門檻：紅燈停一下不該中斷記錄
+  clock.advance(app.constants.AUTO_PAUSE_MS - 1000);
+  app.tick();
+  assert.equal(app.getState().trip.running, true, "沒到 20 秒不能停");
+
+  clock.advance(2000);
+  app.tick();
+  const { trip, prefs } = app.getState();
+  assert.equal(trip.running, false, "超過門檻要自己停下來");
+  assert.ok(trip.startedAt !== null, "自動停止不是重設，這一趟還在");
+  assert.ok(trip.distanceM > 0, "已經跑掉的里程要留著");
+  assert.ok(prefs.bestTopSpeed > 0, "停下來時要把個人最佳寫進去");
+});
+
+test("elapsed is total time since departure and survives a stop", async () => {
+  const clock = fakeClock();
+  const { app, elements } = await loadDash({ clock });
+  app.init();
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+  const roll = () => { lat += 20 * metre; app.applyFix({ kmh: 72, accuracy: 8, lat, lon: 121.5654, t: clock() }); };
+
+  roll(); clock.advance(1000); roll(); clock.advance(1000); roll();
+  const startedAt = app.getState().trip.startedAt;
+  assert.ok(startedAt !== null);
+
+  // 停了很久
+  clock.advance(60_000);
+  app.tick();
+  assert.equal(app.getState().trip.running, false);
+  assert.equal(elements.get("elapsed").textContent, "00:01:00", "停等照算，這是總時間不是移動時間");
+
+  // 再出發：起算點不可以被重設，否則總時間會歸零重來
+  roll(); clock.advance(1000); roll();
+  assert.equal(app.getState().trip.running, true, "再次移動要自己接回來");
+  assert.equal(app.getState().trip.startedAt, startedAt, "起算點整趟只設一次");
+
+  // 計時完全靠時戳相減，不靠 tick 累加——背景分頁的 setInterval 會被節流
+  clock.advance(3600_000);
+  app.tick();
+  assert.equal(elements.get("elapsed").textContent, "01:01:01");
+});
+
+test("clearing the trip resets the clock and the movement baseline", async () => {
+  const clock = fakeClock();
+  const { app, elements } = await loadDash({ clock });
+  app.init();
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+  const roll = () => { lat += 20 * metre; app.applyFix({ kmh: 72, accuracy: 8, lat, lon: 121.5654, t: clock() }); };
+  roll(); clock.advance(1000); roll(); clock.advance(1000); roll();
+  assert.ok(app.getState().trip.distanceM > 0);
+
+  elements.get("btnReset").fire("click");
+  const { trip, gps } = app.getState();
+  assert.equal(trip.running, false);
+  assert.equal(trip.startedAt, null);
+  assert.equal(trip.lastMovingAt, null);
+  assert.equal(trip.distanceM, 0);
+  assert.equal(trip.topSpeed, 0);
+  // 舊的基準點沒清的話，下一筆定位會拿它比對而誤判成移動
+  assert.equal(gps.lastFix, null);
+  assert.equal(elements.get("elapsed").textContent, "00:00:00");
+});
+
+test("positioning drops to low accuracy when parked and climbs back on movement", async () => {
+  const clock = fakeClock();
+  const { app, geolocation } = await loadDash({ clock });
+  app.init();
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+  const roll = () => { lat += 20 * metre; app.applyFix({ kmh: 72, accuracy: 8, lat, lon: 121.5654, t: clock() }); };
+
+  roll(); clock.advance(1000); roll(); clock.advance(1000); roll();
+  assert.equal(app.getState().gpsMode, "high");
+
+  clock.advance(app.constants.IDLE_DOWNGRADE_MS + 1000);
+  app.tick();
+  assert.equal(app.getState().gpsMode, "low", "停久了要降級省電");
+  assert.equal(geolocation.activeCount, 1, "降級是重開 watch，不是多開一個");
+  assert.equal(geolocation.options.at(-1).enableHighAccuracy, false);
+
+  // 低精度下 accuracy 會變差，門檻跟著變嚴——這裡用夠大的位移確保判定得到
+  lat += 300 * metre;
+  app.applyFix({ kmh: 40, accuracy: 60, lat, lon: 121.5654, t: clock() });
+  clock.advance(1000);
+  lat += 300 * metre;
+  app.applyFix({ kmh: 40, accuracy: 60, lat, lon: 121.5654, t: clock() });
+  assert.equal(app.getState().gpsMode, "high", "再動起來要升回高精度");
+  assert.equal(geolocation.options.at(-1).enableHighAccuracy, true);
+  assert.equal(geolocation.activeCount, 1);
+});
+
+test("the rec lamp is the only place the recording state shows", async () => {
+  const clock = fakeClock();
+  const { app, elements } = await loadDash({ clock });
+  app.init();
+  assert.equal(elements.get("lampRec").className, "lamp", "還沒出發時不亮");
+
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+  const roll = () => { lat += 20 * metre; app.applyFix({ kmh: 72, accuracy: 8, lat, lon: 121.5654, t: clock() }); };
+  roll(); clock.advance(1000); roll(); clock.advance(1000); roll();
+  assert.equal(elements.get("lampRec").className, "lamp rec", "記錄中要亮");
+
+  clock.advance(app.constants.AUTO_PAUSE_MS + 1000);
+  app.tick();
+  assert.equal(elements.get("lampRec").className, "lamp", "自動停止後熄掉");
+});
+
+test("a denied location permission says what to do about it", async () => {
+  const { app, elements, geolocation } = await loadDash();
+  app.init();
+
+  geolocation.watches[0].onErr({ code: 1, message: "User denied Geolocation" });
+  assert.equal(elements.get("gpsError").hidden, false, "沒有按鈕可重按了，必須有文字說明");
+  assert.match(elements.get("gpsError").textContent, /定位權限被拒/);
+  assert.match(elements.get("gpsError").textContent, /設定/, "要告訴使用者去哪裡開");
+  assert.equal(elements.get("lampGps").className, "lamp bad");
+  assert.equal(app.getState().gps.hasFix, false);
 });
 
 test("unit switching converts both the number and the label", async () => {
@@ -478,8 +663,9 @@ test("init renders a full dashboard without any device API present", async () =>
   assert.equal(elements.get("speedUnit").textContent, "km/h");
   assert.equal(elements.get("leanNow").textContent, "--°");
   assert.equal(elements.get("elapsed").textContent, "00:00:00");
-  assert.equal(elements.get("btnRun").textContent, "開始記錄");
   assert.equal(elements.get("btnUnit").textContent, "切換 mph");
+  assert.equal(elements.get("lampRec").className, "lamp", "還沒出發時 REC 不亮");
+  assert.equal(elements.get("gpsError").hidden, true, "沒有錯誤時不顯示");
   assert.equal(elements.get("revBar").children.length, app.constants.LED_COUNT);
   assert.ok(elements.get("revBar").children.every((led) => led.className === "led"));
   assert.equal(elements.get("mockFlag").hidden, true);
