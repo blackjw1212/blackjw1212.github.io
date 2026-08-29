@@ -220,7 +220,7 @@ svg.spark{width:100%;height:120px;display:block}
 
 <section class="tab" id="t6">
   <h2>航空公司官網</h2>
-  <p class="note">OTA 的價格是導引價，官網才是最終結帳價。這裡依目的地列出實際在飛這條線的航空公司，把官網查到的每人票價填進去 —— 填完可以一鍵變成方案。</p>
+  <p class="note">OTA 的價格是導引價，官網才是最終結帳價。這裡依目的地列出實際在飛這條線的航空公司，把官網查到的每人票價填進去 —— 填完可以一鍵變成方案。按「網址」會在頁面內給出該家的官網與 Google Flights 網址，複製後貼到瀏覽器，不會自動開新分頁。</p>
   <div id="airlines"></div>
   <h2>區域型 OTA</h2>
   <div class="card" id="otas"></div>
@@ -410,11 +410,7 @@ async function restore(){
   $('#saveflag').textContent='新的工作階段';
 }
 
-/* ---------- 連結：可點也可複製 ---------- */
-function openURL(u){
-  try{const w=window.open(u,'_blank','noopener');if(w)return true}catch(e){}
-  return false;
-}
+/* ---------- 網址：一律在頁面內取，不開新分頁 ---------- */
 function showURLs(title,urls){
   $('#urlTitle').textContent=title;
   $('#urlText').value=urls.join('\n');
@@ -427,13 +423,6 @@ $('#urlCopy').onclick=async()=>{
   try{await navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}
   $('#urlCopy').textContent='已複製';setTimeout(()=>$('#urlCopy').textContent='全選並複製',1500);
 };
-document.addEventListener('click',e=>{
-  const a=e.target.closest('[data-url]');
-  if(!a)return;
-  e.preventDefault();
-  const u=a.dataset.url;
-  if(!openURL(u))showURLs('這個連結被沙箱擋住了，複製後貼到瀏覽器：',[u]);
-});
 
 /* ---------- tabs ---------- */
 $$('.tabbtn').forEach(b=>b.onclick=()=>{
@@ -599,7 +588,12 @@ function renderArb(){
 }
 
 /* ---------- 官網報價 ---------- */
+// 每家航空的網址在 render 當下算好放這裡，按鈕只帶 key。
+// 把兩三條網址塞進 data- 屬性要跳脫兩層（HTML 屬性 + 網址本身的 & 與引號），
+// 是自找的 bug；每次 render 重建這張表比較單純。
+let AIR_URLS={};
 function renderAirlines(){
+  AIR_URLS={};
   const o=(S.trip.from||'').toUpperCase(), d=(S.trip.to||'').toUpperCase();
   const dd=S.trip.dep, rd=S.trip.ret;
   const reg=regionOf(d);
@@ -617,9 +611,9 @@ function renderAirlines(){
     html+=g[1].map(c=>{
       const k=c[1], v=S.air[k]||{};
       const gf=(o&&d&&dd)?gfQuery(o,d,dd,rd,c[1]):null;
+      AIR_URLS[k]={t:c[0],urls:[['官網',c[2]]].concat(gf?[['先看價位（Google Flights）',gf]]:[])};
       return '<div class="air"><span class="air-n">'+c[0]+'</span>'+
-        '<a class="lnk" data-url="'+esc(c[2])+'" href="'+esc(c[2])+'" target="_blank" rel="noopener">官網</a>'+
-        (gf?'<a class="lnk" data-url="'+esc(gf)+'" href="'+esc(gf)+'" target="_blank" rel="noopener">先看價位</a>':'')+
+        '<button class="lnk" data-airurl="'+esc(k)+'">網址</button>'+
         '<input class="px" type="number" inputmode="numeric" placeholder="官網價/人" data-air="'+esc(k)+'" value="'+esc(v.p||'')+'">'+
         (v.p?'<button class="lnk" data-mk="'+esc(k)+'|'+esc(c[0])+'">建立方案</button>':'')+
         '</div>';
@@ -642,8 +636,18 @@ function renderAirlines(){
     (vals.length>1?'<div class="subtle">次低 '+esc(vals[1][0])+' '+NT(vals[1][1])+'　·　已登記 '+vals.length+' 家</div>':'')+'</div>'+html;
 
   $('#airlines').innerHTML=html;
-  $('#otas').innerHTML=OTAS.map(t=>'<a class="lnk" style="margin:3px" data-url="'+esc(t[1])+'" href="'+esc(t[1])+'" target="_blank" rel="noopener">'+esc(t[0])+'</a>').join('');
+  // 名稱仍然列出來（要知道有哪幾家），但只有一顆按鈕負責給網址。
+  $('#otas').innerHTML='<div class="row"><button class="lnk" data-otaurl="1">網址</button>'+
+    '<span class="subtle" style="flex:1;min-width:140px">'+OTAS.map(t=>esc(t[0])).join('、')+'</span></div>';
 
+  $$('[data-otaurl]').forEach(b=>b.onclick=()=>{
+    showURLs('區域型 OTA　複製後貼到瀏覽器：',OTAS.map(t=>t[0]+'\n'+t[1]));
+  });
+  $$('[data-airurl]').forEach(b=>b.onclick=()=>{
+    const e=AIR_URLS[b.dataset.airurl];
+    if(!e||!e.urls.length)return;
+    showURLs(e.t+'　複製後貼到瀏覽器：',e.urls.map(l=>l[0]+'\n'+l[1]));
+  });
   $$('[data-air]').forEach(el=>el.oninput=()=>{
     const k=el.dataset.air;S.air[k]=Object.assign({},S.air[k],{p:el.value});save();meta();
   });
