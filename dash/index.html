@@ -83,7 +83,8 @@
 
   /* 頂部速度條。段高由左往右遞增，做出參考儀表那條斜坡狀的能量條 */
   .bar-head{display:flex;align-items:flex-end;gap:12px}
-  .revbar{display:flex;align-items:flex-end;flex:1 1 auto;gap:3px;min-width:0;height:40px}
+  .bar-col{flex:1 1 auto;min-width:0}
+  .revbar{display:flex;align-items:flex-end;gap:3px;min-width:0;height:40px}
   .led{flex:1 1 0;height:100%;border-radius:3px;background:var(--off);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
   .led.green{background:var(--green);box-shadow:0 0 8px rgba(34,197,94,.65)}
   .led.amber{background:var(--yellow);box-shadow:0 0 8px rgba(234,179,8,.65)}
@@ -100,9 +101,12 @@
   .lamp.warn i{background:var(--yellow);box-shadow:0 0 7px var(--yellow)}
   .lamp.bad{color:var(--red);border-color:rgba(239,68,68,.45)}
   .lamp.bad i{background:var(--red);animation:blink 1s steps(1) infinite}
-  /* 記錄中。沒有開始/暫停鍵了，這盞燈是唯一能看出狀態的地方 */
-  .lamp.rec{color:var(--red);border-color:rgba(239,68,68,.6);background:rgba(239,68,68,.12)}
-  .lamp.rec i{background:var(--red);box-shadow:0 0 8px var(--red);animation:blink 1.6s steps(1) infinite}
+  /* 記錄中。沒有開始/暫停鍵了，這盞燈是唯一能看出狀態的地方。
+     刻意不用紅色：紅色在這頁已經是「故障」（GPS 失效）與「超過紅線」的意思，
+     再拿去表示「正在記錄」的話，騎車瞄一眼看到紅色會分不出是正常還是出事。
+     青色在這頁只用在地平線，拿來當記錄中不會跟任何警示混淆。 */
+  .lamp.rec{color:var(--cyan);border-color:rgba(34,211,238,.65);background:rgba(34,211,238,.14)}
+  .lamp.rec i{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
   @keyframes blink{50%{opacity:.15}}
 
   .gps-error{margin-top:8px;border:1px solid rgba(239,68,68,.5);border-radius:8px;
@@ -114,14 +118,27 @@
   .bar-scale{display:flex;justify-content:space-between;margin-top:5px;
              font-family:var(--num);font-weight:600;font-size:11px;color:var(--faint)}
 
+  /* 窄螢幕上四顆燈會吃掉整列七成寬度，把主要的速度條擠成一條細線（實測只剩 90px，
+     18 段各 5px）。狀態燈是次要資訊，這裡讓它自己一列，寬度全部還給速度條。 */
+  @media (max-width:620px){
+    .bar-head{flex-direction:column-reverse;align-items:stretch;gap:8px}
+    .lamps{justify-content:flex-end}
+  }
+
   /* 主讀數：整頁唯一的大字。單位靠基線對齊擺在右側，像真實儀表 */
-  .hero{display:flex;align-items:baseline;justify-content:center;gap:10px;
-        margin:10px 0 4px;min-height:0}
+  /* 高度釘死成有數字時的高度，第一次定位進來才不會整頁往下跳 */
+  /* 用 grid 而不是 flex：align-content 才能把那一行在固定高度的框裡垂直置中。
+     等待狀態的字縮小之後，靠 flex 會被推到頂端而在下方留一片空白。
+     grid-auto-flow:column 保證數字與單位不會換行。 */
+  .hero{display:grid;grid-auto-flow:column;justify-content:center;align-content:center;
+        align-items:baseline;gap:10px;margin:10px 0 4px;
+        min-height:calc(clamp(76px,34vw,168px) * .84)}
   .speed{font-family:var(--num);font-weight:700;font-size:clamp(76px,34vw,168px);line-height:.84;
          letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums}
   .speed.hot{color:var(--red)}
-  /* 還沒有定位時的 "--" 要看起來像在等，不是壞掉 */
-  .speed.idle{color:var(--faint)}
+  /* 還沒有定位時的 "--"。維持原尺寸的話兩個連字號就是兩塊大灰磚，看起來像壞掉；
+     縮小並拉開字距才讀得出是佔位符。高度由 .hero 的 min-height 撐住，不會跳版。 */
+  .speed.idle{color:var(--faint);font-size:clamp(40px,14vw,64px);letter-spacing:.12em}
   .speed-unit{font-family:var(--mono);font-size:13px;letter-spacing:.18em;color:var(--soft)}
 
   /* 下緣讀數區。與主讀數之間只有一條分隔線，不再是各自帶邊框的卡片 */
@@ -151,10 +168,12 @@
   .lean-scale i:nth-child(3){left:50%;height:12px;background:var(--faint)}
   .lean-scale i:nth-child(4){left:67%}
   .lean-scale i:nth-child(5){left:84%}
-  .horizon{position:absolute;left:-20%;top:50%;width:140%;height:2px;background:var(--cyan);
+  /* 地平線放在 42% 而不是正中間：正中間的話下方的角度數字只剩 4px 淨空，
+     會緊貼著線，看起來像沒排完。 */
+  .horizon{position:absolute;left:-20%;top:42%;width:140%;height:2px;background:var(--cyan);
            transform-origin:50% 50%;box-shadow:0 0 8px rgba(34,211,238,.6)}
-  /* 高度用百分比，圖形長高時指針才跟著長；下緣正好落在圓心（12% + 38% = 50%） */
-  .bike{position:absolute;left:50%;top:12%;width:3px;height:38%;margin-left:-1.5px;
+  /* 高度用百分比，圖形長高時指針才跟著長；下緣正好落在支點（4% + 38% = 42%） */
+  .bike{position:absolute;left:50%;top:4%;width:3px;height:38%;margin-left:-1.5px;
         background:var(--yellow);transform-origin:50% 100%;box-shadow:0 0 8px rgba(234,179,8,.6)}
   .lean-now{position:absolute;left:0;right:0;bottom:3px;text-align:center;font-family:var(--num);
             font-weight:700;font-size:24px;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -207,8 +226,10 @@
     .bar-scale{font-size:10px;margin-top:4px}
     /* 出錯時多這一條會讓整頁多出幾 px 而開始捲動，橫放時壓扁一點 */
     .gps-error{margin-top:6px;padding:5px 9px;font-size:10px;line-height:1.4}
-    .hero{margin:6px 0 2px}
+    /* min-height 要跟著橫式的字級走，沿用直式的 34vw 會憑空多出五十幾 px */
+    .hero{margin:6px 0 2px;min-height:calc(clamp(56px,21vh,88px) * .84)}
     .speed{font-size:clamp(56px,21vh,88px)}
+    .speed.idle{font-size:clamp(30px,11vh,46px)}
     .speed-unit{font-size:11px}
     .strip{margin-top:8px;padding-top:8px;gap:8px 12px;grid-template-columns:150px 150px 1fr}
     .readouts{grid-column:auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 10px}
@@ -243,7 +264,14 @@
 
   <section class="cluster" aria-label="騎乘儀表">
     <div class="bar-head">
-      <div class="revbar" id="revBar" role="img" aria-label="速度條"></div>
+      <!-- 條與刻度一定要在同一個容器裡，兩者才會等寬。
+           先前刻度是 bar-head 的兄弟節點，寬度含燈號那一段，
+           直式下條只有 90px 而刻度攤在 343px 上，「110」落在最後一段右邊 245px——
+           標籤跟段位完全對不上，刻度變成裝飾而不是儀表。 -->
+      <div class="bar-col">
+        <div class="revbar" id="revBar" role="img" aria-label="速度條"></div>
+        <div class="bar-scale" id="barScale" aria-hidden="true"></div>
+      </div>
       <div class="lamps">
         <span class="lamp" id="lampRec" title="是否正在記錄"><i></i><span id="lampRecText">REC</span></span>
         <span class="lamp" id="lampGps" title="GPS 定位狀態"><i></i><span id="lampGpsText">GPS</span></span>
@@ -251,7 +279,6 @@
         <span class="lamp" id="lampWake" title="螢幕常亮狀態"><i></i><span id="lampWakeText">LOCK</span></span>
       </div>
     </div>
-    <div class="bar-scale" id="barScale" aria-hidden="true"></div>
 
     <p class="gps-error" id="gpsError" hidden></p>
 

@@ -513,6 +513,50 @@ test("led bar lights up from green through amber to red", async () => {
 
 
 
+test("the scale sits in the same box as the bar so the labels line up", async () => {
+  const { html } = await loadDash();
+
+  // 實測踩過：刻度原本是 .bar-head 的兄弟節點，寬度含右側燈號那一段。
+  // 直式下速度條只剩 90px 而刻度攤在 343px 上，「110」落在最後一段右邊 245px——
+  // 標籤跟段位完全對不上，刻度變成裝飾而不是儀表。
+  // 兩者必須在同一個容器裡才會等寬，中間不可以插進別的東西。
+  const barAt = html.indexOf('id="revBar"');
+  const scaleAt = html.indexOf('id="barScale"');
+  assert.ok(barAt > 0 && scaleAt > barAt, "刻度要排在速度條後面");
+  const between = html.slice(barAt, scaleAt);
+  assert.doesNotMatch(between, /class="lamps"/, "燈號不可以插在條與刻度之間");
+  assert.match(html, /<div class="bar-col">/, "條與刻度要包在同一個容器裡");
+  const colAt = html.indexOf('<div class="bar-col">');
+  assert.ok(colAt > 0 && colAt < barAt, "容器要包住速度條");
+
+  // 窄螢幕上燈號要讓出整列，否則條會被擠成一條細線
+  assert.match(html, /@media \(max-width:620px\)\{[^}]*\.bar-head\{flex-direction:column-reverse/);
+});
+
+test("red is reserved for faults, so the rec lamp uses another colour", async () => {
+  const { html } = await loadDash();
+
+  // 紅色在這頁已經是「故障」與「超過紅線」的意思。再拿去表示「正在記錄」的話，
+  // 騎車瞄一眼看到紅色會分不出是正常還是出事。
+  const recRule = html.match(/\.lamp\.rec\{[^}]*\}/)?.[0] || "";
+  assert.ok(recRule, ".lamp.rec 規則應該存在");
+  assert.doesNotMatch(recRule, /--red/, "記錄中不可以用紅色");
+  const badRule = html.match(/\.lamp\.bad\{[^}]*\}/)?.[0] || "";
+  assert.match(badRule, /--red/, "故障才是紅色");
+});
+
+test("the waiting state is not two big grey slabs", async () => {
+  const { html } = await loadDash();
+
+  // 車速 133px 時兩個連字號就是兩塊大灰磚，看起來像壞掉而不是在等定位
+  const idleRule = html.match(/\.speed\.idle\{[^}]*\}/)?.[0] || "";
+  assert.ok(idleRule, ".speed.idle 規則應該存在");
+  assert.match(idleRule, /font-size/, "等待狀態要縮小");
+  // 高度要由 .hero 撐住，第一次定位進來才不會整頁往下跳
+  const heroRule = html.match(/\n\s*\.hero\{[^}]*\}/)?.[0] || "";
+  assert.match(heroRule, /min-height/, ".hero 要釘死高度避免跳版");
+});
+
 test("the speed bar ramps up from left to right", async () => {
   const { app } = await loadDash();
   const { barSegmentHeight } = app.helpers;
