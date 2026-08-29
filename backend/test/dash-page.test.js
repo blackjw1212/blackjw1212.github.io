@@ -807,6 +807,29 @@ test("a corrupt localStorage entry falls back to defaults instead of throwing", 
   assert.equal(prefs.redlineKmh, app.constants.DEFAULT_REDLINE);
 });
 
+test("a stale redline in an old save cannot override the constant", async () => {
+  // 實測踩過：savePrefs 把整包 prefs 序列化，redlineKmh 也被寫進去。
+  // 使用者裝置上存著舊的 110，之後改常數改不動——舊存檔會把新值蓋回去。
+  // 紅線沒有任何 UI 可以調，是常數不是偏好設定，不該落地。
+  const store = fakeStorage({
+    "bjkw-dash:v1": JSON.stringify({ unit: "kmh", redlineKmh: 110, bestTopSpeed: 88 }),
+  });
+  const { app, elements } = await loadDash({ localStorage: store });
+  app.init();
+
+  assert.equal(app.getState().prefs.redlineKmh, app.constants.DEFAULT_REDLINE, "常數要贏過舊存檔");
+  assert.equal(
+    elements.get("barScale").children[app.constants.BAR_SCALE_STEPS - 1].textContent,
+    String(app.constants.DEFAULT_REDLINE),
+    "刻度上限要跟著常數走"
+  );
+  assert.equal(app.getState().prefs.bestTopSpeed, 88, "個人最佳還是要讀回來");
+
+  // 之後寫回去時也不可以再把常數存進存檔
+  elements.get("btnUnit").fire("click");
+  assert.equal(JSON.parse(store.getItem("bjkw-dash:v1")).redlineKmh, undefined, "常數不該落地");
+});
+
 test("clearing personal bests wipes the stored record", async () => {
   const store = fakeStorage({
     "bjkw-dash:v1": JSON.stringify({ unit: "kmh", bestTopSpeed: 143, bestLeanLeft: 33, bestLeanRight: 29 }),
