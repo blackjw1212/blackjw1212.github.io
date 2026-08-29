@@ -86,13 +86,21 @@
      先前只有窄螢幕這樣排，但橫放時四顆燈一樣吃掉 32% 的條寬（實測 567 / 838）。
      速度條是主要儀表，不該讓次要的狀態燈分走寬度。 */
   .bar-head{display:flex;flex-direction:column-reverse;align-items:stretch;gap:8px}
-  .bar-col{min-width:0}
+  /* 主尺與超速段並排，中間刻意留一段空隙:讓人一眼看出右邊那三格
+     不是主尺的延伸，而是另一個東西。刻度只屬於主尺，跟著 .bar-main 等寬。 */
+  .bar-col{display:flex;align-items:flex-start;gap:14px;min-width:0}
+  .bar-main{flex:1 1 auto;min-width:0}
+  .bar-over{flex:0 0 auto;width:15%;min-width:52px}
   .revbar{display:flex;align-items:flex-end;gap:3px;min-width:0;height:40px}
+  .revbar-over{display:flex;align-items:flex-end;gap:3px;height:40px}
+  .revbar-over .led{height:100%}
+  .over-scale{margin-top:5px;text-align:right;font-family:var(--num);
+              font-weight:600;font-size:11px;color:var(--faint)}
   .led{flex:1 1 0;height:100%;border-radius:3px;background:var(--off);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
   .led.green{background:var(--green);box-shadow:0 0 8px rgba(34,197,94,.65)}
   .led.amber{background:var(--yellow);box-shadow:0 0 8px rgba(234,179,8,.65)}
   .led.red{background:var(--red);box-shadow:0 0 10px rgba(239,68,68,.75)}
-  .revbar.shift .led{background:var(--red);box-shadow:0 0 12px rgba(239,68,68,.85);animation:shiftflash .14s steps(1) infinite}
+  .revbar-over.shift .led{background:var(--red);box-shadow:0 0 12px rgba(239,68,68,.85);animation:shiftflash .14s steps(1) infinite}
   @keyframes shiftflash{50%{background:var(--off);box-shadow:none}}
   .lamps{display:flex;gap:8px;justify-content:flex-end}
   .lamp{display:flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;
@@ -228,7 +236,8 @@
     .cluster{padding:10px 12px;margin-top:0;
              display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
     .strip{flex:0 0 auto}
-    .revbar{height:30px}
+    .bar-head{gap:6px}
+    .revbar,.revbar-over{height:30px}
     .lamp{padding:2px 8px}
     .bar-scale{font-size:10px;margin-top:4px}
     /* 出錯時多這一條會讓整頁多出幾 px 而開始捲動，橫放時壓扁一點 */
@@ -255,7 +264,7 @@
   }
   /* 閃爍在騎乘中很刺眼；使用者關掉動態效果時改為恆亮 */
   @media (prefers-reduced-motion:reduce){
-    .revbar.shift .led{animation:none}
+    .revbar-over.shift .led{animation:none}
     .lamp.bad i{animation:none}
   }
 </style>
@@ -280,8 +289,14 @@
            直式下條只有 90px 而刻度攤在 343px 上，「110」落在最後一段右邊 245px——
            標籤跟段位完全對不上，刻度變成裝飾而不是儀表。 -->
       <div class="bar-col">
-        <div class="revbar" id="revBar" role="img" aria-label="速度條"></div>
-        <div class="bar-scale" id="barScale" aria-hidden="true"></div>
+        <div class="bar-main">
+          <div class="revbar" id="revBar" role="img" aria-label="速度條"></div>
+          <div class="bar-scale" id="barScale" aria-hidden="true"></div>
+        </div>
+        <div class="bar-over">
+          <div class="revbar-over" id="revBarOver" role="img" aria-label="超速段"></div>
+          <div class="over-scale" id="overScale" aria-hidden="true"></div>
+        </div>
       </div>
       <div class="lamps">
         <span class="lamp" id="lampRec" title="是否正在記錄"><i></i><span id="lampRecText">REC</span></span>
@@ -369,11 +384,22 @@ const G_ACCEL = 9.80665;
 const EARTH_R = 6371008.8;          // IUGG 平均半徑
 const MS_TO_KMH = 3.6;
 const KMH_TO_MPH = 0.621371;
-const LED_COUNT = 18;
 const LEAN_LIMIT = 60;              // 手機姿態超過這個角度多半是拿起來看，不是在過彎
-// 速度條滿格的速度，非速限建議。國道正常就會到 110，用 110 當滿格的話
-// 整條燈條會一路閃紅，警示變成常態就等於沒有警示。220 讓 110 落在半格。
-const DEFAULT_REDLINE = 220;
+
+/* 折疊式刻度。整條 0~220 線性的話，日常騎乘全擠在左邊四成，
+   平面道路 50 km/h 只點得亮四格，解析度等於丟掉。
+   所以主尺只做 0~120（真正會待的區間），右邊隔開一段再接三格「超速段」，
+   平常是暗的，只有超過 120 才亮。
+   刻意不做非線性壓縮：同樣長度代表不同速度差的尺，高速時條會突然「跑不動」，
+   一眼看會誤判成加速度變小——儀表最忌諱這個。 */
+const BAR_MAX_KMH = 120;            // 主尺上限
+const OVER_MAX_KMH = 220;           // 超速段上限
+const BAR_SEGMENTS = 16;            // 主尺段數，每段 7.5 km/h
+const OVER_SEGMENTS = 3;
+// 分界固定在真實車速上，不是條的比例：改尺的上限時顏色不會跟著跑掉，
+// 市區永遠是綠的。非速限建議。
+const AMBER_AT_KMH = 90;
+const RED_AT_KMH = BAR_MAX_KMH;
 // 速度條每一段的高度（佔條高的比例），由左往右遞增做出斜坡
 const BAR_MIN_H = 0.42;
 const STILL_KMH = 5;                // 低於步行速度的讀數在機車儀表上沒有意義
@@ -384,9 +410,7 @@ const LEAN_MIN_KMH = 15;            // 這以下不可能維持壓車角，峰�
 const BAD_ACCURACY_M = 35;          // 只給 GPS 狀態燈用，不參與速度判定
 const EMA_ALPHA = 0.35;
 
-// 綠→黃→紅的分界
-const SWEEP_AMBER_AT = 0.55, SWEEP_RED_AT = 0.82;
-const BAR_SCALE_STEPS = 5;          // 速度條下方要標幾個刻度
+const BAR_SCALE_STEPS = 5;          // 主尺下方要標幾個刻度
 
 // 可注入的時鐘。自動啟停與計時全靠它，測試才不必等真實的 20 秒。
 // 比照既有的 __DASH_SKIP_AUTO_INIT__ 慣例。
@@ -481,38 +505,40 @@ function stillFilter(kmh, moving, streak){
   return v;
 }
 
-function revRatio(kmh, redline){
-  const v = numOrNaN(kmh), r = numOrNaN(redline);
-  if (!Number.isFinite(v) || !Number.isFinite(r) || r <= 0) return 0;
-  return Math.min(1, Math.max(0, v / r));
+
+// 顏色只看實際車速，不看在條上的比例。改主尺上限時分界不會跟著跑掉。
+function speedColor(kmh){
+  const v = numOrNaN(kmh);
+  if (!Number.isFinite(v)) return "green";
+  return v >= RED_AT_KMH ? "red" : v >= AMBER_AT_KMH ? "amber" : "green";
 }
 
-function ledStates(ratio, count){
-  const n = Number.isFinite(Number(count)) && Number(count) > 0 ? Math.floor(Number(count)) : LED_COUNT;
-  const r = Number.isFinite(Number(ratio)) ? Math.min(1, Math.max(0, Number(ratio))) : 0;
-  const lit = Math.round(r * n);
+// 主尺：第 i 段代表的速度是它的上緣，所以黃區永遠固定在同一個實體位置，
+// 變的只是亮到第幾格。
+function ledStates(kmh){
+  const v = Math.min(Math.max(numOrNaN(kmh) || 0, 0), BAR_MAX_KMH);
+  const lit = Math.round(v / BAR_MAX_KMH * BAR_SEGMENTS);
   const out = [];
-  for (let i = 0; i < n; i++) {
-    if (i >= lit) { out.push("off"); continue; }
-    out.push(sweepColor((i + 1) / n));
+  for (let i = 0; i < BAR_SEGMENTS; i++) {
+    out.push(i >= lit ? "off" : speedColor((i + 1) * BAR_MAX_KMH / BAR_SEGMENTS));
   }
   return out;
 }
 
-function clampRatio(ratio){
-  const r = numOrNaN(ratio);
-  return Number.isFinite(r) ? Math.min(1, Math.max(0, r)) : 0;
-}
-
-// 燈條與弧形錶共用同一組分界，兩個元件才不會對同一個速度給出不同顏色
-function sweepColor(ratio){
-  const r = clampRatio(ratio);
-  return r <= SWEEP_AMBER_AT ? "green" : r <= SWEEP_RED_AT ? "amber" : "red";
+// 超速段：只有超過主尺上限才開始亮，一律紅色。
+function overStates(kmh){
+  const out = new Array(OVER_SEGMENTS).fill("off");
+  const v = numOrNaN(kmh);
+  if (!Number.isFinite(v) || v <= BAR_MAX_KMH) return out;
+  const span = (OVER_MAX_KMH - BAR_MAX_KMH) / OVER_SEGMENTS;
+  const lit = Math.min(OVER_SEGMENTS, Math.ceil((v - BAR_MAX_KMH) / span));
+  for (let i = 0; i < lit; i++) out[i] = "red";
+  return out;
 }
 
 // 速度條的斜坡：第 i 段的高度佔比，由左往右從 BAR_MIN_H 遞增到 1
 function barSegmentHeight(index, count){
-  const n = Number.isFinite(numOrNaN(count)) && Number(count) > 1 ? Math.floor(Number(count)) : LED_COUNT;
+  const n = Number.isFinite(numOrNaN(count)) && Number(count) > 1 ? Math.floor(Number(count)) : BAR_SEGMENTS;
   const i = Math.min(Math.max(numOrNaN(index) || 0, 0), n - 1);
   return BAR_MIN_H + (i / (n - 1)) * (1 - BAR_MIN_H);
 }
@@ -597,7 +623,7 @@ const sensorState = { lean: null, peakLeft: 0, peakRight: 0, gLong: 0, gLat: 0, 
 // 里程 / 極速 / 傾角峰值要不要累加。startedAt 整趟只設一次——ELAPSED 是
 // 從出發起算的總時間，中間停等照算，清除本趟才歸零。
 const tripState = { running: false, topSpeed: 0, distanceM: 0, startedAt: null, lastMovingAt: null };
-const prefs = { unit: "kmh", redlineKmh: DEFAULT_REDLINE, zeroOffset: 0, bestTopSpeed: 0, bestLeanLeft: 0, bestLeanRight: 0 };
+const prefs = { unit: "kmh", zeroOffset: 0, bestTopSpeed: 0, bestLeanLeft: 0, bestLeanRight: 0 };
 
 let wakeState = "idle";
 let lastOrientation = null;
@@ -612,7 +638,7 @@ function loadPrefs(){
     const saved = JSON.parse(raw);
     if (!saved || typeof saved !== "object") return;
     if (saved.unit === "mph" || saved.unit === "kmh") prefs.unit = saved.unit;
-    // redlineKmh 刻意不從存檔讀。它沒有任何 UI 可以調，是常數不是偏好設定；
+    // 刻度上限刻意不進 prefs、也不從存檔讀。它沒有任何 UI 可以調，是常數不是偏好設定；
     // 存起來的後果是改了程式也傳不到已經用過這頁的人手上——舊存檔會把新值蓋回去。
     if (Number.isFinite(Number(saved.zeroOffset))) prefs.zeroOffset = Number(saved.zeroOffset);
     const best = mergePersonalBest(saved, {});
@@ -646,7 +672,7 @@ function savePrefs(){
 const el = {};
 function bind(){
   if (!DOC) return;
-  for (const id of ["revBar","barScale","gpsError","lampRec","lampRecText",
+  for (const id of ["revBar","revBarOver","barScale","overScale","gpsError","lampRec","lampRecText",
                     "lampGps","lampGpsText","lampTilt","lampTiltText","lampWake","lampWakeText",
                     "leanHorizon","leanBike","leanNow","peakLeft","peakRight","bestLeft","bestRight",
                     "speed","speedUnit","gDot","gLong","gLat","heading","accuracy",
@@ -657,13 +683,24 @@ function bind(){
 }
 
 function buildLeds(){
-  if (!el.revBar || !DOC) return;
-  el.revBar.innerHTML = "";
-  for (let i = 0; i < LED_COUNT; i++) {
-    const led = DOC.createElement("span");
-    led.className = "led";
-    led.style.height = `${(barSegmentHeight(i, LED_COUNT) * 100).toFixed(1)}%`;
-    el.revBar.appendChild(led);
+  if (!DOC) return;
+  if (el.revBar) {
+    el.revBar.innerHTML = "";
+    for (let i = 0; i < BAR_SEGMENTS; i++) {
+      const led = DOC.createElement("span");
+      led.className = "led";
+      led.style.height = `${(barSegmentHeight(i, BAR_SEGMENTS) * 100).toFixed(1)}%`;
+      el.revBar.appendChild(led);
+    }
+  }
+  // 超速段一律滿高：它代表的是主尺之外，不參與斜坡
+  if (el.revBarOver) {
+    el.revBarOver.innerHTML = "";
+    for (let i = 0; i < OVER_SEGMENTS; i++) {
+      const led = DOC.createElement("span");
+      led.className = "led";
+      el.revBarOver.appendChild(led);
+    }
   }
 }
 
@@ -671,10 +708,15 @@ function buildLeds(){
 function buildScale(){
   if (!el.barScale || !DOC) return;
   el.barScale.innerHTML = "";
-  for (const value of barScaleValues(prefs.redlineKmh, prefs.unit, BAR_SCALE_STEPS)) {
+  for (const value of barScaleValues(BAR_MAX_KMH, prefs.unit, BAR_SCALE_STEPS)) {
     const tick = DOC.createElement("span");
     tick.textContent = String(value);
     el.barScale.appendChild(tick);
+  }
+  // 超速段只標上限，標多了反而讓人以為那一段也是線性讀數
+  if (el.overScale) {
+    const top = prefs.unit === "mph" ? OVER_MAX_KMH * KMH_TO_MPH : OVER_MAX_KMH;
+    el.overScale.textContent = String(Math.round(top / 5) * 5);
   }
 }
 
@@ -694,15 +736,20 @@ function render(){
   el.speed.textContent = formatSpeed(kmh, prefs.unit);
   el.speedUnit.textContent = prefs.unit === "mph" ? "mph" : "km/h";
 
-  const ratio = revRatio(kmh, prefs.redlineKmh);
-  const states = ledStates(ratio, LED_COUNT);
-  const leds = el.revBar ? el.revBar.children : [];
-  for (let i = 0; i < leds.length; i++) {
-    leds[i].className = states[i] === "off" ? "led" : `led ${states[i]}`;
-  }
-  const overRedline = Number.isFinite(kmh) && kmh >= prefs.redlineKmh;
-  if (el.revBar) el.revBar.className = overRedline ? "revbar shift" : "revbar";
-  el.speed.className = overRedline ? "speed hot" : (Number.isFinite(kmh) ? "speed" : "speed idle");
+  const paint = (host, states) => {
+    const leds = host ? host.children : [];
+    for (let i = 0; i < leds.length; i++) {
+      leds[i].className = states[i] === "off" ? "led" : `led ${states[i]}`;
+    }
+  };
+  paint(el.revBar, ledStates(kmh));
+  paint(el.revBarOver, overStates(kmh));
+
+  const overRange = Number.isFinite(kmh) && kmh > BAR_MAX_KMH;
+  // 閃爍留給「連超速段都滿了」，不然一上國道就閃，警示變常態
+  const offScale = Number.isFinite(kmh) && kmh >= OVER_MAX_KMH;
+  if (el.revBarOver) el.revBarOver.className = offScale ? "revbar-over shift" : "revbar-over";
+  el.speed.className = overRange ? "speed hot" : (Number.isFinite(kmh) ? "speed" : "speed idle");
 
   const lean = Number.isFinite(sensorState.lean) ? sensorState.lean : null;
   el.leanNow.textContent = lean === null ? "--°" : `${Math.round(Math.abs(lean))}°`;
@@ -1137,12 +1184,13 @@ const dashApp = {
   getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs, gpsMode: gps.getMode() }),
   helpers: {
     numOrNaN, msToKmh, kmhToMph, formatSpeed, emaSmooth, haversineMeters, speedFromFixes,
-    movementBetween, stillFilter, revRatio, ledStates, sweepColor,
+    movementBetween, stillFilter, ledStates, overStates, speedColor,
     barSegmentHeight, barScaleValues,
     normalizeLean, updatePeakLean, gForce, formatElapsed, mergePersonalBest,
   },
   constants: {
-    LED_COUNT, LEAN_LIMIT, DEFAULT_REDLINE, STILL_KMH, BAD_ACCURACY_M,
+    BAR_SEGMENTS, OVER_SEGMENTS, BAR_MAX_KMH, OVER_MAX_KMH, AMBER_AT_KMH, RED_AT_KMH,
+    LEAN_LIMIT, STILL_KMH, BAD_ACCURACY_M,
     MOVING_STREAK, LEAN_MIN_KMH, BAR_MIN_H, BAR_SCALE_STEPS,
     AUTO_PAUSE_MS, IDLE_DOWNGRADE_MS, GPS_MODES,
   },

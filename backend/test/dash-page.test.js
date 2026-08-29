@@ -473,42 +473,7 @@ test("unit switching converts both the number and the label", async () => {
 });
 
 
-test("rev ratio stays inside 0..1 no matter what the speed is", async () => {
-  const { app } = await loadDash();
-  const { revRatio } = app.helpers;
 
-  assert.equal(revRatio(0, 110), 0);
-  assert.equal(revRatio(55, 110), 0.5);
-  assert.equal(revRatio(110, 110), 1);
-  assert.equal(revRatio(400, 110), 1, "超過紅線不能讓燈條算出超出範圍的比例");
-  assert.equal(revRatio(-5, 110), 0);
-  assert.equal(revRatio(50, 0), 0, "紅線為 0 會除以零");
-  assert.equal(revRatio(null, 110), 0);
-});
-
-test("led bar lights up from green through amber to red", async () => {
-  const { app } = await loadDash();
-  const { ledStates } = app.helpers;
-  const { LED_COUNT } = app.constants;
-
-  const dark = ledStates(0, LED_COUNT);
-  assert.equal(dark.length, LED_COUNT);
-  assert.ok(dark.every((state) => state === "off"));
-
-  const full = ledStates(1, LED_COUNT);
-  assert.equal(full.length, LED_COUNT);
-  assert.ok(full.every((state) => state !== "off"));
-  assert.equal(full[0], "green");
-  assert.equal(full[LED_COUNT - 1], "red");
-  assert.ok(full.includes("amber"));
-
-  const half = ledStates(0.5, LED_COUNT);
-  assert.equal(half.filter((state) => state !== "off").length, LED_COUNT / 2);
-  assert.ok(half.filter((state) => state !== "off").every((state) => state === "green"));
-
-  assert.equal(ledStates(null, LED_COUNT).filter((s) => s !== "off").length, 0);
-  assert.equal(ledStates(1, 0).length, LED_COUNT, "燈數無效時退回預設");
-});
 
 
 
@@ -591,38 +556,99 @@ test("the waiting state is not two big grey slabs", async () => {
   assert.match(heroRule, /min-height/, ".hero 要釘死高度避免跳版");
 });
 
+test("colour bands sit on real speeds, not on a fraction of the bar", async () => {
+  const { app } = await loadDash();
+  const { speedColor } = app.helpers;
+  const { AMBER_AT_KMH, RED_AT_KMH } = app.constants;
+
+  // 分界釘在真實車速上，改主尺上限時不會跟著跑掉——市區永遠是綠的
+  assert.equal(speedColor(0), "green");
+  assert.equal(speedColor(50), "green", "市區");
+  assert.equal(speedColor(AMBER_AT_KMH - 0.1), "green");
+  assert.equal(speedColor(AMBER_AT_KMH), "amber", "分界值算進較高的一段");
+  assert.equal(speedColor(110), "amber", "國道正常速度不該是紅的");
+  assert.equal(speedColor(RED_AT_KMH), "red");
+  assert.equal(speedColor(200), "red");
+  assert.equal(speedColor(null), "green");
+});
+
+test("the main bar only covers the range you actually ride in", async () => {
+  const { app } = await loadDash();
+  const { ledStates, speedColor } = app.helpers;
+  const { BAR_SEGMENTS, BAR_MAX_KMH } = app.constants;
+
+  const dark = ledStates(0);
+  assert.equal(dark.length, BAR_SEGMENTS);
+  assert.ok(dark.every((s) => s === "off"));
+
+  // 整條 0~220 線性的話，50 km/h 只點得亮四格，解析度等於丟掉
+  const city = ledStates(50).filter((s) => s !== "off").length;
+  assert.ok(city >= 6 && city <= 8, `50 km/h 應該亮 6~8 格，實得 ${city}`);
+
+  const full = ledStates(BAR_MAX_KMH);
+  assert.equal(full.filter((s) => s !== "off").length, BAR_SEGMENTS, "到上限就滿格");
+  assert.equal(full[BAR_SEGMENTS - 1], "red", "最後一格代表上限，是紅的");
+  assert.equal(full[0], "green");
+  assert.ok(full.includes("amber"));
+
+  // 每一格的顏色固定在它代表的速度上，黃區永遠在同一個實體位置
+  for (let i = 0; i < BAR_SEGMENTS; i++) {
+    if (full[i] === "off") continue;
+    assert.equal(full[i], speedColor((i + 1) * BAR_MAX_KMH / BAR_SEGMENTS), `第 ${i + 1} 格`);
+  }
+  assert.equal(ledStates(400).filter((s) => s !== "off").length, BAR_SEGMENTS, "超過上限主尺就是滿格，不會多算");
+  assert.equal(ledStates(null).filter((s) => s !== "off").length, 0);
+});
+
+test("the over-range block stays dark until you pass the main scale", async () => {
+  const { app } = await loadDash();
+  const { overStates } = app.helpers;
+  const { OVER_SEGMENTS, BAR_MAX_KMH, OVER_MAX_KMH } = app.constants;
+
+  const lit = (kmh) => overStates(kmh).filter((s) => s !== "off").length;
+  assert.equal(overStates(0).length, OVER_SEGMENTS);
+  assert.equal(lit(50), 0, "日常騎乘完全不該碰到超速段");
+  assert.equal(lit(110), 0, "國道正常速度也不該碰到");
+  assert.equal(lit(BAR_MAX_KMH), 0, "剛好在上限還不算超過");
+  assert.equal(lit(BAR_MAX_KMH + 1), 1, "一超過就亮第一格");
+  assert.equal(lit(OVER_MAX_KMH), OVER_SEGMENTS, "到頂全亮");
+  assert.equal(lit(400), OVER_SEGMENTS, "再快也不會多算");
+  assert.equal(lit(null), 0);
+  assert.ok(overStates(200).filter((s) => s !== "off").every((s) => s === "red"), "超速段一律紅色");
+});
+
 test("the speed bar ramps up from left to right", async () => {
   const { app } = await loadDash();
   const { barSegmentHeight } = app.helpers;
-  const { LED_COUNT, BAR_MIN_H } = app.constants;
+  const { BAR_SEGMENTS, BAR_MIN_H } = app.constants;
 
-  assert.ok(Math.abs(barSegmentHeight(0, LED_COUNT) - BAR_MIN_H) < 1e-9, "最左邊最矮");
-  assert.ok(Math.abs(barSegmentHeight(LED_COUNT - 1, LED_COUNT) - 1) < 1e-9, "最右邊滿高");
+  assert.ok(Math.abs(barSegmentHeight(0, BAR_SEGMENTS) - BAR_MIN_H) < 1e-9, "最左邊最矮");
+  assert.ok(Math.abs(barSegmentHeight(BAR_SEGMENTS - 1, BAR_SEGMENTS) - 1) < 1e-9, "最右邊滿高");
   let prev = -1;
-  for (let i = 0; i < LED_COUNT; i++) {
-    const h = barSegmentHeight(i, LED_COUNT);
+  for (let i = 0; i < BAR_SEGMENTS; i++) {
+    const h = barSegmentHeight(i, BAR_SEGMENTS);
     assert.ok(h > prev, `第 ${i} 段要比前一段高`);
     assert.ok(h > 0 && h <= 1, "高度必須落在 0..1");
     prev = h;
   }
-  assert.equal(barSegmentHeight(-5, LED_COUNT), BAR_MIN_H, "超出範圍要夾住");
-  assert.equal(barSegmentHeight(999, LED_COUNT), 1);
+  assert.equal(barSegmentHeight(-5, BAR_SEGMENTS), BAR_MIN_H, "超出範圍要夾住");
+  assert.equal(barSegmentHeight(999, BAR_SEGMENTS), 1);
 });
 
 test("bar scale labels are round numbers in the current unit", async () => {
   const { app } = await loadDash();
   const { barScaleValues } = app.helpers;
-  const { DEFAULT_REDLINE, BAR_SCALE_STEPS } = app.constants;
+  const { BAR_MAX_KMH, BAR_SCALE_STEPS } = app.constants;
 
-  const kmh = barScaleValues(DEFAULT_REDLINE, "kmh", BAR_SCALE_STEPS);
+  const kmh = barScaleValues(BAR_MAX_KMH, "kmh", BAR_SCALE_STEPS);
   assert.equal(kmh.length, BAR_SCALE_STEPS);
   assert.equal(kmh[0], 0, "從 0 開始");
-  assert.equal(kmh[kmh.length - 1], DEFAULT_REDLINE, "最後一格是紅線");
+  assert.equal(kmh[kmh.length - 1], BAR_MAX_KMH, "最後一格是主尺上限");
   // 儀表上出現 28、83 這種數字沒有人看得下去
   assert.ok(kmh.every((v) => v % 5 === 0), `刻度要取整到 5，實得 ${kmh.join(",")}`);
   for (let i = 1; i < kmh.length; i++) assert.ok(kmh[i] > kmh[i - 1], "刻度必須遞增");
 
-  const mph = barScaleValues(DEFAULT_REDLINE, "mph", BAR_SCALE_STEPS);
+  const mph = barScaleValues(BAR_MAX_KMH, "mph", BAR_SCALE_STEPS);
   assert.ok(mph.every((v) => v % 5 === 0));
   assert.ok(mph[mph.length - 1] < kmh[kmh.length - 1], "換成 mph 後上限數字要變小");
 
@@ -744,7 +770,7 @@ test("init renders a full dashboard without any device API present", async () =>
   assert.equal(elements.get("btnUnit").textContent, "切換 mph");
   assert.equal(elements.get("lampRec").className, "lamp", "還沒出發時 REC 不亮");
   assert.equal(elements.get("gpsError").hidden, true, "沒有錯誤時不顯示");
-  assert.equal(elements.get("revBar").children.length, app.constants.LED_COUNT);
+  assert.equal(elements.get("revBar").children.length, app.constants.BAR_SEGMENTS);
   assert.ok(elements.get("revBar").children.every((led) => led.className === "led"));
   assert.equal(elements.get("mockFlag").hidden, true);
   assert.equal(elements.get("batteryTile").hidden, true, "沒有 getBattery 的瀏覽器整格不顯示");
@@ -760,7 +786,7 @@ test("init renders a full dashboard without any device API present", async () =>
   assert.equal(elements.get("barScale").children[0].textContent, "0");
   assert.equal(
     elements.get("barScale").children[app.constants.BAR_SCALE_STEPS - 1].textContent,
-    String(app.constants.DEFAULT_REDLINE)
+    String(app.constants.BAR_MAX_KMH)
   );
 
   // 儀表要貼著資料走，不留任何補間。實測踩過：對長度類屬性下 transition，
@@ -804,7 +830,7 @@ test("a corrupt localStorage entry falls back to defaults instead of throwing", 
   const { prefs } = app.getState();
   assert.equal(prefs.unit, "kmh");
   assert.equal(prefs.bestTopSpeed, 0);
-  assert.equal(prefs.redlineKmh, app.constants.DEFAULT_REDLINE);
+  assert.equal(prefs.redlineKmh, undefined, "刻度上限是常數，不該進 prefs");
 });
 
 test("a stale redline in an old save cannot override the constant", async () => {
@@ -817,10 +843,10 @@ test("a stale redline in an old save cannot override the constant", async () => 
   const { app, elements } = await loadDash({ localStorage: store });
   app.init();
 
-  assert.equal(app.getState().prefs.redlineKmh, app.constants.DEFAULT_REDLINE, "常數要贏過舊存檔");
+  assert.equal(app.getState().prefs.redlineKmh, undefined, "舊存檔的 redlineKmh 不可以被讀進來");
   assert.equal(
     elements.get("barScale").children[app.constants.BAR_SCALE_STEPS - 1].textContent,
-    String(app.constants.DEFAULT_REDLINE),
+    String(app.constants.BAR_MAX_KMH),
     "刻度上限要跟著常數走"
   );
   assert.equal(app.getState().prefs.bestTopSpeed, 88, "個人最佳還是要讀回來");
