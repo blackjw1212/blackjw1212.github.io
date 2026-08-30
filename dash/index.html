@@ -120,6 +120,17 @@
   .lamp.rec i{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
   @keyframes blink{50%{opacity:.15}}
 
+  /* GPS 軌跡。半透明疊在面板右上角，z-index 低於 .hero——車速是主要讀數。
+     外框給固定寬高，SVG 絕對定位填滿：不可依賴 SVG 的內在尺寸，
+     Safari 在 flex 容器裡會把它算成 0（這頁踩過一次，整個儀表消失）。 */
+  .track{position:absolute;top:-4px;right:0;width:104px;height:104px;
+         opacity:.42;pointer-events:none;z-index:-1}
+  .track[hidden]{display:none}
+  .track-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .track-line{fill:none;stroke:var(--soft);stroke-width:2.5;
+              stroke-linejoin:round;stroke-linecap:round}
+  .track-head{fill:var(--yellow)}
+
   .gps-error{margin-top:8px;border:1px solid rgba(239,68,68,.5);border-radius:8px;
              background:rgba(239,68,68,.1);padding:8px 10px;color:var(--red);
              font-family:var(--mono);font-size:11px;line-height:1.6}
@@ -135,8 +146,9 @@
   /* 用 grid 而不是 flex：align-content 才能把那一行在固定高度的框裡垂直置中。
      等待狀態的字縮小之後，靠 flex 會被推到頂端而在下方留一片空白。
      grid-auto-flow:column 保證數字與單位不會換行。 */
+  /* position/z-index：軌跡疊在下層，車速一定要壓在它上面 */
   .hero{display:grid;grid-auto-flow:column;justify-content:center;align-content:center;
-        align-items:baseline;gap:10px;margin:10px 0 4px;
+        align-items:baseline;gap:10px;margin:10px 0 4px;position:relative;z-index:1;
         min-height:calc(clamp(76px,34vw,168px) * .84)}
   .speed{font-family:var(--num);font-weight:700;font-size:clamp(76px,34vw,168px);line-height:.84;
          letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -248,6 +260,7 @@
     .hero{margin:6px 0 2px;flex:1 1 auto;min-height:0}
     .speed{font-size:clamp(48px,24vh,110px)}
     .speed.idle{font-size:clamp(30px,11vh,48px)}
+    .track{width:68px;height:68px;top:-2px}
     .speed-unit{font-size:11px}
     .strip{margin-top:8px;padding-top:8px;gap:8px 12px;grid-template-columns:150px 150px 1fr}
     .readouts{grid-column:auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 10px}
@@ -312,6 +325,14 @@
     <div class="hero" role="img" aria-label="目前車速">
       <div class="speed" id="speed">--</div>
       <div class="speed-unit" id="speedUnit">km/h</div>
+      <!-- 軌跡放在車速這一區的右上角（這裡是空的），z-index 為負讓它疊在數字下層。
+           絕對定位所以不會變成 grid 的第三欄。 -->
+      <div class="track" id="track" aria-hidden="true">
+        <svg class="track-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <polyline class="track-line" id="trackLine" points="" />
+          <circle class="track-head" id="trackHead" r="3.5" cx="-10" cy="-10" />
+        </svg>
+      </div>
     </div>
 
     <div class="strip">
@@ -367,8 +388,10 @@
     數值僅供參考，非儀器級量測：GPS 車速受衛星收訊與更新率影響，隧道與高樓間會漂移或中斷。<br>
     <b>傾角量的是手機姿態，不是車身傾角。</b>手機感測到的是相對重力的方向，過彎時向心力會與重力合成，
     直線加減速也會污染讀數，數值一律偏小且不可當作壓車角度。<br>
-    資料只留在本機瀏覽器的 localStorage（單位偏好、歸零校正、個人最佳速度與傾角），
-    不上傳、不記錄行經路線、不儲存任何座標。
+    資料只留在本機瀏覽器的 localStorage（單位偏好、歸零校正、個人最佳，
+    <b>以及這一趟的行經座標</b>），不上傳到任何伺服器。<br>
+    <b>軌跡會留在這支手機上，直到你按「清除本趟」。</b>
+    手機借人或遺失時，別人打開這頁就看得到你走過哪裡。
   </footer>
 </main>
 
@@ -411,6 +434,15 @@ const BAD_ACCURACY_M = 35;          // 只給 GPS 狀態燈用，不參與速度
 const EMA_ALPHA = 0.35;
 
 const BAR_SCALE_STEPS = 5;          // 主尺下方要標幾個刻度
+
+/* 軌跡。座標真的會存進 localStorage——頁面的免責有明講，改這裡時一起看一眼。 */
+const TRACK_KEY = "bjkw-dash-track:v1";   // 另開一支 key：軌跡要能獨立清除，
+                                          // 也不該讓每次寫偏好設定都順便寫幾十 KB
+const TRACK_MIN_M = 15;             // 與上一點的最小間距，太密只是在存 GPS 抖動
+const TRACK_MAX_POINTS = 600;       // 滿了就隔點抽稀，整趟都留著、精度減半，
+                                    // 比截掉前半段誠實
+const TRACK_SAVE_EVERY = 5;         // 累積幾點才寫一次 localStorage
+const TRACK_DECIMALS = 5;           // 約 1.1m，600 點大約 16KB
 
 // 可注入的時鐘。自動啟停與計時全靠它，測試才不必等真實的 20 秒。
 // 比照既有的 __DASH_SKIP_AUTO_INIT__ 慣例。
@@ -536,6 +568,72 @@ function overStates(kmh){
   return out;
 }
 
+/* ─────────── 軌跡（純函式） ─────────── */
+
+// 取樣間距。每一筆定位都收的話，存的其實是 GPS 抖動而不是路線。
+function shouldAppendPoint(last, next, minMetres){
+  if (!next || !Number.isFinite(numOrNaN(next.lat)) || !Number.isFinite(numOrNaN(next.lon))) return false;
+  if (!last) return true;
+  const d = haversineMeters(last, next);
+  if (!Number.isFinite(d)) return false;
+  const min = Number.isFinite(numOrNaN(minMetres)) ? Number(minMetres) : TRACK_MIN_M;
+  return d >= min;
+}
+
+// 隔點抽稀，首尾一定保留。點數滿了時用它把等效間距加倍，
+// 整趟路線都還在（只是精度減半），比直接截掉前半段誠實。
+function thinTrack(points){
+  if (!Array.isArray(points) || points.length < 3) return Array.isArray(points) ? points.slice() : [];
+  const out = [];
+  for (let i = 0; i < points.length; i += 2) out.push(points[i]);
+  const last = points[points.length - 1];
+  if (out[out.length - 1] !== last) out.push(last);
+  return out;
+}
+
+function trackBounds(points){
+  const list = Array.isArray(points) ? points.filter((p) => p
+    && Number.isFinite(numOrNaN(p.lat)) && Number.isFinite(numOrNaN(p.lon))) : [];
+  if (!list.length) return null;
+  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+  for (const p of list) {
+    const la = Number(p.lat), lo = Number(p.lon);
+    if (la < minLat) minLat = la;
+    if (la > maxLat) maxLat = la;
+    if (lo < minLon) minLon = lo;
+    if (lo > maxLon) maxLon = lo;
+  }
+  return { minLat, maxLat, minLon, maxLon };
+}
+
+// 正規化成 SVG polyline 的 points 字串。
+// 經度要乘 cos(lat)：不修正的話，台灣緯度上的路線會被橫向拉寬約 8%，
+// 一個正方形的繞行會畫成長方形。等比縮放並置中，不為了填滿框而變形。
+function trackPolyline(points, width, height, padding){
+  const list = Array.isArray(points) ? points.filter((p) => p
+    && Number.isFinite(numOrNaN(p.lat)) && Number.isFinite(numOrNaN(p.lon))) : [];
+  const w = numOrNaN(width), h = numOrNaN(height);
+  if (!list.length || !Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return "";
+  const pad = Number.isFinite(numOrNaN(padding)) ? Math.max(0, Number(padding)) : 0;
+  const boxW = Math.max(1, w - pad * 2), boxH = Math.max(1, h - pad * 2);
+  const b = trackBounds(list);
+  const midLat = (b.minLat + b.maxLat) / 2;
+  const kx = Math.cos(midLat * Math.PI / 180);
+  const spanX = (b.maxLon - b.minLon) * kx;
+  const spanY = b.maxLat - b.minLat;
+  // 單點或原地繞：沒有範圍可縮放，直接畫在正中央
+  const scale = (spanX <= 0 && spanY <= 0) ? 0
+    : Math.min(spanX > 0 ? boxW / spanX : Infinity, spanY > 0 ? boxH / spanY : Infinity);
+  const drawnW = spanX * scale, drawnH = spanY * scale;
+  const offX = pad + (boxW - drawnW) / 2, offY = pad + (boxH - drawnH) / 2;
+  return list.map((p) => {
+    const x = offX + ((Number(p.lon) - b.minLon) * kx) * scale;
+    // SVG 的 y 軸向下，緯度越大要越靠上
+    const y = offY + (b.maxLat - Number(p.lat)) * scale;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+}
+
 // 速度條的斜坡：第 i 段的高度佔比，由左往右從 BAR_MIN_H 遞增到 1
 function barSegmentHeight(index, count){
   const n = Number.isFinite(numOrNaN(count)) && Number(count) > 1 ? Math.floor(Number(count)) : BAR_SEGMENTS;
@@ -628,6 +726,9 @@ const prefs = { unit: "kmh", zeroOffset: 0, bestTopSpeed: 0, bestLeanLeft: 0, be
 let wakeState = "idle";
 let lastOrientation = null;
 let movingStreak = 0;
+// 軌跡點。座標真的會落地，清除的唯一入口是「清除本趟」。
+let trackPoints = [];
+let trackUnsaved = 0;
 
 /* ─────────── localStorage（唯一會落地的東西） ─────────── */
 
@@ -651,6 +752,56 @@ function loadPrefs(){
   }
 }
 
+function loadTrack(){
+  try {
+    const raw = ROOT.localStorage && ROOT.localStorage.getItem(TRACK_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return;
+    // 存的是 [lat, lon] 陣列，比物件省一半空間
+    trackPoints = saved
+      .filter((p) => Array.isArray(p) && Number.isFinite(numOrNaN(p[0])) && Number.isFinite(numOrNaN(p[1])))
+      .map((p) => ({ lat: Number(p[0]), lon: Number(p[1]) }));
+  } catch (error) {
+    console.warn("讀取軌跡失敗，從空的開始", error);
+    trackPoints = [];
+  }
+}
+
+function saveTrack(){
+  try {
+    if (!ROOT.localStorage) return;
+    const packed = trackPoints.map((p) => [
+      Number(p.lat.toFixed(TRACK_DECIMALS)),
+      Number(p.lon.toFixed(TRACK_DECIMALS)),
+    ]);
+    ROOT.localStorage.setItem(TRACK_KEY, JSON.stringify(packed));
+    trackUnsaved = 0;
+  } catch (error) {
+    // 配額爆掉不該讓儀表停擺
+    console.warn("寫入軌跡失敗", error);
+  }
+}
+
+function clearTrack(){
+  trackPoints = [];
+  trackUnsaved = 0;
+  try {
+    if (ROOT.localStorage) ROOT.localStorage.removeItem(TRACK_KEY);
+  } catch (error) {
+    console.warn("清除軌跡失敗", error);
+  }
+}
+
+function addTrackPoint(fix){
+  if (!shouldAppendPoint(trackPoints[trackPoints.length - 1], fix, TRACK_MIN_M)) return;
+  trackPoints.push({ lat: Number(fix.lat), lon: Number(fix.lon) });
+  if (trackPoints.length > TRACK_MAX_POINTS) trackPoints = thinTrack(trackPoints);
+  trackUnsaved += 1;
+  // 不要每一點都寫 localStorage，那是同步 I/O
+  if (trackUnsaved >= TRACK_SAVE_EVERY) saveTrack();
+}
+
 function savePrefs(){
   try {
     // 白名單，不要整包 prefs 序列化出去：只有使用者真的能改的東西才該落地。
@@ -672,7 +823,7 @@ function savePrefs(){
 const el = {};
 function bind(){
   if (!DOC) return;
-  for (const id of ["revBar","revBarOver","barScale","overScale","gpsError","lampRec","lampRecText",
+  for (const id of ["revBar","revBarOver","barScale","overScale","track","trackLine","trackHead","gpsError","lampRec","lampRecText",
                     "lampGps","lampGpsText","lampTilt","lampTiltText","lampWake","lampWakeText",
                     "leanHorizon","leanBike","leanNow","peakLeft","peakRight","bestLeft","bestRight",
                     "speed","speedUnit","gDot","gLong","gLat","heading","accuracy",
@@ -750,6 +901,18 @@ function render(){
   const offScale = Number.isFinite(kmh) && kmh >= OVER_MAX_KMH;
   if (el.revBarOver) el.revBarOver.className = offScale ? "revbar-over shift" : "revbar-over";
   el.speed.className = overRange ? "speed hot" : (Number.isFinite(kmh) ? "speed" : "speed idle");
+
+  // 軌跡。viewBox 是 100×100，所以直接照這個座標系算，跟實際像素寬高無關。
+  if (el.trackLine) {
+    const pts = trackPolyline(trackPoints, 100, 100, 6);
+    el.trackLine.setAttribute("points", pts);
+    if (el.track) el.track.hidden = trackPoints.length < 2;
+    if (el.trackHead) {
+      const last = pts ? pts.split(" ").pop().split(",") : null;
+      el.trackHead.setAttribute("cx", last ? last[0] : "-10");
+      el.trackHead.setAttribute("cy", last ? last[1] : "-10");
+    }
+  }
 
   const lean = Number.isFinite(sensorState.lean) ? sensorState.lean : null;
   el.leanNow.textContent = lean === null ? "--°" : `${Math.round(Math.abs(lean))}°`;
@@ -834,6 +997,8 @@ function applyFix(fix){
     // 自動開始：不需要使用者按任何東西。startedAt 只在整趟第一次移動時設，
     // 之後每一段移動都不再重設——ELAPSED 是總時間，不是本段時間。
     tripState.lastMovingAt = now();
+    // 只在確認真的在動時收點，沿用同一個判定：停著不會在原地堆出一團雜訊
+    addTrackPoint(fix);
     if (!tripState.running) tripState.running = true;
     if (tripState.startedAt === null) tripState.startedAt = tripState.lastMovingAt;
     setGpsMode("high");
@@ -1040,8 +1205,14 @@ function createMockSource(){
       timer = setInterval(() => {
         t += 1;
         const kmh = Math.max(0, 70 + 65 * Math.sin(t / 22));
-        lat += kmh / 3600 / 111.32 * 0.5;
-        applyFix({ kmh, altitude: 30 + 20 * Math.sin(t / 40), heading: (t * 3) % 360, accuracy: 6, lat, lon, t: Date.now() });
+        // 真的沿著方位角走，路線才會彎。原本只推緯度，軌跡會畫成一條直線，
+        // 等於驗不出路線繪製有沒有在動。
+        const heading = (t * 3) % 360;
+        const stepKm = kmh / 3600 * 0.5;
+        const rad = heading * Math.PI / 180;
+        lat += stepKm / 111.32 * Math.cos(rad);
+        lon += stepKm / (111.32 * Math.cos(lat * Math.PI / 180)) * Math.sin(rad);
+        applyFix({ kmh, altitude: 30 + 20 * Math.sin(t / 40), heading, accuracy: 6, lat, lon, t: Date.now() });
         onOrientation({ beta: 0, gamma: 42 * Math.sin(t / 14) });
         onMotion({ acceleration: { x: 4 * Math.sin(t / 9), y: 3 * Math.cos(t / 11) } });
       }, 500);
@@ -1103,6 +1274,8 @@ function resetTrip(){
   // 這兩個沒清的話，下一筆定位會拿舊的基準點比對而誤判成移動
   gpsState.lastFix = null;
   movingStreak = 0;
+  // 這是使用者刪掉已落地座標的唯一入口，免責裡有指名這顆按鈕
+  clearTrack();
   render();
 }
 
@@ -1146,6 +1319,7 @@ function readBattery(){
 function init(){
   bind();
   loadPrefs();
+  loadTrack();
   buildLeds();
   buildScale();
   const search = (ROOT.location && ROOT.location.search) || "";
@@ -1181,10 +1355,11 @@ const dashApp = {
   handleOrientation: onOrientation,
   // 自動停止與降級都在 tick 裡判斷。開出來讓測試用假時鐘驅動，不必等真實的 20 秒。
   tick,
-  getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs, gpsMode: gps.getMode() }),
+  getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs, gpsMode: gps.getMode(), track: trackPoints }),
   helpers: {
     numOrNaN, msToKmh, kmhToMph, formatSpeed, emaSmooth, haversineMeters, speedFromFixes,
     movementBetween, stillFilter, ledStates, overStates, speedColor,
+    shouldAppendPoint, thinTrack, trackBounds, trackPolyline,
     barSegmentHeight, barScaleValues,
     normalizeLean, updatePeakLean, gForce, formatElapsed, mergePersonalBest,
   },
@@ -1192,6 +1367,7 @@ const dashApp = {
     BAR_SEGMENTS, OVER_SEGMENTS, BAR_MAX_KMH, OVER_MAX_KMH, AMBER_AT_KMH, RED_AT_KMH,
     LEAN_LIMIT, STILL_KMH, BAD_ACCURACY_M,
     MOVING_STREAK, LEAN_MIN_KMH, BAR_MIN_H, BAR_SCALE_STEPS,
+    TRACK_KEY, TRACK_MIN_M, TRACK_MAX_POINTS,
     AUTO_PAUSE_MS, IDLE_DOWNGRADE_MS, GPS_MODES,
   },
 };

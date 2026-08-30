@@ -129,7 +129,7 @@ test("dash page ships the HUD contract and states what the numbers are not", asy
   assert.match(html, /騎乘中請勿操作手機/);
   assert.match(html, /非儀器級量測/);
   assert.match(html, /傾角量的是手機姿態，不是車身傾角/);
-  assert.match(html, /不記錄行經路線/);
+  // 座標保存的揭露單獨一支測試在管，加了軌跡之後說法已經換掉
   assert.doesNotMatch(html, /window\.storage/);
   assert.ok(app && typeof app.init === "function", "DashApp should be exposed for tests");
 });
@@ -554,6 +554,134 @@ test("the waiting state is not two big grey slabs", async () => {
   // 高度要由 .hero 撐住，第一次定位進來才不會整頁往下跳
   const heroRule = html.match(/\n\s*\.hero\{[^}]*\}/)?.[0] || "";
   assert.match(heroRule, /min-height/, ".hero 要釘死高度避免跳版");
+});
+
+test("the page no longer claims it keeps no coordinates, because it does", async () => {
+  const { html } = await loadDash();
+
+  // 這頁一度宣稱「不記錄行經路線、不儲存任何座標」。加了軌跡之後座標真的落地，
+  // 那句話就不再是事實。程式偷偷存、頁面繼續宣稱沒存，是最該擋下的一種漂移。
+  assert.doesNotMatch(html, /不記錄行經路線|不儲存任何座標/, "舊的說法不可以留著");
+  assert.match(html, /軌跡會留在這支手機上/, "要講清楚座標留在裝置上");
+  assert.match(html, /清除本趟/, "要指名刪除的方式");
+  assert.match(html, /不上傳/, "不上傳這件事仍然成立");
+});
+
+test("track points are only taken once you have actually moved far enough", async () => {
+  const { app } = await loadDash();
+  const { shouldAppendPoint } = app.helpers;
+  const { TRACK_MIN_M } = app.constants;
+  const metre = 1 / 111194.93;
+  const at = (n) => ({ lat: 25.033 + n * metre, lon: 121.5654 });
+
+  assert.equal(shouldAppendPoint(null, at(0), TRACK_MIN_M), true, "第一點一定收");
+  assert.equal(shouldAppendPoint(at(0), at(5), TRACK_MIN_M), false, "太近只是在存 GPS 抖動");
+  assert.equal(shouldAppendPoint(at(0), at(TRACK_MIN_M), TRACK_MIN_M), true, "門檻值本身要收");
+  assert.equal(shouldAppendPoint(at(0), at(100), TRACK_MIN_M), true);
+  assert.equal(shouldAppendPoint(at(0), { lat: null, lon: null }, TRACK_MIN_M), false);
+  assert.equal(shouldAppendPoint(at(0), null, TRACK_MIN_M), false);
+});
+
+test("thinning halves the track but keeps both ends", async () => {
+  const { app } = await loadDash();
+  const { thinTrack } = app.helpers;
+  const pts = Array.from({ length: 11 }, (_, i) => ({ lat: 25 + i, lon: 121 }));
+
+  const thin = thinTrack(pts);
+  assert.ok(thin.length < pts.length && thin.length >= pts.length / 2);
+  assert.equal(thin[0].lat, 25, "起點要留");
+  assert.equal(thin[thin.length - 1].lat, 35, "終點要留");
+  for (let i = 1; i < thin.length; i++) {
+    assert.ok(thin[i].lat > thin[i - 1].lat, "順序不可以亂");
+  }
+  assert.deepEqual([...thinTrack([])], []);
+  assert.equal(thinTrack([{ lat: 25, lon: 121 }]).length, 1, "太短就原樣回傳");
+});
+
+test("the track is scaled without distorting its shape", async () => {
+  const { app } = await loadDash();
+  const { trackPolyline } = app.helpers;
+
+  // 繞一個正方形（經度先除以 cos(lat) 抵銷投影），畫出來必須還是正方形。
+  // 不修正經度的話，台灣緯度上會被橫向拉寬約 8%。
+  const lat0 = 25, d = 0.01, kx = Math.cos(lat0 * Math.PI / 180);
+  const square = [
+    { lat: lat0, lon: 121 },
+    { lat: lat0 + d, lon: 121 },
+    { lat: lat0 + d, lon: 121 + d / kx },
+    { lat: lat0, lon: 121 + d / kx },
+    { lat: lat0, lon: 121 },
+  ];
+  const pts = trackPolyline(square, 100, 100, 0).split(" ").map((s) => s.split(",").map(Number));
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
+  assert.ok(Math.abs(w - h) < 1, `正方形不可以畫成長方形，實得 ${w.toFixed(1)}x${h.toFixed(1)}`);
+
+  // 一律落在框內
+  assert.ok(xs.every((x) => x >= 0 && x <= 100) && ys.every((y) => y >= 0 && y <= 100));
+
+  // 緯度越大越靠上（SVG 的 y 軸向下）
+  const northSouth = trackPolyline([{ lat: 25, lon: 121 }, { lat: 26, lon: 121 }], 100, 100, 0)
+    .split(" ").map((s) => s.split(",").map(Number));
+  assert.ok(northSouth[1][1] < northSouth[0][1], "北邊的點要畫在上面");
+
+  assert.equal(trackPolyline([], 100, 100, 0), "");
+  assert.equal(trackPolyline(null, 100, 100, 0), "");
+  assert.equal(trackPolyline([{ lat: 25, lon: 121 }], 100, 100, 0), "50.0,50.0", "單點畫在正中央");
+  assert.equal(trackPolyline(square, 0, 100, 0), "", "沒有寬度就畫不出來");
+});
+
+test("standing still does not grow a track", async () => {
+  const store = fakeStorage();
+  const { app } = await loadDash({ localStorage: store });
+  app.init();
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+
+  // 沿用漂移案例：位移 2m、精度 8m，餵十筆
+  for (let i = 0; i < 10; i++) {
+    lat += 2 * metre;
+    app.applyFix({ kmh: null, accuracy: 8, lat, lon: 121.5654, t: 1000 * (i + 1) });
+  }
+  assert.equal(app.getState().track.length, 0, "停著不可以在原地堆出一團雜訊");
+  assert.equal(store.getItem(app.constants.TRACK_KEY), null, "也不該寫進 localStorage");
+});
+
+test("a real ride draws a track, and clearing the trip deletes the stored coordinates", async () => {
+  const store = fakeStorage();
+  const { app, elements } = await loadDash({ localStorage: store });
+  app.init();
+  const metre = 1 / 111194.93;
+  let lat = 25.0330;
+  for (let i = 0; i < 12; i++) {
+    lat += 40 * metre;
+    app.applyFix({ kmh: 72, accuracy: 8, lat, lon: 121.5654, t: 1000 * (i + 1) });
+  }
+  assert.ok(app.getState().track.length >= 3, `應該收到點，實得 ${app.getState().track.length}`);
+  assert.ok(store.getItem(app.constants.TRACK_KEY), "座標要落地");
+
+  // 座標必須放在自己的 key，不可以混進偏好設定那一份
+  assert.doesNotMatch(store.getItem("bjkw-dash:v1") || "", /lat|lon|25\.03/, "偏好設定裡不可以有座標");
+
+  elements.get("btnReset").fire("click");
+  assert.equal(app.getState().track.length, 0);
+  assert.equal(store.getItem(app.constants.TRACK_KEY), null, "清除本趟要真的把落地的座標刪掉");
+});
+
+test("a saved track comes back when the page reopens", async () => {
+  const store = fakeStorage({
+    "bjkw-dash-track:v1": JSON.stringify([[25.0330, 121.5654], [25.0335, 121.5658], [25.0340, 121.5661]]),
+  });
+  const { app, elements } = await loadDash({ localStorage: store });
+  app.init();
+
+  assert.equal(app.getState().track.length, 3, "重開頁面要看得到上一趟");
+  assert.equal(elements.get("track").hidden, false, "有兩點以上才畫得出線");
+  assert.ok(elements.get("trackLine").getAttribute("points").split(" ").length === 3);
+  // 壞掉的存檔不可以讓整頁掛掉
+  const broken = await loadDash({ localStorage: fakeStorage({ "bjkw-dash-track:v1": "{not json" }) });
+  broken.app.init();
+  assert.equal(broken.app.getState().track.length, 0);
 });
 
 test("colour bands sit on real speeds, not on a fraction of the bar", async () => {

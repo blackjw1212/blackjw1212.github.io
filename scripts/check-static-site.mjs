@@ -303,7 +303,11 @@ if (has("dash/index.html")) {
   assertMatch("dash/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "dash service worker registration");
   // 純前端：感測資料只進 localStorage，不打任何後端、不記錄座標。
   assertMatch("dash/index.html", html, /localStorage/, "dash local storage");
-  assertMatch("dash/index.html", html, /不記錄行經路線/, "dash must state it keeps no track log");
+  // 這頁一度宣稱「不記錄行經路線、不儲存任何座標」，後來加了軌跡繪製、座標真的存進
+  // localStorage，那句話就不再是事實。改成鎖住新的揭露，並且明文禁止舊說法回來——
+  // 程式偷偷存、頁面繼續宣稱沒存，是這份契約最該擋下的一種漂移。
+  assertMatch("dash/index.html", html, /軌跡會留在這支手機上/, "dash must disclose the track is kept on the device");
+  assertNoMatch("dash/index.html", html, /不記錄行經路線|不儲存任何座標/);
   assertNoMatch("dash/index.html", html, /window\.storage/);
   // 三條必要揭露。手機量到的是自身姿態而非車身傾角，少了這句整頁就是在誤導。
   assertMatch("dash/index.html", html, /騎乘中請勿操作手機/, "dash must tell riders not to operate the phone");
