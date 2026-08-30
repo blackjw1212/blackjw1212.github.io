@@ -114,6 +114,9 @@ async function loadDash(options = {}) {
     location: { href: "https://local.test/dash/", search: options.search || "" },
     addEventListener() {},
   };
+  // 預設不給 requestAnimationFrame：重畫走同步路徑，測試才讀得到當下的 DOM。
+  // 要驗合併行為的測試自己傳一個假的進來。
+  if (options.raf) window.requestAnimationFrame = options.raf;
   // setTimeout / clearTimeout 是 OBD 指令佇列的逾時在用的。
   // 刻意不給 setInterval：頁面對它有 typeof 守衛，不給就不會在測試裡跑起計時器與輪詢。
   const sandbox = { console, document, window, setTimeout, clearTimeout };
@@ -810,6 +813,70 @@ test("a silent adapter times out instead of jamming the queue", async () => {
   link.detach();
 });
 
+test("dropping the link releases every caller instead of jamming it forever", async () => {
+  const { app } = await loadDash();
+  const link = app.obdLink;
+
+  // 實測踩過：斷線時只清空 queue、把 pending 設 null，那些 promise 永遠不會 settle。
+  // 呼叫端 await 在那裡回不來，pump 裡的 await 也不會恢復，running 永遠是 true，
+  // 於是重新連上之後整條佇列還是死的——熄火再重連一定會遇到。
+  link.attach({ write() {}, onLine() {}, disconnect() {} });   // 永遠不回應
+  const inFlight = link.ask("010C");
+  const queued = link.ask("010D");
+  link.detach();
+
+  assert.equal(await inFlight, null, "被打斷的那一筆要回來，不能讓呼叫端卡死");
+  assert.equal(await queued, null, "還在排隊的也要一起結掉");
+
+  // 最重要的：重新連上之後必須還能用
+  link.attach(fakeObd({ "0105": "41 05 5A" }));
+  assert.equal(app.helpers.decodePid("0105", await link.ask("0105")), 50, "重連後整條佇列要活著");
+  link.detach();
+});
+
+test("a slow adapter cannot make the poll loop pile up behind itself", async () => {
+  const { app } = await loadDash();
+  let served = 0;
+  let cb = () => {};
+  // 一顆慢的 clone：每筆問答 60ms。250ms 一輪的話一定追不上。
+  app.obdLink.attach({
+    write() { served += 1; setTimeout(() => cb("41 0C 1A F8\r>"), 60); },
+    onLine(fn) { cb = fn; },
+    disconnect() {},
+  });
+  app.getState().obd.status = "ready";
+
+  // 同時觸發五輪，只有第一輪該真的跑
+  const runs = [app.pollObd(), app.pollObd(), app.pollObd(), app.pollObd(), app.pollObd()];
+  await Promise.all(runs);
+  assert.ok(served <= 3, `一輪最多問三題，實際送出 ${served} 筆——重疊的輪詢應該被擋掉`);
+
+  // 上一輪結束後才輪得到下一輪
+  const before = served;
+  await app.pollObd();
+  assert.ok(served > before, "前一輪跑完之後要能繼續");
+  app.obdLink.detach();
+});
+
+test("an adapter that drops on its own stops the polling instead of hammering a dead link", async () => {
+  const { app, elements } = await loadDash();
+  app.init();
+  app.obdLink.attach(fakeObd({ "010C": "41 0C 1A F8" }));
+  const state = app.getState();
+  state.obd.status = "ready";
+  app.applyObdReading("010C", app.helpers.parseObdFrame("410C1AF8"));
+  assert.ok(Number.isFinite(state.obd.rpm));
+
+  // 熄火、拔掉、走出範圍：只改狀態是不夠的，輪詢還在跑、transport 也還掛著
+  app.dropObd("OBD 連線中斷");
+  assert.equal(app.obdLink.isConnected(), false, "要真的把 transport 放掉");
+  assert.equal(state.obd.status, "error");
+  assert.equal(state.obd.rpm, null, "轉速要清掉，燈條才不會凍在最後一筆");
+  assert.equal(elements.get("obdRow").hidden, true, "讀數列要收起來");
+  // GPS 那半邊完全不受影響
+  assert.equal(elements.get("speed").textContent, "--");
+});
+
 test("the init sequence turns off everything that would corrupt the replies", async () => {
   const { app } = await loadDash();
   const t = fakeObd();
@@ -978,6 +1045,32 @@ test("bar scale labels are round numbers in the current unit", async () => {
 
   assert.deepEqual([...barScaleValues(0, "kmh", 5)], []);
   assert.deepEqual([...barScaleValues(null, "kmh", 5)], []);
+});
+
+test("a burst of sensor events collapses into one repaint per frame", async () => {
+  // 姿態事件在手機上是 60Hz。每一次都重畫等於每秒上千次 DOM 寫入，
+  // 而這支手機同時還在跑 GPS、BLE 與螢幕常亮——撐不完一趟。
+  const frames = [];
+  const { app } = await loadDash({ raf: (cb) => { frames.push(cb); return frames.length; } });
+  app.init();
+  while (frames.length) frames.shift()();   // 先把 init 排的那一幀畫完
+
+  for (let i = 0; i < 20; i++) app.handleOrientation({ beta: 0, gamma: i });
+  assert.equal(frames.length, 1, `20 次姿態事件只該排一次重畫，實得 ${frames.length}`);
+
+  frames.shift()();                       // 這一幀畫完
+  app.handleOrientation({ beta: 0, gamma: 5 });
+  assert.equal(frames.length, 1, "畫完之後下一次事件要能再排一幀");
+});
+
+test("without requestAnimationFrame the page still paints synchronously", async () => {
+  // 沒有 rAF 的環境（測試沙箱、極舊瀏覽器）必須退回同步，否則畫面永遠不更新
+  const { app, elements } = await loadDash();
+  app.init();
+  assert.equal(elements.get("speed").textContent, "--", "init 之後畫面就該是好的，不必等下一幀");
+  app.getState().gps.kmh = 88;
+  app.handleOrientation({ beta: 0, gamma: 10 });
+  assert.equal(elements.get("speed").textContent, "88");
 });
 
 test("lean peaks only accumulate once the bike is actually moving", async () => {
