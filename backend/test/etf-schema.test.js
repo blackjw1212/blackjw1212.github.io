@@ -294,21 +294,37 @@ test("derived fields agree with the pipeline's own formulas", async () => {
 
 test("known ETFs land in the expected quality bands", async () => {
   const feed = await readJson("../../data/etf-feed.json");
-  const by = Object.fromEntries(feed.stocks.map((row) => [row.code, row]));
 
-  // 大型市值型必須被標為核心（0050 殖利率最低，純殖利率排序永遠看不到它）
-  assert.equal(by["0050"].isCore, true, "0050 must be flagged core");
-  assert.equal(by["006208"].isCore, true, "006208 must be flagged core");
-  // 長天期債 ETF 不得佔走核心位置
-  assert.equal(by["00679B"].isCore, false, "a bond ETF must never be core");
+  // 核心判定綁純函式、用固定 row。
+  //
+  // 這裡原本寫的是 by["0050"].isCore === true 與 by["006208"].isCore === true，
+  // 那是把當下的市價寫成契約：isCoreEtf 要求 yield <= 4.5，而 006208 在 2026-08-28
+  // 收 245.1、近 12 月配息 8.198（殖利率 3.34%）——配息一動都不用動，股價跌到 182.2
+  // （-25.7%）殖利率就破 4.5，斷言當場翻。0050 要跌 66.8% 才會，但兩條是同一個問題。
+  // 00878 的 CV 已經用完全相同的方式讓 update-market-feed 連續失敗、data/ 停更 12 天，
+  // 而驗證排在 commit 之前，所以代價是整站價格靜止。同一個坑不踩第二次。
+  const coreRow = { code: "0050", name: "元大台灣50", type: "市值型", aum: 5000, yield: 1.5 };
+  assert.equal(isCoreEtf(coreRow), true, "大型、低殖利率的被動股票型就是核心");
+  assert.equal(isCoreEtf({ ...coreRow, aum: 1000 }), true, "1000 億是含邊界");
+  assert.equal(isCoreEtf({ ...coreRow, aum: 999 }), false, "規模不到 1000 億不是核心");
+  assert.equal(isCoreEtf({ ...coreRow, yield: 4.5 }), true, "4.5% 是含邊界");
+  assert.equal(isCoreEtf({ ...coreRow, yield: 4.51 }), false, "殖利率超過 4.5 是高股息的角色，不是核心");
   // 槓反／期貨／外幣計價原本只是「剛好沒有配息紀錄」才沒被標成核心；
-  // 00631L 規模 2,188億，一次配息就會誤標，必須由規則而非巧合擋住
-  assert.equal(by["00631L"].isCore, false, "a leveraged ETF must never be core");
-  assert.equal(isCoreEtf({ ...by["00631L"], aum: 2188, yield: 2, isActive: false }), false,
-    "even with a qualifying size and yield, 槓桿反向 must stay out of core");
-  for (const type of ["期貨型", "外幣計價", "債券型"]) {
-    assert.equal(isCoreEtf({ type, aum: 5000, yield: 2, isActive: false, code: "0000", name: "x" }), false, `${type} must never be core`);
+  // 00631L 規模 2,188 億，一次配息就會誤標，必須由規則而非巧合擋住
+  assert.equal(isCoreEtf({ ...coreRow, yield: null }), false, "沒有配息紀錄不能當核心");
+  assert.equal(isCoreEtf({ ...coreRow, code: "00981A" }), false, "主動型永不擔任核心（代碼 A 結尾）");
+  assert.equal(isCoreEtf({ ...coreRow, name: "主動統一台股增長" }), false, "主動型永不擔任核心（名稱起首）");
+  for (const type of ["期貨型", "外幣計價", "債券型", "槓桿反向"]) {
+    assert.equal(isCoreEtf({ ...coreRow, type }), false, `${type} must never be core`);
   }
+
+  // feed 端只驗結構。「每一列的 isCore 與規則一致」由上一條測試逐檔對過，這裡不重複；
+  // 這裡擋的是規則整個失效或上游崩掉——核心集合空掉了要有人喊。
+  const cores = feed.stocks.filter((row) => row.isCore);
+  assert.ok(cores.length >= 1, "核心集合不得是空的");
+  assert.ok(cores.every((row) => row.aum >= 1000), "核心一律是大型標的");
+  assert.ok(cores.every((row) => !["債券型", "槓桿反向", "期貨型", "外幣計價"].includes(row.type)),
+    "這四類不論規模多大都不該出現在核心集合裡");
 
   // 穩定配息者 CV 落在安全區、劇烈者被標出來
   // 後綴家族分類（先前 29 檔 A 全被誤歸主題型並已進入產生器候選池）。
