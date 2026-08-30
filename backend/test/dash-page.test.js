@@ -748,6 +748,36 @@ test("the obd link refuses a write command even if something calls it", async ()
   app.obdLink.detach();
 });
 
+// 熄火、配接器掉電、使用者按中斷——斷線時輪詢幾乎必然有一筆指令在途。
+// 若 detach 只把 queue 清空、pending 設 null 而不 resolve，pump 裡的 await 永遠不會恢復，
+// running 就永遠是 true，重新連上之後整條佇列還是死的：畫面沒有轉速、也沒有任何錯誤。
+// 這是實測踩過的 bug，drain() 是它的修正。修正本身沒有測試保護的話，回歸了只會在車上發現。
+test("an obd disconnect while a command is in flight does not wedge the queue", async () => {
+  const { app } = await loadDash();
+
+  // 1) 先確認基準行為是好的
+  app.obdLink.attach(fakeObd({ "010C": "41 0C 1A F8" }));
+  assert.deepEqual([...(await app.obdLink.ask("010C"))], [0x41, 0x0C, 0x1A, 0xF8]);
+
+  // 2) 送出一筆永遠不會有回應的指令，然後在它在途時斷線
+  app.obdLink.attach(fakeObd({}, { silent: true }));
+  const inflight = app.obdLink.ask("010C");
+  app.obdLink.detach();
+  assert.equal(await inflight, null,
+    "在途的那筆必須被結掉回 null，不可以永遠懸著——呼叫端 await 在那裡回不來");
+
+  // 3) 重新連上還要能問到東西。這一條才是真正的回歸點：
+  //    running 沒被放掉的話，這裡會安靜地永遠拿不到答案。
+  app.obdLink.attach(fakeObd({ "010C": "41 0C 0F A0" }));
+  const after = await Promise.race([
+    app.obdLink.ask("010C"),
+    new Promise((resolve) => setTimeout(() => resolve("TIMEOUT"), 500)),
+  ]);
+  assert.notEqual(after, "TIMEOUT", "重新連上後佇列必須是活的");
+  assert.deepEqual([...after], [0x41, 0x0C, 0x0F, 0xA0]);
+  app.obdLink.detach();
+});
+
 test("elm327 replies are parsed, including the noise they come with", async () => {
   const { app } = await loadDash();
   const { parseObdFrame } = app.helpers;
