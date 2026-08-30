@@ -173,6 +173,10 @@
   .ro b{display:block;margin-top:2px;font-family:var(--num);font-weight:700;font-size:19px;color:var(--ink);
         font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ro .u{font-family:var(--mono);font-size:9px;color:var(--faint);margin-left:3px;font-weight:400}
+  /* OBD 讀數自成一列，用一條分隔線與行程數據分開——那是車輛的資料，不是手機量的 */
+  .obd-row{border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
+  .obd-row[hidden]{display:none}
+  .lamp[hidden]{display:none}
 
   /* 傾角 */
   .leanview{position:relative;height:86px;margin-top:6px;overflow:hidden;
@@ -264,6 +268,22 @@
     .speed-unit{font-size:11px}
     .strip{margin-top:8px;padding-top:8px;gap:8px 12px;grid-template-columns:150px 150px 1fr}
     .readouts{grid-column:auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 10px}
+    /* OBD 列要橫跨整條，不能被塞進 .strip 的第四欄——那裡只有一百多 px，數字會被截斷 */
+    .obd-row{grid-column:1 / -1;grid-template-columns:repeat(8,minmax(0,1fr));
+             padding-top:4px;margin-top:0;gap:4px 8px}
+    .obd-row .ro b{font-size:13px}
+    /* 多一列就多約 40px，橫式本來剛好一屏，所以連上 OBD 時車速與兩個小圖都要讓出高度。
+       用 :has 判斷而不是在 JS 加 class，狀態不會不同步；瀏覽器不支援時只是回到原尺寸。 */
+    .hud:has(#obdRow:not([hidden])) .speed{font-size:clamp(36px,13vh,54px)}
+    .hud:has(#obdRow:not([hidden])) .speed.idle{font-size:clamp(24px,8vh,34px)}
+    .hud:has(#obdRow:not([hidden])) .leanview,
+    .hud:has(#obdRow:not([hidden])) .gpad{height:52px}
+    .hud:has(#obdRow:not([hidden])) .lean-now{font-size:15px}
+    /* 車速已經讓到不能再讓了，剩下的高度從周邊的固定間距擠出來 */
+    .hud:has(#obdRow:not([hidden])) .strip{margin-top:6px;padding-top:6px}
+    .hud:has(#obdRow:not([hidden])) .controls{margin-top:6px}
+    .hud:has(#obdRow:not([hidden])) button{min-height:40px}
+    .hud:has(#obdRow:not([hidden])){padding-bottom:4px}
     .leanview,.gpad{height:64px}
     .lean-now{font-size:18px;bottom:1px}
     .slot-sub{margin-top:4px;font-size:10px}
@@ -316,6 +336,7 @@
         <span class="lamp" id="lampGps" title="GPS 定位狀態"><i></i><span id="lampGpsText">GPS</span></span>
         <span class="lamp" id="lampTilt" title="姿態感測狀態"><i></i><span id="lampTiltText">TILT</span></span>
         <span class="lamp" id="lampWake" title="螢幕常亮狀態"><i></i><span id="lampWakeText">LOCK</span></span>
+        <span class="lamp" id="lampObd" title="OBD 連線狀態" hidden><i></i><span id="lampObdText">OBD</span></span>
       </div>
     </div>
 
@@ -368,11 +389,24 @@
         <div class="ro"><span>精度</span><b id="accuracy">--</b></div>
         <div class="ro" id="batteryTile" hidden><span>BATTERY</span><b id="battery">--<span class="u">%</span></b></div>
       </div>
+
+      <!-- 只在連上 OBD 之後才出現，沒連線完全不佔位 -->
+      <div class="readouts obd-row" id="obdRow" hidden aria-label="車輛資料">
+        <div class="ro"><span>RPM</span><b id="obdRpm">--</b></div>
+        <div class="ro"><span>水溫</span><b id="obdCoolant">--<span class="u">°C</span></b></div>
+        <div class="ro"><span>ECU 車速</span><b id="obdSpeed">--<span class="u">km/h</span></b></div>
+        <div class="ro"><span>儀表誤差</span><b id="obdSpeedDelta">--</b></div>
+        <div class="ro"><span>電壓</span><b id="obdVolts">--<span class="u">V</span></b></div>
+        <div class="ro"><span>負載</span><b id="obdLoad">--<span class="u">%</span></b></div>
+        <div class="ro"><span>節氣門</span><b id="obdThrottle">--<span class="u">%</span></b></div>
+        <div class="ro"><span>故障燈</span><b id="obdMil">--</b></div>
+      </div>
     </div>
   </section>
 
   <section class="controls">
     <button type="button" class="btn-tilt" id="btnTilt" hidden>啟用傾角與螢幕常亮</button>
+    <button type="button" id="btnObd" hidden>連接 OBD</button>
     <button type="button" id="btnZero">傾角歸零</button>
     <button type="button" id="btnUnit">切換 mph</button>
     <button type="button" id="btnReset">清除本趟</button>
@@ -391,7 +425,10 @@
     資料只留在本機瀏覽器的 localStorage（單位偏好、歸零校正、個人最佳，
     <b>以及這一趟的行經座標</b>），不上傳到任何伺服器。<br>
     <b>軌跡會留在這支手機上，直到你按「清除本趟」。</b>
-    手機借人或遺失時，別人打開這頁就看得到你走過哪裡。
+    手機借人或遺失時，別人打開這頁就看得到你走過哪裡。<br>
+    <b>OBD 只讀取，不會對車輛寫入任何指令</b>，也不做清除故障碼、不讀車身號碼；
+    車輛資料只留在記憶體，關掉分頁就沒了。ECU 的數值來自車輛自己的感測器，
+    不是校正過的量測基準。需要 Web Bluetooth，iPhone 的 Safari 不支援。
   </footer>
 </main>
 
@@ -423,6 +460,21 @@ const OVER_SEGMENTS = 3;
 // 市區永遠是綠的。非速限建議。
 const AMBER_AT_KMH = 90;
 const RED_AT_KMH = BAR_MAX_KMH;
+
+/* 燈條可以畫兩種東西：沒接 OBD 時畫車速，接上之後畫真正的轉速。
+   同一組幾何、同一組函式，差別只在這兩份刻度定義。 */
+const SPEED_SCALE = {
+  max: BAR_MAX_KMH, overMax: OVER_MAX_KMH,
+  segments: BAR_SEGMENTS, overSegments: OVER_SEGMENTS,
+  amberAt: AMBER_AT_KMH, redAt: RED_AT_KMH,
+};
+/* 轉速刻度。這裡的數字是**汽油**引擎的假設（Focus Mk3.5 EcoBoost 紅線約 6500）。
+   柴油要改成約 4500——引擎不同這組就是錯的，不要當成通用值。 */
+const RPM_SCALE = {
+  max: 6500, overMax: 8000,
+  segments: BAR_SEGMENTS, overSegments: OVER_SEGMENTS,
+  amberAt: 4500, redAt: 6500,
+};
 // 速度條每一段的高度（佔條高的比例），由左往右遞增做出斜坡
 const BAR_MIN_H = 0.42;
 const STILL_KMH = 5;                // 低於步行速度的讀數在機車儀表上沒有意義
@@ -443,6 +495,32 @@ const TRACK_MAX_POINTS = 600;       // 滿了就隔點抽稀，整趟都留著�
                                     // 比截掉前半段誠實
 const TRACK_SAVE_EVERY = 5;         // 累積幾點才寫一次 localStorage
 const TRACK_DECIMALS = 5;           // 約 1.1m，600 點大約 16KB
+
+/* ─────────── OBD-II（BLE ELM327） ───────────
+   只在有 navigator.bluetooth 的瀏覽器上出現。iOS Safari 全版本不支援 Web Bluetooth
+   且 Apple 表明不打算做（caniuse 查證），所以這一整段在 iPhone 上等於不存在。
+
+   安全界線：這裡只讀，永遠不對車輛寫入。指令白名單只允許 01（讀取即時資料）、
+   03（讀故障碼）與 AT（配接器自己的設定）。
+   刻意不做 Mode 04 清除故障碼——清碼會一併清掉 readiness monitor，可能遮掉真實故障、
+   影響驗車，而且做成一顆行駛中會被誤觸的按鈕更不行。
+   刻意不讀 Mode 09 的 VIN——那是強識別碼，這頁已經在存座標了，兩者湊在一起太敏感。 */
+const OBD_SERVICES = [
+  "0000fff0-0000-1000-8000-00805f9b34fb",   // BLE ELM327 clone 最常見
+  "0000ffe0-0000-1000-8000-00805f9b34fb",   // HM-10 模組，讀寫同一個特徵值
+  "6e400001-b5a3-f393-e0a9-e50e24dcca9e",   // Nordic UART
+  "0000fff1-0000-1000-8000-00805f9b34fb",
+];
+// 開機序列：關回音、關換行、關空白、關表頭、自動選協定
+const OBD_INIT = ["ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"];
+// 輪詢分頻。ELM327 是序列問答，便宜的 V1.5 clone 每秒只跑得動 5~8 次，
+// 全部同頻輪詢的話轉速會慢到不能看。
+const OBD_HOT = ["010C"];                                   // 轉速，燈條靠它
+const OBD_WARM = ["010D"];                                  // ECU 車速
+const OBD_COLD = ["0105", "0142", "0104", "0111", "0101"];  // 水溫/電壓/負載/節氣門/故障燈
+const OBD_TIMEOUT_MS = 2000;
+const OBD_RESET_TIMEOUT_MS = 6000;   // ATZ 特別慢
+const OBD_STALE_MS = 2000;           // 超過這麼久沒有新的轉速就不能再拿它畫燈條
 
 // 可注入的時鐘。自動啟停與計時全靠它，測試才不必等真實的 20 秒。
 // 比照既有的 __DASH_SKIP_AUTO_INIT__ 慣例。
@@ -538,33 +616,112 @@ function stillFilter(kmh, moving, streak){
 }
 
 
-// 顏色只看實際車速，不看在條上的比例。改主尺上限時分界不會跟著跑掉。
-function speedColor(kmh){
-  const v = numOrNaN(kmh);
+// 顏色只看實際數值，不看在條上的比例。改刻度上限時分界不會跟著跑掉。
+function scaleColor(value, scale){
+  const s = scale || SPEED_SCALE;
+  const v = numOrNaN(value);
   if (!Number.isFinite(v)) return "green";
-  return v >= RED_AT_KMH ? "red" : v >= AMBER_AT_KMH ? "amber" : "green";
+  return v >= s.redAt ? "red" : v >= s.amberAt ? "amber" : "green";
+}
+
+// 車速專用的薄包裝，維持既有呼叫端與測試的語意
+function speedColor(kmh){
+  return scaleColor(kmh, SPEED_SCALE);
 }
 
 // 主尺：第 i 段代表的速度是它的上緣，所以黃區永遠固定在同一個實體位置，
 // 變的只是亮到第幾格。
-function ledStates(kmh){
-  const v = Math.min(Math.max(numOrNaN(kmh) || 0, 0), BAR_MAX_KMH);
-  const lit = Math.round(v / BAR_MAX_KMH * BAR_SEGMENTS);
+function ledStates(value, scale){
+  const s = scale || SPEED_SCALE;
+  const v = Math.min(Math.max(numOrNaN(value) || 0, 0), s.max);
+  const lit = Math.round(v / s.max * s.segments);
   const out = [];
-  for (let i = 0; i < BAR_SEGMENTS; i++) {
-    out.push(i >= lit ? "off" : speedColor((i + 1) * BAR_MAX_KMH / BAR_SEGMENTS));
+  for (let i = 0; i < s.segments; i++) {
+    out.push(i >= lit ? "off" : scaleColor((i + 1) * s.max / s.segments, s));
   }
   return out;
 }
 
 // 超速段：只有超過主尺上限才開始亮，一律紅色。
-function overStates(kmh){
-  const out = new Array(OVER_SEGMENTS).fill("off");
-  const v = numOrNaN(kmh);
-  if (!Number.isFinite(v) || v <= BAR_MAX_KMH) return out;
-  const span = (OVER_MAX_KMH - BAR_MAX_KMH) / OVER_SEGMENTS;
-  const lit = Math.min(OVER_SEGMENTS, Math.ceil((v - BAR_MAX_KMH) / span));
+function overStates(value, scale){
+  const s = scale || SPEED_SCALE;
+  const out = new Array(s.overSegments).fill("off");
+  const v = numOrNaN(value);
+  if (!Number.isFinite(v) || v <= s.max) return out;
+  const span = (s.overMax - s.max) / s.overSegments;
+  const lit = Math.min(s.overSegments, Math.ceil((v - s.max) / span));
   for (let i = 0; i < lit; i++) out[i] = "red";
+  return out;
+}
+
+/* ─────────── OBD（純函式） ─────────── */
+
+// 指令白名單。安全界線寫成資料而不是註解，測試才擋得住：
+// 只有 01（讀即時資料）、03（讀故障碼）、AT（配接器設定）可以送出去。
+function isAllowedObdCommand(cmd){
+  const c = String(cmd == null ? "" : cmd).trim().toUpperCase();
+  if (!c) return false;
+  if (c.startsWith("AT")) return true;
+  if (/^01[0-9A-F]{2}$/.test(c)) return true;
+  if (c === "03") return true;
+  return false;
+}
+
+// 把 ELM327 的文字回應拆成 byte 陣列。
+// 回應會夾雜提示字元、搜尋中、錯誤字串，也可能被 BLE 的 20 byte MTU 切碎後才組回來。
+function parseObdFrame(text){
+  const raw = String(text == null ? "" : text).toUpperCase();
+  // 這些不是資料，是狀態訊息
+  if (/NO DATA|UNABLE TO CONNECT|STOPPED|CAN ERROR|BUS INIT|ERROR|\?/.test(raw)) return null;
+  const hex = raw.replace(/[^0-9A-F]/g, "");
+  if (!hex || hex.length % 2 !== 0) return null;
+  const out = [];
+  for (let i = 0; i < hex.length; i += 2) out.push(parseInt(hex.slice(i, i + 2), 16));
+  return out.length ? out : null;
+}
+
+// 回應的前兩個 byte 是 0x41 + PID，之後才是資料。對不上就不是這一題的答案。
+function pidPayload(pid, bytes){
+  if (!Array.isArray(bytes) || bytes.length < 3) return null;
+  const want = parseInt(String(pid).slice(2), 16);
+  const at = bytes.findIndex((b, i) => b === 0x41 && bytes[i + 1] === want);
+  if (at < 0) return null;
+  return bytes.slice(at + 2);
+}
+
+function decodePid(pid, bytes){
+  const d = pidPayload(pid, bytes);
+  if (!d || !d.length) return null;
+  const A = d[0], B = d[1];
+  switch (String(pid).toUpperCase()) {
+    case "010C": return d.length < 2 ? null : ((A * 256) + B) / 4;      // rpm
+    case "010D": return A;                                              // km/h
+    case "0105": return A - 40;                                         // °C
+    case "010F": return A - 40;                                         // °C
+    case "0104": return A * 100 / 255;                                  // %
+    case "0111": return A * 100 / 255;                                  // %
+    case "0142": return d.length < 2 ? null : ((A * 256) + B) / 1000;   // V
+    case "012F": return A * 100 / 255;                                  // %
+    default: return null;
+  }
+}
+
+// 0101 的第一個 byte：bit7 是故障燈，低 7 位是故障碼筆數
+function milState(bytes){
+  const d = pidPayload("0101", bytes);
+  if (!d || !d.length) return null;
+  return { on: (d[0] & 0x80) !== 0, dtcCount: d[0] & 0x7F };
+}
+
+// 0100 回的是 32 bit bitmap，最高位代表 PID 01，用來決定哪些讀數要顯示
+function supportedPids(bytes){
+  const d = pidPayload("0100", bytes);
+  if (!d || d.length < 4) return [];
+  const out = [];
+  for (let i = 0; i < 32; i++) {
+    const byte = d[Math.floor(i / 8)];
+    if (byte & (0x80 >> (i % 8))) out.push(`01${(i + 1).toString(16).toUpperCase().padStart(2, "0")}`);
+  }
   return out;
 }
 
@@ -730,6 +887,16 @@ let movingStreak = 0;
 let trackPoints = [];
 let trackUnsaved = 0;
 
+// OBD 讀數。刻意只留在記憶體，不寫 localStorage——車輛資料不落地。
+const obdState = {
+  status: "idle",      // idle / connecting / ready / error
+  error: "",
+  rpm: null, rpmAt: 0,
+  speed: null, coolant: null, volts: null, load: null, throttle: null,
+  mil: null, dtcCount: null,
+  supported: [],
+};
+
 /* ─────────── localStorage（唯一會落地的東西） ─────────── */
 
 function loadPrefs(){
@@ -824,11 +991,11 @@ const el = {};
 function bind(){
   if (!DOC) return;
   for (const id of ["revBar","revBarOver","barScale","overScale","track","trackLine","trackHead","gpsError","lampRec","lampRecText",
-                    "lampGps","lampGpsText","lampTilt","lampTiltText","lampWake","lampWakeText",
+                    "lampObd","lampObdText","lampGps","lampGpsText","lampTilt","lampTiltText","lampWake","lampWakeText",
                     "leanHorizon","leanBike","leanNow","peakLeft","peakRight","bestLeft","bestRight",
                     "speed","speedUnit","gDot","gLong","gLat","heading","accuracy",
                     "topSpeed","trip","altitude","elapsed","bestSpeed",
-                    "batteryTile","battery","btnTilt","btnZero","btnUnit","btnReset","btnClearBest","mockFlag"]) {
+                    "batteryTile","battery","obdRow","obdRpm","obdCoolant","obdSpeed","obdSpeedDelta","obdVolts","obdLoad","obdThrottle","obdMil","btnObd","btnTilt","btnZero","btnUnit","btnReset","btnClearBest","mockFlag"]) {
     el[id] = DOC.getElementById(id);
   }
 }
@@ -855,18 +1022,25 @@ function buildLeds(){
   }
 }
 
-// 刻度只在 init 與換單位時重畫
-function buildScale(){
+// 刻度在 init、換單位、以及燈條在車速／轉速之間切換時重畫。
+// 轉速不換算單位——rpm 沒有 mph 版本。
+let scaleBuiltFor = "";
+function buildScale(scale){
   if (!el.barScale || !DOC) return;
+  const s = scale || SPEED_SCALE;
+  const isRpm = s === RPM_SCALE;
+  const key = `${isRpm ? "rpm" : "speed"}:${prefs.unit}`;
+  if (key === scaleBuiltFor) return;
+  scaleBuiltFor = key;
   el.barScale.innerHTML = "";
-  for (const value of barScaleValues(BAR_MAX_KMH, prefs.unit, BAR_SCALE_STEPS)) {
+  for (const value of barScaleValues(s.max, isRpm ? "rpm" : prefs.unit, BAR_SCALE_STEPS)) {
     const tick = DOC.createElement("span");
     tick.textContent = String(value);
     el.barScale.appendChild(tick);
   }
   // 超速段只標上限，標多了反而讓人以為那一段也是線性讀數
   if (el.overScale) {
-    const top = prefs.unit === "mph" ? OVER_MAX_KMH * KMH_TO_MPH : OVER_MAX_KMH;
+    const top = (!isRpm && prefs.unit === "mph") ? s.overMax * KMH_TO_MPH : s.overMax;
     el.overScale.textContent = String(Math.round(top / 5) * 5);
   }
 }
@@ -893,12 +1067,18 @@ function render(){
       leds[i].className = states[i] === "off" ? "led" : `led ${states[i]}`;
     }
   };
-  paint(el.revBar, ledStates(kmh));
-  paint(el.revBarOver, overStates(kmh));
+  // 接上 OBD 且轉速夠新時，燈條畫的是真正的轉速——這頁最初想做的 shift light。
+  // 斷線或讀不到就自動退回車速，不會凍在最後一筆。
+  const onRpm = obdRpmFresh();
+  const barScale = onRpm ? RPM_SCALE : SPEED_SCALE;
+  const barValue = onRpm ? obdState.rpm : kmh;
+  buildScale(barScale);   // 內部會判斷有沒有真的變，沒變就不重畫
+  paint(el.revBar, ledStates(barValue, barScale));
+  paint(el.revBarOver, overStates(barValue, barScale));
 
   const overRange = Number.isFinite(kmh) && kmh > BAR_MAX_KMH;
   // 閃爍留給「連超速段都滿了」，不然一上國道就閃，警示變常態
-  const offScale = Number.isFinite(kmh) && kmh >= OVER_MAX_KMH;
+  const offScale = Number.isFinite(barValue) && barValue >= barScale.overMax;
   if (el.revBarOver) el.revBarOver.className = offScale ? "revbar-over shift" : "revbar-over";
   el.speed.className = overRange ? "speed hot" : (Number.isFinite(kmh) ? "speed" : "speed idle");
 
@@ -964,6 +1144,33 @@ function render(){
   if (sensorState.permission === "granted") setLamp(el.lampTilt, el.lampTiltText, "ok", "TILT");
   else if (sensorState.permission === "denied" || sensorState.permission === "unsupported") setLamp(el.lampTilt, el.lampTiltText, "bad", "TILT");
   else setLamp(el.lampTilt, el.lampTiltText, "", "TILT");
+
+  // OBD。沒有 Web Bluetooth 的瀏覽器上這一整塊從頭到尾不出現。
+  if (el.lampObd) {
+    const tone = obdState.status === "ready" ? "ok" : obdState.status === "error" ? "bad" : "";
+    setLamp(el.lampObd, el.lampObdText, tone, "OBD");
+  }
+  if (el.obdRow) el.obdRow.hidden = obdState.status !== "ready";
+  if (el.obdRpm && obdState.status === "ready") {
+    const n = (v, digits) => Number.isFinite(v) ? v.toFixed(digits) : "--";
+    el.obdRpm.textContent = Number.isFinite(obdState.rpm) ? String(Math.round(obdState.rpm)) : "--";
+    el.obdCoolant.innerHTML = `${n(obdState.coolant, 0)}<span class="u">°C</span>`;
+    el.obdSpeed.innerHTML = `${Number.isFinite(obdState.speed) ? obdState.speed : "--"}<span class="u">km/h</span>`;
+    // 儀表依法規偏高，GPS 是真實對地速度，兩者相減就是這台車儀表的誤差
+    const delta = (Number.isFinite(obdState.speed) && Number.isFinite(kmh))
+      ? obdState.speed - kmh : null;
+    el.obdSpeedDelta.textContent = delta === null ? "--"
+      : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}`;
+    el.obdVolts.innerHTML = `${n(obdState.volts, 1)}<span class="u">V</span>`;
+    el.obdLoad.innerHTML = `${n(obdState.load, 0)}<span class="u">%</span>`;
+    el.obdThrottle.innerHTML = `${n(obdState.throttle, 0)}<span class="u">%</span>`;
+    el.obdMil.textContent = obdState.mil === null ? "--"
+      : obdState.mil ? `亮 · ${obdState.dtcCount} 筆` : "滅";
+  }
+  if (el.btnObd) {
+    el.btnObd.textContent = obdState.status === "ready" ? "中斷 OBD"
+      : obdState.status === "connecting" ? "連線中…" : "連接 OBD";
+  }
 
   if (wakeState === "active") setLamp(el.lampWake, el.lampWakeText, "ok", "LOCK");
   else if (wakeState === "unsupported" || wakeState === "failed") setLamp(el.lampWake, el.lampWakeText, "warn", "LOCK");
@@ -1162,6 +1369,137 @@ async function requestTilt(){
   }
 }
 
+/* ─────────── OBD 連線 ─────────── */
+
+// 傳輸層。transport 是可注入的，測試就不必真的有藍牙：
+// 只要提供 { write(text), onLine(cb), disconnect() } 就能跑完整條問答與輪詢。
+function createObdLink(){
+  let transport = null;
+  let buffer = "";
+  let pending = null;      // { resolve, timer }
+  let queue = [];
+  let running = false;
+
+  function handleChunk(chunk){
+    // BLE 預設 MTU 約 20 byte，一筆回應會被切成好幾段，要組到看見提示字元為止
+    buffer += String(chunk == null ? "" : chunk);
+    const at = buffer.indexOf(">");
+    if (at < 0) return;
+    const frame = buffer.slice(0, at);
+    buffer = buffer.slice(at + 1);
+    if (pending) {
+      clearTimeout(pending.timer);
+      const done = pending;
+      pending = null;
+      done.resolve(frame);
+    }
+  }
+
+  function send(cmd){
+    // 安全界線：白名單之外的東西一律不出門，連被呼叫到都不行
+    if (!isAllowedObdCommand(cmd)) {
+      return Promise.reject(new Error(`指令不在白名單內：${cmd}`));
+    }
+    return new Promise((resolve) => {
+      queue.push({ cmd: String(cmd).trim().toUpperCase(), resolve });
+      pump();
+    });
+  }
+
+  async function pump(){
+    if (running || pending || !queue.length || !transport) return;
+    running = true;
+    const job = queue.shift();
+    const wait = job.cmd === "ATZ" ? OBD_RESET_TIMEOUT_MS : OBD_TIMEOUT_MS;
+    const answer = await new Promise((resolve) => {
+      // 逾時就放棄這一筆繼續下一筆，不可以卡死整條佇列
+      pending = { resolve, timer: setTimeout(() => { pending = null; resolve(null); }, wait) };
+      try {
+        transport.write(`${job.cmd}\r`);
+      } catch (error) {
+        clearTimeout(pending.timer);
+        pending = null;
+        resolve(null);
+      }
+    });
+    running = false;
+    job.resolve(answer);
+    pump();
+  }
+
+  return {
+    isConnected(){ return !!transport; },
+    attach(next){
+      transport = next;
+      buffer = "";
+      queue = [];
+      if (transport && typeof transport.onLine === "function") transport.onLine(handleChunk);
+    },
+    detach(){
+      if (transport && typeof transport.disconnect === "function") {
+        try { transport.disconnect(); } catch (error) { console.warn("中斷 OBD 失敗", error); }
+      }
+      transport = null;
+      queue = [];
+      if (pending) { clearTimeout(pending.timer); pending = null; }
+    },
+    send,
+    async init(){
+      for (const cmd of OBD_INIT) await send(cmd);
+    },
+    async ask(pid){
+      const raw = await send(pid);
+      return raw === null ? null : parseObdFrame(raw);
+    },
+  };
+}
+
+// 用 Web Bluetooth 接出一個 transport。UUID 不寫死：已知服務逐一試，
+// 特徵值**依 write / notify 屬性挑**——查到的資料對 FFF1/FFF2 誰讀誰寫互相矛盾，
+// 寫死必然在某些配接器上壞掉，HM-10 型甚至讀寫是同一個特徵值。
+async function connectBluetoothTransport(){
+  if (!NAV || !NAV.bluetooth) throw new Error("這個瀏覽器不支援 Web Bluetooth");
+  const device = await NAV.bluetooth.requestDevice({
+    filters: OBD_SERVICES.map((s) => ({ services: [s] })).concat([{ namePrefix: "OBD" }, { namePrefix: "VEEPEAK" }]),
+    optionalServices: OBD_SERVICES,
+  });
+  const server = await device.gatt.connect();
+  let writeChar = null, notifyChar = null;
+  for (const uuid of OBD_SERVICES) {
+    let service = null;
+    try { service = await server.getPrimaryService(uuid); } catch (error) { continue; }
+    const chars = await service.getCharacteristics();
+    for (const c of chars) {
+      if (!writeChar && (c.properties.write || c.properties.writeWithoutResponse)) writeChar = c;
+      if (!notifyChar && c.properties.notify) notifyChar = c;
+    }
+    if (writeChar && notifyChar) break;
+  }
+  if (!writeChar || !notifyChar) throw new Error("找不到可讀寫的特徵值");
+  await notifyChar.startNotifications();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let onChunk = () => {};
+  notifyChar.addEventListener("characteristicvaluechanged", (event) => {
+    onChunk(decoder.decode(event.target.value));
+  });
+  device.addEventListener("gattserverdisconnected", () => {
+    obdState.status = "error";
+    obdState.error = "OBD 連線中斷";
+    render();
+  });
+  return {
+    write(text){
+      const data = encoder.encode(text);
+      return writeChar.writeValueWithoutResponse
+        ? writeChar.writeValueWithoutResponse(data)
+        : writeChar.writeValue(data);
+    },
+    onLine(cb){ onChunk = cb; },
+    disconnect(){ if (device.gatt.connected) device.gatt.disconnect(); },
+  };
+}
+
 /* ─────────── 螢幕常亮 ─────────── */
 
 function createWakeLock(){
@@ -1193,6 +1531,85 @@ function createWakeLock(){
   };
 }
 
+/* ─────────── OBD 輪詢 ─────────── */
+
+const obd = createObdLink();
+let obdLoop = null;
+let obdTick = 0;
+
+function applyObdReading(pid, bytes){
+  if (!bytes) return;
+  const value = decodePid(pid, bytes);
+  switch (pid) {
+    case "010C": if (value !== null) { obdState.rpm = value; obdState.rpmAt = now(); } break;
+    case "010D": obdState.speed = value; break;
+    case "0105": obdState.coolant = value; break;
+    case "0142": obdState.volts = value; break;
+    case "0104": obdState.load = value; break;
+    case "0111": obdState.throttle = value; break;
+    case "0101": {
+      const mil = milState(bytes);
+      if (mil) { obdState.mil = mil.on; obdState.dtcCount = mil.dtcCount; }
+      break;
+    }
+    default: break;
+  }
+}
+
+// 分頻輪詢：每一輪都問轉速，中頻兩輪一次，低頻輪流問一項。
+// 全部同頻的話轉速會慢到燈條沒有意義。
+async function pollObdOnce(){
+  if (!obd.isConnected()) return;
+  const wanted = [...OBD_HOT];
+  if (obdTick % 2 === 0) wanted.push(...OBD_WARM);
+  const cold = OBD_COLD[Math.floor(obdTick / 4) % OBD_COLD.length];
+  if (obdTick % 4 === 0) wanted.push(cold);
+  obdTick += 1;
+  for (const pid of wanted) {
+    if (obdState.supported.length && !obdState.supported.includes(pid)) continue;
+    applyObdReading(pid, await obd.ask(pid));
+  }
+  render();
+}
+
+async function connectObd(){
+  if (obdState.status === "connecting") return;
+  obdState.status = "connecting";
+  obdState.error = "";
+  render();
+  try {
+    obd.attach(await connectBluetoothTransport());
+    await obd.init();
+    obdState.supported = supportedPids(await obd.ask("0100"));
+    obdState.status = "ready";
+    if (obdLoop === null && typeof setInterval === "function") {
+      obdLoop = setInterval(() => { pollObdOnce().catch(() => {}); }, 250);
+    }
+  } catch (error) {
+    // 照這頁的慣例：不 throw、不彈 alert，只在畫面上標示降級
+    console.warn("OBD 連線失敗", error);
+    obdState.status = "error";
+    obdState.error = error && error.name === "NotFoundError" ? "沒有選擇裝置" : "OBD 連線失敗";
+    obd.detach();
+  }
+  render();
+}
+
+function disconnectObd(){
+  if (obdLoop !== null) { clearInterval(obdLoop); obdLoop = null; }
+  obd.detach();
+  obdState.status = "idle";
+  obdState.error = "";
+  obdState.rpm = null;
+  obdState.rpmAt = 0;
+  render();
+}
+
+// 轉速夠新才拿來畫燈條。斷線之後不可以讓燈條凍在最後一筆。
+function obdRpmFresh(){
+  return Number.isFinite(obdState.rpm) && (now() - obdState.rpmAt) < OBD_STALE_MS;
+}
+
 /* ─────────── 模擬資料（桌機開發用，走同一條更新路徑） ─────────── */
 
 function createMockSource(){
@@ -1215,6 +1632,21 @@ function createMockSource(){
         applyFix({ kmh, altitude: 30 + 20 * Math.sin(t / 40), heading, accuracy: 6, lat, lon, t: Date.now() });
         onOrientation({ beta: 0, gamma: 42 * Math.sin(t / 14) });
         onMotion({ acceleration: { x: 4 * Math.sin(t / 9), y: 3 * Math.cos(t / 11) } });
+        // ?mock=1&obd=1 才模擬車輛資料。走與真實 OBD 完全相同的解碼路徑，
+        // 不另外開一條捷徑——否則 mock 綠燈不代表真的能跑。
+        if (mockObd) {
+          const rpm = Math.round(900 + kmh * 42);
+          const hex = (n) => n.toString(16).toUpperCase().padStart(2, "0");
+          const r = Math.min(0xFFFF, Math.round(rpm * 4));
+          applyObdReading("010C", parseObdFrame(`410C${hex(r >> 8)}${hex(r & 0xFF)}`));
+          applyObdReading("010D", parseObdFrame(`410D${hex(Math.min(255, Math.round(kmh * 1.04)))}`));
+          applyObdReading("0105", parseObdFrame(`4105${hex(Math.round(88 + 40))}`));
+          applyObdReading("0142", parseObdFrame(`41423A98`));
+          applyObdReading("0104", parseObdFrame(`4104${hex(Math.round(kmh * 1.6) % 256)}`));
+          applyObdReading("0111", parseObdFrame(`4111${hex(Math.round(kmh * 1.4) % 256)}`));
+          applyObdReading("0101", parseObdFrame(`41010001AA00`));
+          obdState.status = "ready";
+        }
       }, 500);
       sensorState.permission = "granted";
       gpsState.hasFix = true;
@@ -1230,6 +1662,7 @@ const gps = createGpsTracker();
 const wake = createWakeLock();
 const mock = createMockSource();
 let mockMode = false;
+let mockObd = false;
 
 // 定位模式切換。切換必須重開 watch，而新舊精度的兩筆定位之間不可比，
 // 所以連續計數要歸零，否則第一筆新精度的 fix 會被誤判成移動。
@@ -1324,6 +1757,7 @@ function init(){
   buildScale();
   const search = (ROOT.location && ROOT.location.search) || "";
   mockMode = /[?&]mock=1(?:&|$)/.test(search);
+  mockObd = mockMode && /[?&]obd=1(?:&|$)/.test(search);
   if (el.mockFlag) el.mockFlag.hidden = !mockMode;
   if (!needsTiltPermission() && !mockMode) attachTilt();
 
@@ -1337,6 +1771,15 @@ function init(){
   // 所以留這一顆把兩件事併在同一個手勢。兩者都拿到就自己隱藏。
   if (el.btnTilt) el.btnTilt.hidden = !needsGesture();
   if (el.btnTilt) el.btnTilt.addEventListener("click", enableSensors);
+  // iOS Safari 全版本不支援 Web Bluetooth（已查證），那裡這一整塊都不該出現
+  const hasBluetooth = !!(NAV && NAV.bluetooth);
+  if (el.btnObd) {
+    el.btnObd.hidden = !hasBluetooth;
+    el.btnObd.addEventListener("click", () => {
+      if (obdState.status === "ready") disconnectObd(); else connectObd();
+    });
+  }
+  if (el.lampObd) el.lampObd.hidden = !hasBluetooth;
   if (el.btnZero) el.btnZero.addEventListener("click", zeroLean);
   if (el.btnUnit) el.btnUnit.addEventListener("click", toggleUnit);
   if (el.btnReset) el.btnReset.addEventListener("click", resetTrip);
@@ -1353,13 +1796,17 @@ const dashApp = {
   // 三條路徑共用同一段判定，mock 綠燈才代表真的能跑。
   applyFix,
   handleOrientation: onOrientation,
+  // 讓測試用注入的假 transport 跑完整條 OBD 問答，不必真的有藍牙
+  obdLink: obd,
+  applyObdReading,
   // 自動停止與降級都在 tick 裡判斷。開出來讓測試用假時鐘驅動，不必等真實的 20 秒。
   tick,
-  getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs, gpsMode: gps.getMode(), track: trackPoints }),
+  getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs, gpsMode: gps.getMode(), track: trackPoints, obd: obdState }),
   helpers: {
     numOrNaN, msToKmh, kmhToMph, formatSpeed, emaSmooth, haversineMeters, speedFromFixes,
     movementBetween, stillFilter, ledStates, overStates, speedColor,
     shouldAppendPoint, thinTrack, trackBounds, trackPolyline,
+    isAllowedObdCommand, parseObdFrame, pidPayload, decodePid, milState, supportedPids, scaleColor,
     barSegmentHeight, barScaleValues,
     normalizeLean, updatePeakLean, gForce, formatElapsed, mergePersonalBest,
   },
@@ -1368,6 +1815,7 @@ const dashApp = {
     LEAN_LIMIT, STILL_KMH, BAD_ACCURACY_M,
     MOVING_STREAK, LEAN_MIN_KMH, BAR_MIN_H, BAR_SCALE_STEPS,
     TRACK_KEY, TRACK_MIN_M, TRACK_MAX_POINTS,
+    SPEED_SCALE, RPM_SCALE, OBD_INIT, OBD_HOT, OBD_WARM, OBD_COLD, OBD_STALE_MS, OBD_SERVICES,
     AUTO_PAUSE_MS, IDLE_DOWNGRADE_MS, GPS_MODES,
   },
 };
