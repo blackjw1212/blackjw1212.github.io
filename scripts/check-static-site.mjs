@@ -308,6 +308,9 @@ if (has("dash/index.html")) {
   // 程式偷偷存、頁面繼續宣稱沒存，是這份契約最該擋下的一種漂移。
   assertMatch("dash/index.html", html, /軌跡會留在這支手機上/, "dash must disclose the track is kept on the device");
   assertNoMatch("dash/index.html", html, /不記錄行經路線|不儲存任何座標/);
+  // OBD 是唯讀的。這頁絕不對車輛寫入、不清除故障碼、不讀車身號碼——
+  // 揭露要寫在頁面上，才不會有人日後「順手」加一顆清碼按鈕。
+  assertMatch("dash/index.html", html, /只讀取，不會對車輛寫入任何指令/, "dash must disclose OBD access is read-only");
   assertNoMatch("dash/index.html", html, /window\.storage/);
   // 三條必要揭露。手機量到的是自身姿態而非車身傾角，少了這句整頁就是在誤導。
   assertMatch("dash/index.html", html, /騎乘中請勿操作手機/, "dash must tell riders not to operate the phone");

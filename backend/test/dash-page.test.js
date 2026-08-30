@@ -114,7 +114,9 @@ async function loadDash(options = {}) {
     location: { href: "https://local.test/dash/", search: options.search || "" },
     addEventListener() {},
   };
-  const sandbox = { console, document, window };
+  // setTimeout / clearTimeout 是 OBD 指令佇列的逾時在用的。
+  // 刻意不給 setInterval：頁面對它有 typeof 守衛，不給就不會在測試裡跑起計時器與輪詢。
+  const sandbox = { console, document, window, setTimeout, clearTimeout };
   if (geolocation) sandbox.navigator = { geolocation };
   const context = vm.createContext(sandbox);
   vm.runInContext(script, context, { filename: "dash/index.html" });
@@ -525,7 +527,8 @@ test("the control row divides evenly however many buttons are showing", async ()
     ["橫式", html.match(/@media \(orientation:landscape\)[^{]*\{[\s\S]*?\n  \}/)?.[0] || ""],
   ]) {
     assert.ok(block, `${label}規則應該存在`);
-    const rule = block.match(/\.controls\{[^}]*\}/)?.[0] || "";
+    // 要求選擇器單獨成行，否則會抓到 .hud:has(...) .controls{...} 那種後代規則
+    const rule = block.match(/\n\s*\.controls\{[^}]*\}/)?.[0] || "";
     assert.ok(rule, `${label}的 .controls 規則應該存在`);
     assert.match(rule, /grid-auto-flow:column/, `${label}的控制列要自動均分`);
     assert.doesNotMatch(rule, /grid-template-columns:repeat/, `${label}不可寫死欄數`);
@@ -682,6 +685,199 @@ test("a saved track comes back when the page reopens", async () => {
   const broken = await loadDash({ localStorage: fakeStorage({ "bjkw-dash-track:v1": "{not json" }) });
   broken.app.init();
   assert.equal(broken.app.getState().track.length, 0);
+});
+
+// 假的 BLE transport：只要有 write / onLine / disconnect 就能跑完整條 OBD 問答。
+// 回應照 BLE 預設 20 byte MTU 切段送回，逼出組包邏輯。
+function fakeObd(answers = {}, options = {}) {
+  const sent = [];
+  let onChunk = () => {};
+  const chunk = options.chunk || 20;
+  return {
+    sent,
+    write(text) {
+      const cmd = String(text).replace(/\r/g, "").trim().toUpperCase();
+      sent.push(cmd);
+      if (options.silent) return;                       // 模擬沒有回應，測逾時
+      const body = Object.prototype.hasOwnProperty.call(answers, cmd) ? answers[cmd] : "OK";
+      const frame = `${body}\r\r>`;
+      for (let i = 0; i < frame.length; i += chunk) {
+        const part = frame.slice(i, i + chunk);
+        setTimeout(() => onChunk(part), 0);
+      }
+    },
+    onLine(cb) { onChunk = cb; },
+    disconnect() {},
+  };
+}
+
+test("obd only ever sends read commands, never anything that writes to the car", async () => {
+  const { app, html } = await loadDash();
+  const { isAllowedObdCommand } = app.helpers;
+
+  // 清除故障碼會一併清掉 readiness monitor，可能遮掉真實故障、影響驗車。
+  // 這條界線寫成白名單而不是註解，測試才擋得住。
+  assert.equal(isAllowedObdCommand("04"), false, "Mode 04 清碼絕對不可以");
+  assert.equal(isAllowedObdCommand("0902"), false, "Mode 09 的 VIN 是強識別碼，不讀");
+  assert.equal(isAllowedObdCommand("2F0C01"), false, "Mode 2F 是致動器控制，絕對不可以");
+  assert.equal(isAllowedObdCommand("0C"), false, "缺模式的裸 PID 不收");
+  assert.equal(isAllowedObdCommand(""), false);
+  assert.equal(isAllowedObdCommand(null), false);
+
+  assert.equal(isAllowedObdCommand("010C"), true);
+  assert.equal(isAllowedObdCommand("03"), true, "讀故障碼是唯讀的，可以");
+  assert.equal(isAllowedObdCommand("ATZ"), true);
+  assert.equal(isAllowedObdCommand("atsp0"), true, "小寫也要認得");
+
+  // 頁面裡實際會送出的每一條都必須過白名單
+  for (const cmd of [...app.constants.OBD_INIT, ...app.constants.OBD_HOT,
+                     ...app.constants.OBD_WARM, ...app.constants.OBD_COLD]) {
+    assert.equal(isAllowedObdCommand(cmd), true, `${cmd} 應該在白名單內`);
+  }
+  assert.match(html, /只讀取，不會對車輛寫入任何指令/, "頁面要講明是唯讀");
+});
+
+test("the obd link refuses a write command even if something calls it", async () => {
+  const { app } = await loadDash();
+  app.obdLink.attach(fakeObd());
+  await assert.rejects(() => app.obdLink.send("04"), /白名單/, "白名單是最後一道，不能只靠呼叫端自律");
+  await assert.rejects(() => app.obdLink.send("0902"), /白名單/);
+  app.obdLink.detach();
+});
+
+test("elm327 replies are parsed, including the noise they come with", async () => {
+  const { app } = await loadDash();
+  const { parseObdFrame } = app.helpers;
+
+  assert.deepEqual([...parseObdFrame("410C1AF8")], [0x41, 0x0C, 0x1A, 0xF8]);
+  assert.deepEqual([...parseObdFrame("41 0C 1A F8\r\r")], [0x41, 0x0C, 0x1A, 0xF8], "空白與換行要吃掉");
+  // 這些不是資料，是狀態訊息，不可以被當成 byte 解讀
+  assert.equal(parseObdFrame("NO DATA"), null);
+  assert.equal(parseObdFrame("SEARCHING..."), null, "SEARCHING 後面的點會被當十六進位讀");
+  assert.equal(parseObdFrame("STOPPED"), null);
+  assert.equal(parseObdFrame("?"), null);
+  assert.equal(parseObdFrame("UNABLE TO CONNECT"), null);
+  assert.equal(parseObdFrame(""), null);
+  assert.equal(parseObdFrame("410C1"), null, "半個 byte 不是有效回應");
+});
+
+test("each pid decodes to the value the standard says", async () => {
+  const { app } = await loadDash();
+  const { decodePid, parseObdFrame, milState } = app.helpers;
+  const at = (hex) => parseObdFrame(hex);
+
+  assert.equal(decodePid("010C", at("410C1AF8")), 1726, "((A*256)+B)/4");
+  assert.equal(decodePid("010D", at("410D50")), 80, "車速直接就是 A");
+  assert.equal(decodePid("0105", at("41055A")), 50, "水溫是 A-40");
+  assert.equal(decodePid("0105", at("410514")), -20, "冷車可以是負的");
+  assert.ok(Math.abs(decodePid("0104", at("410480")) - 50.2) < 0.1, "負載 A*100/255");
+  assert.ok(Math.abs(decodePid("0111", at("411140")) - 25.1) < 0.1);
+  assert.ok(Math.abs(decodePid("0142", at("41423A98")) - 14.999) < 0.01, "電壓 ((A*256)+B)/1000");
+
+  // 回應對不上問的 PID 就不能當答案
+  assert.equal(decodePid("010C", at("410D50")), null, "問轉速卻回車速，不可以拿來用");
+  assert.equal(decodePid("010C", at("410C1A")), null, "少一個 byte 算不出轉速");
+  assert.equal(decodePid("010C", null), null);
+
+  const mil = milState(at("41018301AA00"));
+  assert.equal(mil.on, true, "0x83 的 bit7 是故障燈");
+  assert.equal(mil.dtcCount, 3, "低 7 位是筆數");
+  assert.equal(milState(at("41010001AA00")).on, false);
+});
+
+test("responses split across ble packets are reassembled", async () => {
+  const { app } = await loadDash();
+  // 一筆回應在 20 byte MTU 下會被切碎，組不回來就整個功能是壞的
+  const link = app.obdLink;
+  link.attach(fakeObd({ "010C": "41 0C 1A F8" }, { chunk: 3 }));
+  const bytes = await link.ask("010C");
+  assert.deepEqual([...bytes], [0x41, 0x0C, 0x1A, 0xF8]);
+  assert.equal(app.helpers.decodePid("010C", bytes), 1726);
+  link.detach();
+});
+
+test("a silent adapter times out instead of jamming the queue", async () => {
+  const { app } = await loadDash();
+  const link = app.obdLink;
+  link.attach(fakeObd({}, { silent: true }));
+  const started = Date.now();
+  const answer = await link.ask("010C");
+  assert.equal(answer, null, "沒回應就回 null");
+  assert.ok(Date.now() - started >= 100, "要真的等過逾時，不是立刻放棄");
+  // 逾時之後佇列必須還能跑
+  link.attach(fakeObd({ "010D": "41 0D 50" }));
+  assert.equal(app.helpers.decodePid("010D", await link.ask("010D")), 80, "卡過一次之後還要能問下一題");
+  link.detach();
+});
+
+test("the init sequence turns off everything that would corrupt the replies", async () => {
+  const { app } = await loadDash();
+  const t = fakeObd();
+  app.obdLink.attach(t);
+  await app.obdLink.init();
+  // 回音、換行、空白、表頭全部要關掉，不然解析出來的 byte 會混進雜訊
+  assert.deepEqual(t.sent, [...app.constants.OBD_INIT]);
+  assert.ok(t.sent.includes("ATE0") && t.sent.includes("ATH0"));
+  app.obdLink.detach();
+});
+
+test("supported pids come from the 0100 bitmap", async () => {
+  const { app } = await loadDash();
+  const { supportedPids, parseObdFrame } = app.helpers;
+  // 0x18 0x00 0x00 0x00 → bit 4 與 bit 5 → PID 0104 與 0105
+  const list = supportedPids(parseObdFrame("410018000000"));
+  assert.ok(list.includes("0104") && list.includes("0105"));
+  assert.ok(!list.includes("010C"));
+  assert.deepEqual([...supportedPids(null)], []);
+});
+
+test("the bar shows rpm only while the rpm reading is fresh", async () => {
+  const clock = fakeClock();
+  const { app, elements } = await loadDash({ clock });
+  app.init();
+  const { RPM_SCALE, SPEED_SCALE, OBD_STALE_MS } = app.constants;
+  const state = app.getState();
+
+  // 沒有 OBD 時燈條照舊畫車速
+  state.gps.kmh = 60;
+  app.applyObdReading("010C", null);
+  elements.get("btnUnit").fire("click"); elements.get("btnUnit").fire("click");
+  const litSpeed = [...elements.get("revBar").children].filter((e) => e.className !== "led").length;
+  assert.equal(litSpeed, app.helpers.ledStates(60, SPEED_SCALE).filter((s) => s !== "off").length);
+
+  // 接上 OBD：燈條改畫轉速，這才是這頁最初想做的 shift light
+  app.applyObdReading("010C", app.helpers.parseObdFrame("410C1AF8"));   // 1726 rpm
+  elements.get("btnUnit").fire("click"); elements.get("btnUnit").fire("click");
+  const litRpm = [...elements.get("revBar").children].filter((e) => e.className !== "led").length;
+  assert.equal(litRpm, app.helpers.ledStates(1726, RPM_SCALE).filter((s) => s !== "off").length);
+  assert.notEqual(litRpm, litSpeed, "轉速與車速應該點亮不同格數");
+  assert.equal(elements.get("barScale").children[0].textContent, "0");
+  assert.equal(
+    elements.get("barScale").children[app.constants.BAR_SCALE_STEPS - 1].textContent,
+    String(RPM_SCALE.max), "刻度上限要跟著換成轉速"
+  );
+
+  // 斷線之後不可以讓燈條凍在最後一筆轉速
+  clock.advance(OBD_STALE_MS + 500);
+  elements.get("btnUnit").fire("click"); elements.get("btnUnit").fire("click");
+  const litAfter = [...elements.get("revBar").children].filter((e) => e.className !== "led").length;
+  assert.equal(litAfter, litSpeed, "轉速過期要自動退回車速");
+  assert.equal(
+    elements.get("barScale").children[app.constants.BAR_SCALE_STEPS - 1].textContent,
+    String(SPEED_SCALE.max), "刻度也要退回去"
+  );
+});
+
+test("without web bluetooth the whole obd block simply is not there", async () => {
+  const { app, elements } = await loadDash();
+  app.init();
+  // 沙箱沒有 navigator.bluetooth，就跟 iPhone Safari 一樣
+  assert.equal(elements.get("btnObd").hidden, true, "連不了就不該給按鈕");
+  assert.equal(elements.get("lampObd").hidden, true);
+  assert.equal(elements.get("obdRow").hidden, true);
+  // 其餘功能完全不受影響
+  assert.equal(elements.get("speed").textContent, "--");
+  assert.equal(app.getState().obd.status, "idle");
 });
 
 test("colour bands sit on real speeds, not on a fraction of the bar", async () => {
