@@ -439,7 +439,15 @@ function goTab(id){const b=$('.tabbtn[data-t="'+id+'"]');if(b)b.click()}
 const TF=['dep','ret','flex','pax','cabin','cardFee'];
 const FF=['okLcc','okRed','okSelf'];
 TF.forEach(id=>$('#'+id).addEventListener('input',()=>{S.trip[id]=$('#'+id).value;save();meta()}));
-FF.forEach(id=>$('#'+id).addEventListener('change',()=>{S.flags[id]=$('#'+id).checked;save()}));
+// 條件會影響套利檢查（哪幾條路線該跳過）與決策文字，所以改動要重畫，不是只存起來
+FF.forEach(id=>$('#'+id).addEventListener('change',()=>{
+  S.flags[id]=$('#'+id).checked;save();renderArb();renderDecide();
+}));
+// 匯出與決策兩邊都要講同一件事，抽出來才不會各寫各的
+function okConditions(){
+  return [S.flags.okLcc&&'廉航',S.flags.okRed&&'紅眼／深夜抵達',S.flags.okSelf&&'自行轉機／分開出票']
+    .filter(Boolean).join('、');
+}
 $('#limits').addEventListener('input',()=>{S.trip.limits=$('#limits').value;save()});
 ['anchorLow','anchorMid'].forEach(id=>$('#'+id).addEventListener('input',()=>{S.anchor[id]=$('#'+id).value;save();renderDecide()}));
 
@@ -553,6 +561,7 @@ function arbItems(){
   const L=(o2,d2,dd2,rd2)=>ok?links(o2,d2,dd2,rd2):[];
   return [
    {id:'split',t:'去回程分開買（不同航空公司）',h:'把去程與回程當成兩張單程票分別搜尋。單程票常常不是來回票的一半，要真的查過才知道。',
+    needs:'okSelf',
     // 去程與回程會用到同樣三個站，網址清單改成純文字後名稱是唯一的區分，得標明方向
     urls:ok?L(o,d,dd,'').slice(0,3).map(l=>['去程 '+l[0],l[1]])
       .concat(rd?L(d,o,rd,'').slice(0,3).map(l=>['回程 '+l[0],l[1]]):[]):[]},
@@ -560,6 +569,7 @@ function arbItems(){
    {id:'multi',t:'Multi-city 多段',h:'把中途城市寫成獨立航段，有時比來回票加一段區間線便宜。',
     urls:ok?[['Skyscanner 多城市','https://www.skyscanner.com.tw/transport/flights-multi-city/']]:[]},
    {id:'self',t:'Self-transfer 自行轉機',h:'兩張不同票號的票自己接。行李通常要提出重掛，第一段延誤時第二段不受保障。Kiwi 是專門做這種組合的。',
+    needs:'okSelf',
     urls:ok?[['Kiwi 自行轉機','https://www.kiwi.com/en/search/results/'+o+'/'+d+'/'+dd+(rd?'/'+rd:'')]]:[]},
    {id:'airport',t:'替代機場組合',h:'TPE↔TSA、NRT↔HND、KIX↔ITM、BKK↔DMK、LAX↔SNA/ONT。差價要扣掉機場交通。',urls:[]},
    {id:'origin',t:'外站出發',h:'香港、澳門、福岡、首爾、曼谷出發。必須加上前往外站的機票／交通、住宿與時間成本才算數。',urls:[]},
@@ -570,9 +580,14 @@ function renderArb(){
   $('#arb').innerHTML=arbItems().map(a=>{
     const v=S.arb[a.id]||{};
     const ls=(a.urls||[]).length?'<button class="lnk" data-arburl="'+a.id+'">查價網址</button>':'';
-    return '<div style="padding:9px 0;border-bottom:1px dashed var(--line)">'+
+    // 「可接受的條件」不能只是進匯出文字。這兩條套利路線都是分開出票，
+    // 使用者說了不接受就該在這裡看得到，而不是照樣叫他去查。
+    const blocked=a.needs&&!S.flags[a.needs];
+    const warn=blocked?'<div class="note" style="color:var(--amber);margin:2px 0 6px">'
+      +'你在「1 行程」沒有勾「接受自行轉機／分開出票」，這一項可以直接跳過。</div>':'';
+    return '<div style="padding:9px 0;border-bottom:1px dashed var(--line)'+(blocked?';opacity:.72':'')+'">'+
       '<div style="font-size:13.5px;font-weight:600">'+a.t+'</div>'+
-      '<div class="note" style="margin:2px 0 6px">'+a.h+'</div>'+
+      '<div class="note" style="margin:2px 0 6px">'+a.h+'</div>'+warn+
       (ls?'<div class="row" style="margin-bottom:6px">'+ls+'</div>':'')+
       '<div class="row"><select data-arb="'+a.id+'" style="width:auto;flex:none;font-size:12px;padding:6px 8px">'+
       ['未查','更便宜','沒有比較便宜','不適用'].map(x=>'<option '+(v.r===x?'selected':'')+'>'+x+'</option>').join('')+
@@ -820,6 +835,12 @@ function renderDecide(){
   else if(d<=120)phase='距出發 '+d+' 天。票價常常還沒真正開跑，特價多半還在後面。';
   else phase='距出發 '+d+' 天。太早了，除了促銷期以外沒什麼理由現在下手。';
   body.push(phase+'（這是航線常見的節奏，不是價格預測。）');
+  // 可接受的條件會實際改變可選範圍，判斷「這個價格算不算貴」時得把它講出來，
+  // 不能只寫進匯出檔案。三項都不接受時價格底線本來就比較高，那不是買貴了。
+  const okList=okConditions();
+  body.push(okList
+    ? '可接受：'+okList+'。'
+    : '三項條件都沒勾，等於只找直飛、正常時段、單一票號的來回票 —— 可選範圍最小，價格底線本來就會比別人查到的高。');
   if(!lo&&!mid){
     body.push('<span class="unk">【資料不足，無法確認】</span>沒有價格錨點，無法判斷目前這個價格算便宜還是貴。先填入你在整月檢視裡看到的低價與常見價。');
     if(d>=0&&d<=14){cls='v-green';head='🟢 傾向現在買';body.push('即使沒有錨點：這麼接近出發日，繼續等的下檔風險大於上檔空間。')}
@@ -831,7 +852,7 @@ function renderDecide(){
     else if(nowFare&&nowFare<=M){cls='v-amber';head='🟡 可以買，但值得再等幾天';
       body.push('目前 '+NT(nowFare)+' 落在低價 '+NT(L)+' 與常見價 '+NT(M)+' 之間。'+(d<=21?'不過只剩 '+d+' 天，繼續等的風險偏高。':'還有 '+d+' 天，可以再觀察。'))}
     else{cls=d<=14?'v-amber':'v-red';head=d<=14?'🟡 價格偏高但時間不多':'🔴 建議等待';
-      body.push('目前 '+NT(nowFare)+' 高於常見價 '+NT(M)+'。'+(d<=14?'時間壓力下可能只能接受，但先確認替代日期與替代機場。':'這條航線近期出現過更低的價格，沒有理由現在買。'))}
+      body.push('目前 '+NT(nowFare)+' 高於常見價 '+NT(M)+'。'+(d<=14?'時間壓力下可能只能接受，但先把日期彈性拉大再查一輪。':'這條航線近期出現過更低的價格，沒有理由現在買。'))}
     body.push('<b>立即購買門檻</b> '+NT(buyAt)+'／人　·　<b>考慮門檻</b> '+NT(M)+'／人　·　'+pax+' 人合計約 '+NT(buyAt*pax)+' 起。');
   }
   $('#decide').innerHTML='<div class="verdict '+cls+'"><div class="v-head">'+head+'</div><div style="margin-top:6px">'+body.join('<br>')+'</div></div>';
@@ -872,7 +893,7 @@ function renderLog(){
 $('#doExport').onclick=()=>{
   renderDecide();
   const r=ranked(), d=daysToDep(), pax=Number(S.trip.pax)||1;
-  const okList=[S.flags.okLcc&&'廉航',S.flags.okRed&&'紅眼',S.flags.okSelf&&'自行轉機'].filter(Boolean).join('、');
+  const okList=okConditions();
   let o=['# 機票總成本評估','',
     '- 航段：'+(S.trip.from||'?')+' → '+(S.trip.to||'?'),
     '- 日期：'+(S.trip.dep||'?')+(S.trip.ret?' ⇄ '+S.trip.ret:'（單程）')+'，彈性 ±'+(S.trip.flex||0)+' 天',

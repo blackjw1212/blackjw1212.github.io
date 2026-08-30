@@ -41,8 +41,12 @@ TAIL = 1000  # 每項失敗輸出尾段上限(字元)
 SRC_EXT = (".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".ino", ".py", ".rs", ".S", ".s",
            ".js", ".ts", ".jsx", ".tsx", ".sh", ".plist", ".xml", ".json", ".toml",
            ".txt", ".yml", ".yaml", ".dsl", ".aml", ".xlsx", ".deb", ".css", ".html")
+# 必須含虛擬環境與工具快取:check_python 對每個 .py 各開一次 subprocess,
+# 掃進 .venv(數百個檔)會讓 Stop hook 逾時而非回報結果。target/ 同理(Rust 建置產物)。
 SKIP_DIRS = {".git", "build", ".pio", "node_modules", ".claude", ".vscode",
-             "managed_components", "dist", ".cache", "__pycache__"}
+             "managed_components", "dist", ".cache", "__pycache__",
+             ".venv", "venv", "site-packages", ".tox", "target",
+             ".mypy_cache", ".pytest_cache", ".ruff_cache", ".next", "coverage"}
 JSONC_DENY = {"tsconfig.json", "jsconfig.json", "devcontainer.json"}
 
 
@@ -59,7 +63,11 @@ def warn(msg):
 def run(cmd, cwd=None):
     """回傳 (returncode, 合併輸出尾段)。"""
     try:
-        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=SUBPROC_TIMEOUT)
+        # 必須明示 encoding:text=True 會用 locale 預設(Windows 上是 cp950),
+        # 子程序若輸出 UTF-8(中文/✅/──)就 UnicodeDecodeError → run() 回 rc=None
+        # → run_override 判定「無法執行 → 放行」= 閘門靜默假綠。
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=SUBPROC_TIMEOUT)
         out = ((r.stdout or "")[-TAIL:] + "\n" + (r.stderr or "")[-TAIL:]).strip()
         return r.returncode, out
     except subprocess.TimeoutExpired:

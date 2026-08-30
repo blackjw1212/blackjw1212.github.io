@@ -1,5 +1,5 @@
 /* BJKW Public Console — service worker */
-const VERSION = "bjkw-v4";
+const VERSION = "bjkw-v5";
 const CACHE = `bjkw-${VERSION}`;
 
 /* App shell：可導覽頁面 + 必要圖示。刻意保持輕量，不預載 512k 大圖。 */
@@ -13,6 +13,11 @@ const PRECACHE = [
   "/forscan/sync3/",
   "/flight/",
   "/dash/",
+  // sw.js 建於 2026-06-21、market/ 建於 2026-07-27，之後一直沒補進來（git log -p 確認
+  // 歷史上一次都沒出現過）。它是從 /stocks/ 連進去的真實頁面，漏掉的後果是離線首訪
+  // 直接落到 /404.html。原始 246KB 但 gzip 後 81KB，收進 app shell 是划算的；
+  // 上面那句「不預載 512k 大圖」講的是圖片，不是頁面。
+  "/market/",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",
