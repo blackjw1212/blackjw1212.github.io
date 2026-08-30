@@ -1054,6 +1054,18 @@ function unitLabel(){
   return prefs.unit === "mph" ? "mph" : "km/h";
 }
 
+// 姿態事件在手機上是 60Hz，每一次都重畫等於每秒上千次 DOM 寫入，
+// 而這支手機同時還在跑 GPS、BLE 與螢幕常亮。合併成一幀一次。
+// 沒有 requestAnimationFrame 的環境（測試沙箱）直接同步畫，行為才可預期。
+let renderQueued = false;
+function scheduleRender(){
+  if (renderQueued) return;
+  const raf = ROOT.requestAnimationFrame;
+  if (typeof raf !== "function") { render(); return; }
+  renderQueued = true;
+  raf(() => { renderQueued = false; render(); });
+}
+
 function render(){
   if (!DOC || !el.speed) return;
 
@@ -1216,7 +1228,7 @@ function applyFix(fix){
     if (Number.isFinite(gpsState.kmh) && gpsState.kmh > tripState.topSpeed) tripState.topSpeed = gpsState.kmh;
   }
   gpsState.lastFix = fix;
-  render();
+  scheduleRender();
 }
 
 // 高精度定位很吃電，而這頁一開就開始定位、停車也還開著。
@@ -1246,7 +1258,7 @@ function createGpsTracker(){
     start(){
       if (!NAV || !NAV.geolocation) {
         gpsState.error = "此瀏覽器不支援定位";
-        render();
+        scheduleRender();
         return;
       }
       if (watchId !== null) return;
@@ -1268,7 +1280,7 @@ function createGpsTracker(){
           console.warn("定位失敗", err);
           gpsState.error = err && err.code === 1 ? "定位權限被拒" : "定位訊號中斷";
           gpsState.hasFix = false;
-          render();
+          scheduleRender();
         },
         GPS_MODES[mode]
       );
@@ -1300,7 +1312,7 @@ function onOrientation(event){
     sensorState.peakLeft = peak.left;
     sensorState.peakRight = peak.right;
   }
-  render();
+  scheduleRender();
 }
 
 function onMotion(event){
@@ -1329,7 +1341,7 @@ async function enableSensors(){
   await requestTilt();
   await wake.acquire();
   if (el.btnTilt) el.btnTilt.hidden = !needsGesture();
-  render();
+  scheduleRender();
 }
 
 function attachTilt(){
@@ -1340,14 +1352,14 @@ function attachTilt(){
   // 這顆按鈕同時負責螢幕常亮，所以要兩件事都拿到才收起來。
   // 橫放時控制列只有一排的高度，留著會把其他鍵擠到畫面外。
   if (el.btnTilt) el.btnTilt.hidden = !needsGesture();
-  render();
+  scheduleRender();
 }
 
 // iOS 13+ 只能在使用者手勢的呼叫堆疊裡要權限；自動要會直接被拒且之後要不回來。
 async function requestTilt(){
   if (typeof DeviceOrientationEvent === "undefined") {
     sensorState.permission = "unsupported";
-    render();
+    scheduleRender();
     return;
   }
   if (!needsTiltPermission()) { attachTilt(); return; }
@@ -1355,7 +1367,7 @@ async function requestTilt(){
     const granted = await DeviceOrientationEvent.requestPermission();
     if (granted !== "granted") {
       sensorState.permission = "denied";
-      render();
+      scheduleRender();
       return;
     }
     if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
@@ -1365,7 +1377,7 @@ async function requestTilt(){
   } catch (error) {
     console.warn("姿態感測權限請求失敗", error);
     sensorState.permission = "denied";
-    render();
+    scheduleRender();
   }
 }
 
@@ -1427,12 +1439,28 @@ function createObdLink(){
     pump();
   }
 
+  // 把所有還在等的呼叫端結掉。
+  // 實測踩過：斷線時只把 queue 清空、pending 設 null，那些 promise 就永遠不會 settle——
+  // 呼叫端 await 在那裡回不來，而 pump 裡的 await 也不會恢復，running 永遠是 true，
+  // 於是重新連上之後整條佇列還是死的。斷線後重連是熄火時一定會遇到的情境。
+  function drain(){
+    const jobs = queue;
+    queue = [];
+    if (pending) {
+      clearTimeout(pending.timer);
+      const p = pending;
+      pending = null;
+      p.resolve(null);        // 讓 pump 的 await 恢復，running 才會被放掉
+    }
+    for (const job of jobs) job.resolve(null);
+  }
+
   return {
     isConnected(){ return !!transport; },
     attach(next){
+      drain();
       transport = next;
       buffer = "";
-      queue = [];
       if (transport && typeof transport.onLine === "function") transport.onLine(handleChunk);
     },
     detach(){
@@ -1440,8 +1468,7 @@ function createObdLink(){
         try { transport.disconnect(); } catch (error) { console.warn("中斷 OBD 失敗", error); }
       }
       transport = null;
-      queue = [];
-      if (pending) { clearTimeout(pending.timer); pending = null; }
+      drain();
     },
     send,
     async init(){
@@ -1483,11 +1510,7 @@ async function connectBluetoothTransport(){
   notifyChar.addEventListener("characteristicvaluechanged", (event) => {
     onChunk(decoder.decode(event.target.value));
   });
-  device.addEventListener("gattserverdisconnected", () => {
-    obdState.status = "error";
-    obdState.error = "OBD 連線中斷";
-    render();
-  });
+  device.addEventListener("gattserverdisconnected", () => handleObdDropped("OBD 連線中斷"));
   return {
     write(text){
       const data = encoder.encode(text);
@@ -1506,16 +1529,16 @@ function createWakeLock(){
   let lock = null;
   const supported = !!(NAV && NAV.wakeLock && typeof NAV.wakeLock.request === "function");
   async function acquire(){
-    if (!supported) { wakeState = "unsupported"; render(); return; }
+    if (!supported) { wakeState = "unsupported"; scheduleRender(); return; }
     try {
       lock = await NAV.wakeLock.request("screen");
       wakeState = "active";
-      lock.addEventListener("release", () => { wakeState = "idle"; render(); });
+      lock.addEventListener("release", () => { wakeState = "idle"; scheduleRender(); });
     } catch (error) {
       console.warn("螢幕常亮取得失敗", error);
       wakeState = "failed";
     }
-    render();
+    scheduleRender();
   }
   return {
     supported,
@@ -1524,7 +1547,7 @@ function createWakeLock(){
       try { if (lock) await lock.release(); } catch (error) { console.warn("釋放螢幕常亮失敗", error); }
       lock = null;
       if (wakeState === "active") wakeState = "idle";
-      render();
+      scheduleRender();
     },
     // 切到背景時系統會自動釋放，回前景要自己重拿
     reacquire(){ if (tripState.running && wakeState !== "active") acquire(); },
@@ -1536,6 +1559,21 @@ function createWakeLock(){
 const obd = createObdLink();
 let obdLoop = null;
 let obdTick = 0;
+let obdPolling = false;
+
+// 配接器自己掉線（熄火、拔掉、走出範圍）時的收尾。
+// 只把狀態改成錯誤是不夠的：輪詢還在跑、transport 也還掛著，
+// 會對一條死掉的連線每 250ms 敲一次。
+function handleObdDropped(message){
+  if (obdLoop !== null) { clearInterval(obdLoop); obdLoop = null; }
+  obd.detach();
+  obdPolling = false;
+  obdState.status = "error";
+  obdState.error = message || "OBD 連線中斷";
+  obdState.rpm = null;
+  obdState.rpmAt = 0;
+  scheduleRender();
+}
 
 function applyObdReading(pid, bytes){
   if (!bytes) return;
@@ -1559,7 +1597,19 @@ function applyObdReading(pid, bytes){
 // 分頻輪詢：每一輪都問轉速，中頻兩輪一次，低頻輪流問一項。
 // 全部同頻的話轉速會慢到燈條沒有意義。
 async function pollObdOnce(){
-  if (!obd.isConnected()) return;
+  // 一輪還沒問完就不要開下一輪。
+  // 實測踩過：250ms 一次的 setInterval 配上一顆每筆要 120ms 的 clone，
+  // 兩秒就積壓六筆，而且只會越積越多——畫面上的讀數會離現在越來越遠。
+  if (obdPolling || !obd.isConnected()) return;
+  obdPolling = true;
+  try {
+    await pollObdCycle();
+  } finally {
+    obdPolling = false;
+  }
+}
+
+async function pollObdCycle(){
   const wanted = [...OBD_HOT];
   if (obdTick % 2 === 0) wanted.push(...OBD_WARM);
   const cold = OBD_COLD[Math.floor(obdTick / 4) % OBD_COLD.length];
@@ -1569,14 +1619,14 @@ async function pollObdOnce(){
     if (obdState.supported.length && !obdState.supported.includes(pid)) continue;
     applyObdReading(pid, await obd.ask(pid));
   }
-  render();
+  scheduleRender();
 }
 
 async function connectObd(){
   if (obdState.status === "connecting") return;
   obdState.status = "connecting";
   obdState.error = "";
-  render();
+  scheduleRender();
   try {
     obd.attach(await connectBluetoothTransport());
     await obd.init();
@@ -1592,7 +1642,7 @@ async function connectObd(){
     obdState.error = error && error.name === "NotFoundError" ? "沒有選擇裝置" : "OBD 連線失敗";
     obd.detach();
   }
-  render();
+  scheduleRender();
 }
 
 function disconnectObd(){
@@ -1602,7 +1652,7 @@ function disconnectObd(){
   obdState.error = "";
   obdState.rpm = null;
   obdState.rpmAt = 0;
-  render();
+  scheduleRender();
 }
 
 // 轉速夠新才拿來畫燈條。斷線之後不可以讓燈條凍在最後一筆。
@@ -1693,7 +1743,7 @@ function tick(){
     commitBests();
   }
   if (tripState.lastMovingAt !== null && idleFor > IDLE_DOWNGRADE_MS) setGpsMode("low");
-  render();
+  scheduleRender();
 }
 
 function resetTrip(){
@@ -1709,7 +1759,7 @@ function resetTrip(){
   movingStreak = 0;
   // 這是使用者刪掉已落地座標的唯一入口，免責裡有指名這顆按鈕
   clearTrack();
-  render();
+  scheduleRender();
 }
 
 function zeroLean(){
@@ -1720,14 +1770,14 @@ function zeroLean(){
   prefs.zeroOffset = raw;
   sensorState.lean = 0;
   savePrefs();
-  render();
+  scheduleRender();
 }
 
 function toggleUnit(){
   prefs.unit = prefs.unit === "mph" ? "kmh" : "mph";
   savePrefs();
   buildScale();   // 刻度標籤要跟著換算
-  render();
+  scheduleRender();
 }
 
 function clearBest(){
@@ -1735,7 +1785,7 @@ function clearBest(){
   prefs.bestLeanLeft = 0;
   prefs.bestLeanRight = 0;
   savePrefs();
-  render();
+  scheduleRender();
 }
 
 function readBattery(){
@@ -1787,7 +1837,7 @@ function init(){
   if (DOC.addEventListener) DOC.addEventListener("visibilitychange", () => { if (!DOC.hidden) wake.reacquire(); });
 
   readBattery();
-  render();
+  scheduleRender();
 }
 
 const dashApp = {
@@ -1799,6 +1849,8 @@ const dashApp = {
   // 讓測試用注入的假 transport 跑完整條 OBD 問答，不必真的有藍牙
   obdLink: obd,
   applyObdReading,
+  pollObd: pollObdOnce,
+  dropObd: handleObdDropped,
   // 自動停止與降級都在 tick 裡判斷。開出來讓測試用假時鐘驅動，不必等真實的 20 秒。
   tick,
   getState: () => ({ gps: gpsState, sensor: sensorState, trip: tripState, prefs, gpsMode: gps.getMode(), track: trackPoints, obd: obdState }),
