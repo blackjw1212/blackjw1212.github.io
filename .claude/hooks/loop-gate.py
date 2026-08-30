@@ -64,8 +64,11 @@ def run_checks(checks, cwd):
     fails = []
     for c in checks:
         try:
+            # 明示 encoding:text=True 會用 locale 預設(Windows 上是 cp950),
+            # 檢查指令輸出 UTF-8 就會 UnicodeDecodeError(見 verify.py 同段註解)。
             r = subprocess.run(c, cwd=cwd, shell=True, capture_output=True,
-                               text=True, timeout=SUBPROC_TIMEOUT)
+                               text=True, encoding="utf-8", errors="replace",
+                               timeout=SUBPROC_TIMEOUT)
             rc = r.returncode
             tail = ((r.stdout or "")[-TAIL:] + "\n" + (r.stderr or "")[-TAIL:]).strip()
         except subprocess.TimeoutExpired:
