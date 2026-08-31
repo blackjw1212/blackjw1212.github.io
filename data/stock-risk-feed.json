@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-08-29T03:42:53.296Z",
-  "eodUpdatedAt": "2026-08-29T03:42:53.296Z",
-  "eodTradingDate": "2026-08-28",
+  "updatedAt": "2026-08-31T02:15:38.480Z",
+  "eodUpdatedAt": "2026-08-31T02:15:38.480Z",
+  "eodTradingDate": "2026-08-31",
   "holdings": [
     "2330",
     "2317",
@@ -35,16 +35,16 @@
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 253,
-      "change": 1,
-      "date": "2026-08-28"
+      "close": 250,
+      "change": -3,
+      "date": "2026-08-31"
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2420,
-      "change": 10,
-      "date": "2026-08-28"
+      "close": 2385,
+      "change": -35,
+      "date": "2026-08-31"
     },
     {
       "code": "2356",
