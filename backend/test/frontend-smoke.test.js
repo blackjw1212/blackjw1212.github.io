@@ -282,6 +282,11 @@ test("root index is a status overview entry console", async () => {
   assert.doesNotMatch(html, /保留工具|舊站入口|1 click/, "migration-era vanity metrics must stay gone");
   // 憑證設定狀態是內部資訊，不對訪客揭露
   assert.doesNotMatch(html, /CWA secret/, "credential state must not be published");
+  // 狀態卡上的三顆 chip（DATA / YIELD / CWA）用同一個樣式承載三種語義——類別、
+  // 指標種類、上游機關——而且每一顆都跟頁面上已有的東西重複：前兩顆被標題
+  // 「持股監控」「美國 10Y 公債」與 4.73% 這個百分比數值說完了，CWA 則在底下
+  // 天氣入口卡的「資料：CWA through weather proxy」講過一次。移除，不要再加回來。
+  assert.doesNotMatch(html, /class="tag"/, "status card chips duplicate what the page already says");
   // 「10Y」看不出是哪一國、哪一種利率。首頁以台股為主，讀者沒有理由預設它是美債。
   assert.match(html, /<span>美國 10Y 公債<\/span>/, "指標要自帶語義");
   assert.match(html, /aria-label="輕量資料狀態"/);

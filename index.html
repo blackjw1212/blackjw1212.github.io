@@ -53,7 +53,6 @@
   .status-card:hover{border-color:#3d4d59}
   .status-card h2{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;line-height:1.2;letter-spacing:0}
   .status-card h2 span:first-child{color:var(--soft);font-weight:800}
-  .tag{border:1px solid rgba(103,199,229,.35);border-radius:999px;padding:2px 8px;color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
   .status-value{margin-top:18px;font-size:24px;font-weight:900;line-height:1.1}
   .status-meta{margin-top:8px;color:var(--faint);font-size:12px;word-break:break-word}
   .ok{color:var(--green)} .warn{color:var(--amber)}
@@ -119,17 +118,17 @@
   <section class="hero">
     <section class="status-board" aria-label="輕量資料狀態" aria-live="polite">
       <article class="status-card">
-        <h2><span>持股監控</span><span class="tag">DATA</span></h2>
+        <h2><span>持股監控</span></h2>
         <div id="stockFeedStatus" class="status-value warn">讀取中</div>
         <div id="stockFeedMeta" class="status-meta">檢查靜態收盤資料</div>
       </article>
       <article class="status-card">
-        <h2><span>美國 10Y 公債</span><span class="tag">YIELD</span></h2>
+        <h2><span>美國 10Y 公債</span></h2>
         <div id="yieldStatus" class="status-value warn">讀取中</div>
         <div id="yieldMeta" class="status-meta">檢查利率壓力資料</div>
       </article>
       <article class="status-card">
-        <h2><span>Weather Proxy</span><span class="tag">CWA</span></h2>
+        <h2><span>Weather Proxy</span></h2>
         <div id="weatherStatus" class="status-value warn">讀取中</div>
         <div id="weatherMeta" class="status-meta">檢查天氣代理服務</div>
       </article>
