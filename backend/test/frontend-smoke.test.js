@@ -282,6 +282,8 @@ test("root index is a status overview entry console", async () => {
   assert.doesNotMatch(html, /保留工具|舊站入口|1 click/, "migration-era vanity metrics must stay gone");
   // 憑證設定狀態是內部資訊，不對訪客揭露
   assert.doesNotMatch(html, /CWA secret/, "credential state must not be published");
+  // 「10Y」看不出是哪一國、哪一種利率。首頁以台股為主，讀者沒有理由預設它是美債。
+  assert.match(html, /<span>美國 10Y 公債<\/span>/, "指標要自帶語義");
   assert.match(html, /aria-label="輕量資料狀態"/);
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /focus-visible/);
@@ -311,6 +313,9 @@ test("root status overview renders mocked feed and weather health", async () => 
   assert.equal(document.getElementById("stockFeedStatus").textContent, "2 檔");
   assert.match(document.getElementById("stockFeedStatus").className, /ok/);
   assert.equal(document.getElementById("yieldStatus").textContent, "4.56%");
+  // DGS10 有發佈落差（實測 09/01 拿到的是 08/28 的觀測值），只寫來源的話讀者
+  // 看不出這個數字多舊。唯一一行 meta 要先講日期，再講來源。
+  assert.match(document.getElementById("yieldMeta").textContent, /06\/05/, "觀測日必須看得見");
   assert.match(document.getElementById("yieldMeta").textContent, /Mock Treasury/);
   assert.equal(document.getElementById("weatherStatus").textContent, "可查詢");
   assert.match(document.getElementById("weatherStatus").className, /ok/);
