@@ -86,7 +86,7 @@ test("normalizeEod keeps the upstream trading date", () => {
   assert.equal("date" in rows.find((r) => r.code === "2317"), false, "no date when upstream omits it");
 });
 
-test("mergeFeed reports the latest trading date across rows", () => {
+test("mergeFeed dates the feed by its oldest row, never its newest", () => {
   const fetched = {
     eod: [
       { code: "2330", name: "台積電", close: 2290, change: -180, date: "2026-07-17" },
@@ -96,18 +96,38 @@ test("mergeFeed reports the latest trading date across rows", () => {
     yield10y: null,
   };
   const merged = mergeFeed({}, fetched, NOW);
-  assert.equal(merged.eodTradingDate, "2026-07-17", "takes the newest row date, not the oldest");
+  // 取最大值會讓 2317 掛著它自己沒有的日期。首頁把這個值印成「07/17 收盤」，
+  // 全市場 feed 早就因為同樣的寫法讓上千檔股票掛錯日期而改成取最小值，這裡是同一個坑。
+  assert.equal(merged.eodTradingDate, "2026-07-16", "沒有任何一列比這個日期更舊");
 });
 
-test("stale rows do not drag the trading date backwards", () => {
+test("preserved stale rows drag the trading date back, because they really are stale", () => {
   const previous = { ...fullPrevious(), eod: CODES.map((code) => ({ code, name: code, close: 100, change: 1, date: "2026-07-10" })) };
   const merged = mergeFeed(previous, {
     eod: [{ code: "3324", name: "雙鴻", close: 995, change: 25, date: "2026-07-17" }],
     valuation: {},
     yield10y: null,
   }, NOW);
-  assert.equal(merged.eodTradingDate, "2026-07-17");
+  // 十二列還停在 07-10，只有 3324 是 07-17。標成 07-17 等於宣稱全部都是那天的資料。
+  assert.equal(merged.eodTradingDate, "2026-07-10");
   assert.equal(merged.eod.find((r) => r.code === "2330").date, "2026-07-10", "preserved rows keep their own date");
+});
+
+// MIS 的 z 在盤中是「當下成交價」，不是收盤價。這支 workflow 的 cron 是
+// `*/30 0-10 * * 1-5`（台灣 08:00–18:30 每半小時），橫跨整個交易時段，所以沒有這道閘
+// 的話每個交易日都會發生：實測 2026-09-01 10:33 抓到 2308 台達電寫成
+// `date 2026-09-01, close 1855`，而當下 MIS 的 y（08/31 收盤）是 1840、z（盤中）是 1845。
+// 台股 13:30 收盤，判準用台北牆鐘、不用每列的 t——冷門股最後一筆成交可能停在上午，
+// 用 t 當判準會把它們永遠擋在門外。台灣無日光節約，固定 UTC+8。
+test("MIS quotes are only a close after the session ends", async () => {
+  const payload = { msgArray: [{ c: "2330", n: "台積電", z: "2290.0000", y: "2470.0000", d: "20260717" }] };
+  const fakeFetch = async () => ({ ok: true, json: async () => payload });
+  const at = (iso) => fetchMisQuotes(["2330"], fakeFetch, new Date(iso));
+
+  assert.equal((await at("2026-07-17T02:33:00Z")).size, 0, "台北 10:33 盤中：z 是即時價，不可寫進 feed");
+  assert.equal((await at("2026-07-17T05:29:00Z")).size, 0, "台北 13:29 收盤前一分鐘仍是盤中");
+  assert.equal((await at("2026-07-17T05:30:00Z")).size, 1, "台北 13:30 收盤，這一刻起 z 是收盤價");
+  assert.equal((await at("2026-07-17T06:00:00Z")).get("2330").close, 2290, "台北 14:00 正常採用");
 });
 
 test("MIS quotes normalize close, computed change and date; blank quotes skipped", async () => {
@@ -120,7 +140,8 @@ test("MIS quotes normalize close, computed change and date; blank quotes skipped
         ] }
       : { msgArray: [{ c: "3324", n: "雙鴻", z: "913.0000", y: "900.0000", d: "20260717" }] }),
   });
-  const quotes = await fetchMisQuotes(["2330", "2317", "3324"], fakeFetch);
+  // 固定在收盤後（台北 14:00）：不釘死時刻的話，這條測試的結果會隨著跑的時間而變。
+  const quotes = await fetchMisQuotes(["2330", "2317", "3324"], fakeFetch, new Date("2026-07-17T06:00:00Z"));
   assert.deepEqual(quotes.get("2330"), { code: "2330", name: "台積電", close: 2290, change: -180, date: "2026-07-17" });
   assert.equal(quotes.has("2317"), false, "no-trade quote ('-') is skipped, not written as 0");
   assert.equal(quotes.get("3324").close, 913, "OTC code resolved through the otc_ channel");
@@ -128,7 +149,8 @@ test("MIS quotes normalize close, computed change and date; blank quotes skipped
 
 test("MIS failure is tolerated and never throws into the feed", async () => {
   const failing = async () => ({ ok: false, status: 403, json: async () => ({}) });
-  await assert.rejects(() => fetchMisQuotes(["2330"], failing), /HTTP 403/, "caller decides; main() catches this");
+  await assert.rejects(() => fetchMisQuotes(["2330"], failing, new Date("2026-07-17T06:00:00Z")),
+    /HTTP 403/, "caller decides; main() catches this");
 });
 
 // ── 全市場 / ETF 引擎的逐市場保留 ────────────────────────────────

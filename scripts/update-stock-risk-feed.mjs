@@ -80,8 +80,17 @@ export function normalizeEod(rows) {
 
 // 盤後 STOCK_DAY_ALL 可能仍在送前一交易日；MIS 收盤即時報價可補上「當日」。
 // 寬容設計：抓不到就靜默略過，只在交易日比較新時才覆寫，絕不讓 feed 變壞。
-export async function fetchMisQuotes(codes, fetchImpl = fetch) {
+// MIS 的 z 是「當下成交價」，盤中拿它當收盤價會寫出一個當天還不存在的收盤。
+// 台股 13:30 收盤；判準用台北牆鐘而非每列的 t（最後成交時間）——冷門股最後一筆
+// 可能停在上午，用 t 當判準會把它們永遠擋在門外。台灣無日光節約，固定 UTC+8。
+function sessionClosed(now) {
+  const taipei = new Date(now.getTime() + 8 * 3600000);
+  return taipei.getUTCHours() * 60 + taipei.getUTCMinutes() >= 13 * 60 + 30;
+}
+
+export async function fetchMisQuotes(codes, fetchImpl = fetch, now = new Date()) {
   const found = new Map();
+  if (!sessionClosed(now)) return found;
   const ask = async (prefix, list) => {
     if (!list.length) return;
     const channels = list.map((code) => `${prefix}_${code}.tw`).join("|");
@@ -213,10 +222,14 @@ export function mergeFeed(previous, fetched, now) {
   const eod = Object.values(eodMap).sort((a, b) => String(a.code).localeCompare(String(b.code)));
   const fullyFresh = [...STOCK_CODES].every((code) => fetchedCodes.has(code));
   const eodUpdatedAt = fullyFresh ? now : (prev.eodUpdatedAt || (fetchedCodes.size ? now : null));
-  // 資料所屬的最新交易日（與 eodUpdatedAt 的「抓取時刻」分開），供前端標示與陳舊度判斷。
-  const eodTradingDate = eod.reduce((latest, row) => {
+  // 資料所屬的交易日（與 eodUpdatedAt 的「抓取時刻」分開），供前端標示與陳舊度判斷。
+  // **取最小值，不可取最大值。** 逐 code 合併之後各列的日期不必然相同（保留的舊列、
+  // 上市與上櫃發佈不同步），取最大值會讓沒有那天資料的列也被標成那天——首頁就會把
+  // 一組「十二列昨收＋一列今日」印成「今日收盤」。全市場 feed 已經因為同一個寫法
+  // 讓上千檔股票掛錯日期，這裡沿用它的結論。
+  const eodTradingDate = eod.reduce((oldest, row) => {
     const date = row && typeof row.date === "string" ? row.date : null;
-    return date && (!latest || date > latest) ? date : latest;
+    return date && (!oldest || date < oldest) ? date : oldest;
   }, null);
 
   const prevValuation = prev.valuation && typeof prev.valuation === "object" ? prev.valuation : {};
@@ -272,7 +285,8 @@ async function main() {
     errors.push({ source: "TPEX OpenAPI daily close quotes", message: error.message });
   }
 
-  // OpenAPI 盤後仍可能停在前一交易日；用 MIS 收盤報價把落後的列升級到當日。
+  // OpenAPI 盤後仍可能停在前一交易日；收盤後用 MIS 的收盤報價把落後的列升級到當日。
+  // fetchMisQuotes 自己擋掉盤中時段——盤中的 z 是即時價，不是收盤價（見該函式註解）。
   try {
     const quotes = await fetchMisQuotes([...STOCK_CODES]);
     let upgraded = 0;
