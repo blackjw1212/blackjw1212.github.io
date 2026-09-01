@@ -160,12 +160,31 @@ if (has("index.html")) {
   if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/") {
     fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/ and dash:/dash/, got ${primaryLinks.join(", ")}`);
   }
-  assertMatch("index.html", html, /開啟股票投資觀察台 \/stocks\//, "visible stocks CTA");
-  assertMatch("index.html", html, /開啟天氣觀察台 \/weather\//, "visible weather CTA");
-  assertMatch("index.html", html, /開啟 ESP32 觀察台 \/esp32\//, "visible esp32 CTA");
-  assertMatch("index.html", html, /開啟 FORScan 觀察台 \/forscan\//, "visible forscan CTA");
-  assertMatch("index.html", html, /開啟機票決策台 \/flight\//, "visible flight CTA");
-  assertMatch("index.html", html, /開啟騎乘儀表板 \/dash\//, "visible dash CTA");
+  // CTA 改釘不變式，不釘六串字面值。原本六條 assertMatch 各自抄一次文案，
+  // 沒有任何一條看得出「可見文字必須是 accessible name 的子字串」這件事——
+  // 實測那時 /weather/ 與 /flight/ 兩顆按鈕都違反了 WCAG 2.5.3 Label in Name
+  // （可見「開啟機票決策台」，aria-label 卻是「開啟機票總成本決策台」），
+  // 六條字面值全綠，因為它們只各自比對自己抄的那一串。
+  const ctas = [...html.matchAll(/<a class="entry-button"[^>]*href="([^"]+)"[^>]*aria-label="([^"]+)">([^<]+)<\/a>/g)];
+  if (ctas.length !== 6) {
+    fail(`index.html should have exactly 6 entry CTAs, got ${ctas.length}`);
+  }
+  for (const [, href, ariaLabel, visible] of ctas) {
+    // 可見文字＝「開啟 <路徑>」。路徑本身就是這一頁的辨識詞（topbar 也是這樣列的），
+    // 再複述一次卡片標題只是把同一句話講第二遍。
+    if (visible !== `開啟 ${href}`) {
+      fail(`index.html CTA for ${href} should read 「開啟 ${href}」, got 「${visible}」`);
+    }
+    // WCAG 2.5.3：accessible name 必須包含可見文字，否則語音控制使用者
+    // 說出畫面上看到的字會叫不動這顆按鈕。
+    if (!ariaLabel.startsWith(visible)) {
+      fail(`index.html CTA for ${href}: aria-label 「${ariaLabel}」 does not start with the visible 「${visible}」`);
+    }
+    // 而且要比可見文字多說一點——連結被抽出脈絡列表時，只有路徑不足以說明去處。
+    if (ariaLabel.length <= visible.length) {
+      fail(`index.html CTA for ${href}: aria-label adds nothing beyond the visible text`);
+    }
+  }
   assertNoMatch("index.html", html, /\/ai\/|AI 供應鏈觀察台|開啟 AI 觀察台|AI Feed/);
   assertNoMatch("index.html", html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/i);
   assertNoMatch("index.html", html, /保證|可放心|買進|賣出|投資建議|安全資訊/);

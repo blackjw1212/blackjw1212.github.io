@@ -35,7 +35,11 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
   順序與 href 都要一致。`data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
   **同一份清單被釘在兩個地方**：這支腳本，以及 `backend/test/frontend-smoke.test.js`
   的 `assert.deepEqual(primaryLinks, ...)`。只改一邊會讓 `npm test` 紅而靜態契約綠。
-- **各頁的 `<title>`、`canonical`、`theme-color`、CTA 文案逐字比對**。改標題要同步改這支腳本。
+- **各頁的 `<title>`、`canonical`、`theme-color` 逐字比對**。改標題要同步改這支腳本。
+- **首頁六顆入口 CTA 改釘不變式，不釘字面值**：可見文字必須恰好是 `開啟 <href>`，
+  且 `aria-label` 必須**以可見文字開頭**並比它更長。後者是 WCAG 2.5.3 Label in Name
+  ——語音控制使用者說出畫面上看到的字要叫得動按鈕。原本六條各抄一次文案的寫法
+  看不出這條規則，實測 `/weather/` 與 `/flight/` 兩顆長期違規而六條全綠。
 - **禁詞**：首頁與 `/market/` 不得出現 `保證`、`可放心`、`買進(訊號)`、`賣出(訊號)`、
   `投資建議`、`實領淨收益`。**註解也算**——曾因為程式碼註解寫了「保證」而 CI 紅。
 - **所有 `/` 開頭的 href/src/srcset/url() 必須指向真實存在的檔案**。
