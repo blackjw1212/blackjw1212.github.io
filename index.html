@@ -46,10 +46,6 @@
   .topnav a:hover{color:var(--cyan)}
   .topnav a:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
   .hero{display:grid;grid-template-columns:1fr;gap:14px}
-  .hero-copy{border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:28px}
-  .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
-  h1{max-width:760px;margin-top:10px;font-size:clamp(32px,5vw,56px);line-height:1.08;font-weight:900;letter-spacing:0}
-  .lead{max-width:700px;margin-top:16px;color:var(--soft);font-size:16px}
   .status-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .status-card{min-height:128px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px;transition:border-color .15s ease}
   .status-card:hover{border-color:#3d4d59}
@@ -92,7 +88,6 @@
     .shell{width:min(100% - 24px,1200px);padding-top:18px}
     .topbar{flex-direction:column;align-items:flex-start;gap:10px}
     .topnav{justify-content:flex-start}
-    .hero-copy{padding:20px}
     .entries{grid-template-columns:1fr}
     .status-card{min-height:112px}
     .entry{min-height:246px;padding:18px}
@@ -110,7 +105,7 @@
       <img src="/assets/images/favicon.svg" alt="" width="34" height="34">
       <div>
         <div class="brand-kicker">BJKW PUBLIC CONSOLE</div>
-        <div class="brand-title">BJKW 觀察控制台</div>
+        <h1 class="brand-title">BJKW 觀察控制台</h1>
       </div>
     </div>
     <nav class="topnav" aria-label="快速導覽">
@@ -121,15 +116,7 @@
     </nav>
   </header>
 
-  <section class="hero" aria-label="主頁狀態總覽">
-    <div class="hero-copy">
-      <div>
-        <div class="eyebrow">STATUS OVERVIEW</div>
-        <h1>股票、天氣、ESP32、FORScan 四個公開觀察台。</h1>
-        <p class="lead">股票投資觀察價不是目標價；天氣與海象資訊仍需搭配官方資料與現場狀況。</p>
-      </div>
-    </div>
-
+  <section class="hero">
     <section class="status-board" aria-label="輕量資料狀態" aria-live="polite">
       <article class="status-card">
         <h2><span>Stock Feed</span><span class="tag">DATA</span></h2>
