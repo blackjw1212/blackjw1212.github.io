@@ -1,5 +1,5 @@
 /* BJKW Public Console — service worker */
-const VERSION = "bjkw-v5";
+const VERSION = "bjkw-v6";
 const CACHE = `bjkw-${VERSION}`;
 
 /* App shell：可導覽頁面 + 必要圖示。刻意保持輕量，不預載 512k 大圖。 */
@@ -18,6 +18,7 @@ const PRECACHE = [
   // 直接落到 /404.html。原始 246KB 但 gzip 後 81KB，收進 app shell 是划算的；
   // 上面那句「不預載 512k 大圖」講的是圖片，不是頁面。
   "/market/",
+  "/coupon/",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",

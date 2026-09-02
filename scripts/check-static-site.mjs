@@ -94,6 +94,8 @@ for (const rel of [
   "forscan/sync3/index.html",
   "flight/index.html",
   "dash/index.html",
+  "coupon/index.html",
+  "data/coupons.json",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -162,8 +164,8 @@ if (has("index.html")) {
   // 這條擋的是「首頁又長出一個會打網路的區塊」。
   assertNoMatch("index.html", html, /stock-risk-feed\.json|bjkw-weather-proxy[^"]*\/health/, "root runtime fetches");
   assertNoMatch("index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "root body script");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/ and dash:/dash/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/ and coupon:/coupon/, got ${primaryLinks.join(", ")}`);
   }
   // CTA 改釘不變式，不釘六串字面值。原本六條 assertMatch 各自抄一次文案，
   // 沒有任何一條看得出「可見文字必須是 accessible name 的子字串」這件事——
@@ -171,8 +173,8 @@ if (has("index.html")) {
   // （可見「開啟機票決策台」，aria-label 卻是「開啟機票總成本決策台」），
   // 六條字面值全綠，因為它們只各自比對自己抄的那一串。
   const ctas = [...html.matchAll(/<a class="entry-button"[^>]*href="([^"]+)"[^>]*aria-label="([^"]+)">([^<]+)<\/a>/g)];
-  if (ctas.length !== 6) {
-    fail(`index.html should have exactly 6 entry CTAs, got ${ctas.length}`);
+  if (ctas.length !== 7) {
+    fail(`index.html should have exactly 7 entry CTAs, got ${ctas.length}`);
   }
   for (const [, href, ariaLabel, visible] of ctas) {
     // 可見文字＝「開啟 <路徑>」。路徑本身就是這一頁的辨識詞（topbar 也是這樣列的），
@@ -344,13 +346,34 @@ if (has("dash/index.html")) {
   assertMatch("dash/index.html", html, /開啟頁面就會開始定位/, "dash must disclose that opening the page starts positioning");
 }
 
+if (has("coupon/index.html")) {
+  const html = await read("coupon/index.html");
+  assertMatch("coupon/index.html", html, /<html lang="zh-Hant">/, "coupon document language");
+  assertMatch("coupon/index.html", html, /<title>優惠疊加試算台｜BJKW<\/title>/, "coupon title");
+  assertMatch("coupon/index.html", html, /rel="canonical" href="\/coupon\/"/, "coupon canonical");
+  assertMatch("coupon/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "coupon manifest");
+  assertMatch("coupon/index.html", html, /name="theme-color" content="#101418"/, "coupon theme color");
+  assertMatch("coupon/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "coupon service worker registration");
+  assertMatch("coupon/index.html", html, /FEED_URL\s*=\s*"\/data\/coupons\.json"/, "absolute coupon feed path");
+  // 這一頁最容易變成謊話的三件事，各釘一條揭露。優惠資料人工維護、鮮度隨時間腐化，
+  // 少了任何一句，畫面上那個「淨成本」看起來就會像即時查到的真實報價。
+  assertMatch("coupon/index.html", html, /人工核對的快照/, "coupon must disclose the data is a manual snapshot");
+  assertMatch("coupon/index.html", html, /事後給付/, "coupon must distinguish rebates from an immediate discount");
+  assertMatch("coupon/index.html", html, /不是消費建議/, "coupon must carry a non-advice disclaimer");
+  // 頁面自稱不收推廣報酬，那就不能夾帶聯盟行銷追蹤參數——這條擋的是日後
+  // 「順手」把來源連結換成分潤連結。資料檔那一側由 coupon-schema.test.js 把關。
+  assertNoMatch("coupon/index.html", html, /[?&](utm_[a-z]+|aff(?:iliate)?_?id|ref|tag)=/i, "affiliate tracking parameters");
+  // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
+  assertMatch("coupon/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "coupon main script must sit right before </body>");
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

@@ -1,0 +1,139 @@
+{
+  "reviewedAt": "2026-09-03",
+  "scope": "只收「全台通用、線上消費情境」且能在官方頁面上實際讀到的優惠。實體通路限定、旅遊限定、單一商品限定的活動不在此表。",
+  "platforms": [
+    { "id": "shopee", "name": "蝦皮購物", "category": "電商", "url": "https://shopee.tw/" },
+    { "id": "momo", "name": "momo購物網", "category": "電商", "url": "https://www.momoshop.com.tw/" },
+    { "id": "pchome", "name": "PChome 24h", "category": "電商", "url": "https://24h.pchome.com.tw/" },
+    { "id": "foodpanda", "name": "foodpanda", "category": "外送", "url": "https://www.foodpanda.com.tw/" },
+    { "id": "ubereats", "name": "Uber Eats", "category": "外送", "url": "https://www.ubereats.com/tw" }
+  ],
+  "offers": [
+    {
+      "id": "shopee-99-freeship",
+      "appliesTo": ["shopee"],
+      "stackGroup": "platform-shipping",
+      "title": "9.9 購物節 蝦皮店到店全站免運",
+      "code": null,
+      "benefit": { "type": "freeship" },
+      "minSpend": 99,
+      "audience": "all",
+      "validFrom": "2026-09-09",
+      "validUntil": "2026-09-11",
+      "sourceUrl": "https://3c.ltn.com.tw/news/67346",
+      "verifiedAt": "2026-09-03",
+      "note": "來源是媒體報導而非蝦皮官方活動頁，門檻與適用範圍請於活動當日在 App 內確認。依蝦皮條款，運費抵用券每筆訂單限用 1 張，但可與全站折扣券同時使用。"
+    },
+    {
+      "id": "esun-unicard-up",
+      "appliesTo": "*",
+      "stackGroup": "card",
+      "requiresOwned": true,
+      "issuer": "玉山銀行",
+      "title": "Unicard UP選 百大指定消費 3.5%",
+      "code": null,
+      "benefit": { "type": "rebate", "value": 3.5, "cap": 5000, "capPeriod": "month", "capVerified": true },
+      "rebateBase": null,
+      "minSpend": null,
+      "audience": "all",
+      "validFrom": "2026-07-01",
+      "validUntil": "2026-12-31",
+      "sourceUrl": "https://event.esunbank.com.tw/credit/unicard/index.html",
+      "verifiedAt": "2026-09-03",
+      "note": "適用通路以玉山公告的百大名單為準，本表未逐一核對各平台是否在列。官方條款明列排除：四大超商、全聯、分期、繳稅費，以及綁定行動支付於非一般消費通路的交易。上限 5,000 點為每月歸戶額度。"
+    },
+    {
+      "id": "esun-unicard-any",
+      "appliesTo": "*",
+      "stackGroup": "card",
+      "requiresOwned": true,
+      "issuer": "玉山銀行",
+      "title": "Unicard 任意選 自選 8 家 2.5%",
+      "code": null,
+      "benefit": { "type": "rebate", "value": 2.5, "cap": 1000, "capPeriod": "month", "capVerified": true },
+      "rebateBase": null,
+      "minSpend": null,
+      "audience": "all",
+      "validFrom": "2026-07-01",
+      "validUntil": "2026-12-31",
+      "sourceUrl": "https://event.esunbank.com.tw/credit/unicard/index.html",
+      "verifiedAt": "2026-09-03",
+      "note": "須自行於玉山 App 選定 8 家通路，沒選到你要用的平台就沒有這個回饋。與 UP選 屬同一張卡的不同方案，實際只會擇一生效。"
+    },
+    {
+      "id": "taishin-gogoro-delivery",
+      "appliesTo": ["foodpanda", "ubereats"],
+      "stackGroup": "card",
+      "requiresOwned": true,
+      "issuer": "台新銀行",
+      "title": "Gogoro Rewards 聯名卡 外送最高 4%",
+      "code": null,
+      "benefit": { "type": "rebate", "value": 4, "cap": null, "capPeriod": null, "capVerified": false },
+      "rebateBase": null,
+      "minSpend": null,
+      "audience": "all",
+      "validFrom": "2026-07-01",
+      "validUntil": "2026-12-31",
+      "sourceUrl": "https://www.taishinbank.com.tw/TSB/personal/credit/intro/overview/cg042/card001/",
+      "verifiedAt": "2026-09-03",
+      "note": "4% = 一般消費 0.3%（無上限）＋ 指定任務加碼 3.7%。加碼須完成當期任務才拿得到，且回饋上限本次查證未取得——試算採無上限計算，會偏樂觀。"
+    },
+    {
+      "id": "jkopay-shopee",
+      "appliesTo": ["shopee"],
+      "stackGroup": "pay",
+      "requiresOwned": true,
+      "issuer": "街口支付",
+      "title": "蝦皮購物最高 10.5% 回饋",
+      "code": null,
+      "benefit": { "type": "rebate", "value": 10.5, "cap": null, "capPeriod": null, "capVerified": false },
+      "rebateBase": null,
+      "minSpend": null,
+      "audience": "all",
+      "validFrom": null,
+      "validUntil": null,
+      "sourceUrl": "https://mkt.jkopay.com/zh-TW/event/jkoshopee202607",
+      "verifiedAt": "2026-09-03",
+      "note": "官方活動頁是單頁式應用，只讀得到標題的回饋率，活動期間與回饋上限都沒有取得。「最高」通常代表需符合額外條件，實際回饋很可能低於 10.5%。使用前務必開來源連結確認。"
+    }
+  ],
+  "dataGaps": [
+    "foodpanda 與 Uber Eats 的優惠碼一律未收錄。foodpanda 官方折扣頁的內容停留在 2026 年 1 月，Uber Eats 台灣頁對外部讀取一律回 HTTP 406。網路上流傳的 9 月優惠碼全部只出現在聯盟行銷網站、沒有官方出處，因此一個都沒有寫進來——真正有效的碼只在各自 App 的結帳頁看得到。",
+    "國泰世華 CUBE 卡在查證當下全站維護中，三個官方路徑都重導到維護頁。這是台灣網購與外送場景的主力卡之一，也是本表最大的缺口。",
+    "LINE Pay、悠遊付、icash Pay 的當期加碼，以及 OPENPOINT、PXPay 的點數規則，官方頁都需要登入或由 API 驅動，讀不到內文，因此未收錄。",
+    "momo、PChome 24h、家樂福線上、LINE購物本輪未取得任何官方優惠頁的可驗證優惠碼。",
+    "已知的來源衝突：街口「週日採買日」聯盟站寫 13.5%、官方頁寫 15%；全支付日韓活動聯盟站寫 20%、官方頁寫 15%＋加碼 5%。兩者都屬實體或旅遊情境，未進本表，記在這裡是為了留下查證痕跡。"
+  ],
+  "stackingRules": [
+    {
+      "platformId": "shopee",
+      "rule": "單筆訂單可同時使用 1 張運費抵用券 ＋ 1 張蝦皮全站優惠券 ＋ 多張不同賣場的賣家優惠券（每賣場限 1 張）。電子票券訂單僅能用 1 張。",
+      "sourceUrl": "https://help.shopee.tw/portal/4/article/79887",
+      "verifiedAt": "2026-09-03"
+    },
+    {
+      "platformId": "shopee",
+      "rule": "運費抵用券結帳僅能用 1 張，單張可合併結帳 3 筆不同賣場的訂單，超過會被系統擋下。",
+      "sourceUrl": "https://help.shopee.tw/portal/4/article/80069",
+      "verifiedAt": "2026-09-03"
+    },
+    {
+      "platformId": "shopee",
+      "rule": "同一帳號、同一裝置、同一人每筆優惠券限用一次；活動頁公布的代碼除另有說明外只限該活動專區使用；部分優惠券僅限 App。",
+      "sourceUrl": "https://help.shopee.tw/portal/4/article/79903",
+      "verifiedAt": "2026-09-03"
+    },
+    {
+      "platformId": null,
+      "rule": "信用卡回饋一般以折扣後的實際刷卡金額計算——可列入計算的消費金額須扣除購物金、紅利金、折價券等電子點數。此條引自永豐銀行的通則性說明，尚未逐字複驗，且各行條款不盡相同，本頁的試算一律以折後金額估算。",
+      "sourceUrl": "https://bank.sinopac.com/sinopacBT/personal/article/smart-consumption/credit-card-rewards.html",
+      "verifiedAt": "2026-09-03"
+    },
+    {
+      "platformId": null,
+      "rule": "foodpanda 與 Uber Eats 的官方條款頁本輪未能取得，因此「平台優惠碼能否與平台自身滿額活動疊加」在這兩個平台上沒有官方依據。",
+      "sourceUrl": "https://www.foodpanda.com.tw/contents/deals",
+      "verifiedAt": "2026-09-03"
+    }
+  ]
+}

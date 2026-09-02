@@ -152,6 +152,43 @@ html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)
 - 累進差額最容易抄錯且肉眼看不出來 → schema 測試用「在每個級距交界處兩式必須相等」
   的定義性檢查擋住。
 
+## /coupon/：data/ 裡唯一人工維護的 feed
+
+`data/coupons.json` **不由 CI 寫入**，是這個 repo 唯一一份人工維護的 feed。
+沒有 workflow 碰它，改它就是改 repo 內容。
+
+**為什麼是人工的**（查證於 2026-09-03，不要再研究一次）：
+
+- **政府開放資料這條路不存在**。實抓 data.gov.tw 全平台資料集清單（112,171 列），
+  以 `優惠|折扣|振興|抵用|消費券|好禮` 掃描得 121 筆，**全部**是租稅優惠、優惠貸款、
+  振興預算執行、公教特約商店——零筆零售折扣碼。
+- **本地聯盟平台都沒有公開 API**：通路王 iChannels、AFFILIATES.one、蝦皮分潤計畫
+  皆查無開發者文件。
+- **國際聯盟平台有，但要帳號**：Rakuten Coupon Feed 端點是活的
+  （`couponfeed.linksynergy.com/coupon`，無 token 實測回 `Access Denied Token ID Is
+  Invalid or Not Approved`）、Awin 有 `POST /publisher/{id}/promotions` 文件。
+  兩者都需通過廣告主逐一核准，且**台灣本地商家覆蓋率差**（momo、PChome 拿不到）。
+
+**不可以爬的站**（robots.txt 實抓，這條是紅線）：
+
+- `xincoupon.com` 明文 `Disallow` **`anthropic-ai`、`GPTBot`、`CCBot`、`Google-Extended`**
+- `cardu.com.tw` 明文 `Disallow` **`ClaudeBot`**、`GPTBot`
+- `momo` 禁 `/event/*` `/activity/*`；`foodpanda` 禁 `*/campaign/*`；Uber Eats 回 Cloudflare 403
+
+**優惠碼一律不寫進資料檔，除非在官方頁上親眼看到。** foodpanda 官方 deals 頁的內容
+停在 2026 年 1 月，網路上流傳的當月優惠碼**只存在於聯盟行銷站**。編一個看起來合理的碼
+不會讓任何測試變紅，只會讓使用者到結帳頁才發現是假的——`coupon-schema.test.js`
+因此要求每筆都有 `sourceUrl`（https）與 `verifiedAt`。
+
+**誠實性是機器判準，不是自律**：來源連結夾帶聯盟追蹤參數會紅（頁面自稱不收推廣報酬）；
+回饋型優惠必須明寫 `rebateBase`（折扣前/後）與 `capVerified`，查不到就填 `null`，
+頁面會標成「未查證，以折後估算」；有 `cap` 就必須註明 `capPeriod`——
+月上限拿來當單筆上限等於假設本月沒刷過，這件事要說出來。
+
+**複查節奏**：信用卡回饋每季，且 6/30 與 12/31 前後強制複查（銀行權益換檔集中在這兩點）；
+支付加碼每月 1 日；平台優惠碼週為單位、基本上維護不起所以不收。
+`reviewedAt` 超過 21 天頁面轉警示色、60 天轉紅。
+
 ## data/ 是 CI 寫的
 
 `data/*.json` 由 Actions 自動 commit。本機重跑工具後要 push 之前先 `git pull --rebase`，

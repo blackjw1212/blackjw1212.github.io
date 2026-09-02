@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>優惠疊加試算台｜BJKW</title>
+<meta name="description" content="輸入購物情境，試算台灣線上平台的優惠券、信用卡回饋與支付加碼可以怎麼疊，以及疊完的淨成本。" />
+<link rel="canonical" href="/coupon/" />
+<meta property="og:title" content="優惠疊加試算台" />
+<meta property="og:description" content="人工核對的全台通用優惠快照，加上一個把券、卡、支付加碼疊起來算淨成本的試算器。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="BJKW">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--panel-2:#202b34;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#8a97a2;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#ff766e;--violet:#9a7fd1;
+    --shadow:0 18px 50px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:var(--cyan)}
+  .shell{width:min(1100px,calc(100% - 40px));margin:0 auto;padding:24px 0 40px}
+  .skip{position:absolute;left:-9999px;top:0;z-index:9;background:#243340;border:1px solid #405263;border-radius:0 0 8px 0;color:var(--ink);font-weight:900;padding:8px 14px;text-decoration:none}
+  .skip:focus{left:0}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:20px;flex-wrap:wrap}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  h1{font-size:24px;letter-spacing:0;margin-top:4px}
+  .topnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .topnav a{color:var(--faint);text-decoration:none;padding:4px 0}
+  .topnav a:hover{color:var(--cyan)}
+  .topnav a:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
+
+  .freshness{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:8px;background:var(--surface);padding:12px 16px;margin-bottom:18px;font-size:13px;color:var(--soft)}
+  .freshness.warn{border-left-color:var(--amber)}
+  .freshness.stale{border-left-color:var(--red)}
+  .freshness strong{color:var(--ink)}
+
+  .grid{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:18px;align-items:start}
+  .card{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:18px}
+  .card h2{font-size:16px;margin-bottom:14px}
+  .card h3{font-size:14px;color:var(--soft);margin:16px 0 8px}
+
+  .field{display:block;margin-bottom:14px}
+  .field span{display:block;font-size:12px;color:var(--faint);margin-bottom:5px}
+  .field select,.field input[type=number]{width:100%;min-height:40px;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;padding:0 10px}
+  .field select:focus-visible,.field input:focus-visible,.check input:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+  .check{display:flex;align-items:flex-start;gap:9px;min-height:32px;font-size:13px;color:var(--soft);cursor:pointer;padding:3px 0}
+  .check input{margin-top:3px;width:17px;height:17px;flex:0 0 auto;accent-color:var(--teal)}
+  .check b{color:var(--ink);font-weight:700}
+  .owned{display:grid;gap:2px;max-height:250px;overflow-y:auto;padding-right:4px}
+  .owned-empty{color:var(--faint);font-size:12px}
+
+  .result-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 22px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:14px}
+  .big{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:34px;font-weight:800;line-height:1.1;color:var(--teal)}
+  .big-label{font-size:12px;color:var(--faint);display:block;margin-bottom:2px}
+  .sub{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:19px;font-weight:700}
+  .saved{color:var(--green)}
+  .none{color:var(--faint);font-size:14px;padding:8px 0}
+
+  .picks{display:grid;gap:10px;list-style:none}
+  .pick{border:1px solid var(--line);border-left:3px solid var(--violet);border-radius:6px;background:var(--panel);padding:11px 13px}
+  .pick.g-platform-coupon{border-left-color:var(--teal)}
+  .pick.g-platform-shipping{border-left-color:var(--cyan)}
+  .pick.g-card{border-left-color:var(--amber)}
+  .pick.g-pay{border-left-color:var(--violet)}
+  .pick-top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+  .pick-title{font-weight:700;font-size:14px}
+  .pick-amount{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;white-space:nowrap}
+  .pick-meta{margin-top:5px;font-size:12px;color:var(--faint);display:flex;flex-wrap:wrap;gap:4px 12px}
+  .code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--panel-2);border:1px dashed var(--line);border-radius:4px;padding:1px 7px;color:var(--amber);user-select:all}
+  .tag{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--soft)}
+  .warn-tag{border-color:rgba(217,166,76,.55);color:var(--amber)}
+  .lower{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px;align-items:start}
+  .lower ul{margin:0 0 0 18px;display:grid;gap:9px;font-size:13px;color:var(--soft)}
+  .lower li::marker{color:var(--amber)}
+  .rule-src{display:block;margin-top:3px;font-size:12px;color:var(--faint)}
+  .why{color:var(--faint);font-size:12px;margin-top:4px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--faint);font-size:12px;font-weight:700;white-space:nowrap}
+  td.num{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:right;white-space:nowrap}
+  .out{color:var(--faint)}
+  .table-wrap{overflow-x:auto}
+
+  .notes{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px}
+  .notes ul{margin:8px 0 0 18px;display:grid;gap:5px}
+  .notes li::marker{color:var(--amber)}
+  .err{border-left-color:var(--red);color:var(--red)}
+
+  @media (max-width:820px){
+    /* 必須是 minmax(0,1fr) 而不是 1fr：grid item 的 min-width 預設是 auto，
+       單欄時「其他優惠」那張表會把整欄撐到內容寬度，整頁跟著橫向捲動。
+       實測窄螢幕下 body 被撐到 510px、輸入框整排溢出畫面右緣。 */
+    .grid,.lower{grid-template-columns:minmax(0,1fr)}
+    .owned{max-height:none}
+  }
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1100px)}
+    .big{font-size:29px}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#scenario">跳到情境輸入</a>
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <div class="brand-kicker">COUPON STACK CALCULATOR</div>
+      <h1>優惠疊加試算台</h1>
+    </div>
+    <nav class="topnav" aria-label="快速導覽">
+      <a href="/">/</a>
+      <a href="/stocks/">/stocks/</a>
+      <a href="/market/">/market/</a>
+      <a href="/flight/">/flight/</a>
+    </nav>
+  </header>
+
+  <div class="freshness" id="freshness">
+    <span id="freshnessText">讀取優惠資料…</span>
+  </div>
+
+  <div class="grid">
+    <section class="card" id="scenario" aria-label="購物情境">
+      <h2>購物情境</h2>
+      <label class="field">
+        <span>平台</span>
+        <select id="platform"></select>
+      </label>
+      <label class="field">
+        <span>商品金額（元）</span>
+        <input type="number" id="subtotal" min="0" step="1" inputmode="numeric" value="500">
+      </label>
+      <label class="field">
+        <span>運費（元）</span>
+        <input type="number" id="shipping" min="0" step="1" inputmode="numeric" value="0">
+      </label>
+      <label class="check">
+        <input type="checkbox" id="newUser">
+        <span>我是<b>該平台新戶</b>（從未下過單）</span>
+      </label>
+
+      <h3>我持有的信用卡</h3>
+      <div class="owned" id="ownedCards"></div>
+
+      <h3>我可用的支付與會員</h3>
+      <div class="owned" id="ownedPays"></div>
+    </section>
+
+    <section class="card" aria-label="試算結果">
+      <h2>建議組合</h2>
+      <div class="result-head">
+        <div>
+          <span class="big-label">淨成本</span>
+          <span class="big" id="netCost">—</span>
+        </div>
+        <div>
+          <span class="big-label">當下實付</span>
+          <span class="sub" id="payable">—</span>
+        </div>
+        <div>
+          <span class="big-label">事後回饋</span>
+          <span class="sub saved" id="rebate">—</span>
+        </div>
+        <div>
+          <span class="big-label">比原價省</span>
+          <span class="sub saved" id="saved">—</span>
+        </div>
+      </div>
+      <ul class="picks" id="picks"></ul>
+      <div class="none" id="picksEmpty" hidden>這個情境下沒有可套用的優惠。</div>
+
+      <h3>該平台其他優惠（未採用的原因）</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>優惠</th><th>類型</th><th class="num">效益</th><th>沒被採用的原因</th><th>到期</th></tr>
+          </thead>
+          <tbody id="restBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="lower">
+    <section class="card" aria-label="這份資料查不到什麼">
+      <h2>這份資料查不到什麼</h2>
+      <ul id="dataGaps"></ul>
+    </section>
+    <section class="card" aria-label="疊加規則的出處">
+      <h2>疊加規則的出處</h2>
+      <ul id="stackRules"></ul>
+    </section>
+  </div>
+
+  <footer class="notes">
+    <strong>這一頁在算什麼，不在算什麼</strong>
+    <ul>
+      <li>資料是<b>人工核對的快照</b>，不是即時抓取。台灣沒有免費公開的優惠券 API——政府開放資料平台掃過全部 11 萬筆資料集，沒有一筆零售折扣碼；本地聯盟平台也都沒有公開 API，而國際聯盟平台的 coupon feed 要有通過廣告主審核的推廣者帳號。每一筆都附來源連結，請以各平台當下公告為準。</li>
+      <li>已過期的優惠會自動隱藏，但<b>「還沒到期」不等於「還有效」</b>：平台可隨時提前結束、發完為止、或限定特定商品。</li>
+      <li>信用卡與支付回饋多為<b>事後給付</b>，不會讓你當下少付。淨成本欄把它減掉是為了比較，不是現金流。</li>
+      <li>回饋以折扣前還是折扣後金額計算，各家條款不同。<b>來源沒寫明的一律以折後金額估算</b>，屬保守值，實際可能更高。</li>
+      <li>同一組別的優惠假設互斥（只能挑一張），跨組別假設可疊。這是依各平台條款整理的通則，個別活動可能另有限制。</li>
+      <li>本頁為個人整理的試算工具，不是消費建議，也不從任何平台取得推廣報酬。</li>
+    </ul>
+  </footer>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const FEED_URL = "/data/coupons.json";
+  const STATE_KEY = "bjkw-coupon-console-v1";
+  // 資料是人工維護的，鮮度只能靠核對日宣告。超過這些天數就換一種說法，
+  // 不要讓一份三個月沒動的快照看起來跟今天剛核對過的一樣。
+  const WARN_DAYS = 21;
+  const STALE_DAYS = 60;
+
+  // 同一組別互斥（只能挑一），跨組別可疊。順序即結算順序。
+  const GROUPS = [
+    { id: "platform-coupon", label: "平台優惠券" },
+    { id: "platform-shipping", label: "運費" },
+    { id: "card", label: "信用卡回饋" },
+    { id: "pay", label: "支付／會員加碼" },
+  ];
+  // 每組候選數的上限。組合數是各組候選數的乘積，不設限的話一份大資料檔
+  // 就能讓瀏覽器卡住。取效益粗估最高的前幾筆已足夠——被截掉的必然更差。
+  const MAX_PER_GROUP = 12;
+
+  const state = {
+    feed: null,
+    platformId: "",
+    subtotal: 500,
+    shipping: 0,
+    newUser: false,
+    owned: {},
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+  ));
+
+  function todayISO() {
+    // 用本地日期，不是 UTC：台灣時間凌晨 0-8 點取 UTC 日期會少一天，
+    // 讓當天到期的優惠提早一天消失。
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+
+  function daysBetween(fromISO, toISO) {
+    const a = Date.parse(`${fromISO}T00:00:00Z`);
+    const b = Date.parse(`${toISO}T00:00:00Z`);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    return Math.round((b - a) / 86400000);
+  }
+
+  const money = (n) => `NT$${Math.round(n).toLocaleString("en-US")}`;
+
+  function num(value, fallback = 0) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  /* ---------- 資格判定 ---------- */
+
+  // 日期是含頭含尾的閉區間。缺 validUntil 代表「沒有公告截止日」而不是永久有效，
+  // 照樣讓它通過，但畫面上要標出來（見 expiryLabel）。
+  function isActive(offer, today) {
+    if (offer.validFrom && offer.validFrom > today) return false;
+    if (offer.validUntil && offer.validUntil < today) return false;
+    return true;
+  }
+
+  function appliesToPlatform(offer, platformId) {
+    const scope = offer.appliesTo;
+    if (!scope || scope === "*") return true;
+    if (Array.isArray(scope)) return scope.includes("*") || scope.includes(platformId);
+    return scope === platformId;
+  }
+
+  // 回傳 null 代表可用；回傳字串代表不可用的原因（要顯示給使用者看）。
+  function blockReason(offer, ctx) {
+    if (!appliesToPlatform(offer, ctx.platformId)) return "不適用這個平台";
+    if (!isActive(offer, ctx.today)) {
+      return offer.validFrom && offer.validFrom > ctx.today ? "尚未開始" : "已過期";
+    }
+    if (offer.audience === "new" && !ctx.newUser) return "限新戶";
+    if (offer.audience === "existing" && ctx.newUser) return "限舊戶";
+    if (offer.requiresOwned && !ctx.owned[offer.id]) return "你沒有勾選持有";
+    const min = num(offer.minSpend, 0);
+    if (min > 0 && ctx.subtotal < min) return `差 ${money(min - ctx.subtotal)} 到門檻`;
+    return null;
+  }
+
+  /* ---------- 效益計算 ---------- */
+
+  // 折抵：當下就少付的金額。
+  function discountOf(offer, ctx) {
+    const b = offer.benefit || {};
+    if (b.type === "percent") {
+      const raw = ctx.subtotal * (num(b.value) / 100);
+      return Math.max(0, b.cap == null ? raw : Math.min(raw, num(b.cap)));
+    }
+    if (b.type === "fixed") return Math.max(0, num(b.value));
+    return 0;
+  }
+
+  function isFreeShipping(offer) {
+    return (offer.benefit || {}).type === "freeship";
+  }
+
+  // 回饋：事後才給，不影響當下實付。
+  // rebateBase 說明回饋是以折扣前還是折扣後金額計算。來源沒寫明（null）時採
+  // 折後金額——這是保守方向，估低不估高。
+  function rebateOf(offer, ctx, payable) {
+    const b = offer.benefit || {};
+    if (b.type !== "rebate") return 0;
+    const base = offer.rebateBase === "subtotal" ? ctx.subtotal + ctx.shipping : payable;
+    const raw = base * (num(b.value) / 100);
+    return Math.max(0, b.cap == null ? raw : Math.min(raw, num(b.cap)));
+  }
+
+  // 排序用的粗估效益，只用來決定「哪些候選進得了枚舉」，不是最終答案。
+  function roughValue(offer, ctx) {
+    if (isFreeShipping(offer)) return ctx.shipping;
+    const b = offer.benefit || {};
+    if (b.type === "rebate") {
+      const raw = (ctx.subtotal + ctx.shipping) * (num(b.value) / 100);
+      return b.cap == null ? raw : Math.min(raw, num(b.cap));
+    }
+    return discountOf(offer, ctx);
+  }
+
+  function evaluate(combo, ctx) {
+    let discount = 0;
+    let shipping = ctx.shipping;
+    // 每一筆都先進位成整數再加總。銀行本來就是逐筆算到元／點，而且畫面上明細與
+    // 總計是同一組數字——各自捨入會讓 18 + 53 顯示成 70，看起來就像算錯了。
+    for (const offer of combo) {
+      if (isFreeShipping(offer)) shipping = 0;
+      else discount += Math.round(discountOf(offer, ctx));
+    }
+    // 折抵不會讓商品金額變成負的，但運費照付——多數平台的折價券只折商品。
+    discount = Math.min(discount, ctx.subtotal);
+    const payable = ctx.subtotal - discount + shipping;
+    let rebate = 0;
+    for (const offer of combo) rebate += Math.round(rebateOf(offer, ctx, payable));
+    rebate = Math.min(rebate, payable);
+    return { combo, discount, shipping, payable, rebate, net: payable - rebate };
+  }
+
+  function candidatesByGroup(offers, ctx) {
+    const buckets = new Map(GROUPS.map((g) => [g.id, []]));
+    for (const offer of offers) {
+      if (!buckets.has(offer.stackGroup)) continue;
+      if (blockReason(offer, ctx)) continue;
+      buckets.get(offer.stackGroup).push(offer);
+    }
+    for (const [id, list] of buckets) {
+      list.sort((a, b) => roughValue(b, ctx) - roughValue(a, ctx));
+      if (list.length > MAX_PER_GROUP) buckets.set(id, list.slice(0, MAX_PER_GROUP));
+    }
+    return buckets;
+  }
+
+  // 每組挑 0 或 1 張，枚舉所有組合取淨成本最低。組別固定四個、每組上限
+  // MAX_PER_GROUP，最壞情況 13^4 ≈ 2.9 萬次評估，瀏覽器毫秒級。
+  function bestCombo(offers, ctx) {
+    const buckets = candidatesByGroup(offers, ctx);
+    let best = evaluate([], ctx);
+    const groups = GROUPS.map((g) => buckets.get(g.id) || []);
+
+    const walk = (index, picked) => {
+      if (index === groups.length) {
+        const result = evaluate(picked, ctx);
+        // 淨成本相同時取當下實付較低的：回饋要等，折抵是現在就少付。
+        if (result.net < best.net - 1e-9
+          || (Math.abs(result.net - best.net) < 1e-9 && result.payable < best.payable)) {
+          best = result;
+        }
+        return;
+      }
+      walk(index + 1, picked);
+      for (const offer of groups[index]) walk(index + 1, picked.concat(offer));
+    };
+    walk(0, []);
+    return best;
+  }
+
+  /* ---------- 畫面 ---------- */
+
+  function ctxFromState() {
+    return {
+      platformId: state.platformId,
+      subtotal: Math.max(0, num(state.subtotal, 0)),
+      shipping: Math.max(0, num(state.shipping, 0)),
+      newUser: !!state.newUser,
+      owned: state.owned,
+      today: todayISO(),
+    };
+  }
+
+  function offersForPlatform(ctx) {
+    const all = (state.feed && state.feed.offers) || [];
+    return all.filter((offer) => appliesToPlatform(offer, ctx.platformId));
+  }
+
+  function groupLabel(id) {
+    const found = GROUPS.find((g) => g.id === id);
+    return found ? found.label : id;
+  }
+
+  function expiryLabel(offer, today) {
+    if (!offer.validUntil) return "未公告截止日";
+    const left = daysBetween(today, offer.validUntil);
+    if (left === null) return offer.validUntil;
+    if (left === 0) return `${offer.validUntil}（今天最後一天）`;
+    return `${offer.validUntil}（剩 ${left} 天）`;
+  }
+
+  // 上限是「每月」還是「每筆」對試算的意義完全不同：月上限拿來當單筆上限，
+  // 等於假設這個月的額度一次都還沒用過。這件事要寫在畫面上，不能只寫「上限 5,000」。
+  function capText(benefit) {
+    if (benefit.cap == null) return "";
+    const period = benefit.capPeriod === "month" ? "／月"
+      : benefit.capPeriod === "order" ? "／筆" : "";
+    return `，上限 ${money(benefit.cap)}${period}`;
+  }
+
+  function benefitText(offer, ctx) {
+    const b = offer.benefit || {};
+    if (b.type === "freeship") return "免運";
+    if (b.type === "percent") return `折 ${num(b.value)}%${capText(b)}`;
+    if (b.type === "fixed") return `折 ${money(num(b.value))}`;
+    if (b.type === "rebate") return `回饋 ${num(b.value)}%${capText(b)}`;
+    return "—";
+  }
+
+  // 這張券的數字有哪些地方是估的。每一條都對應一個「試算可能偏樂觀」的來源，
+  // 全部攤在券面上——不然畫面上那個回饋金額看起來會像是查證過的事實。
+  function caveats(offer) {
+    const b = offer.benefit || {};
+    const out = [];
+    if (b.type !== "rebate") return out;
+    if (offer.rebateBase == null) out.push("回饋基準未查證，以折後估算");
+    if (b.cap == null && b.capVerified === false) out.push("回饋上限未查證，以無上限估算");
+    if (b.capPeriod === "month") out.push("上限為月額度，試算假設本月尚未用過");
+    return out;
+  }
+
+  function amountText(offer, ctx, result) {
+    if (isFreeShipping(offer)) return `-${money(result.shipping === 0 ? ctx.shipping : 0)}`;
+    const b = offer.benefit || {};
+    if (b.type === "rebate") return `+${money(rebateOf(offer, ctx, result.payable))}`;
+    return `-${money(discountOf(offer, ctx))}`;
+  }
+
+  function renderPicks(result, ctx) {
+    const list = $("picks");
+    const empty = $("picksEmpty");
+    if (!result.combo.length) {
+      list.innerHTML = "";
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    const order = GROUPS.map((g) => g.id);
+    const sorted = result.combo.slice().sort(
+      (a, b) => order.indexOf(a.stackGroup) - order.indexOf(b.stackGroup)
+    );
+    list.innerHTML = sorted.map((offer) => {
+      const code = offer.code
+        ? `<span class="code">${esc(offer.code)}</span>`
+        : `<span class="tag">免輸入代碼</span>`;
+      const source = offer.sourceUrl
+        ? `<a href="${esc(offer.sourceUrl)}" target="_blank" rel="noopener noreferrer">來源</a>`
+        : `<span class="out">無來源連結</span>`;
+      const basis = caveats(offer).map((text) => `<span class="tag warn-tag">${esc(text)}</span>`).join("");
+      const note = offer.note ? `<div class="why">${esc(offer.note)}</div>` : "";
+      return `<li class="pick g-${esc(offer.stackGroup)}">
+        <div class="pick-top">
+          <span class="pick-title">${esc(offer.title)}</span>
+          <span class="pick-amount">${amountText(offer, ctx, result)}</span>
+        </div>
+        <div class="pick-meta">
+          <span class="tag">${esc(groupLabel(offer.stackGroup))}</span>
+          ${code}
+          ${basis}
+          <span>${esc(expiryLabel(offer, ctx.today))}</span>
+          <span>核對 ${esc(offer.verifiedAt || "—")}</span>
+          ${source}
+        </div>
+        ${note}
+      </li>`;
+    }).join("");
+  }
+
+  function renderRest(result, ctx) {
+    const chosen = new Set(result.combo.map((offer) => offer.id));
+    const rows = offersForPlatform(ctx)
+      .filter((offer) => !chosen.has(offer.id))
+      .filter((offer) => isActive(offer, ctx.today))
+      .map((offer) => {
+        const reason = blockReason(offer, ctx) || "可用，但疊起來沒有比較省";
+        return `<tr>
+          <td>${esc(offer.title)}${offer.code ? ` <span class="code">${esc(offer.code)}</span>` : ""}</td>
+          <td>${esc(groupLabel(offer.stackGroup))}</td>
+          <td class="num">${esc(benefitText(offer, ctx))}</td>
+          <td class="out">${esc(reason)}</td>
+          <td class="out">${esc(expiryLabel(offer, ctx.today))}</td>
+        </tr>`;
+      });
+    $("restBody").innerHTML = rows.length
+      ? rows.join("")
+      : `<tr><td colspan="5" class="out">這個平台沒有其他還在期限內的優惠。</td></tr>`;
+  }
+
+  function renderResult() {
+    const ctx = ctxFromState();
+    const result = bestCombo(offersForPlatform(ctx), ctx);
+    const listPrice = ctx.subtotal + ctx.shipping;
+    $("netCost").textContent = money(result.net);
+    $("payable").textContent = money(result.payable);
+    $("rebate").textContent = money(result.rebate);
+    $("saved").textContent = money(Math.max(0, listPrice - result.net));
+    renderPicks(result, ctx);
+    renderRest(result, ctx);
+    return result;
+  }
+
+  function ownedOffers() {
+    const all = (state.feed && state.feed.offers) || [];
+    return all.filter((offer) => offer.requiresOwned);
+  }
+
+  function renderOwnedControls() {
+    const today = todayISO();
+    const build = (containerId, groupId, emptyText) => {
+      const container = $(containerId);
+      const items = ownedOffers()
+        .filter((offer) => offer.stackGroup === groupId)
+        .filter((offer) => isActive(offer, today));
+      if (!items.length) {
+        container.innerHTML = `<div class="owned-empty">${esc(emptyText)}</div>`;
+        return;
+      }
+      container.innerHTML = items.map((offer) => `<label class="check">
+        <input type="checkbox" data-owned="${esc(offer.id)}"${state.owned[offer.id] ? " checked" : ""}>
+        <span><b>${esc(offer.issuer || "")}</b> ${esc(offer.title)}</span>
+      </label>`).join("");
+      for (const input of container.querySelectorAll("input")) {
+        input.addEventListener("change", (event) => {
+          const target = event.target;
+          state.owned[target.dataset.owned] = !!target.checked;
+          save();
+          renderResult();
+        });
+      }
+    };
+    build("ownedCards", "card", "資料檔裡目前沒有還在期限內的信用卡回饋。");
+    build("ownedPays", "pay", "資料檔裡目前沒有還在期限內的支付或會員加碼。");
+  }
+
+  function renderPlatforms() {
+    const select = $("platform");
+    const platforms = (state.feed && state.feed.platforms) || [];
+    select.innerHTML = platforms
+      .map((p) => `<option value="${esc(p.id)}">${esc(p.name)}｜${esc(p.category)}</option>`)
+      .join("");
+    if (!platforms.some((p) => p.id === state.platformId)) {
+      state.platformId = platforms.length ? platforms[0].id : "";
+    }
+    select.value = state.platformId;
+  }
+
+  function currentPlatform() {
+    const platforms = (state.feed && state.feed.platforms) || [];
+    return platforms.find((p) => p.id === state.platformId) || null;
+  }
+
+  function renderFreshness() {
+    const box = $("freshness");
+    const text = $("freshnessText");
+    const feed = state.feed;
+    box.className = "freshness";
+    if (!feed) {
+      box.classList.add("err");
+      text.textContent = "讀不到 /data/coupons.json，下面的試算沒有任何資料可用。";
+      return;
+    }
+    const today = todayISO();
+    const age = feed.reviewedAt ? daysBetween(feed.reviewedAt, today) : null;
+    const total = (feed.offers || []).length;
+    const live = (feed.offers || []).filter((offer) => isActive(offer, today)).length;
+    let ageText = "核對日不明";
+    if (age !== null) {
+      ageText = age <= 0 ? "今天核對過" : `${age} 天前核對`;
+      if (age >= STALE_DAYS) box.classList.add("stale");
+      else if (age >= WARN_DAYS) box.classList.add("warn");
+    } else {
+      box.classList.add("warn");
+    }
+    const tail = age !== null && age >= WARN_DAYS
+      ? "　距上次核對已久，使用前請先開來源連結確認。"
+      : "";
+    text.innerHTML = `<strong>${esc(ageText)}</strong>（${esc(feed.reviewedAt || "—")}）`
+      + `　收錄 ${live} 筆仍在期限內／共 ${total} 筆`
+      + `　${esc(tail)}`;
+  }
+
+  // 「查不到什麼」跟「查到了什麼」一樣重要。少了這一塊，使用者看到 foodpanda
+  // 底下空空如也，只會以為是這一頁壞了，而不是知道那些流傳的優惠碼沒有官方出處。
+  function renderGaps() {
+    const gaps = (state.feed && state.feed.dataGaps) || [];
+    $("dataGaps").innerHTML = gaps.length
+      ? gaps.map((text) => `<li>${esc(text)}</li>`).join("")
+      : `<li class="out">資料檔沒有記錄任何缺口。</li>`;
+  }
+
+  function platformName(id) {
+    if (!id) return "通則";
+    const platforms = (state.feed && state.feed.platforms) || [];
+    const found = platforms.find((p) => p.id === id);
+    return found ? found.name : id;
+  }
+
+  function renderStackRules() {
+    const rules = (state.feed && state.feed.stackingRules) || [];
+    $("stackRules").innerHTML = rules.length
+      ? rules.map((rule) => `<li><b>${esc(platformName(rule.platformId))}</b>：${esc(rule.rule)}`
+        + `<a class="rule-src" href="${esc(rule.sourceUrl)}" target="_blank" rel="noopener noreferrer">`
+        + `來源（核對 ${esc(rule.verifiedAt || "—")}）</a></li>`).join("")
+      : `<li class="out">資料檔沒有收錄任何疊加規則。</li>`;
+  }
+
+  /* ---------- 狀態 ---------- */
+
+  function save() {
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        platformId: state.platformId,
+        subtotal: state.subtotal,
+        shipping: state.shipping,
+        newUser: state.newUser,
+        owned: state.owned,
+      }));
+    } catch (error) {
+      // 無痕模式或存滿了。試算本身不需要持久化，靜靜跳過。
+    }
+  }
+
+  function sanitizeState(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const owned = {};
+    if (raw.owned && typeof raw.owned === "object") {
+      for (const [key, value] of Object.entries(raw.owned)) {
+        if (value === true) owned[key] = true;
+      }
+    }
+    return {
+      platformId: typeof raw.platformId === "string" ? raw.platformId : "",
+      subtotal: Math.max(0, num(raw.subtotal, 500)),
+      shipping: Math.max(0, num(raw.shipping, 0)),
+      newUser: raw.newUser === true,
+      owned,
+    };
+  }
+
+  function load() {
+    try {
+      const parsed = sanitizeState(JSON.parse(localStorage.getItem(STATE_KEY) || "null"));
+      if (parsed) Object.assign(state, parsed);
+    } catch (error) {
+      // 壞掉的存檔就當沒存過
+    }
+  }
+
+  function bindInputs() {
+    $("platform").addEventListener("change", (event) => {
+      state.platformId = event.target.value;
+      const platform = currentPlatform();
+      // 換平台時把運費帶成該平台的預設，使用者仍可覆寫。
+      if (platform && platform.shippingDefault != null) {
+        state.shipping = num(platform.shippingDefault, 0);
+        $("shipping").value = String(state.shipping);
+      }
+      save();
+      renderResult();
+    });
+    $("subtotal").addEventListener("input", (event) => {
+      state.subtotal = Math.max(0, num(event.target.value, 0));
+      save();
+      renderResult();
+    });
+    $("shipping").addEventListener("input", (event) => {
+      state.shipping = Math.max(0, num(event.target.value, 0));
+      save();
+      renderResult();
+    });
+    $("newUser").addEventListener("change", (event) => {
+      state.newUser = !!event.target.checked;
+      save();
+      renderResult();
+    });
+  }
+
+  async function init() {
+    load();
+    try {
+      const response = await fetch(`${FEED_URL}?v=${todayISO()}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      state.feed = await response.json();
+    } catch (error) {
+      state.feed = null;
+    }
+    renderFreshness();
+    renderGaps();
+    renderStackRules();
+    renderPlatforms();
+    renderOwnedControls();
+    $("subtotal").value = String(state.subtotal);
+    $("shipping").value = String(state.shipping);
+    $("newUser").checked = state.newUser;
+    bindInputs();
+    return renderResult();
+  }
+
+  window.CouponApp = {
+    init,
+    getState: () => state,
+    setFeedForTest(feed) {
+      state.feed = feed;
+      return state;
+    },
+    setScenarioForTest(patch) {
+      Object.assign(state, patch);
+      return ctxFromState();
+    },
+    helpers: {
+      isActive,
+      appliesToPlatform,
+      blockReason,
+      discountOf,
+      rebateOf,
+      evaluate,
+      bestCombo,
+      candidatesByGroup,
+      ctxFromState,
+      sanitizeState,
+      expiryLabel,
+      benefitText,
+      daysBetween,
+      todayISO,
+      GROUPS,
+      MAX_PER_GROUP,
+    },
+  };
+
+  if (!window.__COUPON_CONSOLE_SKIP_AUTO_INIT__) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => { init(); });
+    } else {
+      init();
+    }
+  }
+})();
+</script>
+</body>
+</html>
