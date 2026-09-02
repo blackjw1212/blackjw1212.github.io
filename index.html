@@ -46,17 +46,7 @@
   .topnav a{color:var(--faint);text-decoration:none;padding:4px 0}
   .topnav a:hover{color:var(--cyan)}
   .topnav a:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
-  .hero{display:grid;grid-template-columns:1fr;gap:14px}
-  /* auto-fit 而非固定三欄：980px 斷點下的第三張卡原本會孤零零佔半排。 */
-  .status-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-  .status-card{min-height:128px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px;transition:border-color .15s ease}
-  .status-card:hover{border-color:#3d4d59}
-  .status-card h2{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;line-height:1.2;letter-spacing:0}
-  .status-card h2 span:first-child{color:var(--soft);font-weight:800}
-  .status-value{margin-top:18px;font-size:24px;font-weight:900;line-height:1.1}
-  .status-meta{margin-top:8px;color:var(--faint);font-size:12px;word-break:break-word}
-  .ok{color:var(--green)} .warn{color:var(--amber)}
-  .entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+  .entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
   .entry{display:flex;min-height:286px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:20px;transition:border-color .15s ease,transform .15s ease}
   .entry-button:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
   .entry:hover{border-color:#4c5e6b;transform:translateY(-2px)}
@@ -78,7 +68,7 @@
   .dash-accent{box-shadow:inset 4px 0 0 rgba(234,179,8,.7)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (prefers-reduced-motion:reduce){
-    .entry,.status-card{transition:none}
+    .entry{transition:none}
     .entry:hover{transform:none}
   }
   @media (max-width:640px){
@@ -86,7 +76,6 @@
     .topbar{flex-direction:column;align-items:flex-start;gap:10px}
     .topnav{justify-content:flex-start}
     .entries{grid-template-columns:1fr}
-    .status-card{min-height:112px}
     .entry{min-height:246px;padding:18px}
     .entry h2{font-size:22px}
     .entry-foot{align-items:flex-start;flex-direction:column}
@@ -114,26 +103,6 @@
       <a href="/dash/">/dash/</a>
     </nav>
   </header>
-
-  <section class="hero">
-    <section class="status-board" aria-label="輕量資料狀態" aria-live="polite">
-      <article class="status-card">
-        <h2><span>持股監控</span></h2>
-        <div id="stockFeedStatus" class="status-value warn">讀取中</div>
-        <div id="stockFeedMeta" class="status-meta">檢查靜態收盤資料</div>
-      </article>
-      <article class="status-card">
-        <h2><span>美國 10Y 公債</span></h2>
-        <div id="yieldStatus" class="status-value warn">讀取中</div>
-        <div id="yieldMeta" class="status-meta">檢查利率壓力資料</div>
-      </article>
-      <article class="status-card">
-        <h2><span>Weather Proxy</span></h2>
-        <div id="weatherStatus" class="status-value warn">讀取中</div>
-        <div id="weatherMeta" class="status-meta">檢查天氣代理服務</div>
-      </article>
-    </section>
-  </section>
 
   <nav class="entries" id="entries" aria-label="主要觀察台">
     <article class="entry stocks-accent">
@@ -252,118 +221,5 @@
   <footer class="footnote">僅供觀察參考，非任何形式的操作建議。判讀方式與資料限制寫在各觀察台內頁。</footer>
 </main>
 
-<script>
-const STOCK_FEED_URL = "/data/stock-risk-feed.json";
-const WEATHER_HEALTH_URL = "https://bjkw-weather-proxy.a0926043323.workers.dev/health";
-
-function setStatus(id, metaId, value, meta, tone = "warn") {
-  const valueEl = document.getElementById(id);
-  const metaEl = document.getElementById(metaId);
-  if (!valueEl || !metaEl) return;
-  valueEl.textContent = value;
-  valueEl.className = `status-value ${tone}`;
-  metaEl.textContent = meta;
-}
-
-function formatDate(value) {
-  if (!value) return "時間待更新";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "時間待更新";
-  return new Intl.DateTimeFormat("zh-TW", {
-    timeZone: "Asia/Taipei",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-// 部署鏈條斷掉時，資料進得了 repo 卻上不了線：實測 2026-08-10 線上停在 08-07、
-// repo 已是當日，3 天沒人發現。頁面自己比對 updatedAt 與現在，過期就明說。
-// 判準用實際時數而非交易日計數——交易日計數要不誤報得有 TWSE 開休市日曆。
-// 72 小時的餘裕來自最長的正常間隔：週五 22:00 → 週一 09:00 台北 ＝ 59 小時。
-// 與 market/、stocks/ 兩頁同一套規則，由測試互驗三份一致（本站無打包器）。
-const STALE_HOURS = 72;
-function stalenessNote(updatedAt) {
-  const t = Date.parse(updatedAt || "");
-  if (!Number.isFinite(t)) return "";
-  const hours = (Date.now() - t) / 3600000;
-  if (!(hours > STALE_HOURS)) return "";
-  return `⚠ 資料已 ${Math.floor(hours / 24)} 天未更新（可能是連假，也可能是更新流程中斷）`;
-}
-
-// 交易日（資料屬於哪一天）與 eodUpdatedAt（何時抓的）不同，標示要用前者。
-function formatTradingDate(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  return `${value.slice(5, 7)}/${value.slice(8, 10)}`;
-}
-
-function formatYield(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? `${number.toFixed(2)}%` : "待更新";
-}
-
-async function refreshAiSummary() {
-  try {
-    const response = await fetch(STOCK_FEED_URL, {
-      cache: "no-store",
-      headers: { "Accept": "application/json" },
-    });
-    if (!response.ok) throw new Error(`stock feed ${response.status}`);
-    const feed = await response.json();
-    const eodRows = Array.isArray(feed.eod) ? feed.eod.length : 0;
-    const tradingDate = formatTradingDate(feed.eodTradingDate);
-    // 過期時蓋掉平常的日期標示：「08/07 收盤」在今天是 08/10 時看起來一切正常，
-    // 那正是這次 3 天沒被發現的原因。
-    const stale = stalenessNote(feed.eodUpdatedAt || feed.updatedAt);
-    const stamp = stale || (tradingDate
-      ? `${tradingDate} 收盤`
-      : `收盤資料 ${formatDate(feed.eodUpdatedAt || feed.updatedAt)}`);
-    const yieldValue = feed.yield10y && feed.yield10y.value;
-    setStatus("stockFeedStatus", "stockFeedMeta", eodRows ? `${eodRows} 檔` : "待更新", stamp, (eodRows && !stale) ? "ok" : "warn");
-    // FRED DGS10 有發佈落差（實測 09/01 拿到的是 08/28 的觀測值），
-    // 唯一一行 meta 先講觀測日再講來源——只寫來源看不出這個數字多舊。
-    const yieldMeta = [
-      feed.yield10y && formatTradingDate(feed.yield10y.date),
-      feed.yield10y && feed.yield10y.source,
-    ].filter(Boolean).join(" · ") || "來源待更新";
-    setStatus("yieldStatus", "yieldMeta", formatYield(yieldValue), yieldMeta, Number.isFinite(Number(yieldValue)) ? "ok" : "warn");
-  } catch (error) {
-    setStatus("stockFeedStatus", "stockFeedMeta", "待更新", "靜態 feed 暫時無法讀取", "warn");
-    setStatus("yieldStatus", "yieldMeta", "待更新", "10Y 資料暫時無法讀取", "warn");
-  }
-}
-
-async function refreshWeatherSummary() {
-  try {
-    const response = await fetch(WEATHER_HEALTH_URL, {
-      cache: "no-store",
-      headers: { "Accept": "application/json" },
-    });
-    if (!response.ok) throw new Error(`weather health ${response.status}`);
-    const health = await response.json();
-    // 這裡刻意不揭露憑證的設定狀態：那是內部資訊，對訪客沒有意義，
-    // 寫出來只是告訴外人這個 proxy 持有金鑰、以及它何時失效。
-    if (health && health.configured) {
-      setStatus("weatherStatus", "weatherMeta", "可查詢", "天氣代理服務正常", "ok");
-    } else {
-      setStatus("weatherStatus", "weatherMeta", "暫停服務", "天氣代理服務未就緒", "warn");
-    }
-  } catch (error) {
-    setStatus("weatherStatus", "weatherMeta", "待更新", "天氣代理服務暫時無法連線", "warn");
-  }
-}
-
-function initHome() {
-  refreshAiSummary();
-  refreshWeatherSummary();
-}
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initHome);
-} else {
-  initHome();
-}
-</script>
 </body>
 </html>

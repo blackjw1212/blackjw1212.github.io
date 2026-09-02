@@ -184,27 +184,6 @@ async function loadApp(fetchMock, windowOverrides = {}) {
   return { context, document, elements, html };
 }
 
-async function loadHome(fetchMock) {
-  const htmlPath = fileURLToPath(new URL("../../index.html", import.meta.url));
-  const html = await readFile(htmlPath, "utf8");
-  const script = html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)?.[1];
-  assert.ok(script, "root inline script should be present");
-
-  const { document, elements } = createDocument();
-  seedDocumentIds(document, html);
-  const context = vm.createContext({
-    console,
-    document,
-    fetch: fetchMock,
-    Headers,
-    Intl,
-    URL,
-  });
-
-  vm.runInContext(script, context, { filename: "root-index.html" });
-  return { context, document, elements, html };
-}
-
 function staticFeed(overrides = {}) {
   return {
     // 時戳必須相對於現在。原本寫死 2026-06-05，隨時間自然腐化成「過期資料」——
@@ -247,7 +226,7 @@ function completeMisClosingQuotes() {
 const EOD_CACHE_KEY = "bjkw-portfolio-console-v2:eod:2330,2317,2382,3231,6669,3017,3324,3661,2356,2376,6239,1519,2308";
 const STATE_KEY = "bjkw-portfolio-console-v2";
 
-test("root index is a status overview entry console", async () => {
+test("root index is an entry console", async () => {
   const htmlPath = fileURLToPath(new URL("../../index.html", import.meta.url));
   const html = await readFile(htmlPath, "utf8");
   const primaryLinks = [...html.matchAll(/<a\b[^>]*data-primary-entry="([^"]+)"[^>]*href="([^"]+)"/g)]
@@ -272,9 +251,16 @@ test("root index is a status overview entry console", async () => {
   assert.match(html, /股票投資觀察台/);
   assert.doesNotMatch(html, /href="\/ai\/"|data-primary-entry="ai"|AI Feed/);
   assert.match(html, /BJKW 天氣觀察台/);
-  for (const id of ["stockFeedStatus", "stockFeedMeta", "yieldStatus", "yieldMeta", "weatherStatus", "weatherMeta"]) {
-    assert.match(html, new RegExp(`id="${id}"`), `${id} should be present`);
-  }
+  // 三張狀態卡（持股監控 / 美國 10Y 公債 / Weather Proxy）整組移除。這頁的職責是
+  // 把人送進六個觀察台，那三個數字在各自的內頁都講得更完整：檔數與收盤日在
+  // /stocks/、天氣代理能不能用進 /weather/ 就知道，而 10Y 根本沒有任何頁面拿它
+  // 算東西。留在首頁的代價是每次載入多打兩個網路請求、外加一塊會顯示
+  // 「讀取中／待更新」的區域。不要再加回來。
+  assert.doesNotMatch(html, /id="(stockFeed|yield|weather)(Status|Meta)"/, "status card ids must stay gone");
+  assert.doesNotMatch(html, /class="status-(board|card|value|meta)"/, "status board markup must stay gone");
+  assert.doesNotMatch(html, /aria-label="輕量資料狀態"|aria-live="polite"/, "the live region went with the cards");
+  // 卡片沒了，首頁就不該再有任何 runtime 抓取（<head> 的 service worker 註冊不算）。
+  assert.doesNotMatch(html, /stock-risk-feed\.json|bjkw-weather-proxy[^"]*\/health/, "the root page must not fetch at runtime");
   // 「Static Site：可進入」是永不改變的常數——上游全掛時它照樣說可進入，
   // 讀得到這頁本身就已經證明靜態站活著。零資訊量，已移除，不要再加回來。
   assert.doesNotMatch(html, /id="deployStatus"|id="deployMeta"/, "the tautological Static Site card must stay gone");
@@ -287,62 +273,8 @@ test("root index is a status overview entry console", async () => {
   // 「持股監控」「美國 10Y 公債」與 4.73% 這個百分比數值說完了，CWA 則在底下
   // 天氣入口卡的「資料：CWA through weather proxy」講過一次。移除，不要再加回來。
   assert.doesNotMatch(html, /class="tag"/, "status card chips duplicate what the page already says");
-  // 「10Y」看不出是哪一國、哪一種利率。首頁以台股為主，讀者沒有理由預設它是美債。
-  assert.match(html, /<span>美國 10Y 公債<\/span>/, "指標要自帶語義");
-  assert.match(html, /aria-label="輕量資料狀態"/);
-  assert.match(html, /aria-live="polite"/);
   assert.match(html, /focus-visible/);
   assert.doesNotMatch(html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/);
-});
-
-test("root status overview renders mocked feed and weather health", async () => {
-  const calls = [];
-  const { document } = await loadHome(async (url) => {
-    const href = String(url);
-    calls.push(href);
-    if (href === "/data/stock-risk-feed.json") return response(staticFeed({
-      yield10y: {
-        date: "2026-06-05",
-        value: 4.56,
-        source: "Mock Treasury",
-      },
-    }));
-    if (href === "https://bjkw-weather-proxy.a0926043323.workers.dev/health") {
-      return response({ ok: true, configured: true });
-    }
-    throw new Error(`unexpected root fetch: ${href}`);
-  });
-
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.equal(document.getElementById("stockFeedStatus").textContent, "2 檔");
-  assert.match(document.getElementById("stockFeedStatus").className, /ok/);
-  assert.equal(document.getElementById("yieldStatus").textContent, "4.56%");
-  // DGS10 有發佈落差（實測 09/01 拿到的是 08/28 的觀測值），只寫來源的話讀者
-  // 看不出這個數字多舊。唯一一行 meta 要先講日期，再講來源。
-  assert.match(document.getElementById("yieldMeta").textContent, /06\/05/, "觀測日必須看得見");
-  assert.match(document.getElementById("yieldMeta").textContent, /Mock Treasury/);
-  assert.equal(document.getElementById("weatherStatus").textContent, "可查詢");
-  assert.match(document.getElementById("weatherStatus").className, /ok/);
-  assert.equal(document.getElementById("weatherMeta").textContent, "天氣代理服務正常", "面向訪客的說法，不提憑證");
-  assert.deepEqual(calls, [
-    "/data/stock-risk-feed.json",
-    "https://bjkw-weather-proxy.a0926043323.workers.dev/health",
-  ]);
-});
-
-test("root status overview fails soft while keeping entries usable", async () => {
-  const { document, html } = await loadHome(async (url) => {
-    throw new Error(`unavailable: ${url}`);
-  });
-
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.equal(document.getElementById("stockFeedStatus").textContent, "待更新");
-  assert.equal(document.getElementById("yieldStatus").textContent, "待更新");
-  assert.equal(document.getElementById("weatherStatus").textContent, "待更新");
-  assert.match(html, /data-primary-entry="stocks" href="\/stocks\/"/);
-  assert.match(html, /data-primary-entry="weather" href="\/weather\/"/);
 });
 
 test("weather page uses the Worker proxy without exposing CWA credentials", async () => {
@@ -1151,10 +1083,10 @@ test("malformed or legacy localStorage state does not break app initialization",
 // 用相對於現在的時間造樣本，就不必去 mock 時鐘
 const hoursAgo = (h) => new Date(Date.now() - h * 3600000).toISOString();
 
-// 三頁各有一份 helper（本站無打包器，isPreviousTradingDay 本來就是這樣重複的）。
+// 兩頁各有一份 helper（本站無打包器，isPreviousTradingDay 本來就是這樣重複的）。
 // 這條擋的是日後只改其中一份造成的分叉——比照 dividendCv() 在資料層與前端互驗的做法。
+// 首頁曾經是第三份；三張狀態卡移除後它不再顯示任何資料，也就沒有陳舊度可判。
 async function stalenessHelpers() {
-  const home = await loadHome(async () => response(staticFeed()));
   const stocks = await loadApp(async () => response(staticFeed()));
   const marketPath = fileURLToPath(new URL("../../market/index.html", import.meta.url));
   const marketHtml = await readFile(marketPath, "utf8");
@@ -1167,16 +1099,15 @@ async function stalenessHelpers() {
   });
   vm.runInContext(marketScript, marketCtx, { filename: "market-index.html" });
   return {
-    "index.html": home.context.stalenessNote,
     "stocks/index.html": stocks.context.window.PortfolioConsoleApp.helpers.stalenessNote,
     "market/index.html": marketWindow.MarketApp.helpers.stalenessNote,
   };
 }
 
-test("all three pages agree on when data counts as stale", async () => {
+test("both data pages agree on when data counts as stale", async () => {
   const helpers = await stalenessHelpers();
   const names = Object.keys(helpers);
-  assert.equal(names.length, 3);
+  assert.equal(names.length, 2);
   for (const name of names) {
     assert.equal(typeof helpers[name], "function", `${name} 缺少 stalenessNote`);
   }
@@ -1218,20 +1149,3 @@ test("a missing or unparsable timestamp stays silent instead of guessing", async
   }
 });
 
-test("the home page replaces the reassuring date stamp when data is stale", async () => {
-  // 「08/07 收盤」在今天是 08/10 時看起來一切正常——那正是 3 天沒被發現的原因
-  const stale = staticFeed({ eodUpdatedAt: hoursAgo(80), updatedAt: hoursAgo(80) });
-  const { document } = await loadHome(async () => response(stale));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const meta = document.getElementById("stockFeedMeta").textContent;
-  assert.match(meta, /資料已 3 天未更新/, "過期時必須蓋掉平常的日期標示");
-  assert.doesNotMatch(meta, /收盤$/, "不可還顯示成正常的收盤標示");
-});
-
-test("the home page shows the ordinary stamp when data is fresh", async () => {
-  const fresh = staticFeed({ eodUpdatedAt: hoursAgo(2), updatedAt: hoursAgo(2) });
-  const { document } = await loadHome(async () => response(fresh));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const meta = document.getElementById("stockFeedMeta").textContent;
-  assert.doesNotMatch(meta, /未更新/, "新鮮資料不可亮警示，否則警示會被當成常態而失效");
-});

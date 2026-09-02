@@ -151,12 +151,17 @@ if (has("index.html")) {
   assertMatch("index.html", html, /property="og:title" content="BJKW 觀察控制台"/, "root og title");
   assertMatch("index.html", html, /name="theme-color" content="#101418"/, "root theme color");
   assertMatch("index.html", html, /<main class="shell">/, "root main shell");
-  assertMatch("index.html", html, /aria-label="輕量資料狀態"/, "status board label");
-  assertMatch("index.html", html, /aria-live="polite"/, "polite status live region");
   assertMatch("index.html", html, /aria-label="主要觀察台"/, "primary nav label");
-  assertMatch("index.html", html, /id="stockFeedStatus"/, "stock status id");
-  assertMatch("index.html", html, /id="weatherStatus"/, "weather status id");
-  assertMatch("index.html", html, /bjkw-weather-proxy\.a0926043323\.workers\.dev\/health/, "root weather health endpoint");
+  // 三張狀態卡（持股監控 / 美國 10Y 公債 / Weather Proxy）已整組移除。那三個數字
+  // 在各自的內頁都講得更完整：檔數與收盤日在 /stocks/、天氣代理能不能用進
+  // /weather/ 就知道，而 10Y 沒有任何頁面拿它算東西。首頁是入口，不是儀表板。
+  assertNoMatch("index.html", html, /id="(stockFeed|yield|weather)(Status|Meta)"/, "status card ids");
+  assertNoMatch("index.html", html, /class="status-(board|card|value|meta)"/, "status board markup");
+  assertNoMatch("index.html", html, /aria-live="polite"|aria-label="輕量資料狀態"/, "status live region");
+  // 卡片沒了就不該再有 runtime 抓取。<head> 的 service worker 註冊不算——
+  // 這條擋的是「首頁又長出一個會打網路的區塊」。
+  assertNoMatch("index.html", html, /stock-risk-feed\.json|bjkw-weather-proxy[^"]*\/health/, "root runtime fetches");
+  assertNoMatch("index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "root body script");
   if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/") {
     fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/ and dash:/dash/, got ${primaryLinks.join(", ")}`);
   }
