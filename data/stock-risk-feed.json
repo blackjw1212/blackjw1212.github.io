@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02T06:36:41.158Z",
+  "updatedAt": "2026-09-02T11:51:01.795Z",
   "eodUpdatedAt": "2026-09-02T06:36:41.158Z",
   "eodTradingDate": "2026-09-02",
   "holdings": [
@@ -167,9 +167,9 @@
     },
     "3324": {
       "code": "3324",
-      "pe": 31.71,
-      "dividendYield": 0.87,
-      "pbRatio": 9.65
+      "pe": 33.1,
+      "dividendYield": 0.83,
+      "pbRatio": 10.07
     },
     "3661": {
       "code": "3661",
@@ -196,5 +196,22 @@
     "updatedAt": "2026-08-31T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TWSE OpenAPI STOCK_DAY_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+    },
+    {
+      "source": "TWSE MIS same-day quotes",
+      "message": "https://mis.twse.com.tw/stock/api/getStockInfo.jsp returned HTTP 502"
+    },
+    {
+      "source": "TWSE OpenAPI BWIBBU_ALL",
+      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 12 eod row(s), 12 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
