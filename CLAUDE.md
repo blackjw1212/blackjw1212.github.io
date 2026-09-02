@@ -31,8 +31,8 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 比一般 lint 嚴格很多，改頁面前先知道它管什麼，否則 CI 會紅：
 
 - **首頁主要入口被釘死**為
-  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/`，
-  順序與 href 都要一致。`data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
+  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/`，
+  順序與 href 都要一致。**CTA 數量也是硬編碼的**（`ctas.length !== 8`），加一頁要同時改它。`data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
   **同一份清單被釘在兩個地方**：這支腳本，以及 `backend/test/frontend-smoke.test.js`
   的 `assert.deepEqual(primaryLinks, ...)`。只改一邊會讓 `npm test` 紅而靜態契約綠。
 - **各頁的 `<title>`、`canonical`、`theme-color` 逐字比對**。改標題要同步改這支腳本。
@@ -53,7 +53,7 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 ## 部署：`pages-deploy.yml` 的 allowlist
 
 ```
-cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash data assets dist/
+cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle data assets dist/
 ```
 
 **新增頂層頁面目錄一定要加進這行**，並同步加進 `sw.js` 的 `PRECACHE`（順手 bump `VERSION`，
@@ -200,6 +200,51 @@ CI 的 commit 只動 `data/`，通常不衝突。feed 是 minified（`market-52w
 `weather-proxy/`（天氣）與 `backend/`（stock-risk）各是一個 Worker，
 由 `deploy-weather-proxy.yml` / `deploy-stock-risk-worker.yml` 部署。
 **API key 走 Worker secret，永遠不進頁面、不進 repo。** 靜態契約會檢查這件事。
+
+## `/subtitle/`：全站唯一帶第三方函式庫的頁面
+
+瀏覽器端 Whisper，影音檔全程留在本機。這一頁打破了「頁面是自足的單一 index.html」的慣例，
+理由都寫在下面，**不要憑直覺把它改回去**。
+
+- **`subtitle/vendor/` 是 36.67 MB 的自帶二進位檔**（transformers.min.js 0.53 + opencc-full.js 1.14
+  + ORT 的 `asyncify.wasm` 22.48 + `simd-threaded.wasm` 12.34）。為什麼不用 CDN：transformers.js
+  預設把 ORT 的 wasm 指向 **jsDelivr 上的 `onnxruntime-web@1.26.0-dev.20260416-b7804b056c`**
+  ——一個 dev 版號。釘在那上面等於把整頁的存亡交給別人的 npm tag，而且斷網就沒了。
+  兩支 wasm 的分支條件（Safari 走非 asyncify 版）是照抄 transformers.js 自己的判斷。
+- **模型不可能自帶**：turbo 的 `encoder_model_q4.onnx` 單檔 405 MB > GitHub 單檔 100 MB 上限。
+  模型固定從 HF CDN 首次下載（q4 合計約 724 MiB），之後由 transformers.js 存進 Cache Storage。
+  **所以「離線」的正確說法是「第一次之後可離線」**，頁面上必須講清楚，靜態契約有釘。
+- **不要引入 `coi-serviceworker`。** WebGPU **不需要**跨來源隔離（W3C 規格、MDN WebGPU、
+  MDN COEP 的依賴清單、ORT 的 WebGPU EP 文件、transformers.js 的 `'gpu' in navigator` 判斷，
+  五方一致）。需要 COOP/COEP 的只有 WASM 後端的多執行緒，GitHub Pages 給不了，所以沒有
+  WebGPU 的機器就是單執行緒、就是慢。網路上宣稱「WebGPU 也需要 SharedArrayBuffer」的
+  部落格是錯的。
+- **改了 `subtitle/worker.js` 或 `vendor/` 就必須 bump `sw.js` 的 `VERSION`。** 這兩者走
+  service worker 的 **cache-first** 分支，回訪使用者會拿到舊檔且沒有任何徵兆。
+  **本機開發也一樣**——實測改完 worker 重新整理，端出來的仍是舊版，連
+  `fetch(url, { cache: 'reload' })` 都繞不過（SW 的 fetch handler 一律攔截）。
+  本機要驗新版就先 `getRegistrations()` 逐一 `unregister()` 並 `caches.delete('bjkw-<VERSION>')`。
+  這個坑會讓你以為「改了沒效果」而去改錯地方。
+- **`vendor/` 刻意不進 `sw.js` 的 `PRECACHE`**：那會讓每個只想看 `/stocks/` 的訪客先吞 36 MB。
+  它走既有的 cache-first 靜態資產分支，真的開這頁時才進快取。
+- **主 script 是 classic、緊貼 `</body>`**，ESM 全部關在 `subtitle/worker.js`。這不是風格問題：
+  `backend/test/*.test.js` 用 `<script>` 那條正則抽行內程式進 `vm`，改成 `type="module"`
+  整批測試會抓不到。純函式掛 `window.SubtitleApp.helpers`，`__SUBTITLE_SKIP_AUTO_INIT__` 擋自動初始化。
+- **Whisper 的中文輸出是簡繁混雜的**，不是設定 `language` 就會出繁體。一定要用
+  `opencc-js` 的 `{ from: 'cn', to: 'twp' }` 事後轉（twp 連詞彙一起換：视频→影片、鼠标→滑鼠）。
+  實測 `language: 'zh'` 這個兩字母代碼**會**被接受（官方文件只示範過 `'french'` 這種全名），
+  worker 裡仍留了退回 `'chinese'` 的路徑當保險。
+- **`return_timestamps: true` 回來的 `timestamp[1]` 可能是 `null`**，而且模型會給出超過音檔長度
+  的時間、零長度區間、甚至回頭比前一句還早的 start。`normalizeChunks` 專門處理這四種髒資料，
+  改它之前先看 `backend/test/subtitle-page.test.js`。
+- **實測數字**（2026-09-03，AMD RDNA-2 桌機、WebGPU、turbo q4）：首次下載到「模型就緒」
+  **51 秒**；**第一次辨識會多花約 20 秒做 WebGPU shader 編譯**——同一個 8.21 秒音檔冷跑 27 秒、
+  暖跑 3.4 秒。暖機後 37.1 秒的中文音檔跑 9.9 秒（約 3.7 倍即時）。冷跑那 20 秒沒有任何進度
+  提示，看起來就像當掉，之後要動這頁的話這是第一個該補的東西。
+- **匯出時 `URL.revokeObjectURL` 不能緊接在 `link.click()` 後面**同步呼叫——會安靜地取消掉
+  自己剛觸發的下載，按了沒反應而且主控台沒有任何訊息。
+- 本機預覽用 `.claude/launch.json` 的 `static-site`（`node -e` 的極簡靜態伺服器，
+  有 `.wasm` / `.mjs` 的 MIME 對應；用 `python -m http.server` 之類的東西發不對 wasm 型別）。
 
 ## 計劃審查閘門
 

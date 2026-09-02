@@ -3,9 +3,12 @@
   "configurations": [
     {
       "name": "static-site",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8790"],
-      "port": 8790
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "const http=require('http'),fs=require('fs'),p=require('path');const root=process.cwd();const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.wasm':'application/wasm','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon','.woff2':'font/woff2','.webmanifest':'application/manifest+json'};http.createServer((req,res)=>{let f=decodeURIComponent(req.url.split('?')[0]);if(f.endsWith('/'))f+='index.html';const abs=p.join(root,f);if(!abs.startsWith(root)||!fs.existsSync(abs)||fs.statSync(abs).isDirectory()){res.writeHead(404,{'content-type':'text/plain'});return res.end('404');}res.writeHead(200,{'content-type':mime[p.extname(abs).toLowerCase()]||'application/octet-stream','cache-control':'no-store'});fs.createReadStream(abs).pipe(res);}).listen(4173,()=>console.log('static site on http://localhost:4173'));"
+      ],
+      "port": 4173
     }
   ]
 }

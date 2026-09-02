@@ -67,6 +67,7 @@
   .flight-accent{box-shadow:inset 4px 0 0 rgba(154,127,209,.7)}
   .dash-accent{box-shadow:inset 4px 0 0 rgba(234,179,8,.7)}
   .coupon-accent{box-shadow:inset 4px 0 0 rgba(255,118,110,.7)}
+  .subtitle-accent{box-shadow:inset 4px 0 0 rgba(147,197,253,.72)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (prefers-reduced-motion:reduce){
     .entry{transition:none}
@@ -103,6 +104,7 @@
       <a href="/flight/">/flight/</a>
       <a href="/dash/">/dash/</a>
       <a href="/coupon/">/coupon/</a>
+      <a href="/subtitle/">/subtitle/</a>
     </nav>
   </header>
 
@@ -235,6 +237,25 @@
       <div class="entry-foot">
         <div class="entry-limit">內容：人工核對的優惠快照</div>
         <a class="entry-button" data-primary-entry="coupon" href="/coupon/" aria-label="開啟 /coupon/ 優惠疊加試算台">開啟 /coupon/</a>
+      </div>
+    </article>
+
+    <article class="entry subtitle-accent">
+      <div>
+        <div class="entry-head">
+          <div class="entry-title">
+            <small>OFFLINE SUBTITLE</small>
+            <h2>字幕生成台</h2>
+          </div>        </div>
+        <p>選一個本機的影音檔，在瀏覽器裡跑完語音辨識，輸出可逐句校對的繁體中文 SRT。</p>
+        <ul>
+          <li>檔案不會離開這台裝置，沒有上傳、沒有後端。</li>
+          <li>首次使用需要下載模型，之後由瀏覽器快取。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">限制：需要 WebGPU 才跑得順</div>
+        <a class="entry-button" data-primary-entry="subtitle" href="/subtitle/" aria-label="開啟 /subtitle/ 字幕生成台">開啟 /subtitle/</a>
       </div>
     </article>
   </nav>

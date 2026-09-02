@@ -96,6 +96,21 @@ for (const rel of [
   "dash/index.html",
   "coupon/index.html",
   "data/coupons.json",
+  "subtitle/index.html",
+  // 這一頁的辨識引擎住在獨立的 module worker 裡，而 Worker 的 URL 寫在 JS 字串中，
+  // 下面那圈只掃 href/src 的迴圈看不到它。漏掉不會有任何錯誤訊息，只會在使用者按下
+  // 按鈕時安靜地什麼都不發生，所以在這裡點名。
+  "subtitle/worker.js",
+  // 自帶的 transformers.js 與 ONNX Runtime。transformers.js 預設把 wasm 指到
+  // onnxruntime-web 的一個 dev 版號（1.26.0-dev.20260416-b7804b056c），釘在那種版本上
+  // 等於把整頁的存亡交給別人的 npm tag，而且斷網就沒了。改指同源副本後，這幾個檔
+  // 就是這一頁的必要零件——沒被 pages-deploy 複製到就得當場失敗。
+  "subtitle/vendor/transformers.min.js",
+  "subtitle/vendor/opencc-full.js",
+  "subtitle/vendor/ort/ort-wasm-simd-threaded.asyncify.mjs",
+  "subtitle/vendor/ort/ort-wasm-simd-threaded.asyncify.wasm",
+  "subtitle/vendor/ort/ort-wasm-simd-threaded.mjs",
+  "subtitle/vendor/ort/ort-wasm-simd-threaded.wasm",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -164,8 +179,8 @@ if (has("index.html")) {
   // 這條擋的是「首頁又長出一個會打網路的區塊」。
   assertNoMatch("index.html", html, /stock-risk-feed\.json|bjkw-weather-proxy[^"]*\/health/, "root runtime fetches");
   assertNoMatch("index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "root body script");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/ and coupon:/coupon/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/ and subtitle:/subtitle/, got ${primaryLinks.join(", ")}`);
   }
   // CTA 改釘不變式，不釘六串字面值。原本六條 assertMatch 各自抄一次文案，
   // 沒有任何一條看得出「可見文字必須是 accessible name 的子字串」這件事——
@@ -173,7 +188,7 @@ if (has("index.html")) {
   // （可見「開啟機票決策台」，aria-label 卻是「開啟機票總成本決策台」），
   // 六條字面值全綠，因為它們只各自比對自己抄的那一串。
   const ctas = [...html.matchAll(/<a class="entry-button"[^>]*href="([^"]+)"[^>]*aria-label="([^"]+)">([^<]+)<\/a>/g)];
-  if (ctas.length !== 7) {
+  if (ctas.length !== 8) {
     fail(`index.html should have exactly 7 entry CTAs, got ${ctas.length}`);
   }
   for (const [, href, ariaLabel, visible] of ctas) {
@@ -367,13 +382,49 @@ if (has("coupon/index.html")) {
   assertMatch("coupon/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "coupon main script must sit right before </body>");
 }
 
+if (has("subtitle/index.html")) {
+  const html = await read("subtitle/index.html");
+  assertMatch("subtitle/index.html", html, /<html lang="zh-Hant">/, "subtitle document language");
+  assertMatch("subtitle/index.html", html, /<title>字幕生成台｜BJKW<\/title>/, "subtitle title");
+  assertMatch("subtitle/index.html", html, /rel="canonical" href="\/subtitle\/"/, "subtitle canonical");
+  assertMatch("subtitle/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "subtitle manifest");
+  assertMatch("subtitle/index.html", html, /name="theme-color" content="#101418"/, "subtitle theme color");
+  assertMatch("subtitle/index.html", html, /apple-mobile-web-app-status-bar-style" content="black"/, "subtitle ios status bar");
+  assertMatch("subtitle/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "subtitle service worker registration");
+  // 這一頁的整個賣點就是「檔案不會離開這台裝置」。這句話一旦從畫面上消失，
+  // 使用者就無從判斷自己丟進去的東西去了哪裡——比照 /dash/ 的做法把揭露釘死。
+  assertMatch("subtitle/index.html", html, /檔案不會離開這台裝置/, "subtitle must disclose the file never leaves the device");
+  // 只講離線不講「首次要下載幾百 MB」是半個事實。用行動網路的人有權先知道。
+  assertMatch("subtitle/index.html", html, /首次使用需要下載模型/, "subtitle must disclose the first-run model download");
+  // 沒有 WebGPU 的機器會退到單執行緒 WASM。GitHub Pages 送不出 COOP/COEP，
+  // 多執行緒開不起來（ORT 官方：只有 crossOriginIsolated 才會啟用），這件事會慢到
+  // 使用者以為當掉，所以要先說。
+  assertMatch("subtitle/index.html", html, /WASM/, "subtitle must mention the wasm fallback");
+  // 機器辨識一定有錯字。不寫這句，這頁就是在宣稱自己產出可直接使用的字幕。
+  assertMatch("subtitle/index.html", html, /機器辨識一定有錯字/, "subtitle must carry an accuracy disclaimer");
+  // 全站唯一允許對外連線的目的地是 Hugging Face 的模型下載。任何其他外部端點都代表
+  // 音訊或逐字稿有機會離開這台裝置——那正是上面那句揭露會變成謊話的方式。
+  assertNoMatch("subtitle/index.html", html, /https?:\/\/(?!huggingface\.co)[^"'\s)]+/, "subtitle external endpoints");
+  // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
+  assertMatch("subtitle/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "subtitle main script must sit right before </body>");
+}
+
+if (has("subtitle/worker.js")) {
+  const worker = await read("subtitle/worker.js");
+  // wasmPaths 沒被改成同源路徑的話，這頁會靜靜地回去打 jsdelivr 上那個 dev 版號，
+  // 自帶的 36 MB 就白帶了——而且畫面上完全看不出差別，只有斷網時才會爆。
+  assertMatch("subtitle/worker.js", worker, /wasmPaths\s*=/, "worker must pin ORT wasm to the vendored copy");
+  assertNoMatch("subtitle/worker.js", worker, /cdn\.jsdelivr\.net/, "worker must not fall back to a CDN");
+  assertMatch("subtitle/worker.js", worker, /from\s+"\.\/vendor\/transformers\.min\.js"/, "worker loads the vendored transformers.js");
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

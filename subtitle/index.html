@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>字幕生成台｜BJKW</title>
+<meta name="description" content="在瀏覽器裡離線生成繁體中文字幕：影音檔全程留在本機，用 Whisper 辨識後轉為台灣用語繁體，逐句校對並匯出 SRT。" />
+<link rel="canonical" href="/subtitle/" />
+<meta property="og:title" content="字幕生成台｜BJKW" />
+<meta property="og:description" content="影音檔留在本機，瀏覽器內辨識並匯出繁體中文 SRT。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="字幕">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#82908c;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#e07a6a;--shadow:0 18px 50px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:inherit}
+  .shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:28px 0 38px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .brand img{width:34px;height:34px;flex:0 0 auto}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
+  .back{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;text-decoration:none}
+  .back:hover{color:var(--cyan)}
+  .hero{border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:26px;margin-bottom:18px}
+  .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
+  h1{max-width:760px;margin-top:10px;font-size:clamp(28px,4.5vw,46px);line-height:1.1;font-weight:900}
+  .lead{max-width:720px;margin-top:14px;color:var(--soft);font-size:15px}
+  .notes{margin-top:18px;display:grid;gap:8px}
+  .note{display:flex;gap:9px;align-items:flex-start;color:var(--soft);font-size:13px}
+  .note b{flex:0 0 auto;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;font-weight:800;color:var(--amber);padding-top:2px}
+  .note.privacy b{color:var(--green)}
+  .group{margin-top:26px}
+  .group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px}
+  .group-head h2{font-size:18px;letter-spacing:0}
+  .group-head span{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--faint);font-size:12px}
+  .panel{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+  .btn{border:1px solid rgba(103,199,229,.4);border-radius:6px;background:var(--surface);color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;padding:9px 16px;cursor:pointer}
+  .btn:hover:not(:disabled){border-color:var(--cyan)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{border-color:rgba(66,184,168,.55);color:var(--teal)}
+  .state{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--soft)}
+  .state.error{color:var(--red)}
+  .state.ok{color:var(--green)}
+  .hint{margin-top:10px;color:var(--faint);font-size:12px}
+  input[type=file]{color:var(--soft);font-size:13px;max-width:100%}
+  .bars{margin-top:12px;display:grid;gap:8px}
+  .bar-row{display:grid;gap:4px}
+  .bar-label{display:flex;justify-content:space-between;gap:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
+  .bar-label span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar{height:4px;border-radius:999px;background:var(--surface);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--teal)}
+  .cues{margin-top:14px;display:grid;gap:10px}
+  .cue{display:grid;grid-template-columns:minmax(0,140px) minmax(0,1fr);gap:12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:10px 12px}
+  .cue-time{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint);line-height:1.7}
+  .cue-time b{display:block;color:var(--cyan);font-weight:600}
+  .cue textarea{width:100%;min-height:48px;resize:vertical;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;line-height:1.5;padding:4px 6px}
+  .cue textarea:focus{outline:none;border-color:rgba(103,199,229,.45);background:var(--panel)}
+  .empty{color:var(--faint);font-size:13px}
+  .footnote{margin-top:24px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1120px);padding-top:18px}
+    .hero{padding:20px}
+    .cue{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar" aria-label="字幕生成台">
+    <div class="brand">
+      <img src="/assets/images/favicon.svg" alt="" width="34" height="34">
+      <div>
+        <div class="brand-kicker">BJKW PUBLIC CONSOLE</div>
+        <div class="brand-title">字幕生成台</div>
+      </div>
+    </div>
+    <a class="back" href="/" aria-label="回到 BJKW 觀察控制台">&larr; 回控制台 /</a>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">OFFLINE SUBTITLE</div>
+    <h1>在瀏覽器裡生成繁體中文字幕</h1>
+    <p class="lead">選一個本機的影音檔，辨識全程在這個分頁裡跑完，輸出可逐句校對的繁體中文 SRT。</p>
+    <div class="notes">
+      <p class="note privacy"><b>PRIVACY</b><span>檔案不會離開這台裝置。沒有上傳、沒有後端、沒有任何伺服器看得到你的音訊；本頁唯一會對外連線的動作是下載模型。</span></p>
+      <p class="note"><b>MODEL</b><span>首次使用需要下載模型（whisper-large-v3-turbo，約 700 MB），之後由瀏覽器快取，斷網也能再用。要換裝置或清了瀏覽器資料就得重下。</span></p>
+      <p class="note"><b>SPEED</b><span>有 WebGPU 的瀏覽器跑得動；沒有的話會退到單執行緒 WASM，會非常慢。GitHub Pages 送不出 COOP/COEP header，多執行緒 WASM 在這裡開不起來。另外第一次辨識要先編譯 GPU shader，會比之後每一次多等一段時間。</span></p>
+      <p class="note"><b>ACCURACY</b><span>機器辨識一定有錯字，專有名詞尤其容易錯。時間軸照模型給的，這頁只讓你改文字。匯出前請自己看過一遍。</span></p>
+    </div>
+  </section>
+
+  <section class="group" aria-label="辨識引擎">
+    <div class="group-head"><h2>辨識引擎</h2><span>whisper-large-v3-turbo</span></div>
+    <div class="panel">
+      <div class="row">
+        <button type="button" class="btn" id="loadBtn">載入模型</button>
+        <span class="state" id="engineState">尚未載入</span>
+      </div>
+      <div class="bars" id="engineBars"></div>
+      <p class="hint" id="engineHint">按下載入才會開始下載模型。想先確認裝置能不能跑，這一步就會告訴你。</p>
+    </div>
+  </section>
+
+  <section class="group" aria-label="選擇檔案">
+    <div class="group-head"><h2>選擇檔案</h2><span>音訊 · 影片</span></div>
+    <div class="panel">
+      <div class="row">
+        <input type="file" id="fileInput" accept="audio/*,video/*" aria-label="選擇要辨識的影音檔">
+        <button type="button" class="btn primary" id="runBtn" disabled>開始辨識</button>
+        <span class="state" id="runState">尚未選擇檔案</span>
+      </div>
+      <p class="hint">影片檔交給瀏覽器解碼取出音軌，能不能解開要看這台裝置支援哪些編碼；解不開會直接告訴你，請先自行轉成音訊檔再丟進來。</p>
+    </div>
+  </section>
+
+  <section class="group" aria-label="逐句結果">
+    <div class="group-head"><h2>逐句結果</h2><span id="cueCount">0 句</span></div>
+    <div class="panel">
+      <div class="row">
+        <button type="button" class="btn" id="exportBtn" disabled>下載 SRT</button>
+        <span class="state" id="exportState">辨識完成後才能匯出</span>
+      </div>
+      <div class="cues" id="cueList"><p class="empty">還沒有結果。</p></div>
+    </div>
+  </section>
+
+  <footer class="footnote">Runs entirely in your browser. 音訊不上傳、不留在伺服器；辨識結果請自行校對後再使用。</footer>
+</main>
+<script>
+  (function () {
+    "use strict";
+
+    // 一句字幕至少撐這麼久。模型偶爾會給出 start === end 的空區間，
+    // 那種 cue 在播放器裡等於閃一下就沒了。
+    var MIN_CUE_SECONDS = 0.4;
+
+    function pad(value, width) {
+      var text = String(Math.floor(value));
+      while (text.length < width) text = "0" + text;
+      return text;
+    }
+
+    /* SRT 的時間是 HH:MM:SS,mmm（逗號不是句點，寫成句點的檔案很多播放器直接不吃）。 */
+    function formatSrtTime(seconds) {
+      var safe = typeof seconds === "number" && isFinite(seconds) && seconds > 0 ? seconds : 0;
+      var ms = Math.round(safe * 1000);
+      return (
+        pad(ms / 3600000, 2) +
+        ":" +
+        pad((ms % 3600000) / 60000, 2) +
+        ":" +
+        pad((ms % 60000) / 1000, 2) +
+        "," +
+        pad(ms % 1000, 3)
+      );
+    }
+
+    /* 模型回來的 timestamp 不保證乾淨：末尾那段的 end 可能是 null（串流的中間態），
+       也可能給出零長度或與下一句重疊的區間。這裡把它整理成單調遞增、有正長度的 cue，
+       否則匯出的 SRT 在播放器裡會亂跳或整段不顯示。 */
+    function normalizeChunks(chunks, duration) {
+      var list = Array.isArray(chunks) ? chunks : [];
+      var total = typeof duration === "number" && isFinite(duration) && duration > 0 ? duration : null;
+      var cues = [];
+      var cursor = 0;
+
+      for (var i = 0; i < list.length; i += 1) {
+        var raw = list[i] || {};
+        var text = String(raw.text == null ? "" : raw.text).trim();
+        if (!text) continue;
+
+        var start = typeof raw.start === "number" && isFinite(raw.start) ? raw.start : cursor;
+        if (start < cursor) start = cursor;
+
+        var end = typeof raw.end === "number" && isFinite(raw.end) ? raw.end : null;
+        if (end === null) {
+          var nextStart = null;
+          for (var j = i + 1; j < list.length; j += 1) {
+            var candidate = list[j] && list[j].start;
+            if (typeof candidate === "number" && isFinite(candidate) && candidate > start) {
+              nextStart = candidate;
+              break;
+            }
+          }
+          if (nextStart !== null) end = nextStart;
+          else if (total !== null && total > start) end = total;
+          else end = start + MIN_CUE_SECONDS;
+        }
+
+        if (end < start + MIN_CUE_SECONDS) end = start + MIN_CUE_SECONDS;
+        if (total !== null && end > total) end = Math.max(total, start + MIN_CUE_SECONDS);
+
+        cues.push({ start: start, end: end, text: text });
+        cursor = end;
+      }
+
+      return cues;
+    }
+
+    function buildSrt(cues) {
+      var list = Array.isArray(cues) ? cues : [];
+      var blocks = [];
+      for (var i = 0; i < list.length; i += 1) {
+        var cue = list[i] || {};
+        var text = String(cue.text == null ? "" : cue.text).trim();
+        if (!text) continue;
+        blocks.push(
+          blocks.length + 1 + "\n" + formatSrtTime(cue.start) + " --> " + formatSrtTime(cue.end) + "\n" + text
+        );
+      }
+      return blocks.length ? blocks.join("\n\n") + "\n" : "";
+    }
+
+    function srtFilename(name) {
+      var base = String(name == null ? "" : name).replace(/^.*[\\/]/, "").replace(/\.[^.]+$/, "").trim();
+      return (base || "subtitle") + ".srt";
+    }
+
+    /* 冷跑時 WebGPU 要先編譯 shader，實測比暖跑多花約 20 秒，而且底層完全不回報進度。
+       做不出百分比就不要假造一條會動的進度條——改成報實際經過的秒數：使用者要的是
+       「它還活著嗎」，一個真的在跳的秒數回答得了，假進度條回答不了。 */
+    function describeElapsed(seconds) {
+      var total = typeof seconds === "number" && isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+      if (total < 60) return total + " 秒";
+      return Math.floor(total / 60) + " 分 " + pad(total % 60, 2) + " 秒";
+    }
+
+    function formatBytes(bytes) {
+      if (typeof bytes !== "number" || !isFinite(bytes) || bytes <= 0) return "";
+      if (bytes < 1048576) return (bytes / 1024).toFixed(0) + " KB";
+      return (bytes / 1048576).toFixed(1) + " MB";
+    }
+
+    /* Whisper 吃 16kHz 單聲道 Float32。重取樣不用自己寫：把 AudioContext 建成
+       16000Hz，decodeAudioData 就會把解出來的音訊重取樣到這個頻率。
+       降混的 sqrt(2) 係數照 transformers.js 官方 load_audio 的做法。 */
+    function downmixToMono(decoded) {
+      if (decoded.numberOfChannels === 1) return decoded.getChannelData(0);
+      var scale = Math.sqrt(2);
+      var left = decoded.getChannelData(0);
+      var right = decoded.getChannelData(1);
+      var mono = new Float32Array(left.length);
+      for (var i = 0; i < left.length; i += 1) mono[i] = (scale * (left[i] + right[i])) / 2;
+      return mono;
+    }
+
+    var helpers = {
+      MIN_CUE_SECONDS: MIN_CUE_SECONDS,
+      formatSrtTime: formatSrtTime,
+      normalizeChunks: normalizeChunks,
+      buildSrt: buildSrt,
+      srtFilename: srtFilename,
+      formatBytes: formatBytes,
+      describeElapsed: describeElapsed,
+    };
+
+    function init() {
+      var loadBtn = document.getElementById("loadBtn");
+      var engineState = document.getElementById("engineState");
+      var engineBars = document.getElementById("engineBars");
+      var engineHint = document.getElementById("engineHint");
+      var fileInput = document.getElementById("fileInput");
+      var runBtn = document.getElementById("runBtn");
+      var runState = document.getElementById("runState");
+      var exportBtn = document.getElementById("exportBtn");
+      var exportState = document.getElementById("exportState");
+      var cueList = document.getElementById("cueList");
+      var cueCount = document.getElementById("cueCount");
+
+      var worker = null;
+      var modelReady = false;
+      var busy = false;
+      var cues = [];
+      var sourceName = "";
+      var progressByFile = {};
+
+      function setState(node, message, tone) {
+        node.textContent = message;
+        node.className = "state" + (tone ? " " + tone : "");
+      }
+
+      // 這次工作的計時器。換階段只換文案、不重新計時——使用者要知道的是「從按下去
+      // 到現在過了多久」，每個階段各自歸零反而看不出總共等了多少。
+      var tickerId = null;
+      var tickerStart = 0;
+      var tickerLabel = "";
+
+      function renderTicker() {
+        setState(runState, tickerLabel + " · 已 " + describeElapsed((Date.now() - tickerStart) / 1000), "");
+      }
+
+      function startTicker(label) {
+        tickerLabel = label;
+        if (tickerId === null) {
+          tickerStart = Date.now();
+          tickerId = window.setInterval(renderTicker, 1000);
+        }
+        renderTicker();
+      }
+
+      function stopTicker() {
+        if (tickerId !== null) {
+          window.clearInterval(tickerId);
+          tickerId = null;
+        }
+        return (Date.now() - tickerStart) / 1000;
+      }
+
+      function renderProgress() {
+        var names = Object.keys(progressByFile);
+        if (!names.length) {
+          engineBars.innerHTML = "";
+          return;
+        }
+        var html = "";
+        for (var i = 0; i < names.length; i += 1) {
+          var item = progressByFile[names[i]];
+          var percent = Math.max(0, Math.min(100, item.percent));
+          html +=
+            '<div class="bar-row"><div class="bar-label"><span>' +
+            names[i] +
+            "</span><span>" +
+            percent.toFixed(0) +
+            "%" +
+            (item.total ? " · " + formatBytes(item.total) : "") +
+            '</span></div><div class="bar"><i style="width:' +
+            percent +
+            '%"></i></div></div>';
+        }
+        engineBars.innerHTML = html;
+      }
+
+      function renderCues() {
+        cueCount.textContent = cues.length + " 句";
+        if (!cues.length) {
+          cueList.innerHTML = '<p class="empty">還沒有結果。</p>';
+          exportBtn.disabled = true;
+          return;
+        }
+        var html = "";
+        for (var i = 0; i < cues.length; i += 1) {
+          html +=
+            '<div class="cue"><div class="cue-time"><b>' +
+            formatSrtTime(cues[i].start) +
+            "</b>" +
+            formatSrtTime(cues[i].end) +
+            '</div><textarea data-cue="' +
+            i +
+            '" aria-label="第 ' +
+            (i + 1) +
+            ' 句字幕文字"></textarea></div>';
+        }
+        cueList.innerHTML = html;
+        var boxes = cueList.querySelectorAll("textarea");
+        for (var k = 0; k < boxes.length; k += 1) boxes[k].value = cues[k].text;
+        exportBtn.disabled = false;
+      }
+
+      function ensureWorker() {
+        if (worker) return worker;
+        worker = new Worker("/subtitle/worker.js", { type: "module" });
+        worker.addEventListener("message", function (event) {
+          var data = event.data || {};
+
+          if (data.type === "progress" && data.progress) {
+            var p = data.progress;
+            if (p.status === "progress" && p.file) {
+              progressByFile[p.file] = { percent: p.progress || 0, total: p.total || 0 };
+              renderProgress();
+            }
+            return;
+          }
+
+          if (data.type === "device") {
+            engineHint.textContent =
+              data.device === "webgpu"
+                ? "使用 WebGPU 執行。"
+                : "這台裝置沒有可用的 WebGPU，改用單執行緒 WASM，長檔案會跑很久。";
+            return;
+          }
+
+          if (data.type === "status") {
+            if (data.stage === "ready") {
+              modelReady = true;
+              progressByFile = {};
+              renderProgress();
+              setState(engineState, "模型就緒", "ok");
+              loadBtn.disabled = true;
+              syncRunButton();
+            } else if (data.stage === "running") {
+              // 辨識進度屬於這次工作，不是引擎狀態。寫錯欄位的話「模型就緒」會被蓋掉，
+              // 引擎面板就會永遠停在「辨識中」。
+              startTicker(data.message);
+            } else {
+              setState(engineState, data.message, "");
+            }
+            return;
+          }
+
+          if (data.type === "done") {
+            busy = false;
+            var spent = stopTicker();
+            cues = normalizeChunks(data.chunks, currentDuration);
+            renderCues();
+            setState(runState, "辨識完成 · 共 " + describeElapsed(spent), "ok");
+            setState(exportState, cues.length ? "可以匯出" : "沒有辨識到內容", cues.length ? "ok" : "error");
+            syncRunButton();
+            return;
+          }
+
+          if (data.type === "error") {
+            busy = false;
+            stopTicker();
+            modelReady = false;
+            loadBtn.disabled = false;
+            setState(engineState, "失敗：" + data.message, "error");
+            setState(runState, "已中止", "error");
+            syncRunButton();
+          }
+        });
+        return worker;
+      }
+
+      var currentDuration = null;
+
+      function syncRunButton() {
+        runBtn.disabled = busy || !fileInput.files || !fileInput.files.length;
+      }
+
+      loadBtn.addEventListener("click", function () {
+        loadBtn.disabled = true;
+        setState(engineState, "準備中", "");
+        ensureWorker().postMessage({ type: "load" });
+      });
+
+      fileInput.addEventListener("change", function () {
+        cues = [];
+        currentDuration = null;
+        renderCues();
+        var file = fileInput.files && fileInput.files[0];
+        sourceName = file ? file.name : "";
+        setState(runState, file ? file.name : "尚未選擇檔案", "");
+        setState(exportState, "辨識完成後才能匯出", "");
+        syncRunButton();
+      });
+
+      runBtn.addEventListener("click", function () {
+        var file = fileInput.files && fileInput.files[0];
+        if (!file || busy) return;
+        busy = true;
+        syncRunButton();
+        startTicker("解碼音訊中");
+
+        file
+          .arrayBuffer()
+          .then(function (buffer) {
+            var Ctor = window.AudioContext || window.webkitAudioContext;
+            var context = new Ctor({ sampleRate: 16000 });
+            return context
+              .decodeAudioData(buffer)
+              .then(function (decoded) {
+                currentDuration = decoded.duration;
+                var audio = downmixToMono(decoded);
+                context.close();
+                return audio;
+              })
+              .catch(function () {
+                context.close();
+                throw new Error("這個檔案的音訊解不開，瀏覽器不支援它的編碼。請先轉成 mp3 或 wav 再試。");
+              });
+          })
+          .then(function (audio) {
+            startTicker(modelReady ? "辨識中" : "等模型載入完就開始辨識");
+            ensureWorker().postMessage({ type: "transcribe", audio: audio }, [audio.buffer]);
+          })
+          .catch(function (error) {
+            busy = false;
+            stopTicker();
+            setState(runState, error.message, "error");
+            syncRunButton();
+          });
+      });
+
+      cueList.addEventListener("input", function (event) {
+        var target = event.target;
+        if (!target || !target.dataset || target.dataset.cue === undefined) return;
+        var index = Number(target.dataset.cue);
+        if (cues[index]) cues[index].text = target.value;
+      });
+
+      exportBtn.addEventListener("click", function () {
+        var srt = buildSrt(cues);
+        if (!srt) return;
+        var blob = new Blob([srt], { type: "text/plain;charset=utf-8" });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = srtFilename(sourceName);
+        link.click();
+        // click() 之後瀏覽器才會去讀這個 blob。同步 revoke 會把自己剛觸發的下載
+        // 取消掉，而且是安靜地取消——按了沒反應，主控台也不會有任何訊息。
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 1000);
+      });
+
+      renderCues();
+    }
+
+    window.SubtitleApp = { helpers: helpers, init: init };
+
+    if (!window.__SUBTITLE_SKIP_AUTO_INIT__) {
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+      else init();
+    }
+  })();
+</script>
+</body>
+</html>

@@ -19,6 +19,10 @@ const PRECACHE = [
   // 上面那句「不預載 512k 大圖」講的是圖片，不是頁面。
   "/market/",
   "/coupon/",
+  // 只收頁面本身，不收 subtitle/vendor/ 底下那 36 MB。把 ONNX Runtime 的 wasm 塞進
+  // app shell，等於讓每一個只想看 /stocks/ 的訪客先下載 36 MB。vendor 走既有的
+  // cache-first 靜態資產分支，第一次真的開這頁時才進快取，之後照樣能離線用。
+  "/subtitle/",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",
