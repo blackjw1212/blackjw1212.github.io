@@ -2,7 +2,13 @@ _site
 .sass-cache
 .jekyll-cache
 .jekyll-metadata
-vendor
+# 只擋 repo 根目錄的 vendor/（Jekyll 時代 Ruby bundler 放 gem 的位置）。
+# 裸寫 `vendor` 會匹配任何深度的同名目錄，把 subtitle/vendor/ 一起擋掉——
+# 那 36 MB 是 /subtitle/ 刻意自帶的 ONNX Runtime 與函式庫（理由見 CLAUDE.md），
+# 靜態契約 mustExist 它們，被 ignore 掉就是 commit 上去 Site check 必紅。
+# 而且 gitignore 無法用 `!subtitle/vendor/**` 救回來：父目錄被排除時，
+# git 根本不會走進去看裡面的檔案。
+/vendor/
 .DS_Store
 ._*
 

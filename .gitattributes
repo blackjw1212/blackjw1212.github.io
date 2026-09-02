@@ -1,2 +1,8 @@
 .claude/hooks/*.py text eol=lf
 .claude/verify.sh text eol=lf
+
+# /subtitle/ 自帶的 ONNX Runtime 與函式庫是二進位資產。本機 core.autocrlf=true，
+# 也就是說 git 會對它判定為「文字」的檔案做行尾轉換——靠啟發式去猜 22 MB 的 wasm
+# 該不該轉，是不必要的風險（wasm 開頭是 \0asm，猜對的機率很高，但沒有理由去賭）。
+# minified 的 .js 也一併標成 binary：那種檔案的逐行 diff 沒有任何閱讀價值。
+subtitle/vendor/** binary
