@@ -69,6 +69,11 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
   `/forscan/service/`、`/forscan/sync3/` 列在 `EXTRA_ROUTES`。
 - 載入後固定等 900ms 再量。`/weather/` 的 `.ext-link`（沿海預報 CTA）要等 fetch
   回來才渲染，太早量會漏。
+- **有分頁的頁面會逐一切過去量**（`/market/` 3 個、`/flight/` 6 個，選擇器
+  `.tabbar .tab, nav .tabbtn`）。**這是實測踩過的洞**：先前回報「13 頁全綠」時，
+  `/market/` 的「ETF」與「全股票」分頁根本沒被走到——切過去之前那些控制項是
+  `display:none`，整批被當成不可見而跳過。走訪之後一次冒出 6 個不足 44px 的目標。
+  只量預設分頁＝只量了一部分。
 - 三條刻意的豁免：勾選框量的是包住它的 `<label>`（命中區在那裡）、`.skip` 不算
   觸控目標（螢幕外的鍵盤 affordance）、句子裡的行內文字連結不算（WCAG 2.5.8 明文
   豁免，硬撐 44px 會把行高撐開）。改判準前先看原始碼裡那段註解。
@@ -105,6 +110,14 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
   寫進去。`/dash/` 一個 max-width 斷點都沒有（只有 `min-width:760px`），直接改基準規則
   會連桌機 topbar 一起從 32px 長到 44px，所以照 `/weather/` 的做法用
   `@media (pointer:coarse)`——只有真的用手指點的裝置才撐開。
+- **密集資料表的每列連結取 24px，不是 44px。** `/market/` 的 ETF 與全股票分頁各 100 列、
+  每列一個 `a.tvlink`，全撐到 44px 會讓那張表多出 2,000px——密度本身就是那種畫面的功能。
+  這類連結用 WCAG 2.5.8 AA 的 24px 下限（量測工具的 `DENSE_MIN`，判法是「`<a>` 在 `td` 裡
+  且那張表在橫捲容器內」）。**其餘一律 44px**，別拿這條當通則。
+- **寬表在手機上黏住第一欄。** ETF 18 欄 1,380px、全股票 9 欄 900px，而容器只有 345px——
+  橫捲到第五欄就不知道自己在看哪一檔。`position:sticky;left:0` 釘住代碼欄，
+  **黏住的格子一定要自己上底色**（`td`/`th` 本身透明，會透出下面的內容），
+  用 `var(--panel)`——那正是 `.table-scroll` 的底色，才不會有接縫。
 - **行內 CTA 可以用 padding ＋ 負 margin 而不動行高。** `/weather/` 的 `.radar-link` 用
   `padding-block:15px` + `margin-block:-15px` 把熱區撐到 45px、標題列高度不變，
   那個做法比 `min-height` 好。

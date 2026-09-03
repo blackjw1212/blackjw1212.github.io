@@ -95,9 +95,24 @@ const VIEWPORTS = [[375, 812], [320, 720]];
 /* 觸控目標下限。WCAG 2.5.8 AA 只要求 24px，這裡取 iOS HIG 的 44px 當目標值。 */
 const MIN_TAP = 44;
 
+/* 密集資料表裡「每一列一個」的連結另一套下限。/market/ 的 ETF 與全股票分頁
+   各有 100 列、每列一個代碼連結，全部撐到 44px 會讓那張表多出 2,000px——
+   密度本身就是這種畫面的功能。這類連結取 WCAG 2.5.8 AA 的 24px 下限，
+   低於 24px 才算不合格。判法是「<a> 在 td 裡、而且那張表在橫捲容器內」。 */
+const DENSE_MIN = 24;
+
 /* 頁面載入後再等多久才量。/weather/ 的 .ext-link 要等 fetch 回來才渲染，
    太早量會漏掉它——實測 900ms 夠，太短會時好時壞。 */
 const SETTLE_MS = 900;
+
+/* 有分頁的頁面要逐一切過去量。**這是實測踩過的洞**：先前回報「13 頁全綠」時，
+   /market/ 的「ETF」與「全股票」分頁根本沒被走到——沒切過去之前那些控制項是
+   display:none，整批被當成不可見而跳過。切過去之後一次冒出 6 個不足 44px 的
+   目標與兩張要橫拉 2.6～4 個畫面的寬表。只量預設分頁＝只量了一部分。 */
+const TAB_SELECTOR = ".tabbar .tab, nav .tabbtn";
+
+/* 切分頁之後等多久再量。比首次載入短——資料已經在記憶體裡，只是重繪。 */
+const TAB_SETTLE_MS = 1200;
 
 /* 首頁沒有連出去、但仍要量的路徑。首頁那九個入口是從 data-primary-entry 自動抓的，
    不在這裡重抄一份——那份清單已經釘在 check-static-site.mjs 與 frontend-smoke.test.js
@@ -143,7 +158,10 @@ function usesCoarsePointer(doc) {
 function auditDocument(win) {
   const doc = win.document;
   const de = doc.documentElement;
-  const failures = [];
+  /* 同一種元素重複 100 次只印一行。實測沒分組時，光是 ETF 分頁就吐出 100 行
+     一模一樣的 a.tvlink，整份報告直接沒法看。 */
+  const groups = new Map();
+  let failureCount = 0;
   let exempt = 0;
 
   for (const el of doc.querySelectorAll("a,button,input:not([type=hidden]),select,summary")) {
@@ -163,8 +181,10 @@ function auditDocument(win) {
       if (wrap) target = wrap;
     }
 
+    const dense = el.tagName === "A" && el.closest("td") && el.closest(".table-scroll");
+    const limit = dense ? DENSE_MIN : MIN_TAP;
     const height = target.getBoundingClientRect().height;
-    if (height < MIN_TAP) {
+    if (height < limit) {
       /* 連 computed style 一起回報。真手機實測過：<select> 的 min-height 會被 UA
          忽略（appearance:menulist 用原生控制項度量，桌機模擬卻會乖乖套用），
          報告只寫「34px」的話看不出是「規則沒寫」還是「寫了但被忽略」——
@@ -174,30 +194,51 @@ function auditDocument(win) {
       const why = declared > height + 0.5
         ? ` ⚠ min-height:${style.minHeight} 沒生效（appearance:${style.appearance}）`
         : ` (min-height:${style.minHeight}, appearance:${style.appearance})`;
-      failures.push(`${label(el)}${target !== el ? "→" + label(target) : ""} = ${Math.round(height)}px${why}`);
+      const key = label(el).replace(/ «[^»]*»$/, "") + (target !== el ? "→" + label(target).replace(/ «[^»]*»$/, "") : "")
+        + (dense ? "（密集表，下限 " + DENSE_MIN + "px）" : "");
+      const seen = groups.get(key) || { n: 0, min: Infinity, why: why };
+      seen.n += 1;
+      seen.min = Math.min(seen.min, Math.round(height));
+      groups.set(key, seen);
+      failureCount += 1;
     }
   }
 
   return {
+    failureCount: failureCount,
     height: Math.round(de.scrollHeight),
     overflow: Math.max(0, de.scrollWidth - de.clientWidth),
     coarseRules: usesCoarsePointer(doc),
-    failures,
+    failures: [...groups].map(function(entry){
+      return entry[0] + (entry[1].n > 1 ? " ×" + entry[1].n : "") + " 最小 " + entry[1].min + "px" + entry[1].why;
+    }),
     exempt,
   };
 }
 
+/* 回傳的是**一個陣列**：沒有分頁的頁面一筆，有分頁的頁面每個分頁一筆。 */
 function inFrame(path, w, h) {
   return new Promise((resolve, reject) => {
     const frame = document.createElement("iframe");
     frame.style.cssText = `width:${w}px;height:${h}px;border:0`;
     frame.src = path + (path.includes("?") ? "&" : "?") + "audit=" + Date.now();
-    frame.onload = () => setTimeout(() => {
-      let result;
-      try { result = auditDocument(frame.contentWindow); }
-      catch (error) { frame.remove(); return reject(error); }
-      frame.remove();
-      resolve(result);
+    frame.onload = () => setTimeout(async () => {
+      try {
+        const win = frame.contentWindow;
+        const tabs = [...frame.contentDocument.querySelectorAll(TAB_SELECTOR)];
+        const states = [];
+        if (!tabs.length) {
+          states.push(Object.assign({ tab: "" }, auditDocument(win)));
+        } else {
+          for (const tab of tabs) {
+            tab.click();
+            await new Promise((r) => setTimeout(r, TAB_SETTLE_MS));
+            states.push(Object.assign({ tab: tab.textContent.trim().slice(0, 10) }, auditDocument(win)));
+          }
+        }
+        frame.remove();
+        resolve(states);
+      } catch (error) { frame.remove(); reject(error); }
     }, SETTLE_MS);
     frame.onerror = () => { frame.remove(); reject(new Error("載入失敗：" + path)); };
     document.getElementById("stage").appendChild(frame);
@@ -243,25 +284,28 @@ async function run() {
   for (const path of list) {
     for (const [w, h] of VIEWPORTS) {
       progress.textContent = `量測中：${path} @ ${w}px`;
-      const r = await inFrame(path, w, h);
-      const bad = r.failures.length > 0 || r.overflow > 0;
-      const suspect = !coarse && r.coarseRules && r.failures.length > 0;
-      if (bad) violations += r.failures.length + (r.overflow > 0 ? 1 : 0);
-      if (suspect) coarseSkewed++;
+      const states = await inFrame(path, w, h);
+      for (const r of states) {
+        const label = path + (r.tab ? " ▸ " + r.tab : "");
+        const bad = r.failures.length > 0 || r.overflow > 0;
+        const suspect = !coarse && r.coarseRules && r.failures.length > 0;
+        if (bad) violations += r.failureCount + (r.overflow > 0 ? 1 : 0);
+        if (suspect) coarseSkewed++;
 
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${path}${suspect ? ' <span class="detail">(有 coarse 規則)</span>' : ""}</td>`
-        + `<td class="num">${w}</td>`
-        + `<td class="num">${r.height}</td>`
-        + `<td class="num ${r.overflow ? "bad" : "ok"}">${r.overflow ? r.overflow + "px" : "0"}</td>`
-        + `<td class="num ${r.failures.length ? "bad" : "ok"}">${r.failures.length ? r.failures.length + " 個" : "0"}</td>`
-        + `<td class="detail">${r.failures.join("<br>")}</td>`;
-      rows.appendChild(tr);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${label}${suspect ? ' <span class="detail">(有 coarse 規則)</span>' : ""}</td>`
+          + `<td class="num">${w}</td>`
+          + `<td class="num">${r.height}</td>`
+          + `<td class="num ${r.overflow ? "bad" : "ok"}">${r.overflow ? r.overflow + "px" : "0"}</td>`
+          + `<td class="num ${r.failureCount ? "bad" : "ok"}">${r.failureCount ? r.failureCount + " 個" : "0"}</td>`
+          + `<td class="detail">${r.failures.join("<br>")}</td>`;
+        rows.appendChild(tr);
 
-      lines.push(`${path.padEnd(20)} @${String(w).padStart(3)}  h=${String(r.height).padStart(5)}  `
-        + `ovf=${r.overflow}  tap<${MIN_TAP}: ${r.failures.length}`
-        + (r.failures.length ? `  [${r.failures.join(" | ")}]` : "")
-        + (suspect ? "  ← 這頁有 coarse 規則，桌機量的不算數" : ""));
+        lines.push(`${label.padEnd(26)} @${String(w).padStart(3)}  h=${String(r.height).padStart(5)}  `
+          + `ovf=${r.overflow}  tap<${MIN_TAP}: ${r.failureCount}`
+          + (r.failures.length ? `  [${r.failures.join(" | ")}]` : "")
+          + (suspect ? "  ← 這頁有 coarse 規則，桌機量的不算數" : ""));
+      }
     }
   }
 

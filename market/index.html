@@ -146,6 +146,10 @@
   .tabbar .tab.on{color:var(--amber);border-bottom-color:var(--amber)}
   .tabbar .tab:hover{color:var(--amber)}
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-top:10px}
+  /* 觀察期間那三顆原本用行內 style 寫 min-height:28px，行內樣式壓過任何樣式表規則，
+     手機的 .btn{min-height:44px} 對它們無效（實測停在 28px）。改成 id 規則，
+     下面 760px 那組同特異度、位置更後面就蓋得過來——而且 JS 重寫 className 也不會掉。 */
+  #pd1y,#pd3y,#pd5y{min-height:28px}
   .ov-item{display:flex;align-items:center;gap:8px;font-size:13px;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;min-height:40px}
   .ov-item input{accent-color:var(--amber)}
   .ov-item.off{opacity:.45}
@@ -227,6 +231,19 @@
     .btn{min-height:44px}
     .pick-cards{display:block}
     .pick-table{display:none}
+    /* 下面這些只在「ETF」「全股票」分頁裡看得到。先前的量測只跑預設分頁，
+       其他分頁的控制項是 display:none，整批被當成不可見而跳過——
+       量測工具已補上走訪分頁（scripts/mobile-audit.html）。 */
+    input[type=search]{min-height:44px}
+    #pd1y,#pd3y,#pd5y{min-height:44px}
+    .ov-item{min-height:44px}
+    /* 寬表在手機上一定得橫捲（ETF 18 欄 1,380px、全股票 9 欄 900px，而容器只有 345px），
+       但橫捲到第五欄就不知道自己在看哪一檔了。把第一欄（代碼）黏住。
+       td/th 本身是透明的，黏住的格子必須自己上底色否則會透出下面的內容；
+       .table-scroll 的底色實測是 var(--panel)，用同一個值才不會有接縫。 */
+    .table-scroll td:first-child,.table-scroll th:first-child{position:sticky;left:0;background:var(--panel)}
+    .table-scroll td:first-child{z-index:1}
+    .table-scroll th:first-child{z-index:2}
     /* 實測 375px：分頁鈕 40px、數字輸入 34、下拉 36、回 /stocks/ 的連結 26。
        .btn 那條早就在了，但這頁的主要操作大多不是 .btn。 */
     .tabbar .tab{min-height:44px}
@@ -369,9 +386,9 @@
       <b>沒有任何公開來源</b>——TWSE 與 TPEX 的公告都只有總金額，SITCA 頁面是 postback-only，
       唯一權威來源是你自己的收益分配通知書。標「推定」的是依標的性質估的，只有標「通知書」的才是實際數字。
       <div style="margin-top:8px">觀察期間
-        <button class="btn on" id="pd1y" type="button" style="padding:3px 10px;min-height:28px">1 年</button>
-        <button class="btn" id="pd3y" type="button" style="padding:3px 10px;min-height:28px">3 年</button>
-        <button class="btn" id="pd5y" type="button" style="padding:3px 10px;min-height:28px">5 年</button>
+        <button class="btn on" id="pd1y" type="button" style="padding:3px 10px">1 年</button>
+        <button class="btn" id="pd3y" type="button" style="padding:3px 10px">3 年</button>
+        <button class="btn" id="pd5y" type="button" style="padding:3px 10px">5 年</button>
         <span style="margin-left:8px">——<b>只看一年會誤導</b>：實測 0050 的一年最大回撤 −15.9%，五年是 −36.4%；
         00631L 一年 −31.3%、三年 −55.1%。跌的時候長什麼樣，一年看不出來。</span>
       </div>
