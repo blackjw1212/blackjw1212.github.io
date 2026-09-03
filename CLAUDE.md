@@ -211,6 +211,19 @@ CI 的 commit 只動 `data/`，通常不衝突。feed 是 minified（`market-52w
   預設把 ORT 的 wasm 指向 **jsDelivr 上的 `onnxruntime-web@1.26.0-dev.20260416-b7804b056c`**
   ——一個 dev 版號。釘在那上面等於把整頁的存亡交給別人的 npm tag，而且斷網就沒了。
   兩支 wasm 的分支條件（Safari 走非 asyncify 版）是照抄 transformers.js 自己的判斷。
+- **推 `vendor/` 會被 GitHub Push Protection 擋下，那是誤判，不要去改 vendor 檔。**
+  `transformers.min.js` 裡有一句錯誤訊息寫著
+  `word-level timestamps not available. See https://gist.github.com/hollance/<32 位 hex>`
+  ——**Gist ID 與 Mistral API key 都是 32 位英數，格式撞車**，secret scanning 因此把它
+  判成「Mistral AI API Key」，push 被 GH013 拒絕。查證方法：那個字串出現在 URL 的
+  **路徑位置**，而且 HEAD 那個 gist 回 200（真的存在，內容就是 Whisper word-level
+  timestamps 的說明）。解法是在被拒訊息裡附的 unblock 連結上放行一次；改檔案把字串
+  拿掉的話，這份 vendor 就不再等同上游發行版，下次更新對不起來。
+- **`.gitignore` 的 `vendor` 一度把整個 `subtitle/vendor/` 擋掉**，而靜態契約 `mustExist`
+  那 6 個檔——commit 上去 Site check 必紅。已改成 `/vendor/` 只擋 repo 根目錄。
+  注意這種情況**救不回來**：父目錄被 ignore 時 git 不會走進去，`!subtitle/vendor/**`
+  無效。另外 `.gitattributes` 標了 `subtitle/vendor/** binary`，因為本機
+  `core.autocrlf=true`，沒有理由賭 git 的啟發式會判對 22 MB 的 wasm 不該做行尾轉換。
 - **模型不可能自帶**：turbo 的 `encoder_model_q4.onnx` 單檔 405 MB > GitHub 單檔 100 MB 上限。
   模型固定從 HF CDN 首次下載（q4 合計約 724 MiB），之後由 transformers.js 存進 Cache Storage。
   **所以「離線」的正確說法是「第一次之後可離線」**，頁面上必須講清楚，靜態契約有釘。
