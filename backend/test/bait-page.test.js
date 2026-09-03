@@ -44,14 +44,14 @@ const ITEM_A = {
   id: "a", name: "底料", category: "GROUNDBAIT",
   unitPrice: 200, packWeightG: 1000, gramsPerCup: 250,
   viscosity: 5, foggingRate: 1, sinkingSpeed: "VERY_FAST",
-  flavorProfile: ["腥"], targetSpecies: ["黑鯛"], seaArea: ["近岸/港內"],
+  flavorProfile: ["腥"], targetSpecies: ["黑鯛"], waterTypes: ["海水"],
   recommendedWaterRatio: 0.5,
 };
 const ITEM_B = {
   id: "b", name: "誘餌粉", category: "ADDITIVE",
   unitPrice: 600, packWeightG: 600, gramsPerCup: 100,
   viscosity: 1, foggingRate: 5, sinkingSpeed: "FLOATING",
-  flavorProfile: ["香"], targetSpecies: [], seaArea: [],
+  flavorProfile: ["香"], targetSpecies: [], waterTypes: [],
 };
 
 const byId = { a: ITEM_A, b: ITEM_B };
@@ -62,7 +62,6 @@ const RECIPE = {
     { itemId: "a", inputMode: "WEIGHT_G", amount: 300 },
     { itemId: "b", inputMode: "VOLUME_CUP", amount: 2 },
   ],
-  expectedFlowRate: "MEDIUM",
   targetSpecies: [],
   waterAmountRatio: 0,
 };
@@ -71,13 +70,14 @@ test("頁面公開的 helper 契約", async () => {
   const { app } = await loadPage();
   for (const name of [
     "costPerGram", "toGrams", "recipeRows", "blendProfile", "highCostAdditives",
-    "checkFlow", "checkFlavor", "checkWaterRatio", "auditRecipe",
+    "checkFlavor", "checkWaterRatio", "auditRecipe", "sinkScoreOf",
     "sanitizeItem", "sanitizeRecipe", "sanitizeState", "emptyDraft",
     "exportPayload", "importPayload", "todayISO", "sinkScoreOf", "scoreToSinkingSpeed",
   ]) {
     assert.equal(typeof app.helpers[name], "function", `缺 helper: ${name}`);
   }
   assert.equal(typeof app.init, "function");
+  assert.deepEqual(plain(app.helpers.WATER_TYPES), ["淡水", "海水"]);
   assert.deepEqual(plain(app.helpers.CATEGORIES).map((row) => row.id), ["MAIN_BAIT", "GROUNDBAIT", "ADDITIVE"]);
   assert.deepEqual(plain(app.helpers.SINKING).map((row) => row.id), ["VERY_FAST", "FAST", "MEDIUM", "SLOW", "FLOATING"]);
   assert.equal(app.helpers.HIGH_COST_SHARE, 0.4);
@@ -85,17 +85,21 @@ test("頁面公開的 helper 契約", async () => {
 
 // pickList 對認不得的字是安靜丟掉的，所以詞彙表少一個字，匯入會「成功」但那一欄
 // 整個消失。淡水那組是後來補的，釘住免得被當成海水頁的雜訊刪掉。
-test("魚種與海域詞彙表涵蓋淡水", async () => {
+test("魚種與水域詞彙表", async () => {
   const { app } = await loadPage();
   for (const name of ["黑鯛", "臭肚", "福壽魚"]) {
     assert.ok(plain(app.helpers.SPECIES).includes(name), `SPECIES 缺 ${name}`);
   }
-  for (const name of ["近岸/港內", "海釣場", "水庫/池釣"]) {
-    assert.ok(plain(app.helpers.SEA_AREAS).includes(name), `SEA_AREAS 缺 ${name}`);
+  // 每個魚種都要有水域歸屬，否則分組時會落到「其他」而沒人發現
+  const water = plain(app.helpers.SPECIES_WATER);
+  for (const name of plain(app.helpers.SPECIES)) {
+    assert.ok(["淡水", "海水"].includes(water[name]), `${name} 沒有水域歸屬`);
   }
-  const item = plain(app.helpers.sanitizeItem({ name: "測試", targetSpecies: ["福壽魚"], seaArea: ["水庫/池釣"] }));
+  assert.equal(water["福壽魚"], "淡水");
+  assert.equal(water["黑鯛"], "海水");
+  const item = plain(app.helpers.sanitizeItem({ name: "測試", targetSpecies: ["福壽魚"], waterTypes: ["淡水", "亂填"] }));
   assert.deepEqual(item.targetSpecies, ["福壽魚"]);
-  assert.deepEqual(item.seaArea, ["水庫/池釣"]);
+  assert.deepEqual(item.waterTypes, ["淡水"]);
 });
 
 test("每克成本：包裝重量沒填或是 0 一律回 null，不讓成本變成 Infinity", async () => {
@@ -188,18 +192,14 @@ test("高成本提示是逐項判定，只看添加劑", async () => {
   assert.deepEqual(plain(app.helpers.highCostAdditives(summary.rows, byId, 0)), []);
 });
 
-test("比重 vs 流速：只有急流配上輕比重才警告", async () => {
-  const { app } = await loadPage();
-  const light = { sinkingSpeed: "FLOATING" };
-  const heavy = { sinkingSpeed: "FAST" };
-  const hit = app.helpers.checkFlow(light, "FAST");
-  assert.equal(hit.level, "warn");
-  assert.equal(hit.code, "flow-vs-sink");
-  assert.match(hit.message, /急流場易流失/);
-  assert.equal(app.helpers.checkFlow({ sinkingSpeed: "SLOW" }, "FAST").code, "flow-vs-sink");
-  assert.equal(app.helpers.checkFlow(heavy, "FAST"), null);
-  assert.equal(app.helpers.checkFlow(light, "STILL"), null);
-  assert.equal(app.helpers.checkFlow(null, "FAST"), null);
+test("流速已移除：頁面不再有 checkFlow 或 expectedFlowRate", async () => {
+  const { app, html } = await loadPage();
+  assert.equal(app.helpers.checkFlow, undefined);
+  assert.equal(app.helpers.FLOW_RATES, undefined);
+  assert.doesNotMatch(html, /expectedFlowRate|FLOW_RATES|flow-vs-sink|預期流速/);
+  const recipe = plain(app.helpers.sanitizeRecipe({ title: "x", expectedFlowRate: "FAST", items: [] }, null));
+  assert.equal(recipe.expectedFlowRate, undefined, "流速不該再被存下來");
+  assert.deepEqual(recipe.targetWaterTypes, []);
 });
 
 test("味型 vs 魚種：臭肚缺藻類或發酵味才提示", async () => {
@@ -234,20 +234,15 @@ test("水比驗證：只拿有填建議值的單品加權，並在該子集內�
   assert.equal(app.helpers.checkWaterRatio(summary.rows, byId, 0), null);
 });
 
-test("auditRecipe 把四類意見彙總起來", async () => {
+test("auditRecipe 把三類意見彙總起來", async () => {
   const { app } = await loadPage();
   const result = app.helpers.auditRecipe({
     ...RECIPE,
-    expectedFlowRate: "FAST",
     targetSpecies: ["臭肚"],
     waterAmountRatio: 1.5,
-  }, {
-    // 兩項都改成漂浮，綜合比重才會落在 FLOATING
-    a: { ...ITEM_A, sinkingSpeed: "FLOATING" },
-    b: ITEM_B,
-  });
+  }, byId);
   const codes = plain(result.notes).map((note) => note.code);
-  assert.deepEqual(codes, ["high-cost-additive", "flow-vs-sink", "flavor-vs-species", "water-too-high"]);
+  assert.deepEqual(codes, ["high-cost-additive", "flavor-vs-species", "water-too-high"]);
   assert.equal(result.summary.totalWeightG, 500);
 
   const clean = app.helpers.auditRecipe(RECIPE, { a: ITEM_A, b: { ...ITEM_B, unitPrice: 20 } });
@@ -273,7 +268,7 @@ test("sanitizeItem：名稱必填，數值夾在合法範圍，列舉值對不�
     unitPrice: -10, packWeightG: 0, gramsPerCup: -1,
     viscosity: 99, foggingRate: 0, recommendedWaterRatio: 0,
     flavorProfile: ["腥", "腥", "不存在的味型"],
-    targetSpecies: ["黑鯛", "外星魚"], seaArea: "不是陣列",
+    targetSpecies: ["黑鯛", "外星魚"], waterTypes: "不是陣列",
     imageUrl: "javascript:alert(1)",
   }));
   assert.equal(item.name, "新料");
@@ -287,7 +282,7 @@ test("sanitizeItem：名稱必填，數值夾在合法範圍，列舉值對不�
   assert.equal(item.foggingRate, 1);
   assert.deepEqual(item.flavorProfile, ["腥"]);
   assert.deepEqual(item.targetSpecies, ["黑鯛"]);
-  assert.deepEqual(item.seaArea, []);
+  assert.deepEqual(item.waterTypes, []);
   assert.equal(item.imageUrl, "", "只接受 data:image/ 開頭的縮圖");
 });
 
@@ -295,7 +290,7 @@ test("sanitizeRecipe：丟掉指向不存在單品的列與非正數用量", asy
   const { app } = await loadPage();
   const recipe = plain(app.helpers.sanitizeRecipe({
     title: "  ", createdAt: "壞日期", rating: 99, caughtTarget: "yes",
-    expectedFlowRate: "亂填", shrimpStatus: "亂填",
+    targetWaterTypes: ["淡水", "亂填"], shrimpStatus: "亂填",
     items: [
       { itemId: "a", inputMode: "WEIGHT_G", amount: 300 },
       { itemId: "ghost", inputMode: "WEIGHT_G", amount: 100 },
@@ -307,7 +302,7 @@ test("sanitizeRecipe：丟掉指向不存在單品的列與非正數用量", asy
   assert.match(recipe.createdAt, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(recipe.rating, 5);
   assert.equal(recipe.caughtTarget, false, "只有布林 true 才算中魚");
-  assert.equal(recipe.expectedFlowRate, "MEDIUM");
+  assert.deepEqual(recipe.targetWaterTypes, ["淡水"]);
   assert.equal(recipe.shrimpStatus, "");
   assert.deepEqual(recipe.items.map((row) => row.itemId), ["a", "b"]);
   assert.equal(recipe.items[1].inputMode, "VOLUME_CUP", "認不得的輸入模式退回量杯");
@@ -324,7 +319,7 @@ test("sanitizeState：單品去重、配方跟著已知單品收斂", async () =
   assert.equal(state.recipes.length, 1);
   assert.deepEqual(state.recipes[0].items.map((row) => row.itemId), ["a"], "b 不在單品庫裡就不該留下");
   assert.deepEqual(state.draft.items, []);
-  assert.equal(state.version, 1);
+  assert.equal(state.version, 2);
   assert.equal(app.helpers.sanitizeState(null), null);
 });
 
@@ -333,7 +328,7 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
   const state = app.helpers.sanitizeState({ items: [ITEM_A, ITEM_B], recipes: [RECIPE] });
   const payload = plain(app.helpers.exportPayload(state));
   assert.equal(payload.kind, "bjkw-bait");
-  assert.equal(payload.version, 1);
+  assert.equal(payload.version, 2);
   assert.equal(payload.items.length, 2);
 
   const roundTrip = app.helpers.importPayload(JSON.stringify(payload));
@@ -345,7 +340,7 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
   assert.match(app.helpers.importPayload("{ 壞掉的 json").reason, /JSON/);
   assert.equal(app.helpers.importPayload(JSON.stringify({ items: [] })).ok, false);
   assert.match(app.helpers.importPayload(JSON.stringify({ items: [] })).reason, /kind/);
-  const wrongVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 99 }));
+  const wrongVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 1 }));
   assert.equal(wrongVersion.ok, false);
   assert.match(wrongVersion.reason, /沒有自動轉換/);
 });
@@ -358,4 +353,6 @@ test("頁面結構的硬性前提", async () => {
   // 分頁鈕的 class 是 mobile-audit.html 走訪非預設分頁的依據，改名等於那兩個分頁量不到
   assert.match(html, /<div class="tabbar"[^>]*>/);
   assert.equal((html.match(/class="tab(?: on)?"/g) || []).length, 3);
+  assert.match(html, /id="mixWaterTypes"/);
+  assert.match(html, /id="itemWaterTypes"/);
 });

@@ -104,6 +104,12 @@
 
   .tag{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--soft)}
   .thumb{width:44px;height:44px;object-fit:cover;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);display:block}
+  /* 縮圖不是觸控目標，不受 44px 下限約束——它只是讓現場一眼認出是哪一包。 */
+  .thumb.mini{width:24px;height:24px;border-radius:4px;display:inline-block;vertical-align:-6px;margin-right:6px}
+  .thumb.big{width:56px;height:56px}
+  .thumb.noimg{display:block}
+  .grp{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint);margin:8px 0 2px}
+  .grp:first-child{margin-top:0}
   .state{font-size:12px;color:var(--faint);margin-top:8px;min-height:18px}
   .state.err{color:var(--red)}
   .state.ok{color:var(--green)}
@@ -218,11 +224,10 @@
         </div>
 
         <h3>環境與目標</h3>
-        <label class="field"><span>預期流速</span><select id="flowRate"></select></label>
+        <span class="big-label">水域</span>
+        <div class="checks" id="mixWaterTypes"></div>
         <span class="big-label">目標魚種</span>
-        <div class="checks" id="mixSpecies"></div>
-        <span class="big-label">海域</span>
-        <div class="checks" id="mixSeaAreas"></div>
+        <div id="mixSpecies"></div>
 
         <h3>審查</h3>
         <ul class="audit" id="auditList"></ul>
@@ -263,10 +268,10 @@
         </div>
         <span class="big-label">味型</span>
         <div class="checks" id="itemFlavors"></div>
+        <span class="big-label">適用水域</span>
+        <div class="checks" id="itemWaterTypes"></div>
         <span class="big-label">適用魚種</span>
-        <div class="checks" id="itemSpecies"></div>
-        <span class="big-label">適用海域</span>
-        <div class="checks" id="itemSeaAreas"></div>
+        <div id="itemSpecies"></div>
         <label class="field"><span>照片（會縮成 160px 縮圖存進這台裝置，不是原檔）</span>
           <input id="itemImage" type="file" accept="image/*">
         </label>
@@ -328,8 +333,8 @@
    * 純函式區：不碰 DOM、不碰儲存，掛在 BaitApp.helpers 供測試呼叫。
    * ---------------------------------------------------------------- */
 
-  var STATE_VERSION = 1;
-  var STORE_KEY = "bjkw-bait:v1";
+  var STATE_VERSION = 2;
+  var STORE_KEY = "bjkw-bait:v2";
   var EXPORT_KIND = "bjkw-bait";
   /* 一張 160px 縮圖約 5–10KB。localStorage 通常只有 5MB，整包序列化後超過這個
      長度就拒絕寫入——否則 setItem 會丟 QuotaExceededError，而 catch 住之後
@@ -352,11 +357,6 @@
     { id: "SLOW", label: "慢沉", score: 2 },
     { id: "FLOATING", label: "漂浮", score: 1 }
   ];
-  var FLOW_RATES = [
-    { id: "FAST", label: "急流" },
-    { id: "MEDIUM", label: "中流" },
-    { id: "STILL", label: "靜水" }
-  ];
   var SHRIMP_STATUS = [
     { id: "", label: "未指定" },
     { id: "WHOLE", label: "全蝦" },
@@ -364,11 +364,18 @@
     { id: "DRIED", label: "乾蝦皮" }
   ];
   var FLAVORS = ["腥", "香", "酸/發酵", "藻/青苔", "甜"];
-  /* 前七種是磯釣／港內的目標魚，福壽魚是淡水的。清單混著兩個水域是刻意的：
-     同一個人兩種都釣，而 pickList 對認不得的字是**安靜丟掉**——少一個字的代價
-     是匯入的配方看起來成功、目標魚種卻整欄消失。 */
-  var SPECIES = ["黑鯛", "臭肚", "黑毛", "白毛", "豆仔", "竹莢魚", "石斑", "福壽魚"];
-  var SEA_AREAS = ["近岸/港內", "外礁/離島", "海釣場", "水庫/池釣", "野塘/溪河"];
+  /* 水域只分淡水與海水兩類。原本是五個釣場類型（近岸/港內、外礁/離島、海釣場、
+     水庫/池釣、野塘/溪河），實際填的時候要在五個裡挑，而挑完並沒有任何一條判準
+     用到它——只是多一排要點的框。分成兩類之後，它同時也是魚種清單的分組依據。 */
+  var WATER_TYPES = ["淡水", "海水"];
+  /* pickList 對認不得的字是**安靜丟掉**：少一個字的代價是匯入的配方看起來成功、
+     目標魚種卻整欄消失。要加魚種就同時加進 SPECIES_WATER，否則它會落在「其他」。 */
+  var SPECIES = ["福壽魚", "黑鯛", "臭肚", "黑毛", "白毛", "豆仔", "竹莢魚", "石斑"];
+  var SPECIES_WATER = {
+    "福壽魚": "淡水",
+    "黑鯛": "海水", "臭肚": "海水", "黑毛": "海水", "白毛": "海水",
+    "豆仔": "海水", "竹莢魚": "海水", "石斑": "海水"
+  };
   /* 臭肚吃素，缺這兩種味型就提示。判準與訊息都攤在這裡，改建議時只改這一處。 */
   var SPECIES_FLAVOR_HINTS = [
     { species: "臭肚", anyOf: ["藻/青苔", "酸/發酵"] }
@@ -376,7 +383,6 @@
 
   var CATEGORY_IDS = CATEGORIES.map(function (row) { return row.id; });
   var SINK_IDS = SINKING.map(function (row) { return row.id; });
-  var FLOW_IDS = FLOW_RATES.map(function (row) { return row.id; });
   var SHRIMP_IDS = SHRIMP_STATUS.map(function (row) { return row.id; });
 
   function labelOf(list, id) {
@@ -539,12 +545,6 @@
     return out;
   }
 
-  function checkFlow(profile, expectedFlowRate) {
-    if (!profile || expectedFlowRate !== "FAST") return null;
-    if (profile.sinkingSpeed !== "SLOW" && profile.sinkingSpeed !== "FLOATING") return null;
-    return { level: "warn", code: "flow-vs-sink", message: "當前比重過輕，急流場易流失，建議增加高比重底料" };
-  }
-
   function checkFlavor(rows, itemsById, targetSpecies) {
     var species = Array.isArray(targetSpecies) ? targetSpecies : [];
     if (!species.length || !Array.isArray(rows) || !rows.length) return null;
@@ -611,8 +611,6 @@
         message: "添加劑「" + expensive[i].name + "」佔總成本 " + Math.round(expensive[i].share * 100) + "%，超過 " + Math.round(HIGH_COST_SHARE * 100) + "%"
       });
     }
-    var flow = checkFlow(profile, recipe && recipe.expectedFlowRate);
-    if (flow) notes.push(flow);
     var flavor = checkFlavor(summary.rows, itemsById, recipe && recipe.targetSpecies);
     if (flavor) notes.push(flavor);
     var water = checkWaterRatio(summary.rows, itemsById, recipe && recipe.waterAmountRatio);
@@ -654,7 +652,7 @@
       sinkingSpeed: SINK_IDS.indexOf(raw.sinkingSpeed) >= 0 ? raw.sinkingSpeed : "MEDIUM",
       flavorProfile: pickList(raw.flavorProfile, FLAVORS),
       targetSpecies: pickList(raw.targetSpecies, SPECIES),
-      seaArea: pickList(raw.seaArea, SEA_AREAS),
+      waterTypes: pickList(raw.waterTypes, WATER_TYPES),
       recommendedWaterRatio: positive(raw.recommendedWaterRatio)
     };
   }
@@ -688,8 +686,7 @@
       shrimpRatio: clampText(raw.shrimpRatio, 40),
       shrimpStatus: SHRIMP_IDS.indexOf(raw.shrimpStatus) >= 0 ? raw.shrimpStatus : "",
       targetSpecies: pickList(raw.targetSpecies, SPECIES),
-      targetSeaArea: pickList(raw.targetSeaArea, SEA_AREAS),
-      expectedFlowRate: FLOW_IDS.indexOf(raw.expectedFlowRate) >= 0 ? raw.expectedFlowRate : "MEDIUM",
+      targetWaterTypes: pickList(raw.targetWaterTypes, WATER_TYPES),
       inSituAdjustments: clampText(raw.inSituAdjustments, 300),
       rating: Math.min(5, Math.max(0, Math.round(nonNegative(raw.rating, 0)))),
       caughtTarget: raw.caughtTarget === true,
@@ -698,7 +695,7 @@
   }
 
   function emptyDraft() {
-    return sanitizeRecipe({ title: "", items: [], expectedFlowRate: "MEDIUM" }, null);
+    return sanitizeRecipe({ title: "", items: [] }, null);
   }
 
   function sanitizeState(raw) {
@@ -760,11 +757,11 @@
   var helpers = {
     CATEGORIES: CATEGORIES,
     SINKING: SINKING,
-    FLOW_RATES: FLOW_RATES,
     SHRIMP_STATUS: SHRIMP_STATUS,
     FLAVORS: FLAVORS,
     SPECIES: SPECIES,
-    SEA_AREAS: SEA_AREAS,
+    WATER_TYPES: WATER_TYPES,
+    SPECIES_WATER: SPECIES_WATER,
     HIGH_COST_SHARE: HIGH_COST_SHARE,
     WATER_TOLERANCE: WATER_TOLERANCE,
     STORE_MAX_CHARS: STORE_MAX_CHARS,
@@ -777,7 +774,6 @@
     recipeRows: recipeRows,
     blendProfile: blendProfile,
     highCostAdditives: highCostAdditives,
-    checkFlow: checkFlow,
     checkFlavor: checkFlavor,
     checkWaterRatio: checkWaterRatio,
     auditRecipe: auditRecipe,
@@ -802,6 +798,12 @@
     return String(value === null || value === undefined ? "" : value).replace(/[&<>"']/g, function (ch) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
     });
+  }
+
+  /* 沒有圖就回空字串而不是佔位方塊：開餌列是密集資訊，空框只是噪音。 */
+  function thumbTag(item) {
+    if (!item || !item.imageUrl) return "";
+    return '<img class="thumb mini" src="' + esc(item.imageUrl) + '" alt="">';
   }
 
   function itemsById() {
@@ -878,6 +880,37 @@
     }
   }
 
+  /* 魚種按水域分兩組。八種混在一排時，釣福壽魚的人要在七個海水魚名裡找那一個。
+     分組只影響排版，勾選值仍是魚種名本身。 */
+  function renderSpeciesChecks(node, chosen, onToggle) {
+    if (!node) return;
+    var groups = {};
+    for (var i = 0; i < SPECIES.length; i += 1) {
+      var water = SPECIES_WATER[SPECIES[i]] || "其他";
+      if (!groups[water]) groups[water] = [];
+      groups[water].push(SPECIES[i]);
+    }
+    var order = WATER_TYPES.concat(["其他"]);
+    var html = "";
+    for (var g = 0; g < order.length; g += 1) {
+      var names = groups[order[g]];
+      if (!names) continue;
+      html += '<div class="grp">' + esc(order[g]) + '</div><div class="checks">';
+      for (var j = 0; j < names.length; j += 1) {
+        var checked = chosen.indexOf(names[j]) >= 0 ? " checked" : "";
+        html += '<label class="check"><input type="checkbox" value="' + esc(names[j]) + '"' + checked + "><span>" + esc(names[j]) + "</span></label>";
+      }
+      html += "</div>";
+    }
+    node.innerHTML = html;
+    var inputs = node.querySelectorAll("input");
+    for (var k = 0; k < inputs.length; k += 1) {
+      inputs[k].addEventListener("change", function (event) {
+        onToggle(event.target.value, !!event.target.checked);
+      });
+    }
+  }
+
   function toggleIn(list, value, on) {
     var at = list.indexOf(value);
     if (on && at < 0) list.push(value);
@@ -902,7 +935,7 @@
       var cost = perGram === null || weight === null ? null : perGram * weight;
       var canCup = positive(item.gramsPerCup) !== null;
       html += '<li class="row c-' + esc(item.category) + '">'
-        + '<div class="row-top"><span class="row-name">' + esc(item.name) + "</span>"
+        + '<div class="row-top"><span class="row-name">' + thumbTag(item) + esc(item.name) + "</span>"
         + '<span class="row-derived">' + (weight === null ? "換算不出重量" : grams(weight) + " · " + money(cost)) + "</span></div>"
         + '<div class="row-ctl">'
         + '<button class="step" type="button" data-step="-1" data-at="' + i + '" aria-label="減少 ' + esc(item.name) + '">−</button>'
@@ -974,7 +1007,7 @@
       return;
     }
     if (!result.notes.length) {
-      node.innerHTML = '<li class="ok">四項審查都沒有意見：比重對得上流速、味型涵蓋目標魚種、水比在建議範圍內、沒有單一添加劑吃掉四成成本。</li>';
+      node.innerHTML = '<li class="ok">三項審查都沒有意見：味型涵蓋目標魚種、水比在建議範圍內、沒有單一添加劑吃掉四成成本。</li>';
       return;
     }
     var html = "";
@@ -1041,11 +1074,6 @@
       state.draft.shrimpStatus = SHRIMP_IDS.indexOf(event.target.value) >= 0 ? event.target.value : "";
       save();
     });
-    $("flowRate").addEventListener("change", function (event) {
-      state.draft.expectedFlowRate = FLOW_IDS.indexOf(event.target.value) >= 0 ? event.target.value : "MEDIUM";
-      save();
-      renderMix();
-    });
     $("saveRecipe").addEventListener("click", function () {
       if (!state.draft.items.length) {
         setState($("mixState"), "配方是空的，先加幾樣東西。", "err");
@@ -1074,24 +1102,23 @@
 
   function hydrateMix() {
     fillSelect($("shrimpStatus"), SHRIMP_STATUS, state.draft.shrimpStatus, "");
-    fillSelect($("flowRate"), FLOW_RATES, state.draft.expectedFlowRate, "");
     $("waterRatio").value = state.draft.waterAmountRatio || "";
     $("prepLead").value = state.draft.prepLeadTimeMinutes || "";
     $("shrimpRatio").value = state.draft.shrimpRatio || "";
-    renderChecks($("mixSpecies"), SPECIES, state.draft.targetSpecies, function (value, on) {
+    renderSpeciesChecks($("mixSpecies"), state.draft.targetSpecies, function (value, on) {
       toggleIn(state.draft.targetSpecies, value, on);
       save();
       renderMix();
     });
-    renderChecks($("mixSeaAreas"), SEA_AREAS, state.draft.targetSeaArea, function (value, on) {
-      toggleIn(state.draft.targetSeaArea, value, on);
+    renderChecks($("mixWaterTypes"), WATER_TYPES, state.draft.targetWaterTypes, function (value, on) {
+      toggleIn(state.draft.targetWaterTypes, value, on);
       save();
     });
   }
 
   /* --------------------------- 單品庫 --------------------------- */
 
-  var itemForm = { flavorProfile: [], targetSpecies: [], seaArea: [], imageUrl: "" };
+  var itemForm = { flavorProfile: [], targetSpecies: [], waterTypes: [], imageUrl: "" };
 
   function renderItemForm() {
     fillSelect($("itemCategory"), CATEGORIES, $("itemCategory").value || "GROUNDBAIT", "");
@@ -1099,17 +1126,17 @@
     renderChecks($("itemFlavors"), FLAVORS, itemForm.flavorProfile, function (value, on) {
       toggleIn(itemForm.flavorProfile, value, on);
     });
-    renderChecks($("itemSpecies"), SPECIES, itemForm.targetSpecies, function (value, on) {
+    renderSpeciesChecks($("itemSpecies"), itemForm.targetSpecies, function (value, on) {
       toggleIn(itemForm.targetSpecies, value, on);
     });
-    renderChecks($("itemSeaAreas"), SEA_AREAS, itemForm.seaArea, function (value, on) {
-      toggleIn(itemForm.seaArea, value, on);
+    renderChecks($("itemWaterTypes"), WATER_TYPES, itemForm.waterTypes, function (value, on) {
+      toggleIn(itemForm.waterTypes, value, on);
     });
   }
 
   function resetItemForm() {
     editingItemId = "";
-    itemForm = { flavorProfile: [], targetSpecies: [], seaArea: [], imageUrl: "" };
+    itemForm = { flavorProfile: [], targetSpecies: [], waterTypes: [], imageUrl: "" };
     var ids = ["itemName", "itemPrice", "itemPack", "itemPerCup", "itemWater", "itemVisc", "itemFog", "itemImage"];
     for (var i = 0; i < ids.length; i += 1) $(ids[i]).value = "";
     $("itemCategory").value = "GROUNDBAIT";
@@ -1127,7 +1154,7 @@
     itemForm = {
       flavorProfile: item.flavorProfile.slice(),
       targetSpecies: item.targetSpecies.slice(),
-      seaArea: item.seaArea.slice(),
+      waterTypes: item.waterTypes.slice(),
       imageUrl: item.imageUrl
     };
     $("itemName").value = item.name;
@@ -1154,7 +1181,7 @@
     for (var i = 0; i < state.items.length; i += 1) {
       var item = state.items[i];
       var perGram = costPerGram(item);
-      html += "<tr><td>" + (item.imageUrl ? '<img class="thumb" src="' + esc(item.imageUrl) + '" alt="">' : "")
+      html += "<tr><td>" + (item.imageUrl ? '<img class="thumb big" src="' + esc(item.imageUrl) + '" alt="">' : '<span class="thumb big noimg" aria-hidden="true"></span>')
         + "</td><td>" + esc(item.name)
         + (positive(item.gramsPerCup) === null ? ' <span class="tag">無杯量</span>' : "")
         + "</td><td>" + esc(labelOf(CATEGORIES, item.category))
@@ -1219,7 +1246,7 @@
         sinkingSpeed: $("itemSink").value,
         flavorProfile: itemForm.flavorProfile,
         targetSpecies: itemForm.targetSpecies,
-        seaArea: itemForm.seaArea,
+        waterTypes: itemForm.waterTypes,
         recommendedWaterRatio: $("itemWater").value
       });
       if (!draft) {
@@ -1302,13 +1329,13 @@
       var parts = [];
       for (var j = 0; j < result.summary.rows.length; j += 1) {
         var item = byId[result.summary.rows[j].itemId];
-        if (item) parts.push(esc(item.name) + " " + grams(result.summary.rows[j].convertedWeightG));
+        if (item) parts.push(thumbTag(item) + esc(item.name) + " " + grams(result.summary.rows[j].convertedWeightG));
       }
       html += '<li class="log-item">'
         + '<div class="log-top"><span class="log-title">' + esc(recipe.title) + "</span>"
         + '<span class="row-derived">' + grams(result.summary.totalWeightG) + " · " + money(result.summary.totalCostTWD) + "</span></div>"
         + '<div class="log-meta"><span>' + esc(recipe.createdAt) + "</span>"
-        + "<span>" + esc(labelOf(FLOW_RATES, recipe.expectedFlowRate)) + "</span>"
+        + (recipe.targetWaterTypes.length ? "<span>" + esc(recipe.targetWaterTypes.join("、")) + "</span>" : "")
         + (recipe.targetSpecies.length ? "<span>" + esc(recipe.targetSpecies.join("、")) + "</span>" : "")
         + (recipe.prepLeadTimeMinutes ? "<span>熟成 " + recipe.prepLeadTimeMinutes + " 分</span>" : "")
         + (recipe.caughtTarget ? '<span class="hit">中目標魚</span>' : "")
