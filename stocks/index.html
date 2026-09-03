@@ -84,12 +84,24 @@
   .row-del:hover{color:var(--red);border-color:var(--red)}
   .row-del:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   .stock-cards{display:none}
-  .stock-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px}
+  .stock-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:8px}
   .stock-card-head{display:flex;align-items:center;gap:8px;justify-content:space-between;min-height:44px}
   .stock-main{font-weight:700}
-  .stock-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:12px}
-  .stock-meta b{display:block;color:var(--faint);font-weight:500}
-  .data-line{font-size:11px;color:var(--faint);margin-top:8px}
+  /* 收盤與漲跌幅是這張卡最該一眼看到的兩個數字，從指標矩陣裡抽出來自成一行。
+     原本它們跟 PE／PB 一樣只是 2 欄格子裡的兩格，沒有任何視覺層級。 */
+  .stock-price{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-top:2px}
+  .stock-price .px{font-family:"Roboto Mono",monospace;font-size:20px;font-weight:700;line-height:1.15}
+  .stock-price .chg{font-family:"Roboto Mono",monospace;font-size:13px;font-weight:700}
+  /* 其餘指標壓成資訊矩陣：標籤與數值同一行（原本標籤 display:block 各佔一行）。
+     五格刻意不等寬——實測 375px 下可用 321px，五格均分成三欄各 100px 時，
+     「成交額 601.12 億」需要 102px 就會換行，而 PE／PB 那種只要 56px 的格子
+     卻空著。所以底層開六欄：前三個短標籤各佔 2 欄（≈100px），
+     「距52週高」與「成交額」各佔 3 欄（≈155px）。兩列排完，欄寬按內容給。 */
+  .stock-meta{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px 10px;margin-top:8px;font-size:12px;font-family:"Roboto Mono",monospace}
+  .stock-meta>div{grid-column:span 2;display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0;border-bottom:1px solid var(--line);padding-bottom:2px}
+  .stock-meta>div:nth-child(n+4){grid-column:span 3}
+  .stock-meta b{color:var(--faint);font-weight:500;white-space:nowrap}
+  .data-line{font-size:11px;color:var(--faint);margin-top:7px}
   .data-line b{color:var(--soft);font-weight:500}
 
   .watch-editor{border:1px solid var(--line2);border-radius:8px;background:var(--panel);padding:12px;margin:10px 0 12px}
@@ -1206,14 +1218,15 @@ function renderScore(){
     card.innerHTML = '<div class="stock-card-head"><div>' + stockTradingViewLink(stock, true)
         + (m.market ? '<span class="mk" style="margin-left:6px">' + m.market + '</span>' : '')
         + '</div>' + removeBtnHtml(stock) + '</div>'
+      + '<div class="stock-price"><span class="px">' + (close != null ? fmt(close, 2) : "待更新") + '</span>'
+        + '<span class="chg ' + (snapshot.dayPct == null ? "" : toneClass(snapshot.dayPct)) + '">'
+        + (snapshot.dayPct == null ? "—" : signedFixed(snapshot.dayPct, 1) + "%") + '</span></div>'
       + '<div class="stock-meta">'
-        + cell("收盤", close != null ? fmt(close, 2) : "待更新")
-        + cell("漲跌%", snapshot.dayPct == null ? "—" : '<span class="' + toneClass(snapshot.dayPct) + '">' + signedFixed(snapshot.dayPct, 1) + "%</span>")
         + cell("PE", num(m.pe, 2))
         + cell("PB", num(m.pbRatio, 2))
-        + cell("殖利率%", num(m.dividendYield, 2))
+        + cell("殖利率", num(m.dividendYield, 2, "%"))
         + cell("距52週高", m.fromHi == null ? "—" : '<span class="' + toneClass(m.fromHi) + '">' + fmt(m.fromHi, 1) + "%</span>")
-        + cell("成交額(億)", num(m.turnover, 2))
+        + cell("成交額", num(m.turnover, 2, " 億"))
       + '</div>'
       + '<div class="data-line">' + escapeHtml(stock.role) + '</div>';
     cards.appendChild(card);
