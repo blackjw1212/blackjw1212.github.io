@@ -31,8 +31,23 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 改版面之後手動跑。起 `.claude/launch.json` 的 `static-site`，開
 `http://localhost:4173/scripts/mobile-audit.html`，按「開始量測」。
 它把每頁塞進 375×812 與 320×720 的 iframe 量真實版面，回報橫向溢出、
-觸控目標 < 44px、頁高。**不在 DoD 裡**——它需要瀏覽器，而這個 repo 刻意沒有
-Playwright 之類的工具鏈。`scripts/` 不在 pages-deploy 的 cp allowlist，不會上線。
+觸控目標 < 44px、頁高。`scripts/` 不在 pages-deploy 的 cp allowlist，不會上線。
+
+**它刻意不進 `verify.sh`，不要「順手塞進去」。** 這件事在 2026-09-03 評估過並否決：
+那不是多跑一支 script，是把整個驗證基礎設施從 Node-only 升級成 browser-dependent。
+量的是真實排版（`getBoundingClientRect` ＋ 媒體查詢），jsdom 沒有排版引擎、回傳全是 0，
+所以一定得接一個真的瀏覽器。當時查到的三個成本：
+
+1. **`backend/` 沒有 lockfile。** 加任何 devDependency（連 `puppeteer-core` 這種只有
+   幾百 KB、不自帶瀏覽器的也一樣）都得先補一份並開始維護它。
+2. **CI 的測試 job 完全沒有 `npm install`。** `site-check.yml` 直接跑 `npm test`，
+   因為 `node --test` 只用內建模組。要用相依就得在 CI 加一段安裝，那一步現在不存在。
+3. **CI 不該假設執行環境。** 本機有系統 Chrome 不代表 runner 有；要嘛下載瀏覽器
+   （慢、肥），要嘛賭 runner image 的內容。
+
+邊界因此劃在：`verify.sh` ＝ 快速、確定性、無瀏覽器依賴的 Stop gate；
+`mobile-audit.html` ＝ 改 responsive／版面時的人工瀏覽器驗證。
+真的要重開這個決定，先確認上面三條是不是還成立。
 
 **一定要用行動裝置模擬（或真手機）跑，否則結果不算數。** `/weather/` 與 `/dash/`
 的觸控目標是用 `@media (pointer: coarse)` 撐開的，桌機的 pointer 是 fine、那些規則
