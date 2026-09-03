@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-09-02T11:51:01.795Z",
-  "eodUpdatedAt": "2026-09-02T06:36:41.158Z",
+  "updatedAt": "2026-09-03T00:15:26.488Z",
+  "eodUpdatedAt": "2026-09-03T00:15:26.488Z",
   "eodTradingDate": "2026-09-02",
   "holdings": [
     "2330",
@@ -106,34 +106,34 @@
       "code": "6669",
       "name": "緯穎",
       "close": 2610,
-      "change": -5,
+      "change": 0,
       "date": "2026-09-02"
     }
   ],
   "valuation": {
     "1519": {
       "code": "1519",
-      "pe": 49.8,
-      "dividendYield": 1.58,
-      "pbRatio": 26.12
+      "pe": 48.49,
+      "dividendYield": 1.62,
+      "pbRatio": 25.43
     },
     "2308": {
       "code": "2308",
-      "pe": 59.36,
-      "dividendYield": 0.62,
-      "pbRatio": 16.49
+      "pe": 55.06,
+      "dividendYield": 0.67,
+      "pbRatio": 15.3
     },
     "2317": {
       "code": "2317",
-      "pe": 16.88,
-      "dividendYield": 2.8,
-      "pbRatio": 1.88
+      "pe": 16.55,
+      "dividendYield": 2.86,
+      "pbRatio": 1.85
     },
     "2330": {
       "code": "2330",
-      "pe": 28.28,
-      "dividendYield": 0.9,
-      "pbRatio": 9.84
+      "pe": 27.65,
+      "dividendYield": 0.92,
+      "pbRatio": 9.61
     },
     "2356": {
       "code": "2356",
@@ -143,27 +143,27 @@
     },
     "2376": {
       "code": "2376",
-      "pe": 13.44,
-      "dividendYield": 3.34,
-      "pbRatio": 3.62
+      "pe": 13.53,
+      "dividendYield": 3.32,
+      "pbRatio": 3.64
     },
     "2382": {
       "code": "2382",
-      "pe": 14.9,
-      "dividendYield": 4.56,
-      "pbRatio": 5.41
+      "pe": 14.68,
+      "dividendYield": 4.63,
+      "pbRatio": 5.33
     },
     "3017": {
       "code": "3017",
-      "pe": 45.45,
-      "dividendYield": 0.61,
-      "pbRatio": 24.26
+      "pe": 44.12,
+      "dividendYield": 0.63,
+      "pbRatio": 23.55
     },
     "3231": {
       "code": "3231",
-      "pe": 14.46,
-      "dividendYield": 3.02,
-      "pbRatio": 2.98
+      "pe": 14.73,
+      "dividendYield": 2.96,
+      "pbRatio": 3.04
     },
     "3324": {
       "code": "3324",
@@ -173,45 +173,28 @@
     },
     "3661": {
       "code": "3661",
-      "pe": 62.7,
-      "dividendYield": 0.76,
-      "pbRatio": 6.11
+      "pe": 61.6,
+      "dividendYield": 0.78,
+      "pbRatio": 6
     },
     "6239": {
       "code": "6239",
-      "pe": 28.12,
-      "dividendYield": 1.58,
-      "pbRatio": 3.67
+      "pe": 27.52,
+      "dividendYield": 1.62,
+      "pbRatio": 3.59
     },
     "6669": {
       "code": "6669",
-      "pe": 25.01,
-      "dividendYield": 2.11,
-      "pbRatio": 10.62
+      "pe": 8.37,
+      "dividendYield": 6.29,
+      "pbRatio": 3.55
     }
   },
   "yield10y": {
-    "date": "2026-08-31",
-    "value": 4.75,
-    "updatedAt": "2026-08-31T22:00:00.000Z",
+    "date": "2026-09-01",
+    "value": 4.79,
+    "updatedAt": "2026-09-01T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TWSE OpenAPI STOCK_DAY_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "TWSE MIS same-day quotes",
-      "message": "https://mis.twse.com.tw/stock/api/getStockInfo.jsp returned HTTP 502"
-    },
-    {
-      "source": "TWSE OpenAPI BWIBBU_ALL",
-      "message": "Unexpected token '<', \"<html>\n<he\"... is not valid JSON"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 12 eod row(s), 12 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
