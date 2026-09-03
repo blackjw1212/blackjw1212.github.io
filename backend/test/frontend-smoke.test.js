@@ -250,7 +250,8 @@ test("root index is an entry console", async () => {
   assert.match(html, /href="\/coupon\/"/);
   assert.match(html, /href="\/subtitle\/"/);
   assert.match(html, /href="\/convert\/"/);
-  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"], ["esp32", "/esp32/"], ["forscan", "/forscan/"], ["flight", "/flight/"], ["dash", "/dash/"], ["coupon", "/coupon/"], ["subtitle", "/subtitle/"], ["convert", "/convert/"]]);
+  assert.match(html, /href="\/bait\/"/);
+  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"], ["esp32", "/esp32/"], ["forscan", "/forscan/"], ["flight", "/flight/"], ["dash", "/dash/"], ["coupon", "/coupon/"], ["subtitle", "/subtitle/"], ["convert", "/convert/"], ["bait", "/bait/"]]);
   assert.match(html, /股票觀測/);
   assert.doesNotMatch(html, /href="\/ai\/"|data-primary-entry="ai"|AI Feed/);
   assert.match(html, /天氣與海象/);

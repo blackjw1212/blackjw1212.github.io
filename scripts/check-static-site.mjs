@@ -131,6 +131,7 @@ for (const rel of [
   // 會整頁空白——而且 pdf.js 只在 console 抱怨，畫面上就是「轉出來是白的」。
   "convert/vendor/pdfjs/cmaps/UniCNS-UCS2-H.bcmap",
   "convert/vendor/pdfjs/standard_fonts/LiberationSans-Regular.ttf",
+  "bait/index.html",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -199,8 +200,8 @@ if (has("index.html")) {
   // 這條擋的是「首頁又長出一個會打網路的區塊」。
   assertNoMatch("index.html", html, /stock-risk-feed\.json|bjkw-weather-proxy[^"]*\/health/, "root runtime fetches");
   assertNoMatch("index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "root body script");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/, subtitle:/subtitle/ and convert:/convert/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/|bait:/bait/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/, subtitle:/subtitle/, convert:/convert/ and bait:/bait/, got ${primaryLinks.join(", ")}`);
   }
   // 整張卡片就是連結，沒有獨立的 CTA 按鈕了——右上那排路徑列與每張卡右下的
   //「開啟 /xxx/」講的都是同一件事，兩者一起移除，可點範圍改成整張卡。
@@ -485,13 +486,38 @@ if (has("convert/index.html")) {
   assertMatch("convert/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "convert main script must sit right before </body>");
 }
 
+if (has("bait/index.html")) {
+  const html = await read("bait/index.html");
+  assertMatch("bait/index.html", html, /<html lang="zh-Hant">/, "bait document language");
+  assertMatch("bait/index.html", html, /<title>餌料配方｜BJKW<\/title>/, "bait title");
+  assertMatch("bait/index.html", html, /<link rel="canonical" href="\/bait\/"/, "bait canonical");
+  assertMatch("bait/index.html", html, /<link rel="manifest" href="\/assets\/images\/site\.webmanifest">/, "bait manifest");
+  assertMatch("bait/index.html", html, /name="theme-color" content="#101418"/, "bait theme color");
+  assertMatch("bait/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "bait service worker registration");
+
+  // 這一頁沒有後端也沒有帳號，資料只存在使用者自己的瀏覽器裡。下面三條把那句話
+  // 變成可驗證的東西：沒有跨來源網址、沒有自己發出的請求。
+  assertMatch("bait/index.html", html, /整頁在瀏覽器裡運算，不上傳任何東西/, "bait local-only disclosure");
+  assertNoMatch("bait/index.html", html.slice(html.indexOf("<body")), /https?:\/\//, "bait external endpoints");
+  assertNoMatch("bait/index.html", html, /\bfetch\s*\(|XMLHttpRequest|sendBeacon/, "bait outbound request paths");
+
+  // 量杯換克需要每個單品自己的密度，這頁刻意不替使用者猜。猜錯的話成本與綜合
+  // 比重會一起錯，而畫面上看起來完全正常——所以把「不猜」釘成契約。
+  assertMatch("bait/index.html", html, /沒填的單品只提供重量輸入，這裡不替你猜密度/, "bait must not guess bulk density");
+  // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
+  // 「單品庫」與「紀錄」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
+  assertMatch("bait/index.html", html, /<div class="tabbar"/, "bait tab bar class drives the mobile audit walker");
+  // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
+  assertMatch("bait/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "bait main script must sit right before </body>");
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bait/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

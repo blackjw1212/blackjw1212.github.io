@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>餌料配方｜BJKW</title>
+<meta name="description" content="磯釣與海釣場的餌料紀錄：現場用份數開餌，背景換算重量、成本與綜合黏性霧化比重，並在比重、味型、水比不合理時當場示警。" />
+<link rel="canonical" href="/bait/" />
+<meta property="og:title" content="餌料配方" />
+<meta property="og:description" content="單品原料庫與 A 撒配方紀錄，全部算在瀏覽器裡，資料只留在這台裝置。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="開餌">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--panel-2:#202b34;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#8a97a2;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#ff766e;--violet:#9a7fd1;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:var(--cyan)}
+  .shell{width:min(1100px,calc(100% - 40px));margin:0 auto;padding:24px 0 40px}
+  .skip{position:absolute;left:-9999px;top:0;z-index:9;background:#243340;border:1px solid #405263;border-radius:0 0 8px 0;color:var(--ink);font-weight:900;padding:8px 14px;text-decoration:none}
+  .skip:focus{left:0}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px;flex-wrap:wrap}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  h1{font-size:24px;letter-spacing:0;margin-top:4px}
+  .topnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .topnav a{color:var(--faint);text-decoration:none;padding:4px 0}
+  .topnav a:hover{color:var(--cyan)}
+  .topnav a:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
+
+  .tabbar{display:flex;gap:8px;border-bottom:1px solid var(--line);margin-bottom:18px}
+  .tabbar .tab{font-weight:700;font-size:15px;background:none;border:none;border-bottom:2px solid transparent;color:var(--soft);padding:8px 14px;cursor:pointer;min-height:40px}
+  .tabbar .tab.on{color:var(--amber);border-bottom-color:var(--amber)}
+  .tabbar .tab:hover{color:var(--amber)}
+  .tabbar .tab:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:-3px}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+  .card{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:18px}
+  .card+.card{margin-top:18px}
+  .card h2{font-size:16px;margin-bottom:14px}
+  .card h3{font-size:14px;color:var(--soft);margin:18px 0 8px}
+  .card h3:first-child{margin-top:0}
+
+  .field{display:block;margin-bottom:14px}
+  .field span{display:block;font-size:12px;color:var(--faint);margin-bottom:5px}
+  .field select,.field input[type=number],.field input[type=text],.field textarea,.field input[type=file]{width:100%;min-height:40px;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;padding:8px 10px}
+  .field textarea{min-height:70px;resize:vertical}
+  .field select:focus-visible,.field input:focus-visible,.field textarea:focus-visible,.check input:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+  .duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+  .check{display:flex;align-items:flex-start;gap:9px;min-height:32px;font-size:13px;color:var(--soft);cursor:pointer;padding:3px 0}
+  .check input{margin-top:3px;width:17px;height:17px;flex:0 0 auto;accent-color:var(--teal)}
+  .checks{display:flex;flex-wrap:wrap;gap:2px 16px;margin-bottom:12px}
+
+  .btn{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-weight:700;padding:9px 16px;min-height:40px;cursor:pointer}
+  .btn:hover{border-color:#4c5e6b}
+  .btn:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+  .btn.primary{background:var(--teal);border-color:var(--teal);color:#0d1417}
+  .btn.danger{color:var(--red)}
+  .btn.small{font-size:12px;padding:5px 10px;min-height:32px}
+  .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+
+  .rows{list-style:none;display:grid;gap:8px}
+  .row{border:1px solid var(--line);border-left:3px solid var(--teal);border-radius:6px;background:var(--panel);padding:9px 11px}
+  .row.c-MAIN_BAIT{border-left-color:var(--cyan)}
+  .row.c-GROUNDBAIT{border-left-color:var(--teal)}
+  .row.c-ADDITIVE{border-left-color:var(--violet)}
+  .row-top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+  .row-name{font-weight:700;font-size:14px}
+  .row-derived{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--faint);white-space:nowrap}
+  .row-ctl{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .step{width:40px;min-height:40px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-size:18px;font-weight:700;cursor:pointer}
+  .step:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+  .row-amount{width:74px;min-height:40px;text-align:center;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 4px}
+  .row-mode{min-height:40px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-size:12px;padding:0 8px}
+  .row-ctl .btn{margin-left:auto}
+
+  .result-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 22px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:6px}
+  .big{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:31px;font-weight:800;line-height:1.1;color:var(--teal)}
+  .big-label{font-size:12px;color:var(--faint);display:block;margin-bottom:2px}
+  .sub{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:19px;font-weight:700}
+  .none{color:var(--faint);font-size:13px;padding:8px 0}
+
+  .audit{list-style:none;display:grid;gap:8px}
+  .audit li{border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:6px;background:var(--panel);padding:9px 12px;font-size:13px;color:var(--soft)}
+  .audit li.warn{border-left-color:var(--red)}
+  .audit li.ok{border-left-color:var(--green);color:var(--soft)}
+  .audit code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint);display:block;margin-top:2px}
+
+  .tag{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--soft)}
+  .thumb{width:44px;height:44px;object-fit:cover;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);display:block}
+  .state{font-size:12px;color:var(--faint);margin-top:8px;min-height:18px}
+  .state.err{color:var(--red)}
+  .state.ok{color:var(--green)}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--faint);font-size:12px;font-weight:700;white-space:nowrap}
+  td.num{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:right;white-space:nowrap}
+  .table-wrap{overflow-x:auto}
+
+  .log{list-style:none;display:grid;gap:12px}
+  .log-item{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px 14px}
+  .log-top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+  .log-title{font-weight:700;font-size:15px}
+  .log-meta{font-size:12px;color:var(--faint);margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 12px}
+  .log-body{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+  .hit{color:var(--green);font-weight:700}
+
+  .notes{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px}
+  .notes ul{margin:8px 0 0 18px;display:grid;gap:5px}
+  .notes li::marker{color:var(--amber)}
+
+  @media (max-width:820px){
+    /* minmax(0,1fr) 而不是 1fr：grid item 的 min-width 預設是 auto，
+       單欄時單品庫那張表會把整欄撐到內容寬度，整頁跟著橫向捲動。 */
+    .grid{grid-template-columns:minmax(0,1fr)}
+  }
+  /* media query 收在 <style> 最後：同特異度的規則後來居上，插在中段會被下面的
+     基準規則蓋回去（flight 踩過這個洞）。 */
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1100px)}
+    .big{font-size:27px}
+    .duo{grid-template-columns:minmax(0,1fr)}
+    /* 觸控目標。方塊本身包在 <label class="check"> 裡，真正的命中區是那個 label，
+       所以撐 label；align-items 維持 flex-start，標籤換行時方塊才不會飄到中間。 */
+    .topbar a{min-height:44px;display:inline-flex;align-items:center}
+    .tabbar .tab{min-height:44px}
+    .check{min-height:44px;padding:6px 0}
+    .check input{width:20px;height:20px}
+    .btn,.btn.small{min-height:44px}
+    .step,.row-amount,.row-mode{min-height:44px}
+    .step{width:44px}
+    /* 要跟 .field select 的 min-height:40px 同特異度才蓋得過去，
+       單寫 select{} 是 (0,0,1) 打不贏 (0,1,1)。 */
+    .field select,.field input[type=number],.field input[type=text],.field input[type=file],.field textarea{min-height:44px}
+    /* 真手機上 min-height 對 appearance:menulist 的 select 無效——手機用 UA 的原生
+       控制項度量，量到的是 29–38px 而不是 44。桌機的行動裝置模擬會乖乖套用
+       min-height，所以模擬綠、真機才紅。appearance:none 之後高度才吃得到，代價是
+       原生箭頭消失，用兩道 linear-gradient 補回來（SVG data URI 帶 xmlns 的外部
+       網址，會撞到本頁「不得出現外部網址」那條契約）。 */
+    .field select,.row-mode{-webkit-appearance:none;appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,#8a97a2 50%),linear-gradient(135deg,#8a97a2 50%,transparent 50%);background-position:right 16px center,right 11px center;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+    .card{padding:14px}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#tabbar">跳到分頁</a>
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <div class="brand-kicker">BAIT &amp; GROUNDBAIT</div>
+      <h1>餌料配方</h1>
+    </div>
+    <nav class="topnav" aria-label="路徑">
+      <a href="/">← BJKW Console</a>
+    </nav>
+  </header>
+
+  <div class="tabbar" id="tabbar" role="tablist" aria-label="餌料系統分頁">
+    <button class="tab on" id="tabMix" type="button" role="tab" aria-selected="true">開餌</button>
+    <button class="tab" id="tabItems" type="button" role="tab" aria-selected="false">單品庫</button>
+    <button class="tab" id="tabLog" type="button" role="tab" aria-selected="false">紀錄</button>
+  </div>
+
+  <div id="mixPanel">
+    <div class="grid">
+      <section class="card" aria-labelledby="mixHeading">
+        <h2 id="mixHeading">組成</h2>
+        <label class="field"><span>加入單品</span>
+          <select id="addItem" aria-label="加入單品"><option value="">選一個單品…</option></select>
+        </label>
+        <ul class="rows" id="mixRows"></ul>
+        <p class="none" id="mixEmpty">還沒加任何東西。單品庫是空的就先去建一筆。</p>
+        <div class="duo">
+          <label class="field"><span>水量比（水重 ÷ 乾料總重）</span>
+            <input id="waterRatio" type="number" step="0.05" min="0" inputmode="decimal">
+          </label>
+          <label class="field"><span>熟成／放置（分鐘）</span>
+            <input id="prepLead" type="number" step="5" min="0" inputmode="numeric">
+          </label>
+        </div>
+        <div class="duo">
+          <label class="field"><span>蝦粉／蝦磚比例</span>
+            <input id="shrimpRatio" type="text" maxlength="40" placeholder="例：1 磚配 2 包粉">
+          </label>
+          <label class="field"><span>蝦況</span>
+            <select id="shrimpStatus"></select>
+          </label>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="calcHeading">
+        <h2 id="calcHeading">試算</h2>
+        <div class="result-head">
+          <div><span class="big-label">總重</span><span class="big" id="totalWeight">—</span></div>
+          <div><span class="big-label">總成本</span><span class="sub" id="totalCost">—</span></div>
+        </div>
+        <div class="result-head">
+          <div><span class="big-label">綜合黏性</span><span class="sub" id="blendVisc">—</span></div>
+          <div><span class="big-label">綜合霧化</span><span class="sub" id="blendFog">—</span></div>
+          <div><span class="big-label">綜合比重</span><span class="sub" id="blendSink">—</span></div>
+        </div>
+
+        <h3>環境與目標</h3>
+        <label class="field"><span>預期流速</span><select id="flowRate"></select></label>
+        <span class="big-label">目標魚種</span>
+        <div class="checks" id="mixSpecies"></div>
+        <span class="big-label">海域</span>
+        <div class="checks" id="mixSeaAreas"></div>
+
+        <h3>審查</h3>
+        <ul class="audit" id="auditList"></ul>
+
+        <h3>存成配方</h3>
+        <label class="field"><span>配方名稱</span>
+          <input id="recipeTitle" type="text" maxlength="60" placeholder="例：東北季風港內黑鯛">
+        </label>
+        <div class="btnrow">
+          <button class="btn primary" id="saveRecipe" type="button">存成配方</button>
+          <button class="btn" id="clearDraft" type="button">清空</button>
+        </div>
+        <p class="state" id="mixState"></p>
+      </section>
+    </div>
+  </div>
+
+  <div id="itemsPanel" hidden>
+    <div class="grid">
+      <section class="card" aria-labelledby="itemFormHeading">
+        <h2 id="itemFormHeading">新增單品</h2>
+        <label class="field"><span>名稱</span><input id="itemName" type="text" maxlength="40"></label>
+        <div class="duo">
+          <label class="field"><span>分類</span><select id="itemCategory"></select></label>
+          <label class="field"><span>沉速／比重</span><select id="itemSink"></select></label>
+        </div>
+        <div class="duo">
+          <label class="field"><span>購買價格（元）</span><input id="itemPrice" type="number" min="0" step="1" inputmode="numeric"></label>
+          <label class="field"><span>包裝重量（克）</span><input id="itemPack" type="number" min="0" step="10" inputmode="numeric"></label>
+        </div>
+        <div class="duo">
+          <label class="field"><span>每杯克數（沒填就只能用重量輸入）</span><input id="itemPerCup" type="number" min="0" step="10" inputmode="numeric"></label>
+          <label class="field"><span>建議水量比（選填）</span><input id="itemWater" type="number" min="0" step="0.05" inputmode="decimal"></label>
+        </div>
+        <div class="duo">
+          <label class="field"><span>黏性 1 鬆散 ~ 5 極黏</span><input id="itemVisc" type="number" min="1" max="5" step="1" inputmode="numeric"></label>
+          <label class="field"><span>霧化 1 爆霧 ~ 5 微霧</span><input id="itemFog" type="number" min="1" max="5" step="1" inputmode="numeric"></label>
+        </div>
+        <span class="big-label">味型</span>
+        <div class="checks" id="itemFlavors"></div>
+        <span class="big-label">適用魚種</span>
+        <div class="checks" id="itemSpecies"></div>
+        <span class="big-label">適用海域</span>
+        <div class="checks" id="itemSeaAreas"></div>
+        <label class="field"><span>照片（會縮成 160px 縮圖存進這台裝置，不是原檔）</span>
+          <input id="itemImage" type="file" accept="image/*">
+        </label>
+        <div class="btnrow">
+          <button class="btn primary" id="saveItem" type="button">儲存單品</button>
+          <button class="btn" id="resetItem" type="button">清空表單</button>
+        </div>
+        <p class="state" id="itemState"></p>
+      </section>
+
+      <section class="card" aria-labelledby="itemListHeading">
+        <h2 id="itemListHeading">單品庫</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>圖</th><th>名稱</th><th>分類</th><th class="num">每克成本</th><th class="num">黏/霧</th><th>沉速</th><th></th></tr></thead>
+            <tbody id="itemRows"></tbody>
+          </table>
+        </div>
+        <p class="none" id="itemEmpty">還沒有任何單品。左邊建一筆，價格與包裝重量填了才算得出成本。</p>
+      </section>
+    </div>
+  </div>
+
+  <div id="logPanel" hidden>
+    <section class="card" aria-labelledby="logHeading">
+      <h2 id="logHeading">配方紀錄</h2>
+      <ul class="log" id="logRows"></ul>
+      <p class="none" id="logEmpty">還沒有存過配方。到「開餌」調一份再按「存成配方」。</p>
+    </section>
+
+    <section class="card" aria-labelledby="ioHeading">
+      <h2 id="ioHeading">匯出／匯入</h2>
+      <p class="none">資料只存在這台裝置的瀏覽器裡。換手機、清瀏覽器資料、或用無痕視窗，資料都不會跟著走——要留就自己匯出一份。</p>
+      <div class="btnrow">
+        <button class="btn" id="exportBtn" type="button">匯出 JSON</button>
+        <label class="btn" for="importFile">匯入 JSON</label>
+        <input id="importFile" type="file" accept="application/json,.json" hidden>
+        <button class="btn" id="undoImport" type="button" hidden>復原這次匯入</button>
+      </div>
+      <p class="state" id="ioState"></p>
+    </section>
+  </div>
+
+  <footer class="notes">
+    <ul>
+      <li>綜合黏性／霧化／比重是各單品的數值按<strong>重量佔比</strong>加權平均，數值本身由你自己輸入，不是量測值。</li>
+      <li>量杯換成克需要該單品的「每杯克數」。沒填的單品只提供重量輸入，這裡不替你猜密度。</li>
+      <li>水量比一律定義為「水重 ÷ 乾料總重」，單品的建議水比也是同一個單位，否則兩者不能比。</li>
+      <li>審查提示只是把你填的數字對起來看，實際手感受氣溫、蝦磚解凍程度與當天海況影響更大。</li>
+      <li>整頁在瀏覽器裡運算，不上傳任何東西，也沒有帳號。</li>
+    </ul>
+  </footer>
+</main>
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------- *
+   * 純函式區：不碰 DOM、不碰儲存，掛在 BaitApp.helpers 供測試呼叫。
+   * ---------------------------------------------------------------- */
+
+  var STATE_VERSION = 1;
+  var STORE_KEY = "bjkw-bait:v1";
+  var EXPORT_KIND = "bjkw-bait";
+  /* 一張 160px 縮圖約 5–10KB。localStorage 通常只有 5MB，整包序列化後超過這個
+     長度就拒絕寫入——否則 setItem 會丟 QuotaExceededError，而 catch 住之後
+     使用者看到的是「按了沒反應」。 */
+  var STORE_MAX_CHARS = 4000000;
+  var IMAGE_MAX_CHARS = 60000;
+  var HIGH_COST_SHARE = 0.4;
+  var WATER_TOLERANCE = 1.2;
+
+  var CATEGORIES = [
+    { id: "MAIN_BAIT", label: "鉤餌" },
+    { id: "GROUNDBAIT", label: "A撒" },
+    { id: "ADDITIVE", label: "添加劑" }
+  ];
+  /* 沉速是列舉，但綜合比重要加權平均，所以固定給一組分數；加權後 round 回級距。 */
+  var SINKING = [
+    { id: "VERY_FAST", label: "極快沉", score: 5 },
+    { id: "FAST", label: "快沉", score: 4 },
+    { id: "MEDIUM", label: "中性", score: 3 },
+    { id: "SLOW", label: "慢沉", score: 2 },
+    { id: "FLOATING", label: "漂浮", score: 1 }
+  ];
+  var FLOW_RATES = [
+    { id: "FAST", label: "急流" },
+    { id: "MEDIUM", label: "中流" },
+    { id: "STILL", label: "靜水" }
+  ];
+  var SHRIMP_STATUS = [
+    { id: "", label: "未指定" },
+    { id: "WHOLE", label: "全蝦" },
+    { id: "CRUSHED", label: "打碎" },
+    { id: "DRIED", label: "乾蝦皮" }
+  ];
+  var FLAVORS = ["腥", "香", "酸/發酵", "藻/青苔", "甜"];
+  var SPECIES = ["黑鯛", "臭肚", "黑毛", "白毛", "豆仔", "竹莢魚", "石斑"];
+  var SEA_AREAS = ["近岸/港內", "外礁/離島", "海釣場"];
+  /* 臭肚吃素，缺這兩種味型就提示。判準與訊息都攤在這裡，改建議時只改這一處。 */
+  var SPECIES_FLAVOR_HINTS = [
+    { species: "臭肚", anyOf: ["藻/青苔", "酸/發酵"] }
+  ];
+
+  var CATEGORY_IDS = CATEGORIES.map(function (row) { return row.id; });
+  var SINK_IDS = SINKING.map(function (row) { return row.id; });
+  var FLOW_IDS = FLOW_RATES.map(function (row) { return row.id; });
+  var SHRIMP_IDS = SHRIMP_STATUS.map(function (row) { return row.id; });
+
+  function labelOf(list, id) {
+    for (var i = 0; i < list.length; i += 1) {
+      if (list[i].id === id) return list[i].label;
+    }
+    return "";
+  }
+
+  function sinkScoreOf(id) {
+    for (var i = 0; i < SINKING.length; i += 1) {
+      if (SINKING[i].id === id) return SINKING[i].score;
+    }
+    return 3;
+  }
+
+  function scoreToSinkingSpeed(score) {
+    var rounded = Math.round(Number(score));
+    if (!isFinite(rounded)) return "MEDIUM";
+    if (rounded > 5) rounded = 5;
+    if (rounded < 1) rounded = 1;
+    for (var i = 0; i < SINKING.length; i += 1) {
+      if (SINKING[i].score === rounded) return SINKING[i].id;
+    }
+    return "MEDIUM";
+  }
+
+  function todayISO() {
+    var now = new Date();
+    var month = String(now.getMonth() + 1).padStart(2, "0");
+    var day = String(now.getDate()).padStart(2, "0");
+    return now.getFullYear() + "-" + month + "-" + day;
+  }
+
+  function makeId(prefix) {
+    return prefix + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function positive(value) {
+    var num = Number(value);
+    return isFinite(num) && num > 0 ? num : null;
+  }
+
+  function nonNegative(value, fallback) {
+    var num = Number(value);
+    return isFinite(num) && num >= 0 ? num : fallback;
+  }
+
+  function clampScale(value, fallback) {
+    var num = Math.round(Number(value));
+    if (!isFinite(num)) return fallback;
+    if (num > 5) return 5;
+    if (num < 1) return 1;
+    return num;
+  }
+
+  function clampText(value, max) {
+    return String(value === null || value === undefined ? "" : value).slice(0, max);
+  }
+
+  function pickList(value, allowed) {
+    if (!Array.isArray(value)) return [];
+    var out = [];
+    for (var i = 0; i < value.length; i += 1) {
+      if (allowed.indexOf(value[i]) >= 0 && out.indexOf(value[i]) < 0) out.push(value[i]);
+    }
+    return out;
+  }
+
+  /* 每克成本。包裝重量沒填就回 null——填 0 會讓整份配方的成本變 Infinity，
+     而畫面上只會看到一個沒有單位的大數字。 */
+  function costPerGram(item) {
+    if (!item) return null;
+    var price = Number(item.unitPrice);
+    var pack = positive(item.packWeightG);
+    if (!isFinite(price) || price < 0 || pack === null) return null;
+    return price / pack;
+  }
+
+  /* 量杯換克需要該單品的 gramsPerCup。缺就回 null，由呼叫端當成「換算不出來」
+     報出去，不要用任何預設密度頂替——那會讓成本與比重一起錯。 */
+  function toGrams(detail, item) {
+    if (!detail) return null;
+    var amount = Number(detail.amount);
+    if (!isFinite(amount) || amount < 0) return null;
+    if (detail.inputMode === "WEIGHT_G") return amount;
+    if (detail.inputMode === "VOLUME_CUP") {
+      var perCup = positive(item && item.gramsPerCup);
+      if (perCup === null) return null;
+      return amount * perCup;
+    }
+    return null;
+  }
+
+  /* convertedWeightG 是衍生值，刻意不存進配方：單品的每杯克數被更正時，
+     存過的配方要跟著算對，而不是留著當初那個錯的數字。 */
+  function recipeRows(recipe, itemsById) {
+    var details = recipe && Array.isArray(recipe.items) ? recipe.items : [];
+    var rows = [];
+    var unresolved = [];
+    var costUnknown = [];
+    var totalWeightG = 0;
+    var totalCostTWD = 0;
+    for (var i = 0; i < details.length; i += 1) {
+      var detail = details[i];
+      var item = detail && itemsById ? itemsById[detail.itemId] : null;
+      var weightG = item ? toGrams(detail, item) : null;
+      if (!item || weightG === null) {
+        unresolved.push(detail ? detail.itemId : "");
+        continue;
+      }
+      var perGram = costPerGram(item);
+      var costTWD = perGram === null ? null : perGram * weightG;
+      if (costTWD === null) costUnknown.push(item.id);
+      rows.push({ itemId: item.id, inputMode: detail.inputMode, amount: Number(detail.amount), convertedWeightG: weightG, costTWD: costTWD, share: 0 });
+      totalWeightG += weightG;
+      if (costTWD !== null) totalCostTWD += costTWD;
+    }
+    for (var j = 0; j < rows.length; j += 1) {
+      rows[j].share = totalWeightG > 0 ? rows[j].convertedWeightG / totalWeightG : 0;
+    }
+    return { rows: rows, totalWeightG: totalWeightG, totalCostTWD: totalCostTWD, unresolved: unresolved, costUnknown: costUnknown };
+  }
+
+  function blendProfile(rows, itemsById) {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    var viscosity = 0;
+    var foggingRate = 0;
+    var sinkScore = 0;
+    var covered = 0;
+    for (var i = 0; i < rows.length; i += 1) {
+      var item = itemsById ? itemsById[rows[i].itemId] : null;
+      if (!item) continue;
+      var share = rows[i].share || 0;
+      viscosity += clampScale(item.viscosity, 3) * share;
+      foggingRate += clampScale(item.foggingRate, 3) * share;
+      sinkScore += sinkScoreOf(item.sinkingSpeed) * share;
+      covered += share;
+    }
+    if (covered <= 0) return null;
+    return {
+      viscosity: viscosity / covered,
+      foggingRate: foggingRate / covered,
+      sinkScore: sinkScore / covered,
+      sinkingSpeed: scoreToSinkingSpeed(sinkScore / covered)
+    };
+  }
+
+  /* 逐項判定，不是全部添加劑合計——規格要抓的是「某一瓶東西吃掉了大半預算」。 */
+  function highCostAdditives(rows, itemsById, totalCostTWD) {
+    var total = Number(totalCostTWD);
+    if (!isFinite(total) || total <= 0 || !Array.isArray(rows)) return [];
+    var out = [];
+    for (var i = 0; i < rows.length; i += 1) {
+      var item = itemsById ? itemsById[rows[i].itemId] : null;
+      if (!item || item.category !== "ADDITIVE" || rows[i].costTWD === null) continue;
+      var share = rows[i].costTWD / total;
+      if (share > HIGH_COST_SHARE) out.push({ itemId: item.id, name: item.name, share: share });
+    }
+    return out;
+  }
+
+  function checkFlow(profile, expectedFlowRate) {
+    if (!profile || expectedFlowRate !== "FAST") return null;
+    if (profile.sinkingSpeed !== "SLOW" && profile.sinkingSpeed !== "FLOATING") return null;
+    return { level: "warn", code: "flow-vs-sink", message: "當前比重過輕，急流場易流失，建議增加高比重底料" };
+  }
+
+  function checkFlavor(rows, itemsById, targetSpecies) {
+    var species = Array.isArray(targetSpecies) ? targetSpecies : [];
+    if (!species.length || !Array.isArray(rows) || !rows.length) return null;
+    var flavors = {};
+    for (var i = 0; i < rows.length; i += 1) {
+      var item = itemsById ? itemsById[rows[i].itemId] : null;
+      if (!item) continue;
+      var list = Array.isArray(item.flavorProfile) ? item.flavorProfile : [];
+      for (var j = 0; j < list.length; j += 1) flavors[list[j]] = true;
+    }
+    for (var k = 0; k < SPECIES_FLAVOR_HINTS.length; k += 1) {
+      var hint = SPECIES_FLAVOR_HINTS[k];
+      if (species.indexOf(hint.species) < 0) continue;
+      var satisfied = false;
+      for (var m = 0; m < hint.anyOf.length; m += 1) {
+        if (flavors[hint.anyOf[m]]) satisfied = true;
+      }
+      if (!satisfied) {
+        return {
+          level: "info",
+          code: "flavor-vs-species",
+          message: "目標有" + hint.species + "，但配方缺少「" + hint.anyOf.join("」或「") + "」味型，考慮補一種"
+        };
+      }
+    }
+    return null;
+  }
+
+  /* 只拿「有填建議水比」的那些單品做加權，並在該子集內重新正規化——
+     否則一份只有一項填了建議值的配方，會被那一項的低佔比稀釋成幾乎零。 */
+  function checkWaterRatio(rows, itemsById, waterAmountRatio) {
+    var ratio = Number(waterAmountRatio);
+    if (!isFinite(ratio) || ratio <= 0 || !Array.isArray(rows)) return null;
+    var weighted = 0;
+    var covered = 0;
+    for (var i = 0; i < rows.length; i += 1) {
+      var item = itemsById ? itemsById[rows[i].itemId] : null;
+      if (!item) continue;
+      var recommended = positive(item.recommendedWaterRatio);
+      if (recommended === null) continue;
+      weighted += recommended * (rows[i].share || 0);
+      covered += rows[i].share || 0;
+    }
+    if (covered <= 0) return null;
+    var suggested = weighted / covered;
+    if (ratio <= suggested * WATER_TOLERANCE) return null;
+    return {
+      level: "warn",
+      code: "water-too-high",
+      suggested: suggested,
+      message: "水量比 " + ratio.toFixed(2) + " 高於建議的 " + suggested.toFixed(2) + "（含 " + Math.round((WATER_TOLERANCE - 1) * 100) + "% 容差），可能過軟導致脫鉤"
+    };
+  }
+
+  function auditRecipe(recipe, itemsById) {
+    var summary = recipeRows(recipe, itemsById);
+    var profile = blendProfile(summary.rows, itemsById);
+    var notes = [];
+    var expensive = highCostAdditives(summary.rows, itemsById, summary.totalCostTWD);
+    for (var i = 0; i < expensive.length; i += 1) {
+      notes.push({
+        level: "info",
+        code: "high-cost-additive",
+        message: "添加劑「" + expensive[i].name + "」佔總成本 " + Math.round(expensive[i].share * 100) + "%，超過 " + Math.round(HIGH_COST_SHARE * 100) + "%"
+      });
+    }
+    var flow = checkFlow(profile, recipe && recipe.expectedFlowRate);
+    if (flow) notes.push(flow);
+    var flavor = checkFlavor(summary.rows, itemsById, recipe && recipe.targetSpecies);
+    if (flavor) notes.push(flavor);
+    var water = checkWaterRatio(summary.rows, itemsById, recipe && recipe.waterAmountRatio);
+    if (water) notes.push(water);
+    if (summary.unresolved.length) {
+      notes.push({
+        level: "warn",
+        code: "unresolved-item",
+        message: "有 " + summary.unresolved.length + " 項換算不出重量：單品被刪掉了，或是用量杯輸入但那個單品沒填每杯克數"
+      });
+    }
+    if (summary.costUnknown.length) {
+      notes.push({
+        level: "info",
+        code: "cost-unknown",
+        message: "有 " + summary.costUnknown.length + " 項沒有價格或包裝重量，總成本是低估的"
+      });
+    }
+    return { summary: summary, profile: profile, notes: notes };
+  }
+
+  function sanitizeItem(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    var name = clampText(raw.name, 40).trim();
+    if (!name) return null;
+    var image = typeof raw.imageUrl === "string" && raw.imageUrl.indexOf("data:image/") === 0
+      ? raw.imageUrl.slice(0, IMAGE_MAX_CHARS)
+      : "";
+    return {
+      id: clampText(raw.id, 40) || makeId("item"),
+      name: name,
+      category: CATEGORY_IDS.indexOf(raw.category) >= 0 ? raw.category : "GROUNDBAIT",
+      imageUrl: image,
+      unitPrice: nonNegative(raw.unitPrice, 0),
+      packWeightG: positive(raw.packWeightG),
+      gramsPerCup: positive(raw.gramsPerCup),
+      viscosity: clampScale(raw.viscosity, 3),
+      foggingRate: clampScale(raw.foggingRate, 3),
+      sinkingSpeed: SINK_IDS.indexOf(raw.sinkingSpeed) >= 0 ? raw.sinkingSpeed : "MEDIUM",
+      flavorProfile: pickList(raw.flavorProfile, FLAVORS),
+      targetSpecies: pickList(raw.targetSpecies, SPECIES),
+      seaArea: pickList(raw.seaArea, SEA_AREAS),
+      recommendedWaterRatio: positive(raw.recommendedWaterRatio)
+    };
+  }
+
+  function sanitizeRecipe(raw, knownItemIds) {
+    if (!raw || typeof raw !== "object") return null;
+    var details = Array.isArray(raw.items) ? raw.items : [];
+    var items = [];
+    for (var i = 0; i < details.length; i += 1) {
+      var detail = details[i];
+      if (!detail || typeof detail !== "object") continue;
+      var itemId = clampText(detail.itemId, 40);
+      if (!itemId) continue;
+      /* 指向已刪除單品的列直接丟掉——留著只會在每次試算時再報一次錯。 */
+      if (knownItemIds && !knownItemIds[itemId]) continue;
+      var amount = Number(detail.amount);
+      if (!isFinite(amount) || amount <= 0) continue;
+      items.push({
+        itemId: itemId,
+        inputMode: detail.inputMode === "WEIGHT_G" ? "WEIGHT_G" : "VOLUME_CUP",
+        amount: amount
+      });
+    }
+    return {
+      id: clampText(raw.id, 40) || makeId("recipe"),
+      title: clampText(raw.title, 60).trim() || "未命名配方",
+      createdAt: /^\d{4}-\d{2}-\d{2}$/.test(raw.createdAt) ? raw.createdAt : todayISO(),
+      items: items,
+      waterAmountRatio: nonNegative(raw.waterAmountRatio, 0),
+      prepLeadTimeMinutes: Math.round(nonNegative(raw.prepLeadTimeMinutes, 0)),
+      shrimpRatio: clampText(raw.shrimpRatio, 40),
+      shrimpStatus: SHRIMP_IDS.indexOf(raw.shrimpStatus) >= 0 ? raw.shrimpStatus : "",
+      targetSpecies: pickList(raw.targetSpecies, SPECIES),
+      targetSeaArea: pickList(raw.targetSeaArea, SEA_AREAS),
+      expectedFlowRate: FLOW_IDS.indexOf(raw.expectedFlowRate) >= 0 ? raw.expectedFlowRate : "MEDIUM",
+      inSituAdjustments: clampText(raw.inSituAdjustments, 300),
+      rating: Math.min(5, Math.max(0, Math.round(nonNegative(raw.rating, 0)))),
+      caughtTarget: raw.caughtTarget === true,
+      notes: clampText(raw.notes, 500)
+    };
+  }
+
+  function emptyDraft() {
+    return sanitizeRecipe({ title: "", items: [], expectedFlowRate: "MEDIUM" }, null);
+  }
+
+  function sanitizeState(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    var items = [];
+    var known = {};
+    var rawItems = Array.isArray(raw.items) ? raw.items : [];
+    for (var i = 0; i < rawItems.length; i += 1) {
+      var item = sanitizeItem(rawItems[i]);
+      if (!item || known[item.id]) continue;
+      known[item.id] = true;
+      items.push(item);
+    }
+    var recipes = [];
+    var rawRecipes = Array.isArray(raw.recipes) ? raw.recipes : [];
+    for (var j = 0; j < rawRecipes.length; j += 1) {
+      var recipe = sanitizeRecipe(rawRecipes[j], known);
+      if (recipe) recipes.push(recipe);
+    }
+    return {
+      version: STATE_VERSION,
+      items: items,
+      recipes: recipes,
+      draft: sanitizeRecipe(raw.draft, known) || emptyDraft()
+    };
+  }
+
+  function exportPayload(state) {
+    return {
+      kind: EXPORT_KIND,
+      version: STATE_VERSION,
+      exportedAt: todayISO(),
+      items: (state && state.items) || [],
+      recipes: (state && state.recipes) || []
+    };
+  }
+
+  /* 匯入的檔案是不可信輸入：先確認是本頁的格式與版本，再逐欄 sanitize。
+     版本對不上寧可拒絕，也不要猜著轉換別人的資料。 */
+  function importPayload(raw) {
+    var parsed = raw;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (error) {
+        return { ok: false, reason: "不是合法的 JSON" };
+      }
+    }
+    if (!parsed || typeof parsed !== "object") return { ok: false, reason: "檔案內容不是一個物件" };
+    if (parsed.kind !== EXPORT_KIND) return { ok: false, reason: "這不是本頁匯出的檔案（缺少 kind 標記）" };
+    if (Number(parsed.version) !== STATE_VERSION) {
+      return { ok: false, reason: "檔案版本 " + parsed.version + " 與本頁的 " + STATE_VERSION + " 不同，沒有自動轉換" };
+    }
+    var state = sanitizeState(parsed);
+    if (!state) return { ok: false, reason: "內容無法解析" };
+    return { ok: true, state: state };
+  }
+
+  var helpers = {
+    CATEGORIES: CATEGORIES,
+    SINKING: SINKING,
+    FLOW_RATES: FLOW_RATES,
+    SHRIMP_STATUS: SHRIMP_STATUS,
+    FLAVORS: FLAVORS,
+    SPECIES: SPECIES,
+    SEA_AREAS: SEA_AREAS,
+    HIGH_COST_SHARE: HIGH_COST_SHARE,
+    WATER_TOLERANCE: WATER_TOLERANCE,
+    STORE_MAX_CHARS: STORE_MAX_CHARS,
+    labelOf: labelOf,
+    sinkScoreOf: sinkScoreOf,
+    scoreToSinkingSpeed: scoreToSinkingSpeed,
+    todayISO: todayISO,
+    costPerGram: costPerGram,
+    toGrams: toGrams,
+    recipeRows: recipeRows,
+    blendProfile: blendProfile,
+    highCostAdditives: highCostAdditives,
+    checkFlow: checkFlow,
+    checkFlavor: checkFlavor,
+    checkWaterRatio: checkWaterRatio,
+    auditRecipe: auditRecipe,
+    sanitizeItem: sanitizeItem,
+    sanitizeRecipe: sanitizeRecipe,
+    sanitizeState: sanitizeState,
+    emptyDraft: emptyDraft,
+    exportPayload: exportPayload,
+    importPayload: importPayload
+  };
+
+  /* 以下需要 DOM / 瀏覽器 API，測試不會執行到。 */
+
+  var state = { version: STATE_VERSION, items: [], recipes: [], draft: emptyDraft() };
+  var editingItemId = "";
+  var undoSnapshot = null;
+  var activeTab = "mix";
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(value) {
+    return String(value === null || value === undefined ? "" : value).replace(/[&<>"']/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
+  }
+
+  function itemsById() {
+    var map = {};
+    for (var i = 0; i < state.items.length; i += 1) map[state.items[i].id] = state.items[i];
+    return map;
+  }
+
+  function money(value) {
+    if (value === null || !isFinite(value)) return "—";
+    return "$" + Math.round(value).toLocaleString("en-US");
+  }
+
+  function grams(value) {
+    if (!isFinite(value)) return "—";
+    return (value >= 100 ? Math.round(value) : Math.round(value * 10) / 10) + " g";
+  }
+
+  function storage() {
+    try { return window.localStorage || null; } catch (error) { return null; }
+  }
+
+  function save() {
+    var store = storage();
+    if (!store) return false;
+    var payload;
+    try {
+      payload = JSON.stringify({ version: STATE_VERSION, items: state.items, recipes: state.recipes, draft: state.draft });
+    } catch (error) { return false; }
+    if (payload.length > STORE_MAX_CHARS) return false;
+    try { store.setItem(STORE_KEY, payload); } catch (error) { return false; }
+    return true;
+  }
+
+  function load() {
+    var store = storage();
+    if (!store) return;
+    try {
+      var parsed = sanitizeState(JSON.parse(store.getItem(STORE_KEY) || "null"));
+      if (parsed) state = parsed;
+    } catch (error) { /* 壞掉的存檔就當沒存過 */ }
+  }
+
+  function setState(node, text, kind) {
+    if (!node) return;
+    node.textContent = text || "";
+    node.className = "state" + (kind ? " " + kind : "");
+  }
+
+  function fillSelect(node, list, selected, placeholder) {
+    if (!node) return;
+    var html = placeholder ? '<option value="">' + esc(placeholder) + "</option>" : "";
+    for (var i = 0; i < list.length; i += 1) {
+      var id = typeof list[i] === "string" ? list[i] : list[i].id;
+      var label = typeof list[i] === "string" ? list[i] : list[i].label;
+      html += '<option value="' + esc(id) + '"' + (id === selected ? " selected" : "") + ">" + esc(label) + "</option>";
+    }
+    node.innerHTML = html;
+  }
+
+  function renderChecks(node, options, chosen, onToggle) {
+    if (!node) return;
+    var html = "";
+    for (var i = 0; i < options.length; i += 1) {
+      var checked = chosen.indexOf(options[i]) >= 0 ? " checked" : "";
+      html += '<label class="check"><input type="checkbox" value="' + esc(options[i]) + '"' + checked + "><span>" + esc(options[i]) + "</span></label>";
+    }
+    node.innerHTML = html;
+    var inputs = node.querySelectorAll("input");
+    for (var j = 0; j < inputs.length; j += 1) {
+      inputs[j].addEventListener("change", function (event) {
+        onToggle(event.target.value, !!event.target.checked);
+      });
+    }
+  }
+
+  function toggleIn(list, value, on) {
+    var at = list.indexOf(value);
+    if (on && at < 0) list.push(value);
+    if (!on && at >= 0) list.splice(at, 1);
+  }
+
+  /* ---------------------------- 開餌 ---------------------------- */
+
+  function renderMixRows() {
+    var byId = itemsById();
+    var node = $("mixRows");
+    var empty = $("mixEmpty");
+    if (empty) empty.hidden = state.draft.items.length > 0;
+    if (!node) return;
+    var html = "";
+    for (var i = 0; i < state.draft.items.length; i += 1) {
+      var detail = state.draft.items[i];
+      var item = byId[detail.itemId];
+      if (!item) continue;
+      var weight = toGrams(detail, item);
+      var perGram = costPerGram(item);
+      var cost = perGram === null || weight === null ? null : perGram * weight;
+      var canCup = positive(item.gramsPerCup) !== null;
+      html += '<li class="row c-' + esc(item.category) + '">'
+        + '<div class="row-top"><span class="row-name">' + esc(item.name) + "</span>"
+        + '<span class="row-derived">' + (weight === null ? "換算不出重量" : grams(weight) + " · " + money(cost)) + "</span></div>"
+        + '<div class="row-ctl">'
+        + '<button class="step" type="button" data-step="-1" data-at="' + i + '" aria-label="減少 ' + esc(item.name) + '">−</button>'
+        + '<input class="row-amount" type="number" min="0" step="any" inputmode="decimal" data-amount="' + i + '" value="' + esc(detail.amount) + '" aria-label="' + esc(item.name) + ' 用量">'
+        + '<button class="step" type="button" data-step="1" data-at="' + i + '" aria-label="增加 ' + esc(item.name) + '">＋</button>'
+        + '<select class="row-mode" data-mode="' + i + '" aria-label="' + esc(item.name) + ' 輸入單位">'
+        + '<option value="VOLUME_CUP"' + (detail.inputMode === "VOLUME_CUP" ? " selected" : "") + (canCup ? "" : " disabled") + ">杯" + (canCup ? "" : "（缺每杯克數）") + "</option>"
+        + '<option value="WEIGHT_G"' + (detail.inputMode === "WEIGHT_G" ? " selected" : "") + ">公克</option>"
+        + "</select>"
+        + '<button class="btn small danger" type="button" data-remove="' + i + '">移除</button>'
+        + "</div></li>";
+    }
+    node.innerHTML = html;
+    bindMixRowControls(node);
+  }
+
+  function bindMixRowControls(node) {
+    var steps = node.querySelectorAll("button");
+    for (var i = 0; i < steps.length; i += 1) {
+      steps[i].addEventListener("click", function (event) {
+        var target = event.currentTarget;
+        var removeAt = target.getAttribute("data-remove");
+        if (removeAt !== null) {
+          state.draft.items.splice(Number(removeAt), 1);
+          save();
+          renderMix();
+          return;
+        }
+        var at = Number(target.getAttribute("data-at"));
+        var detail = state.draft.items[at];
+        if (!detail) return;
+        var stepSize = detail.inputMode === "WEIGHT_G" ? 50 : 0.5;
+        var next = detail.amount + Number(target.getAttribute("data-step")) * stepSize;
+        detail.amount = Math.max(stepSize, Math.round(next * 100) / 100);
+        save();
+        renderMix();
+      });
+    }
+    var amounts = node.querySelectorAll("input");
+    for (var j = 0; j < amounts.length; j += 1) {
+      amounts[j].addEventListener("change", function (event) {
+        var at = Number(event.target.getAttribute("data-amount"));
+        var detail = state.draft.items[at];
+        if (!detail) return;
+        var value = Number(event.target.value);
+        detail.amount = isFinite(value) && value > 0 ? value : detail.amount;
+        save();
+        renderMix();
+      });
+    }
+    var modes = node.querySelectorAll("select");
+    for (var k = 0; k < modes.length; k += 1) {
+      modes[k].addEventListener("change", function (event) {
+        var at = Number(event.target.getAttribute("data-mode"));
+        var detail = state.draft.items[at];
+        if (!detail) return;
+        detail.inputMode = event.target.value === "WEIGHT_G" ? "WEIGHT_G" : "VOLUME_CUP";
+        save();
+        renderMix();
+      });
+    }
+  }
+
+  function renderAudit(result) {
+    var node = $("auditList");
+    if (!node) return;
+    if (!result.summary.rows.length) {
+      node.innerHTML = '<li class="ok">還沒有東西可以審查。</li>';
+      return;
+    }
+    if (!result.notes.length) {
+      node.innerHTML = '<li class="ok">四項審查都沒有意見：比重對得上流速、味型涵蓋目標魚種、水比在建議範圍內、沒有單一添加劑吃掉四成成本。</li>';
+      return;
+    }
+    var html = "";
+    for (var i = 0; i < result.notes.length; i += 1) {
+      html += '<li class="' + esc(result.notes[i].level) + '">' + esc(result.notes[i].message)
+        + "<code>" + esc(result.notes[i].code) + "</code></li>";
+    }
+    node.innerHTML = html;
+  }
+
+  function renderMix() {
+    var byId = itemsById();
+    fillSelect($("addItem"), state.items.map(function (item) {
+      return { id: item.id, label: item.name + "（" + labelOf(CATEGORIES, item.category) + "）" };
+    }), "", state.items.length ? "選一個單品…" : "單品庫是空的");
+    renderMixRows();
+
+    var result = auditRecipe(state.draft, byId);
+    $("totalWeight").textContent = result.summary.totalWeightG > 0 ? grams(result.summary.totalWeightG) : "—";
+    $("totalCost").textContent = result.summary.totalWeightG > 0 ? money(result.summary.totalCostTWD) : "—";
+    if (result.profile) {
+      $("blendVisc").textContent = result.profile.viscosity.toFixed(1);
+      $("blendFog").textContent = result.profile.foggingRate.toFixed(1);
+      $("blendSink").textContent = labelOf(SINKING, result.profile.sinkingSpeed) + "（" + result.profile.sinkScore.toFixed(1) + "）";
+    } else {
+      $("blendVisc").textContent = "—";
+      $("blendFog").textContent = "—";
+      $("blendSink").textContent = "—";
+    }
+    renderAudit(result);
+    return result;
+  }
+
+  function bindMix() {
+    var add = $("addItem");
+    if (add) {
+      add.addEventListener("change", function (event) {
+        var id = event.target.value;
+        if (!id) return;
+        var byId = itemsById();
+        var item = byId[id];
+        if (!item) return;
+        var mode = positive(item.gramsPerCup) === null ? "WEIGHT_G" : "VOLUME_CUP";
+        state.draft.items.push({ itemId: id, inputMode: mode, amount: mode === "WEIGHT_G" ? 100 : 1 });
+        event.target.value = "";
+        save();
+        renderMix();
+      });
+    }
+    $("waterRatio").addEventListener("change", function (event) {
+      state.draft.waterAmountRatio = nonNegative(event.target.value, 0);
+      save();
+      renderMix();
+    });
+    $("prepLead").addEventListener("change", function (event) {
+      state.draft.prepLeadTimeMinutes = Math.round(nonNegative(event.target.value, 0));
+      save();
+    });
+    $("shrimpRatio").addEventListener("change", function (event) {
+      state.draft.shrimpRatio = clampText(event.target.value, 40);
+      save();
+    });
+    $("shrimpStatus").addEventListener("change", function (event) {
+      state.draft.shrimpStatus = SHRIMP_IDS.indexOf(event.target.value) >= 0 ? event.target.value : "";
+      save();
+    });
+    $("flowRate").addEventListener("change", function (event) {
+      state.draft.expectedFlowRate = FLOW_IDS.indexOf(event.target.value) >= 0 ? event.target.value : "MEDIUM";
+      save();
+      renderMix();
+    });
+    $("saveRecipe").addEventListener("click", function () {
+      if (!state.draft.items.length) {
+        setState($("mixState"), "配方是空的，先加幾樣東西。", "err");
+        return;
+      }
+      state.draft.title = clampText($("recipeTitle").value, 60).trim() || "未命名配方";
+      var known = {};
+      for (var i = 0; i < state.items.length; i += 1) known[state.items[i].id] = true;
+      var recipe = sanitizeRecipe(state.draft, known);
+      recipe.id = makeId("recipe");
+      recipe.createdAt = todayISO();
+      state.recipes.unshift(recipe);
+      var ok = save();
+      setState($("mixState"), ok ? "已存成「" + recipe.title + "」，到「紀錄」分頁回填釣果。" : "存不進瀏覽器：資料量超過上限，先到紀錄分頁匯出並刪掉幾筆。", ok ? "ok" : "err");
+      renderLog();
+    });
+    $("clearDraft").addEventListener("click", function () {
+      state.draft = emptyDraft();
+      $("recipeTitle").value = "";
+      save();
+      hydrateMix();
+      renderMix();
+      setState($("mixState"), "已清空。", "");
+    });
+  }
+
+  function hydrateMix() {
+    fillSelect($("shrimpStatus"), SHRIMP_STATUS, state.draft.shrimpStatus, "");
+    fillSelect($("flowRate"), FLOW_RATES, state.draft.expectedFlowRate, "");
+    $("waterRatio").value = state.draft.waterAmountRatio || "";
+    $("prepLead").value = state.draft.prepLeadTimeMinutes || "";
+    $("shrimpRatio").value = state.draft.shrimpRatio || "";
+    renderChecks($("mixSpecies"), SPECIES, state.draft.targetSpecies, function (value, on) {
+      toggleIn(state.draft.targetSpecies, value, on);
+      save();
+      renderMix();
+    });
+    renderChecks($("mixSeaAreas"), SEA_AREAS, state.draft.targetSeaArea, function (value, on) {
+      toggleIn(state.draft.targetSeaArea, value, on);
+      save();
+    });
+  }
+
+  /* --------------------------- 單品庫 --------------------------- */
+
+  var itemForm = { flavorProfile: [], targetSpecies: [], seaArea: [], imageUrl: "" };
+
+  function renderItemForm() {
+    fillSelect($("itemCategory"), CATEGORIES, $("itemCategory").value || "GROUNDBAIT", "");
+    fillSelect($("itemSink"), SINKING, $("itemSink").value || "MEDIUM", "");
+    renderChecks($("itemFlavors"), FLAVORS, itemForm.flavorProfile, function (value, on) {
+      toggleIn(itemForm.flavorProfile, value, on);
+    });
+    renderChecks($("itemSpecies"), SPECIES, itemForm.targetSpecies, function (value, on) {
+      toggleIn(itemForm.targetSpecies, value, on);
+    });
+    renderChecks($("itemSeaAreas"), SEA_AREAS, itemForm.seaArea, function (value, on) {
+      toggleIn(itemForm.seaArea, value, on);
+    });
+  }
+
+  function resetItemForm() {
+    editingItemId = "";
+    itemForm = { flavorProfile: [], targetSpecies: [], seaArea: [], imageUrl: "" };
+    var ids = ["itemName", "itemPrice", "itemPack", "itemPerCup", "itemWater", "itemVisc", "itemFog", "itemImage"];
+    for (var i = 0; i < ids.length; i += 1) $(ids[i]).value = "";
+    $("itemCategory").value = "GROUNDBAIT";
+    $("itemSink").value = "MEDIUM";
+    $("itemFormHeading").textContent = "新增單品";
+    $("saveItem").textContent = "儲存單品";
+    renderItemForm();
+  }
+
+  function editItem(id) {
+    var byId = itemsById();
+    var item = byId[id];
+    if (!item) return;
+    editingItemId = id;
+    itemForm = {
+      flavorProfile: item.flavorProfile.slice(),
+      targetSpecies: item.targetSpecies.slice(),
+      seaArea: item.seaArea.slice(),
+      imageUrl: item.imageUrl
+    };
+    $("itemName").value = item.name;
+    $("itemPrice").value = item.unitPrice || "";
+    $("itemPack").value = item.packWeightG || "";
+    $("itemPerCup").value = item.gramsPerCup || "";
+    $("itemWater").value = item.recommendedWaterRatio || "";
+    $("itemVisc").value = item.viscosity;
+    $("itemFog").value = item.foggingRate;
+    $("itemCategory").value = item.category;
+    $("itemSink").value = item.sinkingSpeed;
+    $("itemFormHeading").textContent = "編輯單品";
+    $("saveItem").textContent = "更新單品";
+    renderItemForm();
+    setState($("itemState"), "正在編輯「" + item.name + "」。", "");
+  }
+
+  function renderItems() {
+    var node = $("itemRows");
+    var empty = $("itemEmpty");
+    if (empty) empty.hidden = state.items.length > 0;
+    if (!node) return;
+    var html = "";
+    for (var i = 0; i < state.items.length; i += 1) {
+      var item = state.items[i];
+      var perGram = costPerGram(item);
+      html += "<tr><td>" + (item.imageUrl ? '<img class="thumb" src="' + esc(item.imageUrl) + '" alt="">' : "")
+        + "</td><td>" + esc(item.name)
+        + (positive(item.gramsPerCup) === null ? ' <span class="tag">無杯量</span>' : "")
+        + "</td><td>" + esc(labelOf(CATEGORIES, item.category))
+        + '</td><td class="num">' + (perGram === null ? "—" : "$" + perGram.toFixed(3))
+        + '</td><td class="num">' + item.viscosity + " / " + item.foggingRate
+        + "</td><td>" + esc(labelOf(SINKING, item.sinkingSpeed))
+        + '</td><td><button class="btn small" type="button" data-edit="' + esc(item.id) + '">編輯</button> '
+        + '<button class="btn small danger" type="button" data-del="' + esc(item.id) + '">刪除</button></td></tr>';
+    }
+    node.innerHTML = html;
+    var buttons = node.querySelectorAll("button");
+    for (var j = 0; j < buttons.length; j += 1) {
+      buttons[j].addEventListener("click", function (event) {
+        var target = event.currentTarget;
+        var edit = target.getAttribute("data-edit");
+        if (edit) { editItem(edit); return; }
+        var del = target.getAttribute("data-del");
+        if (!del) return;
+        removeItem(del);
+      });
+    }
+  }
+
+  /* 刪單品要一起清掉引用它的配方列，否則那些配方每次試算都會報「換算不出重量」。 */
+  function removeItem(id) {
+    var kept = [];
+    var removedName = "";
+    for (var i = 0; i < state.items.length; i += 1) {
+      if (state.items[i].id === id) { removedName = state.items[i].name; continue; }
+      kept.push(state.items[i]);
+    }
+    state.items = kept;
+    var known = {};
+    for (var j = 0; j < state.items.length; j += 1) known[state.items[j].id] = true;
+    var touched = 0;
+    for (var k = 0; k < state.recipes.length; k += 1) {
+      var before = state.recipes[k].items.length;
+      state.recipes[k] = sanitizeRecipe(state.recipes[k], known);
+      if (state.recipes[k].items.length !== before) touched += 1;
+    }
+    state.draft = sanitizeRecipe(state.draft, known) || emptyDraft();
+    if (editingItemId === id) resetItemForm();
+    save();
+    renderItems();
+    renderMix();
+    renderLog();
+    setState($("itemState"), "已刪除「" + removedName + "」" + (touched ? "，同時清掉 " + touched + " 份配方裡引用它的那一列。" : "。"), "");
+  }
+
+  function bindItems() {
+    $("saveItem").addEventListener("click", function () {
+      var draft = sanitizeItem({
+        id: editingItemId,
+        name: $("itemName").value,
+        category: $("itemCategory").value,
+        imageUrl: itemForm.imageUrl,
+        unitPrice: $("itemPrice").value,
+        packWeightG: $("itemPack").value,
+        gramsPerCup: $("itemPerCup").value,
+        viscosity: $("itemVisc").value,
+        foggingRate: $("itemFog").value,
+        sinkingSpeed: $("itemSink").value,
+        flavorProfile: itemForm.flavorProfile,
+        targetSpecies: itemForm.targetSpecies,
+        seaArea: itemForm.seaArea,
+        recommendedWaterRatio: $("itemWater").value
+      });
+      if (!draft) {
+        setState($("itemState"), "名稱是必填的。", "err");
+        return;
+      }
+      if (editingItemId) {
+        for (var i = 0; i < state.items.length; i += 1) {
+          if (state.items[i].id === editingItemId) state.items[i] = draft;
+        }
+      } else {
+        state.items.push(draft);
+      }
+      var ok = save();
+      if (!ok) {
+        setState($("itemState"), "存不進瀏覽器：資料量超過上限（多半是照片太多）。刪幾張圖或先匯出。", "err");
+        return;
+      }
+      setState($("itemState"), "已儲存「" + draft.name + "」。", "ok");
+      resetItemForm();
+      renderItems();
+      renderMix();
+    });
+    $("resetItem").addEventListener("click", function () {
+      resetItemForm();
+      setState($("itemState"), "", "");
+    });
+    $("itemImage").addEventListener("change", function (event) {
+      var file = event.target.files && event.target.files[0];
+      if (!file) return;
+      shrinkImage(file, function (dataUrl, error) {
+        if (error) {
+          setState($("itemState"), "這張圖讀不進來：" + error, "err");
+          return;
+        }
+        itemForm.imageUrl = dataUrl;
+        setState($("itemState"), "縮圖已就緒（" + Math.round(dataUrl.length / 1024) + " KB），按儲存才會寫入。", "ok");
+      });
+    });
+  }
+
+  /* 手機照片 base64 就有 3MB+，直接存會把 localStorage 塞爆。縮到長邊 160px
+     再編碼，一張約 5–10KB。webp 編不出來時 toDataURL 會安靜地退回 PNG，
+     所以比對回傳字串的前綴，對不上就改用 jpeg。 */
+  function shrinkImage(file, done) {
+    var reader = new FileReader();
+    reader.onerror = function () { done("", "檔案讀取失敗"); };
+    reader.onload = function () {
+      var image = new Image();
+      image.onerror = function () { done("", "不是瀏覽器認得的圖片格式"); };
+      image.onload = function () {
+        var side = 160;
+        var scale = Math.min(1, side / Math.max(image.width, image.height));
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        var out = canvas.toDataURL("image/webp", 0.7);
+        if (out.indexOf("data:image/webp") !== 0) out = canvas.toDataURL("image/jpeg", 0.7);
+        if (out.length > IMAGE_MAX_CHARS) { done("", "縮圖仍然太大，換一張簡單一點的"); return; }
+        done(out, "");
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* ---------------------------- 紀錄 ---------------------------- */
+
+  function renderLog() {
+    var node = $("logRows");
+    var empty = $("logEmpty");
+    if (empty) empty.hidden = state.recipes.length > 0;
+    if (!node) return;
+    var byId = itemsById();
+    var html = "";
+    for (var i = 0; i < state.recipes.length; i += 1) {
+      var recipe = state.recipes[i];
+      var result = auditRecipe(recipe, byId);
+      var parts = [];
+      for (var j = 0; j < result.summary.rows.length; j += 1) {
+        var item = byId[result.summary.rows[j].itemId];
+        if (item) parts.push(esc(item.name) + " " + grams(result.summary.rows[j].convertedWeightG));
+      }
+      html += '<li class="log-item">'
+        + '<div class="log-top"><span class="log-title">' + esc(recipe.title) + "</span>"
+        + '<span class="row-derived">' + grams(result.summary.totalWeightG) + " · " + money(result.summary.totalCostTWD) + "</span></div>"
+        + '<div class="log-meta"><span>' + esc(recipe.createdAt) + "</span>"
+        + "<span>" + esc(labelOf(FLOW_RATES, recipe.expectedFlowRate)) + "</span>"
+        + (recipe.targetSpecies.length ? "<span>" + esc(recipe.targetSpecies.join("、")) + "</span>" : "")
+        + (recipe.prepLeadTimeMinutes ? "<span>熟成 " + recipe.prepLeadTimeMinutes + " 分</span>" : "")
+        + (recipe.caughtTarget ? '<span class="hit">中目標魚</span>' : "")
+        + (recipe.rating ? "<span>" + "★".repeat(recipe.rating) + "</span>" : "")
+        + "</div>"
+        + '<div class="log-meta"><span>' + (parts.join("　") || "（沒有可換算的組成）") + "</span></div>"
+        + '<div class="log-body">'
+        + '<div class="duo">'
+        + '<label class="field"><span>評分 0–5</span><input type="number" min="0" max="5" step="1" data-rating="' + esc(recipe.id) + '" value="' + esc(recipe.rating) + '"></label>'
+        + '<label class="field"><span>現場微調</span><input type="text" maxlength="300" data-insitu="' + esc(recipe.id) + '" value="' + esc(recipe.inSituAdjustments) + '" placeholder="例：10 點加水增黏"></label>'
+        + "</div>"
+        + '<label class="check"><input type="checkbox" data-caught="' + esc(recipe.id) + '"' + (recipe.caughtTarget ? " checked" : "") + "><span>有中到目標魚</span></label>"
+        + '<label class="field"><span>備註（手法與開餌順序）</span><textarea maxlength="500" data-notes="' + esc(recipe.id) + '">' + esc(recipe.notes) + "</textarea></label>"
+        + '<div class="btnrow"><button class="btn small" type="button" data-load="' + esc(recipe.id) + '">載回開餌</button>'
+        + '<button class="btn small danger" type="button" data-drop="' + esc(recipe.id) + '">刪除</button></div>'
+        + "</div></li>";
+    }
+    node.innerHTML = html;
+    bindLogControls(node);
+  }
+
+  function findRecipe(id) {
+    for (var i = 0; i < state.recipes.length; i += 1) {
+      if (state.recipes[i].id === id) return state.recipes[i];
+    }
+    return null;
+  }
+
+  function bindLogControls(node) {
+    var inputs = node.querySelectorAll("input");
+    for (var i = 0; i < inputs.length; i += 1) {
+      inputs[i].addEventListener("change", function (event) {
+        var target = event.target;
+        var rating = target.getAttribute("data-rating");
+        var caught = target.getAttribute("data-caught");
+        var insitu = target.getAttribute("data-insitu");
+        var recipe = findRecipe(rating || caught || insitu);
+        if (!recipe) return;
+        if (rating) recipe.rating = Math.min(5, Math.max(0, Math.round(nonNegative(target.value, 0))));
+        if (caught) recipe.caughtTarget = !!target.checked;
+        if (insitu) recipe.inSituAdjustments = clampText(target.value, 300);
+        save();
+        renderLog();
+      });
+    }
+    var areas = node.querySelectorAll("textarea");
+    for (var j = 0; j < areas.length; j += 1) {
+      areas[j].addEventListener("change", function (event) {
+        var recipe = findRecipe(event.target.getAttribute("data-notes"));
+        if (!recipe) return;
+        recipe.notes = clampText(event.target.value, 500);
+        save();
+      });
+    }
+    var buttons = node.querySelectorAll("button");
+    for (var k = 0; k < buttons.length; k += 1) {
+      buttons[k].addEventListener("click", function (event) {
+        var target = event.currentTarget;
+        var loadId = target.getAttribute("data-load");
+        if (loadId) {
+          var recipe = findRecipe(loadId);
+          if (!recipe) return;
+          state.draft = JSON.parse(JSON.stringify(recipe));
+          state.draft.id = makeId("draft");
+          save();
+          showTab("mix");
+          $("recipeTitle").value = recipe.title;
+          hydrateMix();
+          renderMix();
+          return;
+        }
+        var dropId = target.getAttribute("data-drop");
+        if (!dropId) return;
+        var kept = [];
+        for (var m = 0; m < state.recipes.length; m += 1) {
+          if (state.recipes[m].id !== dropId) kept.push(state.recipes[m]);
+        }
+        state.recipes = kept;
+        save();
+        renderLog();
+      });
+    }
+  }
+
+  function bindIo() {
+    $("exportBtn").addEventListener("click", function () {
+      var blob = new Blob([JSON.stringify(exportPayload(state), null, 2)], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = "bjkw-bait-" + todayISO() + ".json";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      /* revokeObjectURL 不能緊接在 click 之後同步呼叫——會安靜地取消掉剛觸發的
+         下載，按了沒反應而且主控台一個字都沒有。 */
+      setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+      setState($("ioState"), "已匯出 " + state.items.length + " 個單品、" + state.recipes.length + " 份配方。", "ok");
+    });
+
+    $("importFile").addEventListener("change", function (event) {
+      var file = event.target.files && event.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onerror = function () { setState($("ioState"), "檔案讀取失敗。", "err"); };
+      reader.onload = function () {
+        var result = importPayload(String(reader.result));
+        if (!result.ok) {
+          setState($("ioState"), "沒有匯入：" + result.reason, "err");
+          return;
+        }
+        /* 覆寫之前先留一份現況，按錯了還救得回來。 */
+        undoSnapshot = JSON.parse(JSON.stringify({ items: state.items, recipes: state.recipes }));
+        state.items = result.state.items;
+        state.recipes = result.state.recipes;
+        var known = {};
+        for (var i = 0; i < state.items.length; i += 1) known[state.items[i].id] = true;
+        state.draft = sanitizeRecipe(state.draft, known) || emptyDraft();
+        var ok = save();
+        $("undoImport").hidden = false;
+        setState($("ioState"), (ok ? "已匯入 " : "已匯入（但寫不進瀏覽器，重新整理就會消失）") + state.items.length + " 個單品、" + state.recipes.length + " 份配方。", ok ? "ok" : "err");
+        renderItems();
+        hydrateMix();
+        renderMix();
+        renderLog();
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    });
+
+    $("undoImport").addEventListener("click", function () {
+      if (!undoSnapshot) return;
+      state.items = undoSnapshot.items;
+      state.recipes = undoSnapshot.recipes;
+      undoSnapshot = null;
+      $("undoImport").hidden = true;
+      save();
+      renderItems();
+      hydrateMix();
+      renderMix();
+      renderLog();
+      setState($("ioState"), "已復原到匯入前。", "ok");
+    });
+  }
+
+  /* ---------------------------- 頁籤 ---------------------------- */
+
+  function showTab(name) {
+    activeTab = name;
+    var panels = { mix: "mixPanel", items: "itemsPanel", log: "logPanel" };
+    var tabs = { mix: "tabMix", items: "tabItems", log: "tabLog" };
+    var keys = Object.keys(panels);
+    for (var i = 0; i < keys.length; i += 1) {
+      var panel = $(panels[keys[i]]);
+      if (panel) panel.hidden = keys[i] !== name;
+      var tab = $(tabs[keys[i]]);
+      if (tab) {
+        tab.className = keys[i] === name ? "tab on" : "tab";
+        if (tab.setAttribute) tab.setAttribute("aria-selected", keys[i] === name ? "true" : "false");
+      }
+    }
+  }
+
+  function init() {
+    load();
+    resetItemForm();
+    hydrateMix();
+    renderItems();
+    renderMix();
+    renderLog();
+    bindMix();
+    bindItems();
+    bindIo();
+    for (var pair of [["tabMix", "mix"], ["tabItems", "items"], ["tabLog", "log"]]) {
+      (function (id, name) {
+        var node = $(id);
+        if (node) node.addEventListener("click", function () { showTab(name); });
+      })(pair[0], pair[1]);
+    }
+    showTab(activeTab);
+  }
+
+  window.BaitApp = {
+    init: init,
+    helpers: helpers,
+    getState: function () { return state; }
+  };
+
+  if (!window.__BAIT_SKIP_AUTO_INIT__) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  }
+})();
+</script>
+</body>
+</html>

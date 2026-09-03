@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BJKW Console</title>
-<meta name="description" content="BJKW Console，九個瀏覽器端小工具的入口：股票觀測、天氣與海象、ESP32 韌體、FORScan 設定、機票總成本、騎乘儀表板、優惠疊加、字幕生成與檔案轉換。" />
+<meta name="description" content="BJKW Console，十個瀏覽器端小工具的入口：股票觀測、天氣與海象、ESP32 韌體、FORScan 設定、機票總成本、騎乘儀表板、優惠疊加、字幕生成、檔案轉換與餌料配方。" />
 <link rel="canonical" href="/" />
 <meta property="og:title" content="BJKW Console" />
-<meta property="og:description" content="快速進入股票觀測、天氣與海象、ESP32 韌體、FORScan 設定、機票總成本、騎乘儀表板、優惠疊加、字幕生成與檔案轉換。" />
+<meta property="og:description" content="快速進入股票觀測、天氣與海象、ESP32 韌體、FORScan 設定、機票總成本、騎乘儀表板、優惠疊加、字幕生成、檔案轉換與餌料配方。" />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -61,6 +61,7 @@
   .coupon-accent{box-shadow:inset 4px 0 0 rgba(255,118,110,.7)}
   .subtitle-accent{box-shadow:inset 4px 0 0 rgba(147,197,253,.72)}
   .convert-accent{box-shadow:inset 4px 0 0 rgba(190,164,120,.72)}
+  .bait-accent{box-shadow:inset 4px 0 0 rgba(244,114,182,.72)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (prefers-reduced-motion:reduce){
     .entry{transition:none}
@@ -228,6 +229,21 @@
       </div>
       <div class="entry-foot">
         <div class="entry-limit">限制：沒有 OCR，掃描檔抽不到字</div>
+      </div>
+    </a>
+
+    <a class="entry bait-accent" data-primary-entry="bait" href="/bait/" aria-label="餌料配方 — 開啟 /bait/">
+      <div>
+        <small>BAIT &amp; GROUNDBAIT</small>
+        <h2>餌料配方</h2>
+        <p>現場用份數開餌，背景換算重量、成本與綜合黏性霧化比重，事後回填釣果。比重對不上流速、味型缺了目標魚種要的那味，當場就講。</p>
+        <ul>
+          <li>單品的物理數值由你自己輸入，不是量測值。</li>
+          <li>資料只留在這台裝置，要帶走得自己匯出 JSON。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">限制：量杯換克需要自己填每杯克數</div>
       </div>
     </a>
   </nav>
