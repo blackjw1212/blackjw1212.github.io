@@ -53,7 +53,7 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
   `/stocks/`、`/weather/` 內頁都講得更完整，而 10Y 沒有任何頁面拿它算東西。
   契約用 `assertNoMatch` 釘住 id、markup、兩個 endpoint 與 body script 四件事。
 - **禁詞**：首頁與 `/market/` 不得出現 `保證`、`可放心`、`買進(訊號)`、`賣出(訊號)`、
-  `投資建議`、`實領淨收益`。**註解也算**——曾因為程式碼註解寫了「保證」而 CI 紅。
+  `投資建議`、`實領淨收益`。**註解也算**——見下面「註解也算」那一節。
 - **所有 `/` 開頭的 href/src/srcset/url() 必須指向真實存在的檔案**。
 - **天氣頁呼叫的每個 endpoint 都必須在 `weather-proxy/src/index.js` 的白名單裡**，
   且頁面不得出現 CWA API key。
@@ -80,6 +80,26 @@ html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)
 所以 **`market/index.html` 的主 script 必須是最後一個、且緊貼 `</body>`**。
 在它後面插任何東西，測試會抓不到 script 而整批失敗。
 函式要能被測到就掛進 `MarketApp.helpers`。
+
+## 註解也算
+
+**靜態契約與前端測試掃的都是原始 HTML 文字，不是 DOM。** 註解是那份文字的一部分，
+所以「只是寫在註解裡」不會讓任何一條斷言放過你。這條踩過兩次，兩次都不明顯：
+
+- **禁詞**：程式碼註解寫了「保證」→ `check-static-site.mjs` 當場紅。
+- **數標籤**（2026-09-03）：`market/index.html` 的 CSS 註解裡寫了帶角括號的 details
+  標籤字樣，而 `market-page.test.js` 是**數那串字**來判斷「摺疊層數」與「主視覺之前
+  不得有摺疊」的（`(before.match(/…/g) || []).length`），三條測試同時紅。
+  改寫註解之後**又紅一次**——因為新註解裡拿來解釋這件事的那段正則本身又含同一串字。
+
+實務規則：**在被掃描的頁面裡寫註解，不要複述被掃描的字面值。**
+真的要提到就換個寫法（「角括號 + details」、「禁詞那幾個字」），或把說明寫進這份
+CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.mjs` 只掃
+`README.md`、`CHANGES.md`、`weather-proxy/README.md`）。
+
+會咬人的字面值集中在三處：`check-static-site.mjs` 的每一條 `assertNoMatch`、
+`frontend-smoke.test.js` 的 `assert.doesNotMatch` 清單、以及 `market-page.test.js`
+那三條數標籤的斷言。
 
 ## 資料管線：踩過的坑
 
