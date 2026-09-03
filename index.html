@@ -45,9 +45,7 @@
   .entry{display:flex;text-decoration:none;color:inherit;min-height:286px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:20px;transition:border-color .15s ease,transform .15s ease}
   .entry:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
   .entry:hover{border-color:#4c5e6b;transform:translateY(-2px)}
-  .entry-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
-  .entry-title{min-width:0}
-  .entry small{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:12px}
+  .entry small{display:block;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:12px}
   .entry h2{font-size:26px;line-height:1.2;margin-top:7px;letter-spacing:0}
   .entry p{margin-top:12px;color:var(--soft);font-size:14px}
   .entry ul{display:grid;gap:6px;margin:16px 0 0 18px;color:var(--soft);font-size:13px}
@@ -62,19 +60,28 @@
   .dash-accent{box-shadow:inset 4px 0 0 rgba(234,179,8,.7)}
   .coupon-accent{box-shadow:inset 4px 0 0 rgba(255,118,110,.7)}
   .subtitle-accent{box-shadow:inset 4px 0 0 rgba(147,197,253,.72)}
-.convert-accent{box-shadow:inset 4px 0 0 rgba(190,164,120,.72)}
+  .convert-accent{box-shadow:inset 4px 0 0 rgba(190,164,120,.72)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (prefers-reduced-motion:reduce){
     .entry{transition:none}
     .entry:hover{transform:none}
   }
+  /* 手機版是啟動器，不是閱讀頁。實測 375px 單欄要捲 3.6 個螢幕，而其中
+     長度的來源不是間距——padding 與 min-height 全調緊也只省 4%——是每張卡
+     的注意事項（合計 403px）與「資料：…」那行（56px × 9 = 504px）。
+     兩者在各自的內頁都講得更完整，頁尾那句「判讀方式與資料限制寫在各工具
+     內頁」講的就是這件事，所以手機版收起來，改成兩欄 171px 的磁磚：
+     九張卡一個螢幕看得完，而且九個標題一個都不換行。 */
   @media (max-width:640px){
     .shell{width:min(100% - 24px,1200px);padding-top:18px}
-    .topbar{flex-direction:column;align-items:flex-start;gap:10px}
-    .entries{grid-template-columns:1fr}
-    .entry{min-height:246px;padding:18px}
-    .entry h2{font-size:22px}
-    .entry-foot{align-items:flex-start;flex-direction:column}
+    .entries{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    /* min-height 配上 space-between 會讓短卡（天氣與海象）中間破一個洞，
+       磁磚一律靠上對齊，高度由內容決定。 */
+    .entry{min-height:0;justify-content:flex-start;padding:12px}
+    .entry small{font-size:10px}
+    .entry h2{font-size:17px;line-height:1.25;margin-top:4px}
+    .entry p{margin-top:6px;font-size:12px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden}
+    .entry ul,.entry-foot{display:none}
   }
 </style>
 </head>
@@ -94,11 +101,8 @@
   <nav class="entries" id="entries" aria-label="全部工具">
     <a class="entry stocks-accent" data-primary-entry="stocks" href="/stocks/" aria-label="股票觀測 — 開啟 /stocks/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>STOCK OBSERVATION</small>
-            <h2>股票觀測</h2>
-          </div>        </div>
+        <small>STOCK OBSERVATION</small>
+        <h2>股票觀測</h2>
         <p>可自訂的台股觀察清單：加權與櫃買指數、收盤與漲跌%、PE／PB／殖利率、距 52 週高、成交額，欄位與全市場清單一致，並可開完整 TradingView 圖表。</p>
         <ul>
           <li>只呈現客觀數據，不產生任何買賣訊號。</li>
@@ -111,11 +115,8 @@
 
     <a class="entry weather-accent" data-primary-entry="weather" href="/weather/" aria-label="天氣與海象 — 開啟 /weather/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>WEATHER</small>
-            <h2>天氣與海象</h2>
-          </div>        </div>
+        <small>WEATHER</small>
+        <h2>天氣與海象</h2>
         <p>查看天氣、潮汐、海象與沿岸觀察資訊。</p>
         <ul>
           <li>出行前仍應確認官方資料與現場狀況。</li>
@@ -128,11 +129,8 @@
 
     <a class="entry esp32-accent" data-primary-entry="esp32" href="/esp32/" aria-label="ESP32 韌體 — 開啟 /esp32/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>ESP32 FIRMWARE</small>
-            <h2>ESP32 韌體</h2>
-          </div>        </div>
+        <small>ESP32 FIRMWARE</small>
+        <h2>ESP32 韌體</h2>
         <p>收錄自製的 ESP32 / ESP32-S3 韌體專案，涵蓋智慧家庭配件、車輛電子與顯示介面，靜態總覽不讀取即時裝置狀態。</p>
         <ul>
           <li>不公開裝置部署位置與連線細節。</li>
@@ -145,11 +143,8 @@
 
     <a class="entry forscan-accent" data-primary-entry="forscan" href="/forscan/" aria-label="FORScan 設定 — 開啟 /forscan/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>FORSCAN REFERENCE</small>
-            <h2>FORScan 設定</h2>
-          </div>        </div>
+        <small>FORSCAN REFERENCE</small>
+        <h2>FORScan 設定</h2>
         <p>整理 Ford Focus Mk3.5（2015-2018）以 FORScan 可調整的便利、儀表、影音與保養服務項目，標明模組、修改方式、驗證度與風險。</p>
         <ul>
           <li>能用選單就不動 As-Built。</li>
@@ -163,11 +158,8 @@
 
     <a class="entry flight-accent" data-primary-entry="flight" href="/flight/" aria-label="機票總成本 — 開啟 /flight/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>FLIGHT COST</small>
-            <h2>機票總成本</h2>
-          </div>        </div>
+        <small>FLIGHT COST</small>
+        <h2>機票總成本</h2>
         <p>把票價、行李、附加費、機場交通與轉機風險加總成同一個數字，用來比較不同航班組合的實際負擔。</p>
         <ul>
           <li>票價需自行到各查價網站確認。</li>
@@ -181,11 +173,8 @@
 
     <a class="entry dash-accent" data-primary-entry="dash" href="/dash/" aria-label="騎乘儀表板 — 開啟 /dash/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>RIDE TELEMETRY</small>
-            <h2>騎乘儀表板</h2>
-          </div>        </div>
+        <small>RIDE TELEMETRY</small>
+        <h2>騎乘儀表板</h2>
         <p>把手機當儀表：GPS 車速與里程、手機姿態換算的傾角、即時 G 力、海拔與行駛時間，並在記錄期間讓螢幕保持常亮。</p>
         <ul>
           <li>騎乘中請勿操作手機，設定與校正出發前做完。</li>
@@ -200,11 +189,8 @@
 
     <a class="entry coupon-accent" data-primary-entry="coupon" href="/coupon/" aria-label="優惠疊加 — 開啟 /coupon/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>COUPON STACK</small>
-            <h2>優惠疊加</h2>
-          </div>        </div>
+        <small>COUPON STACK</small>
+        <h2>優惠疊加</h2>
         <p>輸入平台與金額，把平台優惠券、信用卡回饋與支付加碼疊起來，算出當下實付與扣掉回饋後的淨成本。</p>
         <ul>
           <li>資料是人工核對的快照，過期優惠自動隱藏。</li>
@@ -218,11 +204,8 @@
 
     <a class="entry subtitle-accent" data-primary-entry="subtitle" href="/subtitle/" aria-label="字幕生成 — 開啟 /subtitle/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>OFFLINE SUBTITLE</small>
-            <h2>字幕生成</h2>
-          </div>        </div>
+        <small>OFFLINE SUBTITLE</small>
+        <h2>字幕生成</h2>
         <p>選一個本機的影音檔，在瀏覽器裡跑完語音辨識，輸出可逐句校對的繁體中文 SRT。</p>
         <ul>
           <li>檔案不會離開這台裝置，沒有上傳、沒有後端。</li>
@@ -235,11 +218,8 @@
     </a>
     <a class="entry convert-accent" data-primary-entry="convert" href="/convert/" aria-label="檔案轉換 — 開啟 /convert/">
       <div>
-        <div class="entry-head">
-          <div class="entry-title">
-            <small>UNIVERSAL CONVERTER</small>
-            <h2>檔案轉換</h2>
-          </div>        </div>
+        <small>UNIVERSAL CONVERTER</small>
+        <h2>檔案轉換</h2>
         <p>圖片互轉、PDF 進出、Word 與試算表。讀檔頭判斷真正的格式，再挑一個常用的輸出當預設。</p>
         <ul>
           <li>檔案不會離開這台裝置，全部運算都在瀏覽器完成。</li>
