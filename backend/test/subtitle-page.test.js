@@ -137,6 +137,75 @@ test("describeElapsed keeps counting past a minute", async () => {
   assert.equal(describeElapsed(NaN), "0 秒");
 });
 
+test("needsTraditionalConversion refuses to run opencc over Japanese or Korean", async () => {
+  const { needsTraditionalConversion } = await loadHelpers();
+  // 中文：要轉
+  assert.equal(needsTraditionalConversion("这个视频的字幕质量"), true);
+  assert.equal(needsTraditionalConversion("如果他不願意提供地址"), true);
+  // 日文：一個假名就足以認定，不能拿 cn→twp 去改它的漢字
+  assert.equal(needsTraditionalConversion("森永のおいしい牛乳は濃い青色に"), false);
+  assert.equal(needsTraditionalConversion("広い宇宙の彼方"), false);
+  assert.equal(needsTraditionalConversion("ホラ"), false);
+  // 韓文同理
+  assert.equal(needsTraditionalConversion("안녕하세요 漢字"), false);
+  // 沒有漢字就沒什麼好轉的
+  assert.equal(needsTraditionalConversion("I know you"), false);
+  assert.equal(needsTraditionalConversion(""), false);
+  assert.equal(needsTraditionalConversion(null), false);
+});
+
+test("nllbSourceLanguage routes each cue by script, not by the picked speech language", async () => {
+  const { nllbSourceLanguage } = await loadHelpers();
+  // 中英夾雜的錄音在指定中文時，Whisper 照樣把英文段轉成英文——同一批 cue 裡本來
+  // 就混著兩種語言，整批套同一個 src_lang 一定錯。
+  assert.equal(nllbSourceLanguage("Mr. Quilter is the apostle of the middle classes"), "eng_Latn");
+  assert.equal(nllbSourceLanguage("森永のおいしい牛乳"), "jpn_Jpan");
+  assert.equal(nllbSourceLanguage("안녕하세요"), "kor_Hang");
+  // 已經是中文的句子不送翻譯，交給 opencc 轉繁就好
+  assert.equal(nllbSourceLanguage("如果他不願意提供地址"), null);
+  // 中英混在同一句時以漢字為準：翻它只會把中文那半翻壞
+  assert.equal(nllbSourceLanguage("這個 API 要先申請"), null);
+  assert.equal(nllbSourceLanguage(""), null);
+  assert.equal(nllbSourceLanguage(null), null);
+});
+
+test("the translation step is opt-in and swaps models instead of holding both", async () => {
+  const htmlPath = fileURLToPath(new URL("../../subtitle/index.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+  const workerPath = fileURLToPath(new URL("../../subtitle/worker.js", import.meta.url));
+  const worker = await readFile(workerPath, "utf8");
+  // 預設不翻譯：翻譯要再抓 850 MB，不能是使用者沒選就發生的事
+  assert.match(html, /<option value="off" selected>原文字幕<\/option>/);
+  assert.match(html, /約 850 MB/);
+  // 兩個模型同時常駐實測會 std::bad_alloc，兩個方向都要釋放
+  assert.match(worker, /transcriber\.dispose\(\)/);
+  assert.match(worker, /translator\.dispose\(\)/);
+  // NLLB 直接產繁體，不必先出簡體再轉
+  assert.match(worker, /zho_Hant/);
+});
+
+test("the page transcribes and never claims to translate", async () => {
+  const htmlPath = fileURLToPath(new URL("../../subtitle/index.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+  // 實測：對日文音檔硬指定 language:'zh'，Whisper 會逐音硬套出讀不通的中文。
+  // 頁面一度宣稱「生成繁體中文字幕」，那句話對非中文音檔就是假的。
+  assert.doesNotMatch(html, /生成繁體中文字幕/);
+  assert.match(html, /辨識本身不會翻譯/);
+  // 預設中文，不是自動偵測。實測（2026-09-03）同一段中文音檔在不指定語言時，
+  // Whisper 會自行把任務判成翻譯、輸出英文（"If he doesn't want to give a date,"），
+  // 主要用途當場壞掉。自動偵測留在選單裡供人選，但不能當預設。
+  assert.match(html, /<option value="zh" selected>中文<\/option>/);
+  assert.doesNotMatch(html, /<option value="" selected>/);
+});
+
+test("the worker asks for a language only when the user picked one", async () => {
+  const workerPath = fileURLToPath(new URL("../../subtitle/worker.js", import.meta.url));
+  const worker = await readFile(workerPath, "utf8");
+  assert.match(worker, /if \(!language\) return model\(audio, options\);/);
+  // 簡繁轉換已搬到主執行緒（要能被單元測試），worker 不該再碰 opencc
+  assert.doesNotMatch(worker, /opencc/i);
+});
+
 test("the first WebGPU run explains the shader compilation instead of going silent", async () => {
   const workerPath = fileURLToPath(new URL("../../subtitle/worker.js", import.meta.url));
   const worker = await readFile(workerPath, "utf8");
@@ -166,6 +235,12 @@ test("the worker keeps the model and the runtime on the origins we expect", asyn
   assert.doesNotMatch(worker, /cdn\.jsdelivr\.net/);
   // 模型是唯一的對外下載，而且必須是釘住的那一個
   assert.match(worker, /onnx-community\/whisper-large-v3-turbo/);
-  // Whisper 的中文輸出簡繁混雜，不轉就會出簡體
-  assert.match(worker, /from:\s*"cn",\s*to:\s*"twp"/);
+});
+
+test("Chinese output is converted to Taiwanese Traditional on the main thread", async () => {
+  const htmlPath = fileURLToPath(new URL("../../subtitle/index.html", import.meta.url));
+  const html = await readFile(htmlPath, "utf8");
+  // Whisper 的中文輸出簡繁混雜，不轉就會出簡體；twp 連詞彙一起換成台灣用語
+  assert.match(html, /from:\s*"cn",\s*to:\s*"twp"/);
+  assert.match(html, /\/subtitle\/vendor\/opencc-full\.js/);
 });

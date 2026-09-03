@@ -407,6 +407,18 @@ if (has("subtitle/index.html")) {
   assertMatch("subtitle/index.html", html, /WASM/, "subtitle must mention the wasm fallback");
   // 機器辨識一定有錯字。不寫這句，這頁就是在宣稱自己產出可直接使用的字幕。
   assertMatch("subtitle/index.html", html, /機器辨識一定有錯字/, "subtitle must carry an accuracy disclaimer");
+  // 辨識與翻譯是兩個模型、兩段路。實測對日文音檔硬指定中文，Whisper 會逐音硬套出
+  // 讀不通的句子，而它自己的 task:'translate' 只翻成英文（實測連英文都沒給）。
+  // 頁面標題一度寫「生成繁體中文字幕」，那句話對任何非中文音檔都是假的——
+  // 釘住「辨識本身不會翻譯」，別讓那個宣稱漂回去。
+  assertMatch("subtitle/index.html", html, /辨識本身不會翻譯/, "subtitle must separate transcription from translation");
+  assertNoMatch("subtitle/index.html", html, /生成繁體中文字幕/, "subtitle unconditional Traditional Chinese claim");
+  // 語言選單本身就是那句揭露的配套：說了「選錯不會翻譯」，就得讓人選得到。
+  assertMatch("subtitle/index.html", html, /<select id="langSelect">/, "subtitle language picker");
+  assertMatch("subtitle/index.html", html, /<option value="zh" selected>中文<\/option>/, "subtitle defaults to Chinese");
+  // 翻譯要再抓 850 MB 並把辨識模型換掉，預設必須是關的，而且成本要寫在畫面上
+  assertMatch("subtitle/index.html", html, /<option value="off" selected>原文字幕<\/option>/, "subtitle translation is opt-in");
+  assertMatch("subtitle/index.html", html, /約 850 MB/, "subtitle must disclose the translation model download");
   // 全站唯一允許對外連線的目的地是 Hugging Face 的模型下載。任何其他外部端點都代表
   // 音訊或逐字稿有機會離開這台裝置——那正是上面那句揭露會變成謊話的方式。
   assertNoMatch("subtitle/index.html", html, /https?:\/\/(?!huggingface\.co)[^"'\s)]+/, "subtitle external endpoints");
@@ -421,6 +433,8 @@ if (has("subtitle/worker.js")) {
   assertMatch("subtitle/worker.js", worker, /wasmPaths\s*=/, "worker must pin ORT wasm to the vendored copy");
   assertNoMatch("subtitle/worker.js", worker, /cdn\.jsdelivr\.net/, "worker must not fall back to a CDN");
   assertMatch("subtitle/worker.js", worker, /from\s+"\.\/vendor\/transformers\.min\.js"/, "worker loads the vendored transformers.js");
+  // 預設不指定語言。硬塞 language:'zh' 正是「日文影片吐出讀不通的中文」那個 bug 的來源。
+  assertNoMatch("subtitle/worker.js", worker, /language:\s*["']zh["']/, "hard-coded Chinese language token");
 }
 
 if (has("bjkw_weather.html")) {

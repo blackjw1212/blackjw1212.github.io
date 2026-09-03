@@ -243,10 +243,45 @@ CI 的 commit 只動 `data/`，通常不衝突。feed 是 minified（`market-52w
 - **主 script 是 classic、緊貼 `</body>`**，ESM 全部關在 `subtitle/worker.js`。這不是風格問題：
   `backend/test/*.test.js` 用 `<script>` 那條正則抽行內程式進 `vm`，改成 `type="module"`
   整批測試會抓不到。純函式掛 `window.SubtitleApp.helpers`，`__SUBTITLE_SKIP_AUTO_INIT__` 擋自動初始化。
+- **這頁只能聽寫，不能翻譯。** 這是 Whisper 的能力邊界，不是實作沒做完。
+  實測（2026-09-03，同一段 7 秒日文音檔、turbo）：
+
+  | 設定 | 輸出 |
+  |---|---|
+  | 指定中文 | 森永的美味牛乳是濃烈青色的牛乳瓶 **和尚在一切的泡河** |
+  | 指定日文 | 森永のおいしい牛乳は濃い青色に…（正確） |
+  | 不指定（自動偵測） | The delicious牛乳 is a very dark green green wine… |
+  | `task:'translate'` | 仍是日文——連官方說的「只翻成英文」都沒發生 |
+
+  對非該語言的音檔硬指定語言，Whisper 會逐音硬套成目標語言的字；長音檔（尤其唱歌）
+  還會漂回原語言。**要真的做日文→繁中，得再串一個翻譯模型**（NLLB-200-distilled-600M
+  原生支援 `zho_Hant`，q8 約 853 MB；`Xenova/opus-mt-ja-zh` 不存在，只有 `opus-mt-en-zh`）。
+- **夾雜語言的行為不穩定，這是設計「輸出→翻譯」那個選項的理由。** 實測同樣是「指定中文
+  的中英夾雜錄音」：31.8 秒那段拿到 11 句、英文段照實轉成英文；換一段 18.4 秒的素材重跑，
+  英文整段消失。頁面上不可以寫成「夾雜英文不必特別處理」——那是單次結果推出來的錯結論。
+- **翻譯是第二個模型，預設關閉。** `Xenova/nllb-200-distilled-600M`（q8，encoder 399.7 MB
+  ＋ decoder 453.5 MB），目標語言直接用 `zho_Hant`，不必先出簡體再轉。
+  - **兩個模型不能同時常駐**：實測在同一個分頁先後建立 Whisper 與 NLLB 的推論工作階段會
+    `std::bad_alloc`。所以 `ensureTranslator()` 先 `dispose()` 辨識器、`ensureTranscriber()`
+    也要反向 `dispose()` 翻譯器，缺一邊第二次跑就爆。
+  - **要逐句翻，不能整段翻**：長句會掉半句（`"Mr. Quilter is the apostle of the middle
+    classes, and we are glad to welcome his gospel."` 只回「我們很高興迎接他的福音」，
+    放寬 `max_new_tokens` 沒有用）。Whisper 切出的字幕句夠短，逐句翻反而完整。
+  - **src_lang 要逐句用字形判斷**（`nllbSourceLanguage()`），不能整批套使用者選的語音語言
+    ——同一批 cue 本來就可能混著兩種語言。已經是中文的句子回 `null`，交給 opencc 就好。
+  - 實測成本：翻譯模型載入 81 秒、每句約 5 秒；7 秒的日文檔跑完整條（辨識＋換模型＋翻譯）
+    共 2 分 10 秒。品質是 NLLB-600M q8 的水準：意思大致對、用詞生硬。
+- **語言預設是中文，不是自動偵測。** 實測同一段中文音檔不指定語言時，Whisper 會自行
+  把任務判成翻譯、輸出英文（`"If he doesn't want to give a date,"`）——主要用途當場壞掉。
+  自動偵測留在選單裡供人選，但**不可以當預設**，靜態契約與測試都釘住了這件事。
 - **Whisper 的中文輸出是簡繁混雜的**，不是設定 `language` 就會出繁體。一定要用
   `opencc-js` 的 `{ from: 'cn', to: 'twp' }` 事後轉（twp 連詞彙一起換：视频→影片、鼠标→滑鼠）。
-  實測 `language: 'zh'` 這個兩字母代碼**會**被接受（官方文件只示範過 `'french'` 這種全名），
-  worker 裡仍留了退回 `'chinese'` 的路徑當保險。
+  實測 `language: 'zh'` 這個兩字母代碼**會**被接受（官方文件只示範過 `'french'` 這種全名）。
+- **簡繁轉換不可以無條件套，而且刻意放在主執行緒。** 日文有自己的漢字體系，
+  `cn→twp` 會把日文句子裡的漢字換成台灣用語，得到既不是日文也不是中文的東西；韓文同理。
+  判準是 `needsTraditionalConversion()`：有漢字、且沒有假名或諺文。它放在頁面的行內
+  script 而不是 worker，是因為 worker 匯入 ESM、`vm` 測不到，而這條判斷值得被測試釘住。
+  opencc 的字典 1.14 MB，改成只在真的需要轉時才 `import()`。
 - **`return_timestamps: true` 回來的 `timestamp[1]` 可能是 `null`**，而且模型會給出超過音檔長度
   的時間、零長度區間、甚至回頭比前一句還早的 start。`normalizeChunks` 專門處理這四種髒資料，
   改它之前先看 `backend/test/subtitle-page.test.js`。

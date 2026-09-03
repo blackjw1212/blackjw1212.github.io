@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>字幕生成台｜BJKW</title>
-<meta name="description" content="在瀏覽器裡離線生成繁體中文字幕：影音檔全程留在本機，用 Whisper 辨識後轉為台灣用語繁體，逐句校對並匯出 SRT。" />
+<meta name="description" content="在瀏覽器裡把影音檔聽寫成字幕：檔案全程留在本機，中文結果自動轉台灣用語繁體，逐句校對後匯出 SRT；非中文的句子可選擇翻成繁中。" />
 <link rel="canonical" href="/subtitle/" />
 <meta property="og:title" content="字幕生成台｜BJKW" />
-<meta property="og:description" content="影音檔留在本機，瀏覽器內辨識並匯出繁體中文 SRT。" />
+<meta property="og:description" content="影音檔留在本機，瀏覽器內聽寫並匯出 SRT；中文結果轉台灣用語繁體。" />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -64,6 +64,9 @@
   .state.ok{color:var(--green)}
   .hint{margin-top:10px;color:var(--faint);font-size:12px}
   input[type=file]{color:var(--soft);font-size:13px;max-width:100%}
+  .picker{display:flex;align-items:center;gap:8px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .picker select{border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:12px;padding:8px 10px}
+  .picker select:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
   .bars{margin-top:12px;display:grid;gap:8px}
   .bar-row{display:grid;gap:4px}
   .bar-label{display:flex;justify-content:space-between;gap:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
@@ -100,11 +103,13 @@
 
   <section class="hero">
     <div class="eyebrow">OFFLINE SUBTITLE</div>
-    <h1>在瀏覽器裡生成繁體中文字幕</h1>
-    <p class="lead">選一個本機的影音檔，辨識全程在這個分頁裡跑完，輸出可逐句校對的繁體中文 SRT。</p>
+    <h1>在瀏覽器裡把影音檔聽寫成字幕</h1>
+    <p class="lead">選一個本機的影音檔，辨識全程在這個分頁裡跑完，輸出可逐句校對的 SRT。中文結果會轉成台灣用語繁體。</p>
     <div class="notes">
       <p class="note privacy"><b>PRIVACY</b><span>檔案不會離開這台裝置。沒有上傳、沒有後端、沒有任何伺服器看得到你的音訊；本頁唯一會對外連線的動作是下載模型。</span></p>
+      <p class="note"><b>LANGUAGE</b><span>選你講最多的那個語言。<b>辨識本身不會翻譯</b>——選日文就得到日文字幕。夾雜其他語言的段落，Whisper 有時照實轉出、有時整段丟掉，實測兩次結果不同，不能指望。「自動偵測」更糟：它替整個檔案挑一個語言，其他語言的段落全部消失，所以不是預設值。要讓非中文的句子也變成中文，把右邊的「輸出」改成翻譯。</span></p>
       <p class="note"><b>MODEL</b><span>首次使用需要下載模型（whisper-large-v3-turbo，約 700 MB），之後由瀏覽器快取，斷網也能再用。要換裝置或清了瀏覽器資料就得重下。</span></p>
+      <p class="note"><b>TRANSLATE</b><span>把「輸出」改成翻譯，會再下載一個翻譯模型（NLLB-200-distilled-600M，約 850 MB）。兩個模型不能同時待在記憶體裡，所以翻譯前會先卸掉辨識模型，下一次辨識要重新載入。翻譯是逐句進行的，每句約 5 秒。</span></p>
       <p class="note"><b>SPEED</b><span>有 WebGPU 的瀏覽器跑得動；沒有的話會退到單執行緒 WASM，會非常慢。GitHub Pages 送不出 COOP/COEP header，多執行緒 WASM 在這裡開不起來。另外第一次辨識要先編譯 GPU shader，會比之後每一次多等一段時間。</span></p>
       <p class="note"><b>ACCURACY</b><span>機器辨識一定有錯字，專有名詞尤其容易錯。時間軸照模型給的，這頁只讓你改文字。匯出前請自己看過一遍。</span></p>
     </div>
@@ -127,10 +132,25 @@
     <div class="panel">
       <div class="row">
         <input type="file" id="fileInput" accept="audio/*,video/*" aria-label="選擇要辨識的影音檔">
+        <label class="picker" for="langSelect">語音語言
+          <select id="langSelect">
+            <option value="zh" selected>中文</option>
+            <option value="">自動偵測（會丟掉其他語言的段落）</option>
+            <option value="ja">日文</option>
+            <option value="en">英文</option>
+            <option value="ko">韓文</option>
+          </select>
+        </label>
+        <label class="picker" for="translateSelect">輸出
+          <select id="translateSelect">
+            <option value="off" selected>原文字幕</option>
+            <option value="zh">非中文的句子翻成繁中</option>
+          </select>
+        </label>
         <button type="button" class="btn primary" id="runBtn" disabled>開始辨識</button>
         <span class="state" id="runState">尚未選擇檔案</span>
       </div>
-      <p class="hint">影片檔交給瀏覽器解碼取出音軌，能不能解開要看這台裝置支援哪些編碼；解不開會直接告訴你，請先自行轉成音訊檔再丟進來。</p>
+      <p class="hint">影片檔交給瀏覽器解碼取出音軌，能不能解開要看這台裝置支援哪些編碼；解不開會直接告訴你，請先自行轉成音訊檔再丟進來。語言預設中文，丟其他語言的檔案要自己改。實測一段中→英→中→英的錄音：指定中文那次 11 句、中英都在，但換一段素材重跑，英文就整段不見了；改成自動偵測則只剩 2 句、中文全部消失。要穩定拿到中文字幕就開翻譯。</p>
     </div>
   </section>
 
@@ -246,6 +266,31 @@
       return Math.floor(total / 60) + " 分 " + pad(total % 60, 2) + " 秒";
     }
 
+    /* Whisper 的中文輸出簡繁混雜（openai/whisper #277、#987 等多處回報），一定要事後轉。
+       但**不能無條件轉**：日文用的是自己的漢字體系，opencc 的 cn→twp 會把日文句子裡的
+       漢字換成台灣用語，得到一段既不是日文也不是中文的東西。韓文的漢字同理。
+       判準是「有漢字、且沒有假名或諺文」——日文只要出現一個假名就足以認定，
+       而純漢字的日文短句本來就無從分辨，那種情況轉了也不算錯。 */
+    function needsTraditionalConversion(text) {
+      var value = String(text == null ? "" : text);
+      if (/[぀-ヿㇰ-ㇿ]/.test(value)) return false;
+      if (/[가-힯ᄀ-ᇿ]/.test(value)) return false;
+      return /[㐀-䶿一-鿿豈-﫿]/.test(value);
+    }
+
+    /* 這一句要不要送去翻譯，以及它的來源語言是什麼——NLLB 需要明確的 src_lang。
+       用字形判斷而不是相信使用者選的語音語言：實測一段中英夾雜的錄音在指定中文時，
+       Whisper 會照樣把英文段轉成英文，所以同一批 cue 裡本來就混著兩種語言，
+       整批套同一個 src_lang 一定錯。回 null 代表「已經是中文，交給 opencc 就好」。 */
+    function nllbSourceLanguage(text) {
+      var value = String(text == null ? "" : text);
+      if (/[぀-ヿㇰ-ㇿ]/.test(value)) return "jpn_Jpan";
+      if (/[가-힯ᄀ-ᇿ]/.test(value)) return "kor_Hang";
+      if (/[㐀-䶿一-鿿豈-﫿]/.test(value)) return null;
+      if (/[A-Za-z]/.test(value)) return "eng_Latn";
+      return null;
+    }
+
     function formatBytes(bytes) {
       if (typeof bytes !== "number" || !isFinite(bytes) || bytes <= 0) return "";
       if (bytes < 1048576) return (bytes / 1024).toFixed(0) + " KB";
@@ -273,6 +318,8 @@
       srtFilename: srtFilename,
       formatBytes: formatBytes,
       describeElapsed: describeElapsed,
+      needsTraditionalConversion: needsTraditionalConversion,
+      nllbSourceLanguage: nllbSourceLanguage,
     };
 
     function init() {
@@ -281,6 +328,8 @@
       var engineBars = document.getElementById("engineBars");
       var engineHint = document.getElementById("engineHint");
       var fileInput = document.getElementById("fileInput");
+      var langSelect = document.getElementById("langSelect");
+      var translateSelect = document.getElementById("translateSelect");
       var runBtn = document.getElementById("runBtn");
       var runState = document.getElementById("runState");
       var exportBtn = document.getElementById("exportBtn");
@@ -377,6 +426,49 @@
         exportBtn.disabled = false;
       }
 
+      /* opencc 的字典有 1.14 MB，只在真的拿到中文結果時才載——聽寫日文影片的人
+         不該為了一個用不到的簡繁字典多等。轉換放主執行緒而不是 worker，是因為
+         「該不該轉」那條判斷值得被單元測試釘住，而 worker 匯入了 ESM，測不到。 */
+      var converter = null;
+
+      function loadConverter() {
+        if (converter) return Promise.resolve(converter);
+        return import("/subtitle/vendor/opencc-full.js").then(function (module) {
+          converter = module.default.Converter({ from: "cn", to: "twp" });
+          return converter;
+        });
+      }
+
+      function toTraditionalChunks(chunks) {
+        var list = Array.isArray(chunks) ? chunks : [];
+        var joined = list.map(function (chunk) { return String(chunk && chunk.text || ""); }).join("");
+        if (!needsTraditionalConversion(joined)) return Promise.resolve(list);
+        return loadConverter()
+          .then(function (convert) {
+            return list.map(function (chunk) {
+              return { start: chunk.start, end: chunk.end, text: convert(String(chunk.text == null ? "" : chunk.text)) };
+            });
+          })
+          // 字典載不到就給原文。少了簡繁轉換仍然是可用的字幕，整批失敗才是災難。
+          .catch(function () { return list; });
+      }
+
+      /* 只把「不是中文」的句子送去翻譯。中英夾雜的錄音裡，中文那些句子本來就已經是
+         要的結果，送進翻譯模型只會多花每句五秒再翻回來一個較差的版本。 */
+      function pendingTranslation(list) {
+        var out = [];
+        for (var i = 0; i < list.length; i += 1) {
+          var source = nllbSourceLanguage(list[i].text);
+          out.push({ start: list[i].start, end: list[i].end, text: list[i].text, source: source });
+        }
+        return out.some(function (item) { return item.source; }) ? out : [];
+      }
+
+      function finishRun() {
+        var spent = stopTicker();
+        setState(runState, "完成 · 共 " + describeElapsed(spent), "ok");
+      }
+
       function ensureWorker() {
         if (worker) return worker;
         worker = new Worker("/subtitle/worker.js", { type: "module" });
@@ -408,7 +500,7 @@
               setState(engineState, "模型就緒", "ok");
               loadBtn.disabled = true;
               syncRunButton();
-            } else if (data.stage === "running") {
+            } else if (data.stage === "running" || data.stage === "translating") {
               // 辨識進度屬於這次工作，不是引擎狀態。寫錯欄位的話「模型就緒」會被蓋掉，
               // 引擎面板就會永遠停在「辨識中」。
               startTicker(data.message);
@@ -419,13 +511,44 @@
           }
 
           if (data.type === "done") {
+            toTraditionalChunks(data.chunks).then(function (converted) {
+              cues = normalizeChunks(converted, currentDuration);
+              renderCues();
+              setState(exportState, cues.length ? "可以匯出" : "沒有辨識到內容", cues.length ? "ok" : "error");
+
+              // 先把辨識結果顯示出來，翻譯是額外的一段路——中途出錯至少還留著原文字幕。
+              var pending = translateSelect.value === "zh" ? pendingTranslation(cues) : [];
+              if (!pending.length) {
+                busy = false;
+                finishRun();
+                syncRunButton();
+                return;
+              }
+              startTicker("翻譯 0/" + pending.length);
+              ensureWorker().postMessage({ type: "translate", chunks: pending });
+            });
+            return;
+          }
+
+          if (data.type === "translating") {
+            startTicker("翻譯 " + data.done + "/" + data.total);
+            return;
+          }
+
+          if (data.type === "translated") {
             busy = false;
-            var spent = stopTicker();
-            cues = normalizeChunks(data.chunks, currentDuration);
-            renderCues();
-            setState(runState, "辨識完成 · 共 " + describeElapsed(spent), "ok");
-            setState(exportState, cues.length ? "可以匯出" : "沒有辨識到內容", cues.length ? "ok" : "error");
-            syncRunButton();
+            // NLLB 的目標語言是 zho_Hant，但再過一次 opencc 才擋得住偶爾漏出來的簡體
+            toTraditionalChunks(data.chunks).then(function (converted) {
+              cues = normalizeChunks(converted, currentDuration);
+              renderCues();
+              setState(exportState, "可以匯出", "ok");
+              // 辨識模型已經被卸掉換成翻譯模型，畫面不能繼續說「模型就緒」
+              modelReady = false;
+              loadBtn.disabled = false;
+              setState(engineState, "辨識模型已卸載，換上了翻譯模型", "");
+              finishRun();
+              syncRunButton();
+            });
             return;
           }
 
@@ -492,7 +615,10 @@
           })
           .then(function (audio) {
             startTicker(modelReady ? "辨識中" : "等模型載入完就開始辨識");
-            ensureWorker().postMessage({ type: "transcribe", audio: audio }, [audio.buffer]);
+            ensureWorker().postMessage(
+              { type: "transcribe", audio: audio, language: langSelect.value },
+              [audio.buffer]
+            );
           })
           .catch(function (error) {
             busy = false;
