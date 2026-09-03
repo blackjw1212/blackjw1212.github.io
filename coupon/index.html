@@ -113,6 +113,19 @@
   @media (max-width:640px){
     .shell{width:min(100% - 24px,1100px)}
     .big{font-size:29px}
+    /* 觸控目標。實測 375px：核取方塊 17px、來源連結 19px、返回鍵 27px。
+       方塊本身包在 <label class="check"> 裡，真正的命中區是那個 label，
+       所以撐 label；align-items 維持 flex-start，標籤換行時方塊才不會飄到中間。 */
+    .topbar a{min-height:44px;display:inline-flex;align-items:center}
+    .check{min-height:44px;padding:6px 0}
+    .check input{width:20px;height:20px}
+    /* 要跟 .field select 的 min-height:40px 同特異度才蓋得過去，
+       單寫 select{} 是 (0,0,1) 打不贏 (0,1,1)，實測仍停在 40px。 */
+    .field select,.field input[type=number],.field input[type=text]{min-height:44px}
+    /* 每條規則底下的來源連結是密集的次要資訊，取 WCAG 2.5.8 的 24px 下限
+       而不是 44px——五條各撐 44px 只會把這頁再拉長一截。 */
+    .rule-src{min-height:24px;display:inline-flex;align-items:center}
+    .card{padding:14px}
   }
 </style>
 </head>

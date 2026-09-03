@@ -76,8 +76,21 @@
   .footnote{margin-top:24px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.7}
   @media (max-width:640px){
     .shell{width:min(100% - 24px,1120px);padding-top:18px}
-    .hero{padding:20px}
+    .hero{padding:16px}
     .hero-meta{grid-template-columns:1fr}
+    /* 觸控目標。實測 375px：返回鍵 19px、動作鈕 31–39px、下拉 34px、
+       檔案選擇 25px，全都低於 iOS 的 44px 建議值。句中的行內文字連結不強拉
+       ——WCAG 2.5.8 對「句子裡的連結」有豁免，硬撐只會把行高撐開更難讀。 */
+    .back{min-height:44px;display:inline-flex;align-items:center}
+    .btn,.picker,select,input[type=file],input[type=text],input[type=number]{min-height:44px}
+    /* 手機刻度：hero 26→16、卡片 16→14、h1 下限 28→22。
+       clamp 的下限在 375px 恆生效，28px 會讓一個長標題吃掉三行。 */
+    .topbar{gap:10px}
+    h1{font-size:clamp(22px,6vw,28px)}
+    .cards{gap:10px}
+    .card{padding:14px}
+    /* 通往兩個子頁的 CTA 是這頁的主要導覽，實測只有 19px 高 */
+    .subpage-cta{min-height:44px;display:inline-flex;align-items:center}
   }
 </style>
 </head>
@@ -202,7 +215,7 @@
     <div class="cards">
       <article class="card wide"><h3>🔧 保養套餐 · 料號 · 扭力 · 圖示順序維修</h3><code>/forscan/service/</code><p>本車（1.5 EcoBoost · 6F35）的保養耗材料號、原廠扭力值（洩油 27 Nm / 機油濾芯 14 Nm / 火星塞 15 Nm / 輪胎 133 Nm），以及機油 / 變速箱油 / 空氣濾芯 / 冷氣濾網的圖示順序維修指引，已整理成獨立子分頁，方便對照施作。</p>
         <div class="chips"><span class="chip">機油 · 變速箱 · 空濾 · 冷氣濾</span><span class="chip method">圖示步驟</span><span class="chip ok">原廠扭力</span></div>
-        <p style="margin-top:12px"><a href="/forscan/service/" aria-label="開啟保養維修圖解專頁 /forscan/service/" style="color:var(--cyan);font-weight:800;text-decoration:none">開啟保養維修圖解專頁 /forscan/service/ &rarr;</a></p>
+        <p style="margin-top:12px"><a class="subpage-cta" href="/forscan/service/" aria-label="開啟保養維修圖解專頁 /forscan/service/" style="color:var(--cyan);font-weight:800;text-decoration:none">開啟保養維修圖解專頁 /forscan/service/ &rarr;</a></p>
       </article>
     </div>
   </section>
@@ -212,7 +225,7 @@
     <div class="cards">
       <article class="card wide"><h3>📻 Syn3Updater · SYNC 3 更新指引</h3><code>/forscan/sync3/</code><p>用 CyanLabs Syn3Updater 把 SYNC 3 更新到 3.2 / 3.3 / 3.4 的需求、三種安裝模式（AutoInstall / Reformat / Downgrade）、MY20 判定與圖示順序步驟。<strong>注意：升級後無法退回 3.0</strong>，屬不可逆操作。</p>
         <div class="chips"><span class="chip">需求 · 安裝模式</span><span class="chip method">圖示步驟</span><span class="chip bad">不可逆風險</span></div>
-        <p style="margin-top:12px"><a href="/forscan/sync3/" aria-label="開啟 SYNC 3 更新指引專頁 /forscan/sync3/" style="color:var(--cyan);font-weight:800;text-decoration:none">開啟 SYNC 3 更新指引專頁 /forscan/sync3/ &rarr;</a></p>
+        <p style="margin-top:12px"><a class="subpage-cta" href="/forscan/sync3/" aria-label="開啟 SYNC 3 更新指引專頁 /forscan/sync3/" style="color:var(--cyan);font-weight:800;text-decoration:none">開啟 SYNC 3 更新指引專頁 /forscan/sync3/ &rarr;</a></p>
       </article>
     </div>
   </section>
