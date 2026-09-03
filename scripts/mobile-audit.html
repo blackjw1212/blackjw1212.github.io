@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>手機版量測｜BJKW dev tool</title>
+<!--
+  開發用工具，不是站上的頁面。scripts/ 沒有進 pages-deploy.yml 的 cp allowlist，
+  所以它不會被部署出去。
+
+  用法：起 .claude/launch.json 的 static-site，開 http://localhost:4173/scripts/mobile-audit.html
+
+  它把每一頁塞進固定寬度的 iframe 量真實版面，回報三件事：
+    1. 橫向溢出：documentElement.scrollWidth > clientWidth
+    2. 觸控目標 < 44px（iOS HIG）
+    3. 頁高（純佐證，不是判準）
+
+  兩個一定要知道的坑，都寫進判斷裡了：
+
+  A. **pointer:coarse 不會在桌機瀏覽器生效。** /weather/ 與 /dash/ 的觸控目標是用
+     `@media (pointer: coarse)` 撐開的，桌機量到的是「沒撐開」的值——實測就這樣誤報過
+     一次 #coastSelect 只有 30px。所以這支工具會先檢查自己跑在哪種 pointer 底下，
+     fine 的話整份報告標成不可信，並點名哪些頁面有 coarse 規則沒被套用。
+     要拿到可信結果：用手機開，或在 Claude 的瀏覽器窗格切成 mobile 模擬（會給
+     maxTouchPoints=5 與 pointer:coarse）。
+
+  B. **有些元素要等 fetch 回來才存在。** /weather/ 的 .ext-link（沿海預報 CTA）就是
+     資料回來才渲染的，靜態掃描與太早量都看不到。所以每頁載入後固定再等一段時間。
+
+  三條刻意的豁免，寫在 EXEMPTIONS 裡，改判準前先看那段註解。
+-->
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#8a97a2;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#ff766e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55;padding:24px}
+  .shell{width:min(1100px,100%);margin:0 auto}
+  h1{font-size:22px;margin-bottom:4px}
+  .kick{font-family:ui-monospace,Consolas,monospace;color:var(--teal);font-size:11px}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0}
+  button{min-height:38px;border:1px solid #405263;border-radius:6px;background:#243340;color:var(--ink);font-weight:700;padding:0 14px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .env{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:12px 14px;margin-bottom:14px;font-size:13px}
+  .env b{color:var(--cyan)}
+  .env.warn{border-color:var(--amber);color:var(--amber)}
+  /* 這支工具本身就是拿來在窄螢幕上看的，表格自己要能橫捲，
+     否則 375px 下表頭會被擠成直排的單字 */
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+  th{color:var(--faint);font-weight:600;font-size:12px;white-space:nowrap}
+  td:first-child{white-space:nowrap}
+  td.num{font-family:ui-monospace,Consolas,monospace;text-align:right;white-space:nowrap}
+  .ok{color:var(--green)}
+  .bad{color:var(--red);font-weight:700}
+  .detail{color:var(--soft);font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
+  pre{margin-top:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px;overflow-x:auto;font-size:12px;color:var(--soft);white-space:pre}
+  .note{margin-top:14px;color:var(--faint);font-size:12px}
+  #stage{position:fixed;left:-99999px;top:0}
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="kick">BJKW DEV TOOL</div>
+  <h1>手機版量測</h1>
+  <div class="bar">
+    <button id="run">開始量測</button>
+    <button id="copy" disabled>複製純文字報告</button>
+    <span id="progress" class="detail"></span>
+  </div>
+  <div id="env" class="env"></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>頁面</th><th class="num">寬</th><th class="num">頁高</th><th class="num">溢出</th><th class="num">目標</th><th>不合格的元素</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <pre id="text"></pre>
+  <div class="note">
+    判準：觸控目標 &lt; 44px（iOS HIG）／ <code>scrollWidth &gt; clientWidth</code> 視為橫向溢出。
+    刻意的 <code>overflow-x:auto</code> 容器（/flight/ 的分頁列、/coupon/ 的表格）不會讓文件本身溢出，所以不必特判。
+  </div>
+</main>
+<div id="stage"></div>
+
+<script>
+"use strict";
+
+/* 量測的視窗尺寸。375×812 是 iPhone X 之後的主流，320×720 是還在服役的最窄機。 */
+const VIEWPORTS = [[375, 812], [320, 720]];
+
+/* 觸控目標下限。WCAG 2.5.8 AA 只要求 24px，這裡取 iOS HIG 的 44px 當目標值。 */
+const MIN_TAP = 44;
+
+/* 頁面載入後再等多久才量。/weather/ 的 .ext-link 要等 fetch 回來才渲染，
+   太早量會漏掉它——實測 900ms 夠，太短會時好時壞。 */
+const SETTLE_MS = 900;
+
+/* 首頁沒有連出去、但仍要量的路徑。首頁那九個入口是從 data-primary-entry 自動抓的，
+   不在這裡重抄一份——那份清單已經釘在 check-static-site.mjs 與 frontend-smoke.test.js
+   兩個地方了，這裡再抄第三份只會分叉。 */
+const EXTRA_ROUTES = ["/", "/market/", "/forscan/service/", "/forscan/sync3/"];
+
+/* ── 三條刻意的豁免 ────────────────────────────────────────────────
+   1. 勾選框／單選鈕：命中區是包住它的 <label>（點文字也會勾），量 label 不量方塊。
+      撐方塊只會讓它變醜，而且沒解決真正的問題。
+   2. .skip：跳到主內容的連結，平常在螢幕外（left:-9999px），是鍵盤 affordance
+      不是觸控目標。
+   3. 句子裡的行內文字連結：WCAG 2.5.8 對「inline in a sentence」有明文豁免。
+      硬撐 44px 會把行高撐開反而更難讀。判法是「父元素是段落類、且父元素的文字
+      明顯比連結本身長」——單獨佔一行的 CTA 不會被誤判成行內連結。
+   ──────────────────────────────────────────────────────────────── */
+const INLINE_PARENTS = /^(P|LI|FOOTER|SPAN|TD|SMALL)$/;
+
+function label(el) {
+  const raw = el.className;
+  const cls = typeof raw === "string" ? raw : (raw && raw.baseVal) || "";
+  const name = cls ? "." + cls.trim().split(/\s+/).join(".") : (el.id ? "#" + el.id : "");
+  const text = (el.textContent || el.type || "").trim().replace(/\s+/g, " ").slice(0, 18);
+  return el.tagName.toLowerCase() + name + (text ? ` «${text}»` : "");
+}
+
+function visible(el) {
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0;
+}
+
+/* 這一頁有沒有用 (pointer: coarse) 撐觸控目標？桌機量測時要據此示警。 */
+function usesCoarsePointer(doc) {
+  for (const sheet of doc.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch (_) { continue; }
+    for (const rule of rules || []) {
+      if (rule.media && /coarse/.test(rule.conditionText || rule.media.mediaText || "")) return true;
+    }
+  }
+  return false;
+}
+
+function auditDocument(win) {
+  const doc = win.document;
+  const de = doc.documentElement;
+  const failures = [];
+  let exempt = 0;
+
+  for (const el of doc.querySelectorAll("a,button,input:not([type=hidden]),select,summary")) {
+    if (!visible(el)) continue;
+    if (el.classList.contains("skip")) continue;
+
+    const parent = el.parentElement;
+    if (el.tagName === "A" && parent && INLINE_PARENTS.test(parent.tagName)
+        && parent.textContent.trim().length > el.textContent.trim().length + 4) {
+      exempt++;
+      continue;
+    }
+
+    let target = el;
+    if (el.tagName === "INPUT" && (el.type === "checkbox" || el.type === "radio")) {
+      const wrap = el.closest("label");
+      if (wrap) target = wrap;
+    }
+
+    const height = target.getBoundingClientRect().height;
+    if (height < MIN_TAP) {
+      failures.push(`${label(el)}${target !== el ? "→" + label(target) : ""} = ${Math.round(height)}px`);
+    }
+  }
+
+  return {
+    height: Math.round(de.scrollHeight),
+    overflow: Math.max(0, de.scrollWidth - de.clientWidth),
+    coarseRules: usesCoarsePointer(doc),
+    failures,
+    exempt,
+  };
+}
+
+function inFrame(path, w, h) {
+  return new Promise((resolve, reject) => {
+    const frame = document.createElement("iframe");
+    frame.style.cssText = `width:${w}px;height:${h}px;border:0`;
+    frame.src = path + (path.includes("?") ? "&" : "?") + "audit=" + Date.now();
+    frame.onload = () => setTimeout(() => {
+      let result;
+      try { result = auditDocument(frame.contentWindow); }
+      catch (error) { frame.remove(); return reject(error); }
+      frame.remove();
+      resolve(result);
+    }, SETTLE_MS);
+    frame.onerror = () => { frame.remove(); reject(new Error("載入失敗：" + path)); };
+    document.getElementById("stage").appendChild(frame);
+  });
+}
+
+/* 首頁的九個入口就是 data-primary-entry，直接跟著它走，不另外維護一份清單 */
+async function routes() {
+  const html = await fetch("/?audit-routes=1").then((r) => r.text());
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const primary = [...doc.querySelectorAll("[data-primary-entry][href]")].map((a) => a.getAttribute("href"));
+  const all = [];
+  for (const route of [...EXTRA_ROUTES, ...primary]) {
+    if (!all.includes(route)) all.push(route);
+  }
+  return all;
+}
+
+function renderEnv() {
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const box = document.getElementById("env");
+  box.className = "env" + (coarse ? "" : " warn");
+  box.innerHTML = coarse
+    ? `pointer: <b>coarse</b>（maxTouchPoints=${navigator.maxTouchPoints}）—— <b>(pointer: coarse)</b> 的規則會生效，結果可信。`
+    : `pointer: <b>fine</b>（maxTouchPoints=${navigator.maxTouchPoints}）—— <b>(pointer: coarse)</b> 的規則不會生效，`
+      + `有用那個斷點的頁面會被誤報成觸控目標太小（實測 /weather/ 就這樣誤報過）。`
+      + `請用手機開這一頁，或把瀏覽器切成行動裝置模擬後重跑。`;
+  return coarse;
+}
+
+async function run() {
+  const button = document.getElementById("run");
+  const rows = document.getElementById("rows");
+  const progress = document.getElementById("progress");
+  button.disabled = true;
+  rows.innerHTML = "";
+  const coarse = renderEnv();
+  const lines = [];
+  let violations = 0;
+  let coarseSkewed = 0;
+
+  const list = await routes();
+  for (const path of list) {
+    for (const [w, h] of VIEWPORTS) {
+      progress.textContent = `量測中：${path} @ ${w}px`;
+      const r = await inFrame(path, w, h);
+      const bad = r.failures.length > 0 || r.overflow > 0;
+      const suspect = !coarse && r.coarseRules && r.failures.length > 0;
+      if (bad) violations += r.failures.length + (r.overflow > 0 ? 1 : 0);
+      if (suspect) coarseSkewed++;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${path}${suspect ? ' <span class="detail">(有 coarse 規則)</span>' : ""}</td>`
+        + `<td class="num">${w}</td>`
+        + `<td class="num">${r.height}</td>`
+        + `<td class="num ${r.overflow ? "bad" : "ok"}">${r.overflow ? r.overflow + "px" : "0"}</td>`
+        + `<td class="num ${r.failures.length ? "bad" : "ok"}">${r.failures.length ? r.failures.length + " 個" : "0"}</td>`
+        + `<td class="detail">${r.failures.join("<br>")}</td>`;
+      rows.appendChild(tr);
+
+      lines.push(`${path.padEnd(20)} @${String(w).padStart(3)}  h=${String(r.height).padStart(5)}  `
+        + `ovf=${r.overflow}  tap<${MIN_TAP}: ${r.failures.length}`
+        + (r.failures.length ? `  [${r.failures.join(" | ")}]` : "")
+        + (suspect ? "  ← 這頁有 coarse 規則，桌機量的不算數" : ""));
+    }
+  }
+
+  progress.textContent = "";
+  button.disabled = false;
+  const header = [
+    `BJKW 手機版量測  ${new Date().toISOString().slice(0, 19).replace("T", " ")}`,
+    `pointer=${coarse ? "coarse（可信）" : "fine（不可信，見下）"}  視窗=${VIEWPORTS.map(([a, b]) => a + "x" + b).join(" / ")}  觸控下限=${MIN_TAP}px`,
+    "",
+  ];
+  const footer = ["", `合計違規：${violations}`];
+  if (!coarse && coarseSkewed) {
+    footer.push(`其中 ${coarseSkewed} 列來自有 (pointer: coarse) 規則的頁面，桌機量不到，請改用行動裝置模擬重跑。`);
+  }
+  document.getElementById("text").textContent = header.concat(lines, footer).join("\n");
+  document.getElementById("copy").disabled = false;
+}
+
+document.getElementById("run").addEventListener("click", () => {
+  run().catch((error) => {
+    document.getElementById("progress").textContent = "";
+    document.getElementById("text").textContent = "量測失敗：" + error.message;
+    document.getElementById("run").disabled = false;
+  });
+});
+document.getElementById("copy").addEventListener("click", () => {
+  navigator.clipboard.writeText(document.getElementById("text").textContent);
+});
+renderEnv();
+</script>
+</body>
+</html>

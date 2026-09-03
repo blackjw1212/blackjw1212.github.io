@@ -26,6 +26,34 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 2. `node scripts/check-static-site.mjs` — 靜態契約
 3. `data/market-feed.json`、`data/etf-feed.json` 的 JSON 合法性與 `tradeDate` 格式
 
+## 手機版量測 `scripts/mobile-audit.html`
+
+改版面之後手動跑。起 `.claude/launch.json` 的 `static-site`，開
+`http://localhost:4173/scripts/mobile-audit.html`，按「開始量測」。
+它把每頁塞進 375×812 與 320×720 的 iframe 量真實版面，回報橫向溢出、
+觸控目標 < 44px、頁高。**不在 DoD 裡**——它需要瀏覽器，而這個 repo 刻意沒有
+Playwright 之類的工具鏈。`scripts/` 不在 pages-deploy 的 cp allowlist，不會上線。
+
+**一定要用行動裝置模擬（或真手機）跑，否則結果不算數。** `/weather/` 與 `/dash/`
+的觸控目標是用 `@media (pointer: coarse)` 撐開的，桌機的 pointer 是 fine、那些規則
+不生效，量到的是沒撐開的值——實測就這樣誤報過 `#coastSelect` 只有 30px。工具會自己
+檢查跑在哪種 pointer 底下，fine 就把整份報告標成不可信，並逐列點名哪幾頁有 coarse
+規則沒被套用。Claude 的瀏覽器窗格切 mobile preset 就會給 `pointer:coarse`。
+
+其他寫進判準裡的事：
+
+- 頁面清單**跟著首頁的 `data-primary-entry` 走**，不重抄第四份（那份清單已經釘在
+  靜態契約與 `frontend-smoke.test.js` 兩個地方）。首頁沒連出去的 `/market/`、
+  `/forscan/service/`、`/forscan/sync3/` 列在 `EXTRA_ROUTES`。
+- 載入後固定等 900ms 再量。`/weather/` 的 `.ext-link`（沿海預報 CTA）要等 fetch
+  回來才渲染，太早量會漏。
+- 三條刻意的豁免：勾選框量的是包住它的 `<label>`（命中區在那裡）、`.skip` 不算
+  觸控目標（螢幕外的鍵盤 affordance）、句子裡的行內文字連結不算（WCAG 2.5.8 明文
+  豁免，硬撐 44px 會把行高撐開）。改判準前先看原始碼裡那段註解。
+
+順帶一提，`/weather/` 的 `.radar-link` 用 `padding-block:15px` + `margin-block:-15px`
+把熱區撐到 45px 而不動標題列高度——行內 CTA 要補觸控目標時，那個做法比 `min-height` 好。
+
 ## 靜態契約 `scripts/check-static-site.mjs`
 
 比一般 lint 嚴格很多，改頁面前先知道它管什麼，否則 CI 會紅：
