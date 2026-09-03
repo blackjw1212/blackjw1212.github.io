@@ -31,8 +31,10 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 比一般 lint 嚴格很多，改頁面前先知道它管什麼，否則 CI 會紅：
 
 - **首頁主要入口被釘死**為
-  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/`，
-  順序與 href 都要一致。**CTA 數量也是硬編碼的**（`ctas.length !== 8`），加一頁要同時改它。`data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
+  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/`，
+  順序與 href 都要一致（**字面值在條件與錯誤訊息各出現一次，兩處都要改**）。
+  CTA 數量不是硬編碼，是 `ctas.length !== primaryLinks.length`。
+  `data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
   **同一份清單被釘在兩個地方**：這支腳本，以及 `backend/test/frontend-smoke.test.js`
   的 `assert.deepEqual(primaryLinks, ...)`。只改一邊會讓 `npm test` 紅而靜態契約綠。
 - **各頁的 `<title>`、`canonical`、`theme-color` 逐字比對**。改標題要同步改這支腳本。
@@ -53,7 +55,7 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 ## 部署：`pages-deploy.yml` 的 allowlist
 
 ```
-cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle data assets dist/
+cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle convert data assets dist/
 ```
 
 **新增頂層頁面目錄一定要加進這行**，並同步加進 `sw.js` 的 `PRECACHE`（順手 bump `VERSION`，
@@ -293,6 +295,43 @@ CI 的 commit 只動 `data/`，通常不衝突。feed 是 minified（`market-52w
   自己剛觸發的下載，按了沒反應而且主控台沒有任何訊息。
 - 本機預覽用 `.claude/launch.json` 的 `static-site`（`node -e` 的極簡靜態伺服器，
   有 `.wasm` / `.mjs` 的 MIME 對應；用 `python -m http.server` 之類的東西發不對 wasm 型別）。
+
+## `/convert/`：萬用轉檔台
+
+瀏覽器端轉檔，檔案全程留在本機。骨架照抄 `/subtitle/`（classic 行內 script 緊貼
+`</body>`、純函式掛 `window.ConvertApp.helpers`、`__CONVERT_SKIP_AUTO_INIT__` 擋自動初始化、
+vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外**踩到的坑。
+
+- **`convert/vendor/` 是 11 MB，且全部按需 `import()`／`<script src>`**，所以
+  `check-static-site.mjs` 掃 href/src 的迴圈一個都看不到——已在 `mustExist` 逐檔點名。
+  加新函式庫要同步加，否則 pages-deploy 漏檔時 Site check 仍會綠。
+- **pdf.js 的 `page.render()` 預設用 requestAnimationFrame 分批畫。使用者一切到別的
+  分頁，rAF 就不再觸發，render 的 promise 永遠不 resolve**——畫面停在「第 1 頁 0/N」，
+  主控台一個字都沒有。實測 pdf.js 6.3.289 在 `document.hidden` 時 display intent 逾時、
+  `intent: "print"` 14 ms 完成。這頁固定用 `intent: "print"`（語意上也對：要的就是列印結果）。
+  `useRequestAnimationFrame: false` **沒有用**，實測照樣卡死。
+- **pdf.js 6 的 `PDFDocumentProxy` 沒有 `destroy()`**，要關的是 `pdf.loadingTask.destroy()`。
+  照舊版寫 `pdf.destroy()` 會在**每一批的最後一步**丟 `is not a function`，把整批已經
+  轉好的結果一起吃掉。
+- **vendor 的載入順序有兩條硬相依**：`docx-preview.min.js` 前要先有全域 `JSZip`；
+  `UTIF.js` 在自己的 IIFE 執行期就讀 `self.pako`，`pako.min.js` 一定要先載。
+  兩者失敗時都不報錯，只是 `undefined`。
+- **`docx-preview` 的全域名稱是 `docx`**，跟 dolanmiu 的 `docx` 套件撞名。目前不衝突是
+  因為後者走 `import()` 不掛全域；把它換成 UMD 版就會對撞。
+- **`canvas.toBlob` 對不支援的 type 會安靜地退回 PNG**（給你一個 `.webp` 副檔名配
+  PNG 內容）。`canvasToBlob()` 因此比對 `blob.type`，對不上就丟錯。
+- **AVIF 只能讀不能寫**：至今沒有瀏覽器能用 canvas 編碼 AVIF。頁面明講，靜態契約釘住。
+- **DOCX→PDF 是 docx-preview 排版 → html2canvas 拍照 → pdf-lib 拼頁，輸出是圖片頁。**
+  實測產出的 A4 頁 `getTextContent()` 回 0 個 item——「文字不可選取」是事實不是免責。
+  要可選取的 PDF 只能走 DOCX→HTML 再讓使用者自己列印。
+- **CSV 沒有自述編碼**，台灣的 Big5 檔用 UTF-8 讀會整片亂碼。頁面給編碼選單
+  （`TextDecoder('big5')` 瀏覽器原生支援），輸出的 CSV 一律補 UTF-8 BOM。
+- **`<input type=file>` 的 change 是「改選」不是「加選」**，拖放才是加選。
+  兩者共用 `addFiles(list, replace)`。
+- **一批只處理同一種來源格式**：混合時直接停下來說「無法決定輸出」，不猜。
+- **不做影音**：`@ffmpeg/core` 單執行緒版 unpacked 61.69 MB，而 GitHub Pages 送不出
+  COOP/COEP，多執行緒在這裡開不起來。UI 上沒有假裝支援。
+- vendor 的版本與來源網址記在 `convert/vendor/SOURCES.md`。
 
 ## 計劃審查閘門
 

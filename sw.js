@@ -1,5 +1,5 @@
 /* BJKW Public Console — service worker */
-const VERSION = "bjkw-v6";
+const VERSION = "bjkw-v7";
 const CACHE = `bjkw-${VERSION}`;
 
 /* App shell：可導覽頁面 + 必要圖示。刻意保持輕量，不預載 512k 大圖。 */
@@ -23,6 +23,9 @@ const PRECACHE = [
   // app shell，等於讓每一個只想看 /stocks/ 的訪客先下載 36 MB。vendor 走既有的
   // cache-first 靜態資產分支，第一次真的開這頁時才進快取，之後照樣能離線用。
   "/subtitle/",
+  // 同上：只收頁面本身，不收 convert/vendor/ 底下那 10 MB。那些函式庫在頁面裡是
+  // 按需 import 的，走 cache-first 靜態資產分支，真的選到那種轉檔時才進快取。
+  "/convert/",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",

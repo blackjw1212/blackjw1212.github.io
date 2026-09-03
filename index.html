@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BJKW 觀察控制台</title>
-<meta name="description" content="BJKW 公開觀察控制台，快速查看股票、天氣、ESP32、FORScan、機票、騎乘儀表板與優惠疊加試算的觀察狀態。" />
+<meta name="description" content="BJKW 公開觀察控制台，快速查看股票、天氣、ESP32、FORScan、機票、騎乘儀表板與優惠疊加試算的觀察狀態，另有離線字幕生成與萬用轉檔工具。" />
 <link rel="canonical" href="/" />
 <meta property="og:title" content="BJKW 觀察控制台" />
 <meta property="og:description" content="快速進入股票投資、天氣、ESP32 韌體、FORScan、機票總成本、騎乘儀表板與優惠疊加試算台。" />
@@ -68,6 +68,7 @@
   .dash-accent{box-shadow:inset 4px 0 0 rgba(234,179,8,.7)}
   .coupon-accent{box-shadow:inset 4px 0 0 rgba(255,118,110,.7)}
   .subtitle-accent{box-shadow:inset 4px 0 0 rgba(147,197,253,.72)}
+.convert-accent{box-shadow:inset 4px 0 0 rgba(190,164,120,.72)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (prefers-reduced-motion:reduce){
     .entry{transition:none}
@@ -105,6 +106,7 @@
       <a href="/dash/">/dash/</a>
       <a href="/coupon/">/coupon/</a>
       <a href="/subtitle/">/subtitle/</a>
+      <a href="/convert/">/convert/</a>
     </nav>
   </header>
 
@@ -256,6 +258,24 @@
       <div class="entry-foot">
         <div class="entry-limit">限制：需要 WebGPU 才跑得順</div>
         <a class="entry-button" data-primary-entry="subtitle" href="/subtitle/" aria-label="開啟 /subtitle/ 字幕生成台">開啟 /subtitle/</a>
+      </div>
+    </article>
+    <article class="entry convert-accent">
+      <div>
+        <div class="entry-head">
+          <div class="entry-title">
+            <small>UNIVERSAL CONVERTER</small>
+            <h2>萬用轉檔台</h2>
+          </div>        </div>
+        <p>圖片互轉、PDF 進出、Word 與試算表。讀檔頭判斷真正的格式，再挑一個常用的輸出當預設。</p>
+        <ul>
+          <li>檔案不會離開這台裝置，全部運算都在瀏覽器完成。</li>
+          <li>每種轉檔會失去什麼都逐項寫明，不假裝無損。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">限制：沒有 OCR，掃描檔抽不到字</div>
+        <a class="entry-button" data-primary-entry="convert" href="/convert/" aria-label="開啟 /convert/ 萬用轉檔台">開啟 /convert/</a>
       </div>
     </article>
   </nav>

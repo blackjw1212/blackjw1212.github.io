@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>萬用轉檔台｜BJKW</title>
+<meta name="description" content="在瀏覽器裡完成常見轉檔：圖片互轉、PDF 進出、Word 與試算表。丟進來就依檔頭自動判斷格式並挑好輸出，檔案全程留在本機，每種轉檔會失去什麼都逐項寫明。" />
+<link rel="canonical" href="/convert/" />
+<meta property="og:title" content="萬用轉檔台｜BJKW" />
+<meta property="og:description" content="圖片、PDF、Word、試算表互轉，全部在瀏覽器裡算完，檔案不會離開這台裝置。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="轉檔">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#82908c;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#e07a6a;--shadow:0 18px 50px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:inherit}
+  .shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:28px 0 38px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .brand img{width:34px;height:34px;flex:0 0 auto}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
+  .back{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;text-decoration:none}
+  .back:hover{color:var(--cyan)}
+  .hero{border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:26px;margin-bottom:18px}
+  .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
+  h1{max-width:760px;margin-top:10px;font-size:clamp(28px,4.5vw,46px);line-height:1.1;font-weight:900}
+  .lead{max-width:760px;margin-top:14px;color:var(--soft);font-size:15px}
+  .notes{margin-top:18px;display:grid;gap:8px}
+  .note{display:flex;gap:9px;align-items:flex-start;color:var(--soft);font-size:13px}
+  .note b{flex:0 0 auto;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;font-weight:800;color:var(--amber);padding-top:2px;min-width:64px}
+  .note.privacy b{color:var(--green)}
+  .group{margin-top:26px}
+  .group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px}
+  .group-head h2{font-size:18px;letter-spacing:0}
+  .group-head span{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--faint);font-size:12px}
+  .panel{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+  .btn{border:1px solid rgba(103,199,229,.4);border-radius:6px;background:var(--surface);color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;padding:9px 16px;cursor:pointer}
+  .btn:hover:not(:disabled){border-color:var(--cyan)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{border-color:rgba(66,184,168,.55);color:var(--teal)}
+  .btn.small{font-size:12px;padding:6px 12px}
+  .state{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--soft)}
+  .state.error{color:var(--red)}
+  .state.ok{color:var(--green)}
+  .hint{margin-top:10px;color:var(--faint);font-size:12px}
+  input[type=file]{color:var(--soft);font-size:13px;max-width:100%}
+  .drop{border:1px dashed var(--line);border-radius:8px;background:var(--surface);padding:18px;text-align:center;color:var(--faint);font-size:13px}
+  .drop.hot{border-color:var(--teal);color:var(--teal)}
+  .picker{display:flex;align-items:center;gap:8px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .picker select,.picker input{border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:12px;padding:8px 10px}
+  .picker input[type=number]{width:96px}
+  .picker input[type=text]{width:150px}
+  .picker select:focus-visible,.picker input:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+  .opts{margin-top:12px;display:flex;flex-wrap:wrap;gap:14px}
+  .opt{display:none}
+  .opt.on{display:flex}
+  .files{margin-top:12px;display:grid;gap:8px}
+  .file{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:9px 12px;font-size:13px}
+  .file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file-meta{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint);white-space:nowrap}
+  .file-meta.bad{color:var(--red)}
+  .limits{margin-top:14px;border-left:2px solid var(--amber);padding-left:12px;display:grid;gap:6px}
+  .limits p{color:var(--soft);font-size:13px}
+  .limits p b{color:var(--amber);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;font-weight:800;margin-right:6px}
+  .bars{margin-top:12px;display:grid;gap:8px}
+  .bar-row{display:grid;gap:4px}
+  .bar-label{display:flex;justify-content:space-between;gap:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
+  .bar-label span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar{height:4px;border-radius:999px;background:var(--surface);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--teal)}
+  .results{margin-top:14px;display:grid;gap:8px}
+  .result{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:10px 12px}
+  .result-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+  .result-size{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
+  .empty{color:var(--faint);font-size:13px}
+  .footnote{margin-top:24px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .stage{position:fixed;left:-20000px;top:0;width:auto;background:#ffffff;color:#000000;z-index:-1;pointer-events:none}
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1120px);padding-top:18px}
+    .hero{padding:20px}
+    .note b{min-width:0}
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar" aria-label="萬用轉檔台">
+    <div class="brand">
+      <img src="/assets/images/favicon.svg" alt="" width="34" height="34">
+      <div>
+        <div class="brand-kicker">BJKW PUBLIC CONSOLE</div>
+        <div class="brand-title">萬用轉檔台</div>
+      </div>
+    </div>
+    <a class="back" href="/" aria-label="回到 BJKW 觀察控制台">&larr; 回控制台 /</a>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">UNIVERSAL CONVERTER</div>
+    <h1>丟檔案進來，它自己知道要轉成什麼</h1>
+    <p class="lead">圖片互轉、PDF 進出、Word 與試算表。選好檔案後會先讀檔頭判斷真正的格式，再挑一個常用的輸出當預設；不同意就自己改。全部運算都在瀏覽器完成。</p>
+    <div class="notes">
+      <p class="note privacy"><b>PRIVACY</b><span>檔案不會離開這台裝置。沒有上傳、沒有後端、沒有任何伺服器看得到你的檔案；這一頁對外唯一會抓的東西是它自己的函式庫，而且是從本站抓的。</span></p>
+      <p class="note"><b>AUTO</b><span>判斷格式看的是檔頭的魔術位元組，不是只看副檔名——把 <code>.heic</code> 改名成 <code>.jpg</code> 也照樣認得出來。只有 ZIP 系（DOCX / XLSX）分不出來時才回頭看副檔名。</span></p>
+      <p class="note"><b>FIDELITY</b><span>DOCX 轉 PDF 是由瀏覽器重新排版後轉成圖片頁：<b>文字不可選取、不可搜尋</b>，頁首頁尾與複雜排版會位移。要拿到文字可選取的 PDF，請先轉成 HTML，再用瀏覽器自己列印成 PDF。</span></p>
+      <p class="note"><b>LIMIT</b><span>PDF 轉 DOCX 只還原文字段落，版面、分欄、表格、圖片都不會保留。掃描檔（整頁是一張圖的 PDF）沒有文字圖層，一個字也抽不出來——<b>這一頁沒有 OCR</b>。</span></p>
+      <p class="note"><b>FORMAT</b><span>可以讀 AVIF，但<b>不能輸出 AVIF</b>：瀏覽器的 canvas 至今無法編碼 AVIF。輸出只有 PNG、JPG、WebP 三種，而 WebP 在少數舊瀏覽器上會失敗，失敗時這裡會直說而不是默默給你一個 PNG。</span></p>
+      <p class="note"><b>SIZE</b><span>各種格式的函式庫合計 11 MB（其中 HEIC 解碼器 2.9 MB、pdf.js 含中文 CMap 3.9 MB），<b>只有真的用到才會下載</b>——只轉圖片就不會去抓 PDF 引擎。下載過一次之後由瀏覽器快取。</span></p>
+    </div>
+  </section>
+
+  <section class="group" aria-label="選擇檔案">
+    <div class="group-head"><h2>選擇檔案</h2><span id="kindState">尚未選檔</span></div>
+    <div class="panel">
+      <div class="row">
+        <input type="file" id="fileInput" multiple aria-label="選擇要轉換的檔案">
+        <button type="button" class="btn small" id="clearBtn" disabled>清除</button>
+      </div>
+      <div class="drop" id="dropZone">也可以把檔案拖進這個框</div>
+      <div class="files" id="fileList"></div>
+      <p class="hint" id="fileHint">支援：JPG／PNG／WebP／GIF／BMP／AVIF／HEIC／TIFF／SVG、PDF、DOCX、XLSX／CSV。一次可以丟多個同類型的檔案。</p>
+    </div>
+  </section>
+
+  <section class="group" aria-label="轉檔設定">
+    <div class="group-head"><h2>轉檔設定</h2><span id="targetState">等待檔案</span></div>
+    <div class="panel">
+      <div class="row">
+        <label class="picker" for="targetSelect">輸出
+          <select id="targetSelect" disabled aria-label="輸出格式"><option value="">先選檔案</option></select>
+        </label>
+        <button type="button" class="btn primary" id="runBtn" disabled>開始轉檔</button>
+        <span class="state" id="runState">尚未開始</span>
+      </div>
+
+      <div class="opts" id="optionRow">
+        <label class="picker opt" id="optQuality" for="qualityInput">品質
+          <input type="number" id="qualityInput" min="10" max="100" step="1" value="92" aria-label="輸出品質百分比">
+        </label>
+        <label class="picker opt" id="optResize" for="maxEdgeInput">最長邊上限 px
+          <input type="number" id="maxEdgeInput" min="0" max="20000" step="1" value="0" aria-label="最長邊像素上限，0 表示不縮放">
+        </label>
+        <label class="picker opt" id="optBackground" for="bgInput">透明區填色
+          <input type="text" id="bgInput" value="#ffffff" aria-label="透明區域要填的顏色">
+        </label>
+        <label class="picker opt" id="optPdfPage" for="pdfPageSelect">頁面尺寸
+          <select id="pdfPageSelect" aria-label="輸出 PDF 的頁面尺寸">
+            <option value="a4" selected>A4 直向／橫向自動</option>
+            <option value="image">跟著原圖尺寸</option>
+          </select>
+        </label>
+        <label class="picker opt" id="optPdfImage" for="pdfImageSelect">內嵌方式
+          <select id="pdfImageSelect" aria-label="圖片內嵌 PDF 的方式">
+            <option value="jpeg" selected>JPEG（檔案小，透明填色）</option>
+            <option value="png">PNG（保留透明，檔案大）</option>
+          </select>
+        </label>
+        <label class="picker opt" id="optDpi" for="dpiSelect">解析度
+          <select id="dpiSelect" aria-label="PDF 轉圖片的解析度">
+            <option value="96">96 dpi（螢幕）</option>
+            <option value="150" selected>150 dpi</option>
+            <option value="300">300 dpi（列印）</option>
+          </select>
+        </label>
+        <label class="picker opt" id="optPages" for="pageSpecInput">頁碼
+          <input type="text" id="pageSpecInput" value="" placeholder="例 1-3,5,8-" aria-label="頁碼範圍，留空表示全部">
+        </label>
+        <label class="picker opt" id="optPageAction" for="pageActionSelect">頁碼處理
+          <select id="pageActionSelect" aria-label="對指定頁碼的處理方式">
+            <option value="keep" selected>只保留這些頁</option>
+            <option value="drop">刪掉這些頁</option>
+          </select>
+        </label>
+        <label class="picker opt" id="optRotate" for="rotateSelect">旋轉
+          <select id="rotateSelect" aria-label="順時針旋轉角度">
+            <option value="90" selected>順時針 90°</option>
+            <option value="180">180°</option>
+            <option value="270">逆時針 90°</option>
+          </select>
+        </label>
+        <label class="picker opt" id="optEncoding" for="encodingSelect">CSV 編碼
+          <select id="encodingSelect" aria-label="讀取 CSV 時使用的編碼">
+            <option value="utf-8" selected>UTF-8</option>
+            <option value="big5">Big5</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="limits" id="limitList"></div>
+      <div class="bars" id="progressBars"></div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="轉檔結果">
+    <div class="group-head"><h2>轉檔結果</h2><span id="resultState">尚無結果</span></div>
+    <div class="panel">
+      <div class="row">
+        <button type="button" class="btn" id="zipBtn" disabled>打包成 ZIP 下載</button>
+        <span class="state" id="zipState"></span>
+      </div>
+      <div class="results" id="resultList"><p class="empty">還沒有輸出檔案。</p></div>
+    </div>
+  </section>
+
+  <p class="footnote">全部轉檔在瀏覽器內完成，沒有伺服器參與。轉出來的檔案請自己開起來確認過再拿去用。</p>
+</main>
+<div class="stage" id="docxStage" aria-hidden="true"></div>
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------- *
+   * 純函式區：不碰 DOM、不碰網路，掛在 ConvertApp.helpers 供測試呼叫。
+   * ---------------------------------------------------------------- */
+
+  var IMAGE_KINDS = ["jpeg", "png", "webp", "gif", "bmp", "avif", "heic", "tiff", "svg"];
+
+  var KIND_LABELS = {
+    jpeg: "JPG 圖片", png: "PNG 圖片", webp: "WebP 圖片", gif: "GIF 圖片",
+    bmp: "BMP 圖片", avif: "AVIF 圖片", heic: "HEIC 圖片", tiff: "TIFF 圖片",
+    svg: "SVG 向量圖", pdf: "PDF", docx: "Word 文件", xlsx: "Excel 活頁簿",
+    csv: "CSV 表格", unknown: "不支援的格式"
+  };
+
+  var TARGET_LABELS = {
+    png: "PNG 圖片", jpeg: "JPG 圖片", webp: "WebP 圖片",
+    pdf: "PDF", txt: "純文字 TXT", docx: "Word DOCX",
+    html: "HTML", md: "Markdown", csv: "CSV", json: "JSON", xlsx: "Excel XLSX",
+    "pdf-merge": "合併成一份 PDF", "pdf-split": "每頁拆成一份 PDF",
+    "pdf-pages": "擷取／刪除指定頁", "pdf-rotate": "旋轉頁面"
+  };
+
+  var TARGETS_BY_KIND = {
+    jpeg: ["png", "webp", "jpeg", "pdf"],
+    png: ["jpeg", "webp", "png", "pdf"],
+    webp: ["png", "jpeg", "webp", "pdf"],
+    gif: ["png", "jpeg", "webp", "pdf"],
+    bmp: ["png", "jpeg", "webp", "pdf"],
+    avif: ["png", "jpeg", "webp", "pdf"],
+    heic: ["jpeg", "png", "webp", "pdf"],
+    tiff: ["png", "jpeg", "webp", "pdf"],
+    svg: ["png", "jpeg", "webp", "pdf"],
+    pdf: ["png", "jpeg", "txt", "docx", "pdf-merge", "pdf-split", "pdf-pages", "pdf-rotate"],
+    docx: ["pdf", "html", "md", "txt"],
+    xlsx: ["csv", "html", "json"],
+    csv: ["xlsx", "html", "json"],
+    unknown: []
+  };
+
+  /* 預設輸出：對「非通用格式」給最常被要的那個，對通用格式給另一個通用格式。
+     多個 PDF 一起丟進來時，想做的事幾乎一定是合併，所以另外覆寫。 */
+  var DEFAULT_TARGET = {
+    jpeg: "png", png: "jpeg", webp: "png", gif: "png", bmp: "png",
+    avif: "png", heic: "jpeg", tiff: "png", svg: "png",
+    pdf: "png", docx: "pdf", xlsx: "csv", csv: "xlsx"
+  };
+
+  var EXTENSION_KIND = {
+    jpg: "jpeg", jpeg: "jpeg", jfif: "jpeg", png: "png", webp: "webp", gif: "gif",
+    bmp: "bmp", dib: "bmp", avif: "avif", heic: "heic", heif: "heic",
+    tif: "tiff", tiff: "tiff", svg: "svg", pdf: "pdf",
+    docx: "docx", xlsx: "xlsx", xlsm: "xlsx", csv: "csv", tsv: "csv"
+  };
+
+  var TARGET_EXTENSION = {
+    png: "png", jpeg: "jpg", webp: "webp", pdf: "pdf", txt: "txt",
+    docx: "docx", html: "html", md: "md", csv: "csv", json: "json", xlsx: "xlsx"
+  };
+
+  var HEIF_BRANDS = ["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs", "mif1", "msf1"];
+
+  function ascii(head, from, length) {
+    var out = "";
+    for (var i = from; i < from + length; i += 1) {
+      var code = head[i];
+      if (typeof code !== "number") { return ""; }
+      out += String.fromCharCode(code);
+    }
+    return out;
+  }
+
+  function extensionOf(name) {
+    var text = String(name || "");
+    var dot = text.lastIndexOf(".");
+    return dot < 0 ? "" : text.slice(dot + 1).toLowerCase();
+  }
+
+  /* 先看檔頭再看副檔名：改過副檔名的檔案照樣認得出來。
+     ZIP 系（DOCX/XLSX/PPTX 都是 PK\3\4）在檔頭這一層分不出來，才回頭問副檔名。 */
+  function sniffKind(name, head) {
+    var ext = extensionOf(name);
+    var bytes = head && head.length ? head : null;
+    if (bytes) {
+      if (ascii(bytes, 0, 4) === "%PDF") { return { kind: "pdf", by: "magic" }; }
+      if (bytes[0] === 0x89 && ascii(bytes, 1, 3) === "PNG") { return { kind: "png", by: "magic" }; }
+      if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) { return { kind: "jpeg", by: "magic" }; }
+      if (ascii(bytes, 0, 3) === "GIF") { return { kind: "gif", by: "magic" }; }
+      if (ascii(bytes, 0, 2) === "BM") { return { kind: "bmp", by: "magic" }; }
+      if (ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP") { return { kind: "webp", by: "magic" }; }
+      if (ascii(bytes, 4, 4) === "ftyp") {
+        var brand = ascii(bytes, 8, 4).toLowerCase();
+        if (brand === "avif" || brand === "avis") { return { kind: "avif", by: "magic" }; }
+        if (HEIF_BRANDS.indexOf(brand) >= 0) { return { kind: "heic", by: "magic" }; }
+      }
+      if ((bytes[0] === 0x49 && bytes[1] === 0x49 && bytes[2] === 0x2a && bytes[3] === 0x00) ||
+          (bytes[0] === 0x4d && bytes[1] === 0x4d && bytes[2] === 0x00 && bytes[3] === 0x2a)) {
+        return { kind: "tiff", by: "magic" };
+      }
+      if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+        if (ext === "docx") { return { kind: "docx", by: "ext" }; }
+        if (ext === "xlsx" || ext === "xlsm") { return { kind: "xlsx", by: "ext" }; }
+        return { kind: "unknown", by: "ext" };
+      }
+      var lead = ascii(bytes, 0, 5).toLowerCase();
+      if (lead.indexOf("<?xml") === 0 || lead.indexOf("<svg") === 0) { return { kind: "svg", by: "magic" }; }
+    }
+    if (EXTENSION_KIND[ext]) { return { kind: EXTENSION_KIND[ext], by: "ext" }; }
+    return { kind: "unknown", by: "ext" };
+  }
+
+  function targetsFor(kind) {
+    return (TARGETS_BY_KIND[kind] || []).slice();
+  }
+
+  function defaultTargetFor(kind, fileCount) {
+    if (kind === "pdf" && Number(fileCount) > 1) { return "pdf-merge"; }
+    return DEFAULT_TARGET[kind] || "";
+  }
+
+  /* 每一組轉檔會失去什麼，逐項寫出來。UI 直接把這個陣列印在設定區下方。
+     字串開頭沒有「注意：」的，會被畫成「會失去 …」。 */
+  function notesFor(kind, target) {
+    var out = [];
+    var isImage = IMAGE_KINDS.indexOf(kind) >= 0;
+    if (isImage && (target === "jpeg" || (target === "pdf"))) {
+      out.push("透明度：JPG 沒有 alpha 通道，原本透明的地方會填成你指定的背景色。");
+    }
+    if (isImage && target === "jpeg") {
+      out.push("畫質：JPG 是破壞性壓縮，每存一次就再劣化一次。");
+    }
+    if (kind === "gif" && IMAGE_KINDS.indexOf(target) >= 0) {
+      out.push("動畫：只會取出第一格，GIF 的後續影格不會保留。");
+    }
+    if (kind === "tiff" && IMAGE_KINDS.indexOf(target) >= 0) {
+      out.push("多頁：多頁 TIFF 只會轉出第一頁。");
+    }
+    if (kind === "svg" && IMAGE_KINDS.indexOf(target) >= 0) {
+      out.push("注意：SVG 是向量圖，轉成點陣後就不能無損放大了；沒有寫尺寸的 SVG 會以 1024px 寬繪製。");
+    }
+    if (isImage && target === "pdf") {
+      out.push("注意：一張圖一頁，順序照你選檔的順序。輸出的 PDF 裡是圖片，沒有可搜尋的文字。");
+    }
+    if (kind === "pdf" && (target === "png" || target === "jpeg")) {
+      out.push("文字：輸出是點陣圖，PDF 裡原本可選取的文字會變成圖上的像素。");
+      out.push("注意：一頁一張圖，多頁會一起打包成 ZIP。解析度越高越慢也越大。");
+    }
+    if (kind === "pdf" && target === "docx") {
+      out.push("版面：只還原文字段落，分欄、表格、圖片、頁首頁尾都不會保留。");
+      out.push("注意：掃描檔（整頁是一張圖）沒有文字圖層，抽不出任何字。這一頁沒有 OCR。");
+    }
+    if (kind === "pdf" && target === "txt") {
+      out.push("版面：只留文字，所有格式與圖片都會消失。段落是照座標推回去的，可能會斷錯行。");
+      out.push("注意：掃描檔沒有文字圖層，抽不出任何字。這一頁沒有 OCR。");
+    }
+    if (kind === "pdf" && target === "pdf-merge") {
+      out.push("注意：照你選檔的順序前後接起來，書籤、表單欄位與數位簽章不會保留。");
+    }
+    if (kind === "pdf" && target === "pdf-split") {
+      out.push("注意：每頁一個檔，一起打包成 ZIP。書籤與表單欄位不會保留。");
+    }
+    if (kind === "pdf" && (target === "pdf-pages" || target === "pdf-rotate")) {
+      out.push("注意：頁面內容原封不動搬過去，但書籤、表單欄位與數位簽章不會保留。");
+    }
+    if (kind === "docx" && target === "pdf") {
+      out.push("文字：頁面是由瀏覽器重排後拍成圖片，PDF 裡的文字不可選取、不可搜尋、不能複製。");
+      out.push("排版：分欄、浮動圖片、文字方塊、頁首頁尾、頁碼與註腳可能位移或消失。");
+      out.push("注意：要文字可選取的 PDF，請改選「HTML」，再用瀏覽器的列印功能另存為 PDF。");
+    }
+    if (kind === "docx" && (target === "html" || target === "md" || target === "txt")) {
+      out.push("排版：只留語意結構（標題、段落、清單、表格），字型、顏色、頁面尺寸都會丟掉。");
+      out.push("注意：追蹤修訂、註解與頁首頁尾不會輸出；圖片會以 base64 內嵌（HTML）或直接省略（Markdown／TXT）。");
+    }
+    if (kind === "xlsx") {
+      out.push("格式：公式會變成試算表最後一次存檔時算好的值；樣式、圖表、樞紐分析、巨集都不會保留。");
+      out.push("注意：每張工作表一個檔，多張會打包成 ZIP。輸出的 CSV 會帶 UTF-8 BOM，Excel 開中文才不會亂碼。");
+    }
+    if (kind === "csv") {
+      out.push("注意：CSV 沒有記錄自己的編碼。預設用 UTF-8 讀；台灣常見的 Big5 檔請把上面的「CSV 編碼」改掉，不然會整片亂碼。");
+    }
+    if (target === "webp") {
+      out.push("注意：WebP 編碼靠瀏覽器。少數舊瀏覽器不支援，遇到時這裡會直接報錯，不會偷偷給你別的格式。");
+    }
+    return out;
+  }
+
+  /* 哪些選項要顯示。回傳的是 optXxx 的鍵名，UI 照這個開關 .on。 */
+  function optionsFor(kind, target) {
+    var isImage = IMAGE_KINDS.indexOf(kind) >= 0;
+    if (isImage && (target === "png" || target === "jpeg" || target === "webp")) {
+      var out = ["resize"];
+      if (target !== "png") { out.push("quality"); }
+      if (target === "jpeg") { out.push("background"); }
+      return out;
+    }
+    if (isImage && target === "pdf") { return ["resize", "pdfPage", "pdfImage", "background"]; }
+    if (kind === "pdf" && (target === "png" || target === "jpeg")) {
+      return target === "jpeg" ? ["dpi", "pages", "quality"] : ["dpi", "pages"];
+    }
+    if (kind === "pdf" && (target === "txt" || target === "docx")) { return ["pages"]; }
+    if (kind === "pdf" && target === "pdf-pages") { return ["pages", "pageAction"]; }
+    if (kind === "pdf" && target === "pdf-rotate") { return ["pages", "rotate"]; }
+    if (kind === "csv") { return ["encoding"]; }
+    return [];
+  }
+
+  function baseName(name) {
+    var text = String(name || "output");
+    var slash = Math.max(text.lastIndexOf("/"), text.lastIndexOf("\\"));
+    if (slash >= 0) { text = text.slice(slash + 1); }
+    var dot = text.lastIndexOf(".");
+    if (dot > 0) { text = text.slice(0, dot); }
+    text = text.replace(/[\u0000-\u001f<>:"/\\|?*]+/g, "_").trim();
+    return text || "output";
+  }
+
+  function outputName(sourceName, target, suffix) {
+    var ext = TARGET_EXTENSION[target] || "bin";
+    return baseName(sourceName) + (suffix || "") + "." + ext;
+  }
+
+  function formatBytes(bytes) {
+    var n = Number(bytes);
+    if (!isFinite(n) || n < 0) { return "-"; }
+    if (n < 1024) { return n + " B"; }
+    if (n < 1024 * 1024) { return (n / 1024).toFixed(1) + " KB"; }
+    if (n < 1024 * 1024 * 1024) { return (n / (1024 * 1024)).toFixed(1) + " MB"; }
+    return (n / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+  }
+
+  function describeElapsed(ms) {
+    var seconds = Math.max(0, Math.round(Number(ms) / 1000));
+    if (seconds < 60) { return seconds + " 秒"; }
+    var minutes = Math.floor(seconds / 60);
+    return minutes + " 分 " + (seconds - minutes * 60) + " 秒";
+  }
+
+  function clampQuality(value) {
+    var n = Number(value);
+    if (!isFinite(n)) { return 0.92; }
+    if (n > 1) { n = n / 100; }
+    if (n < 0.1) { return 0.1; }
+    if (n > 1) { return 1; }
+    return n;
+  }
+
+  /* maxEdge <= 0 表示不縮放。只縮不放：比上限小的圖原樣輸出。 */
+  function fitDimensions(width, height, maxEdge) {
+    var w = Math.max(1, Math.round(Number(width) || 1));
+    var h = Math.max(1, Math.round(Number(height) || 1));
+    var cap = Number(maxEdge);
+    if (!isFinite(cap) || cap <= 0) { return { width: w, height: h }; }
+    var longest = Math.max(w, h);
+    if (longest <= cap) { return { width: w, height: h }; }
+    var ratio = cap / longest;
+    return {
+      width: Math.max(1, Math.round(w * ratio)),
+      height: Math.max(1, Math.round(h * ratio))
+    };
+  }
+
+  /* "1-3,5,8-" → [0,1,2,4,7,...]。回傳 0-based、排序去重。
+     空字串代表全部。看不懂就丟錯，不要默默當成全部——那會安靜地做錯事。 */
+  function parsePageRanges(spec, pageCount) {
+    var total = Math.max(0, Math.floor(Number(pageCount) || 0));
+    var all = [];
+    var i;
+    for (i = 0; i < total; i += 1) { all.push(i); }
+    var text = String(spec == null ? "" : spec).trim();
+    if (!text) { return all; }
+    var picked = {};
+    var parts = text.split(/[,，\s]+/);
+    for (i = 0; i < parts.length; i += 1) {
+      var part = parts[i];
+      if (!part) { continue; }
+      var match = part.match(/^(\d+)?\s*-\s*(\d+)?$/);
+      var from;
+      var to;
+      if (match) {
+        from = match[1] ? parseInt(match[1], 10) : 1;
+        to = match[2] ? parseInt(match[2], 10) : total;
+      } else if (/^\d+$/.test(part)) {
+        from = parseInt(part, 10);
+        to = from;
+      } else {
+        throw new Error("看不懂的頁碼：" + part);
+      }
+      if (from < 1 || to < from) { throw new Error("頁碼範圍不合理：" + part); }
+      if (to > total) { throw new Error("頁碼 " + to + " 超出這份檔案的 " + total + " 頁"); }
+      for (var p = from; p <= to; p += 1) { picked[p - 1] = true; }
+    }
+    var out = Object.keys(picked).map(Number).sort(function (a, b) { return a - b; });
+    if (!out.length) { throw new Error("沒有選到任何一頁"); }
+    return out;
+  }
+
+  /* pdf.js 給的是一堆帶座標的字串碎片，沒有「行」也沒有「段落」的概念。
+     這裡照 y 座標分行、照行距分段——是啟發式，遇到分欄排版一定會錯。
+     items: [{ str, x, y, width, height }]，y 是 PDF 座標（往上為正）。 */
+  /* 中日韓與全形標點之間不該補空白：pdf.js 常把一行中文切成好幾個碎片，
+     單看座標間距會在每個碎片邊界塞一個空格，整段中文變得滿是空隙。 */
+  function isWideChar(ch) {
+    if (!ch) { return false; }
+    var code = ch.charCodeAt(0);
+    return (code >= 0x2e80 && code <= 0xa4cf) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe30 && code <= 0xfe4f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6);
+  }
+
+  function pdfTextToParagraphs(items) {
+    var usable = [];
+    var i;
+    for (i = 0; i < (items || []).length; i += 1) {
+      var it = items[i];
+      if (!it || typeof it.str !== "string" || !it.str.length) { continue; }
+      usable.push({
+        str: it.str,
+        x: Number(it.x) || 0,
+        y: Number(it.y) || 0,
+        width: Number(it.width) || 0,
+        height: Number(it.height) || 0
+      });
+    }
+    if (!usable.length) { return []; }
+
+    var heights = usable.map(function (it) { return it.height; }).filter(function (h) { return h > 0; });
+    heights.sort(function (a, b) { return a - b; });
+    var lineHeight = heights.length ? heights[Math.floor(heights.length / 2)] : 12;
+
+    usable.sort(function (a, b) {
+      if (Math.abs(a.y - b.y) > lineHeight * 0.5) { return b.y - a.y; }
+      return a.x - b.x;
+    });
+
+    var lines = [];
+    var current = null;
+    for (i = 0; i < usable.length; i += 1) {
+      var item = usable[i];
+      if (!current || Math.abs(item.y - current.y) > lineHeight * 0.5) {
+        current = { y: item.y, items: [item] };
+        lines.push(current);
+      } else {
+        current.items.push(item);
+      }
+    }
+
+    var texts = lines.map(function (line) {
+      var text = "";
+      var prev = null;
+      for (var k = 0; k < line.items.length; k += 1) {
+        var piece = line.items[k];
+        if (prev) {
+          var gap = piece.x - (prev.x + prev.width);
+          var needsSpace = gap > lineHeight * 0.25 &&
+            !/\s$/.test(text) && !/^\s/.test(piece.str) &&
+            !isWideChar(text.charAt(text.length - 1)) && !isWideChar(piece.str.charAt(0));
+          if (needsSpace) { text += " "; }
+        }
+        text += piece.str;
+        prev = piece;
+      }
+      return { y: line.y, text: text.replace(/\s+$/, "") };
+    }).filter(function (line) { return line.text.trim().length > 0; });
+
+    if (!texts.length) { return []; }
+
+    function joinLines(list) {
+      var out = "";
+      for (var k = 0; k < list.length; k += 1) {
+        if (!out) { out = list[k]; continue; }
+        var space = !isWideChar(out.charAt(out.length - 1)) && !isWideChar(list[k].charAt(0));
+        out += (space ? " " : "") + list[k];
+      }
+      return out.replace(/\s+/g, " ").trim();
+    }
+
+    var paragraphs = [];
+    var buffer = [texts[0].text];
+    for (i = 1; i < texts.length; i += 1) {
+      var drop = texts[i - 1].y - texts[i].y;
+      if (drop > lineHeight * 1.8) {
+        paragraphs.push(joinLines(buffer));
+        buffer = [texts[i].text];
+      } else {
+        buffer.push(texts[i].text);
+      }
+    }
+    paragraphs.push(joinLines(buffer));
+    return paragraphs.filter(function (p) { return p.length > 0; });
+  }
+
+  /* 一次選了好幾個檔卻不是同一種格式時，這一頁不猜使用者想幹嘛。 */
+  function summarizeKinds(entries) {
+    var counts = {};
+    var order = [];
+    for (var i = 0; i < (entries || []).length; i += 1) {
+      var kind = entries[i] && entries[i].kind;
+      if (!kind) { continue; }
+      if (!counts[kind]) { counts[kind] = 0; order.push(kind); }
+      counts[kind] += 1;
+    }
+    return {
+      kinds: order,
+      uniform: order.length === 1 ? order[0] : "",
+      counts: counts
+    };
+  }
+
+  function kindLabel(kind) {
+    return KIND_LABELS[kind] || String(kind || "");
+  }
+
+  function targetLabel(target) {
+    return TARGET_LABELS[target] || String(target || "");
+  }
+
+  var helpers = {
+    IMAGE_KINDS: IMAGE_KINDS,
+    sniffKind: sniffKind,
+    extensionOf: extensionOf,
+    targetsFor: targetsFor,
+    defaultTargetFor: defaultTargetFor,
+    notesFor: notesFor,
+    optionsFor: optionsFor,
+    baseName: baseName,
+    outputName: outputName,
+    formatBytes: formatBytes,
+    describeElapsed: describeElapsed,
+    clampQuality: clampQuality,
+    fitDimensions: fitDimensions,
+    parsePageRanges: parsePageRanges,
+    pdfTextToParagraphs: pdfTextToParagraphs,
+    summarizeKinds: summarizeKinds,
+    kindLabel: kindLabel,
+    targetLabel: targetLabel
+  };
+
+  /* ---------------------------------------------------------------- *
+   * 以下需要 DOM / 瀏覽器 API，測試不會執行到。
+   * ---------------------------------------------------------------- */
+
+  var VENDOR = "/convert/vendor/";
+  var loaded = {};
+
+  function loadGlobalScript(file) {
+    if (loaded[file]) { return loaded[file]; }
+    loaded[file] = new Promise(function (resolve, reject) {
+      var el = document.createElement("script");
+      el.src = VENDOR + file;
+      el.onload = function () { resolve(); };
+      el.onerror = function () { reject(new Error("函式庫載入失敗：" + file)); };
+      document.head.appendChild(el);
+    });
+    return loaded[file];
+  }
+
+  var pdfjsLib = null;
+  async function loadPdfjs() {
+    if (pdfjsLib) { return pdfjsLib; }
+    var mod = await import(VENDOR + "pdf.min.mjs");
+    mod.GlobalWorkerOptions.workerSrc = VENDOR + "pdf.worker.min.mjs";
+    pdfjsLib = mod;
+    return mod;
+  }
+
+  async function loadPdfLib() {
+    await loadGlobalScript("pdf-lib.min.js");
+    return window.PDFLib;
+  }
+
+  async function loadJsZip() {
+    await loadGlobalScript("jszip.min.js");
+    return window.JSZip;
+  }
+
+  async function loadDocxPreview() {
+    await loadJsZip();
+    await loadGlobalScript("docx-preview.min.js");
+    return window.docx;
+  }
+
+  async function loadMammoth() {
+    await loadGlobalScript("mammoth.browser.min.js");
+    return window.mammoth;
+  }
+
+  async function loadHtml2Canvas() {
+    await loadGlobalScript("html2canvas-pro.min.js");
+    return window.html2canvas;
+  }
+
+  async function loadXlsx() {
+    await loadGlobalScript("xlsx.full.min.js");
+    return window.XLSX;
+  }
+
+  async function loadUtif() {
+    await loadGlobalScript("pako.min.js");
+    await loadGlobalScript("UTIF.js");
+    return window.UTIF;
+  }
+
+  function init() {
+    var fileInput = document.getElementById("fileInput");
+    var clearBtn = document.getElementById("clearBtn");
+    var dropZone = document.getElementById("dropZone");
+    var fileList = document.getElementById("fileList");
+    var kindState = document.getElementById("kindState");
+    var targetSelect = document.getElementById("targetSelect");
+    var targetState = document.getElementById("targetState");
+    var runBtn = document.getElementById("runBtn");
+    var runState = document.getElementById("runState");
+    var limitList = document.getElementById("limitList");
+    var progressBars = document.getElementById("progressBars");
+    var resultList = document.getElementById("resultList");
+    var resultState = document.getElementById("resultState");
+    var zipBtn = document.getElementById("zipBtn");
+    var zipState = document.getElementById("zipState");
+    var docxStage = document.getElementById("docxStage");
+
+    var optionEls = {
+      quality: document.getElementById("optQuality"),
+      resize: document.getElementById("optResize"),
+      background: document.getElementById("optBackground"),
+      pdfPage: document.getElementById("optPdfPage"),
+      pdfImage: document.getElementById("optPdfImage"),
+      dpi: document.getElementById("optDpi"),
+      pages: document.getElementById("optPages"),
+      pageAction: document.getElementById("optPageAction"),
+      rotate: document.getElementById("optRotate"),
+      encoding: document.getElementById("optEncoding")
+    };
+    var qualityInput = document.getElementById("qualityInput");
+    var maxEdgeInput = document.getElementById("maxEdgeInput");
+    var bgInput = document.getElementById("bgInput");
+    var pdfPageSelect = document.getElementById("pdfPageSelect");
+    var pdfImageSelect = document.getElementById("pdfImageSelect");
+    var dpiSelect = document.getElementById("dpiSelect");
+    var pageSpecInput = document.getElementById("pageSpecInput");
+    var pageActionSelect = document.getElementById("pageActionSelect");
+    var rotateSelect = document.getElementById("rotateSelect");
+    var encodingSelect = document.getElementById("encodingSelect");
+
+    var entries = [];
+    var results = [];
+    var busy = false;
+
+    function setState(el, text, cls) {
+      el.textContent = text;
+      el.className = "state" + (cls ? " " + cls : "");
+    }
+
+    function renderFiles() {
+      fileList.innerHTML = "";
+      entries.forEach(function (entry) {
+        var row = document.createElement("div");
+        row.className = "file";
+        var name = document.createElement("div");
+        name.className = "file-name";
+        name.textContent = entry.file.name;
+        var meta = document.createElement("div");
+        meta.className = "file-meta" + (entry.kind === "unknown" ? " bad" : "");
+        meta.textContent = kindLabel(entry.kind) + " · " + formatBytes(entry.file.size) +
+          " · " + (entry.by === "magic" ? "檔頭判定" : "副檔名判定");
+        row.appendChild(name);
+        row.appendChild(meta);
+        fileList.appendChild(row);
+      });
+    }
+
+    function renderLimits(kind, target) {
+      limitList.innerHTML = "";
+      notesFor(kind, target).forEach(function (note) {
+        var plain = note.indexOf("注意：") === 0;
+        var p = document.createElement("p");
+        var tag = document.createElement("b");
+        tag.textContent = plain ? "注意" : "會失去";
+        p.appendChild(tag);
+        p.appendChild(document.createTextNode(plain ? note.slice(3) : note));
+        limitList.appendChild(p);
+      });
+    }
+
+    function syncOptions(kind, target) {
+      var wanted = optionsFor(kind, target);
+      Object.keys(optionEls).forEach(function (key) {
+        if (!optionEls[key]) { return; }
+        optionEls[key].className = "picker opt" + (wanted.indexOf(key) >= 0 ? " on" : "");
+      });
+    }
+
+    function refreshTargets() {
+      var summary = summarizeKinds(entries);
+      targetSelect.innerHTML = "";
+      limitList.innerHTML = "";
+      syncOptions("", "");
+
+      if (!entries.length) {
+        kindState.textContent = "尚未選檔";
+        targetState.textContent = "等待檔案";
+        targetSelect.disabled = true;
+        runBtn.disabled = true;
+        targetSelect.appendChild(new Option("先選檔案", ""));
+        return;
+      }
+      if (!summary.uniform) {
+        kindState.textContent = "混合了 " + summary.kinds.map(kindLabel).join("、");
+        targetState.textContent = "無法決定輸出";
+        targetSelect.disabled = true;
+        runBtn.disabled = true;
+        targetSelect.appendChild(new Option("請一次只丟同一種格式", ""));
+        setState(runState, "一批只能處理同一種來源格式，請分批丟。", "error");
+        return;
+      }
+      var kind = summary.uniform;
+      var targets = targetsFor(kind);
+      kindState.textContent = kindLabel(kind) + " × " + entries.length;
+      if (!targets.length) {
+        targetState.textContent = "不支援";
+        targetSelect.disabled = true;
+        runBtn.disabled = true;
+        targetSelect.appendChild(new Option("這個格式還沒支援", ""));
+        setState(runState, "認不出這個格式，這一頁不會硬轉。", "error");
+        return;
+      }
+      targets.forEach(function (target) {
+        targetSelect.appendChild(new Option(targetLabel(target), target));
+      });
+      var preset = defaultTargetFor(kind, entries.length);
+      if (targets.indexOf(preset) < 0) { preset = targets[0]; }
+      targetSelect.value = preset;
+      targetSelect.disabled = false;
+      runBtn.disabled = false;
+      targetState.textContent = "自動選了「" + targetLabel(preset) + "」";
+      renderLimits(kind, preset);
+      syncOptions(kind, preset);
+      setState(runState, "準備就緒", "");
+    }
+
+    /* replace=true 用在 <input type=file> 的 change：那個 FileList 就是使用者這次
+       的完整選擇，再選一次是「改選」不是「加選」。拖放才是加選。 */
+    async function addFiles(list, replace) {
+      var incoming = Array.prototype.slice.call(list || []);
+      if (replace) { entries = []; }
+      for (var i = 0; i < incoming.length; i += 1) {
+        var file = incoming[i];
+        var head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+        var sniffed = sniffKind(file.name, head);
+        entries.push({ file: file, kind: sniffed.kind, by: sniffed.by });
+      }
+      clearBtn.disabled = entries.length === 0;
+      renderFiles();
+      refreshTargets();
+    }
+
+    function clearAll() {
+      entries = [];
+      clearBtn.disabled = true;
+      fileInput.value = "";
+      renderFiles();
+      refreshTargets();
+      setState(runState, "尚未開始", "");
+    }
+
+    function clearResults() {
+      results.forEach(function (item) { URL.revokeObjectURL(item.url); });
+      results = [];
+      resultList.innerHTML = "<p class=\"empty\">還沒有輸出檔案。</p>";
+      resultState.textContent = "尚無結果";
+      zipBtn.disabled = true;
+      zipState.textContent = "";
+    }
+
+    /* 匯出時 revokeObjectURL 不能緊接在 click() 後面同步呼叫：那會安靜地
+       取消掉自己剛觸發的下載。這裡的 url 一直留著給使用者重複點，
+       只在清空結果時才回收。 */
+    function addResult(name, blob) {
+      var url = URL.createObjectURL(blob);
+      results.push({ name: name, blob: blob, url: url });
+      if (results.length === 1) { resultList.innerHTML = ""; }
+      var row = document.createElement("div");
+      row.className = "result";
+      var left = document.createElement("div");
+      var title = document.createElement("div");
+      title.className = "result-name";
+      title.textContent = name;
+      var size = document.createElement("div");
+      size.className = "result-size";
+      size.textContent = formatBytes(blob.size);
+      left.appendChild(title);
+      left.appendChild(size);
+      var link = document.createElement("a");
+      link.className = "btn small";
+      link.href = url;
+      link.download = name;
+      link.textContent = "下載";
+      row.appendChild(left);
+      row.appendChild(link);
+      resultList.appendChild(row);
+      resultState.textContent = results.length + " 個檔案";
+      zipBtn.disabled = results.length < 2;
+    }
+
+    function progress(done, total, label) {
+      progressBars.innerHTML = "";
+      var row = document.createElement("div");
+      row.className = "bar-row";
+      var head = document.createElement("div");
+      head.className = "bar-label";
+      var left = document.createElement("span");
+      left.textContent = label;
+      var right = document.createElement("span");
+      right.textContent = done + " / " + total;
+      head.appendChild(left);
+      head.appendChild(right);
+      var bar = document.createElement("div");
+      bar.className = "bar";
+      var fill = document.createElement("i");
+      fill.style.width = (total ? Math.round((done / total) * 100) : 0) + "%";
+      bar.appendChild(fill);
+      row.appendChild(head);
+      row.appendChild(bar);
+      progressBars.appendChild(row);
+    }
+
+    function yieldToUi() {
+      return new Promise(function (resolve) { setTimeout(resolve, 0); });
+    }
+
+    function readOptions() {
+      return {
+        quality: clampQuality(qualityInput.value),
+        maxEdge: Number(maxEdgeInput.value) || 0,
+        background: bgInput.value || "#ffffff",
+        pdfPage: pdfPageSelect.value,
+        pdfImage: pdfImageSelect.value,
+        dpi: Number(dpiSelect.value) || 150,
+        pageSpec: pageSpecInput.value,
+        pageAction: pageActionSelect.value,
+        rotate: Number(rotateSelect.value) || 90,
+        encoding: encodingSelect.value
+      };
+    }
+
+    /* ---------------- 圖片 ---------------- */
+
+    async function decodeToCanvas(file, kind) {
+      if (kind === "heic") {
+        var heicMod = await import(VENDOR + "heic-to.min.js");
+        var png = await heicMod.heicTo({ blob: file, type: "image/png", quality: 1 });
+        return drawSource(await createImageBitmap(png));
+      }
+      if (kind === "tiff") {
+        var UTIF = await loadUtif();
+        var buf = await file.arrayBuffer();
+        var ifds = UTIF.decode(buf);
+        if (!ifds.length) { throw new Error("這個 TIFF 讀不出影像"); }
+        UTIF.decodeImage(buf, ifds[0]);
+        var rgba = UTIF.toRGBA8(ifds[0]);
+        var canvas = document.createElement("canvas");
+        canvas.width = ifds[0].width;
+        canvas.height = ifds[0].height;
+        canvas.getContext("2d").putImageData(
+          new ImageData(new Uint8ClampedArray(rgba), canvas.width, canvas.height), 0, 0);
+        return canvas;
+      }
+      if (kind === "svg") {
+        return await drawSvg(file);
+      }
+      try {
+        return drawSource(await createImageBitmap(file));
+      } catch (err) {
+        return await drawSvg(file);
+      }
+    }
+
+    function drawSource(source) {
+      var canvas = document.createElement("canvas");
+      canvas.width = source.width;
+      canvas.height = source.height;
+      canvas.getContext("2d").drawImage(source, 0, 0);
+      if (source.close) { source.close(); }
+      return canvas;
+    }
+
+    /* <img> 這條路對 SVG 與 createImageBitmap 不吃的格式都適用。
+       沒有寫尺寸的 SVG 在多數瀏覽器會被當成 0×0，所以補一個預設寬度。 */
+    function drawSvg(file) {
+      return new Promise(function (resolve, reject) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          var width = img.naturalWidth || img.width || 1024;
+          var height = img.naturalHeight || img.height || Math.round(width * 0.75);
+          var canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(url);
+          resolve(canvas);
+        };
+        img.onerror = function () {
+          URL.revokeObjectURL(url);
+          reject(new Error("這個檔案解不開，瀏覽器不認得它的內容"));
+        };
+        img.src = url;
+      });
+    }
+
+    function resizeCanvas(canvas, opts, flatten) {
+      var size = fitDimensions(canvas.width, canvas.height, opts.maxEdge);
+      if (size.width === canvas.width && size.height === canvas.height && !flatten) { return canvas; }
+      var out = document.createElement("canvas");
+      out.width = size.width;
+      out.height = size.height;
+      var ctx = out.getContext("2d");
+      if (flatten) {
+        ctx.fillStyle = opts.background;
+        ctx.fillRect(0, 0, out.width, out.height);
+      }
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(canvas, 0, 0, out.width, out.height);
+      return out;
+    }
+
+    /* canvas.toBlob 對不支援的 type 會安靜地退回 PNG。這裡比對回傳的
+       blob.type，對不上就當成失敗——寧可報錯也不要給錯副檔名的檔案。 */
+    function canvasToBlob(canvas, mime, quality) {
+      return new Promise(function (resolve, reject) {
+        canvas.toBlob(function (blob) {
+          if (!blob) { reject(new Error("這個瀏覽器編不出 " + mime)); return; }
+          if (blob.type !== mime) {
+            reject(new Error("這個瀏覽器不支援輸出 " + mime + "（實際給了 " + blob.type + "）"));
+            return;
+          }
+          resolve(blob);
+        }, mime, quality);
+      });
+    }
+
+    var IMAGE_MIME = { png: "image/png", jpeg: "image/jpeg", webp: "image/webp" };
+
+    async function convertImages(kind, target, opts) {
+      var i;
+      for (i = 0; i < entries.length; i += 1) {
+        progress(i, entries.length, entries[i].file.name);
+        await yieldToUi();
+        var canvas = await decodeToCanvas(entries[i].file, kind);
+        canvas = resizeCanvas(canvas, opts, target === "jpeg");
+        var blob = await canvasToBlob(canvas, IMAGE_MIME[target], target === "png" ? undefined : opts.quality);
+        addResult(outputName(entries[i].file.name, target), blob);
+      }
+      progress(entries.length, entries.length, "完成");
+    }
+
+    async function imagesToPdf(kind, opts) {
+      var PDFLib = await loadPdfLib();
+      var doc = await PDFLib.PDFDocument.create();
+      var useJpeg = opts.pdfImage === "jpeg";
+      for (var i = 0; i < entries.length; i += 1) {
+        progress(i, entries.length, entries[i].file.name);
+        await yieldToUi();
+        var canvas = await decodeToCanvas(entries[i].file, kind);
+        canvas = resizeCanvas(canvas, opts, useJpeg);
+        var blob = await canvasToBlob(canvas, useJpeg ? "image/jpeg" : "image/png", useJpeg ? opts.quality : undefined);
+        var bytes = new Uint8Array(await blob.arrayBuffer());
+        var image = useJpeg ? await doc.embedJpg(bytes) : await doc.embedPng(bytes);
+        var pageWidth;
+        var pageHeight;
+        if (opts.pdfPage === "image") {
+          pageWidth = image.width;
+          pageHeight = image.height;
+        } else {
+          var portrait = image.height >= image.width;
+          pageWidth = portrait ? 595.28 : 841.89;
+          pageHeight = portrait ? 841.89 : 595.28;
+        }
+        var page = doc.addPage([pageWidth, pageHeight]);
+        var scale = Math.min(pageWidth / image.width, pageHeight / image.height);
+        var drawWidth = image.width * scale;
+        var drawHeight = image.height * scale;
+        page.drawImage(image, {
+          x: (pageWidth - drawWidth) / 2,
+          y: (pageHeight - drawHeight) / 2,
+          width: drawWidth,
+          height: drawHeight
+        });
+      }
+      var out = await doc.save();
+      var name = entries.length === 1 ? outputName(entries[0].file.name, "pdf") : "images.pdf";
+      addResult(name, new Blob([out], { type: "application/pdf" }));
+      progress(entries.length, entries.length, "完成");
+    }
+
+    /* ---------------- PDF ---------------- */
+
+    async function openPdfDocument(file) {
+      var pdfjs = await loadPdfjs();
+      var data = new Uint8Array(await file.arrayBuffer());
+      return await pdfjs.getDocument({
+        data: data,
+        cMapUrl: VENDOR + "pdfjs/cmaps/",
+        cMapPacked: true,
+        standardFontDataUrl: VENDOR + "pdfjs/standard_fonts/"
+      }).promise;
+    }
+
+    /* pdf.js 6 的 PDFDocumentProxy 沒有 destroy()，要關的是 loadingTask
+       （早期版本兩邊都有，所以很容易照舊寫法寫成 pdf.destroy() 而炸掉）。
+       關檔失敗不該讓已經轉好的結果消失，所以整段吞掉例外。 */
+    function closePdf(pdf) {
+      try {
+        if (pdf && pdf.loadingTask && pdf.loadingTask.destroy) { return pdf.loadingTask.destroy(); }
+        if (pdf && pdf.cleanup) { return pdf.cleanup(); }
+      } catch (err) { /* 忽略 */ }
+      return null;
+    }
+
+    async function pdfToImages(target, opts) {
+      var total = 0;
+      var done = 0;
+      var docs = [];
+      var i;
+      for (i = 0; i < entries.length; i += 1) {
+        var pdf = await openPdfDocument(entries[i].file);
+        var pages = parsePageRanges(opts.pageSpec, pdf.numPages);
+        docs.push({ pdf: pdf, pages: pages, name: entries[i].file.name });
+        total += pages.length;
+      }
+      var mime = IMAGE_MIME[target];
+      for (i = 0; i < docs.length; i += 1) {
+        for (var p = 0; p < docs[i].pages.length; p += 1) {
+          progress(done, total, docs[i].name + " 第 " + (docs[i].pages[p] + 1) + " 頁");
+          await yieldToUi();
+          var page = await docs[i].pdf.getPage(docs[i].pages[p] + 1);
+          var viewport = page.getViewport({ scale: opts.dpi / 72 });
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(viewport.width));
+          canvas.height = Math.max(1, Math.round(viewport.height));
+          var ctx = canvas.getContext("2d");
+          if (target === "jpeg") {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+          }
+          // intent:"print" 不只是語意上比較對（我們要的就是「印出來會長怎樣」），
+          // 它同時繞開了 pdf.js 的 requestAnimationFrame 排程：預設的 display intent
+          // 會用 rAF 分批畫，而使用者一旦切到別的分頁，rAF 就不再觸發，render 的
+          // promise 永遠不 resolve——畫面上是進度卡在第 1 頁、主控台一個字都沒有。
+          // 實測（pdf.js 6.3.289，分頁隱藏時）：display intent 逾時，print intent 14ms 完成。
+          await page.render({ canvasContext: ctx, viewport: viewport, intent: "print" }).promise;
+          var blob = await canvasToBlob(canvas, mime, target === "png" ? undefined : opts.quality);
+          addResult(outputName(docs[i].name, target, "-p" + (docs[i].pages[p] + 1)), blob);
+          done += 1;
+        }
+        await closePdf(docs[i].pdf);
+      }
+      progress(total, total, "完成");
+    }
+
+    async function pdfExtractParagraphs(file, opts) {
+      var pdf = await openPdfDocument(file);
+      var pages = parsePageRanges(opts.pageSpec, pdf.numPages);
+      var paragraphs = [];
+      for (var i = 0; i < pages.length; i += 1) {
+        progress(i, pages.length, file.name + " 第 " + (pages[i] + 1) + " 頁");
+        await yieldToUi();
+        var page = await pdf.getPage(pages[i] + 1);
+        var content = await page.getTextContent();
+        var items = content.items.map(function (item) {
+          return {
+            str: item.str,
+            x: item.transform[4],
+            y: item.transform[5],
+            width: item.width,
+            height: item.height || Math.abs(item.transform[3]) || 12
+          };
+        });
+        pdfTextToParagraphs(items).forEach(function (text) { paragraphs.push(text); });
+      }
+      await closePdf(pdf);
+      if (!paragraphs.length) {
+        throw new Error("這份 PDF 抽不到任何文字。多半是掃描檔——整頁只是一張圖，沒有文字圖層。這一頁沒有 OCR。");
+      }
+      return paragraphs;
+    }
+
+    async function pdfToTxt(opts) {
+      for (var i = 0; i < entries.length; i += 1) {
+        var paragraphs = await pdfExtractParagraphs(entries[i].file, opts);
+        var text = paragraphs.join("\n\n") + "\n";
+        addResult(outputName(entries[i].file.name, "txt"),
+          new Blob(["﻿" + text], { type: "text/plain;charset=utf-8" }));
+      }
+    }
+
+    async function pdfToDocx(opts) {
+      var docxLib = await import(VENDOR + "docx.mjs");
+      for (var i = 0; i < entries.length; i += 1) {
+        var paragraphs = await pdfExtractParagraphs(entries[i].file, opts);
+        var doc = new docxLib.Document({
+          sections: [{
+            properties: {},
+            children: paragraphs.map(function (text) {
+              return new docxLib.Paragraph({ children: [new docxLib.TextRun(text)] });
+            })
+          }]
+        });
+        var blob = await docxLib.Packer.toBlob(doc);
+        addResult(outputName(entries[i].file.name, "docx"), blob);
+      }
+    }
+
+    async function pdfMerge() {
+      var PDFLib = await loadPdfLib();
+      var out = await PDFLib.PDFDocument.create();
+      for (var i = 0; i < entries.length; i += 1) {
+        progress(i, entries.length, entries[i].file.name);
+        await yieldToUi();
+        var bytes = new Uint8Array(await entries[i].file.arrayBuffer());
+        var src = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+        var pages = await out.copyPages(src, src.getPageIndices());
+        pages.forEach(function (page) { out.addPage(page); });
+      }
+      var saved = await out.save();
+      addResult("merged.pdf", new Blob([saved], { type: "application/pdf" }));
+      progress(entries.length, entries.length, "完成");
+    }
+
+    async function pdfSplit() {
+      var PDFLib = await loadPdfLib();
+      for (var i = 0; i < entries.length; i += 1) {
+        var bytes = new Uint8Array(await entries[i].file.arrayBuffer());
+        var src = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+        var count = src.getPageCount();
+        for (var p = 0; p < count; p += 1) {
+          progress(p, count, entries[i].file.name + " 第 " + (p + 1) + " 頁");
+          await yieldToUi();
+          var one = await PDFLib.PDFDocument.create();
+          var copied = await one.copyPages(src, [p]);
+          one.addPage(copied[0]);
+          var saved = await one.save();
+          addResult(outputName(entries[i].file.name, "pdf", "-p" + (p + 1)),
+            new Blob([saved], { type: "application/pdf" }));
+        }
+      }
+    }
+
+    async function pdfPickPages(opts) {
+      var PDFLib = await loadPdfLib();
+      for (var i = 0; i < entries.length; i += 1) {
+        var bytes = new Uint8Array(await entries[i].file.arrayBuffer());
+        var src = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+        var picked = parsePageRanges(opts.pageSpec, src.getPageCount());
+        var wanted = picked;
+        if (opts.pageAction === "drop") {
+          wanted = src.getPageIndices().filter(function (index) { return picked.indexOf(index) < 0; });
+        }
+        if (!wanted.length) { throw new Error("這樣會刪光整份 PDF，沒有留下任何一頁"); }
+        var out = await PDFLib.PDFDocument.create();
+        var copied = await out.copyPages(src, wanted);
+        copied.forEach(function (page) { out.addPage(page); });
+        var saved = await out.save();
+        addResult(outputName(entries[i].file.name, "pdf", "-pages"),
+          new Blob([saved], { type: "application/pdf" }));
+      }
+    }
+
+    async function pdfRotate(opts) {
+      var PDFLib = await loadPdfLib();
+      for (var i = 0; i < entries.length; i += 1) {
+        var bytes = new Uint8Array(await entries[i].file.arrayBuffer());
+        var doc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+        var wanted = parsePageRanges(opts.pageSpec, doc.getPageCount());
+        wanted.forEach(function (index) {
+          var page = doc.getPage(index);
+          var current = page.getRotation().angle || 0;
+          page.setRotation(PDFLib.degrees((current + opts.rotate) % 360));
+        });
+        var saved = await doc.save();
+        addResult(outputName(entries[i].file.name, "pdf", "-rotated"),
+          new Blob([saved], { type: "application/pdf" }));
+      }
+    }
+
+    /* ---------------- DOCX ---------------- */
+
+    async function docxToText(target) {
+      var mammoth = await loadMammoth();
+      for (var i = 0; i < entries.length; i += 1) {
+        progress(i, entries.length, entries[i].file.name);
+        await yieldToUi();
+        var buffer = await entries[i].file.arrayBuffer();
+        var name = entries[i].file.name;
+        if (target === "html") {
+          var html = await mammoth.convertToHtml({ arrayBuffer: buffer });
+          var page = "<!DOCTYPE html>\n<html lang=\"zh-Hant\">\n<head>\n<meta charset=\"UTF-8\">\n" +
+            "<title>" + baseName(name) + "</title>\n" +
+            "<style>body{max-width:46em;margin:2em auto;padding:0 1em;font-family:system-ui,sans-serif;line-height:1.7}" +
+            "table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 8px}img{max-width:100%}</style>\n" +
+            "</head>\n<body>\n" + html.value + "\n</body>\n</html>\n";
+          addResult(outputName(name, "html"), new Blob([page], { type: "text/html;charset=utf-8" }));
+        } else if (target === "md") {
+          var md = await mammoth.convertToMarkdown({ arrayBuffer: buffer });
+          addResult(outputName(name, "md"), new Blob([md.value], { type: "text/markdown;charset=utf-8" }));
+        } else {
+          var raw = await mammoth.extractRawText({ arrayBuffer: buffer });
+          addResult(outputName(name, "txt"),
+            new Blob(["﻿" + raw.value], { type: "text/plain;charset=utf-8" }));
+        }
+      }
+      progress(entries.length, entries.length, "完成");
+    }
+
+    /* docx-preview 會把文件排成一頁一個 <section>，這裡逐頁用 html2canvas
+       拍成圖再塞進 pdf-lib。輸出因此是圖片頁——UI 上已經寫明了。 */
+    async function docxToPdf(opts) {
+      var docxPreview = await loadDocxPreview();
+      var html2canvas = await loadHtml2Canvas();
+      var PDFLib = await loadPdfLib();
+      var PX_TO_PT = 72 / 96;
+
+      for (var i = 0; i < entries.length; i += 1) {
+        docxStage.innerHTML = "";
+        var host = document.createElement("div");
+        docxStage.appendChild(host);
+        await docxPreview.renderAsync(await entries[i].file.arrayBuffer(), host, null, {
+          className: "docx",
+          inWrapper: true,
+          ignoreWidth: false,
+          ignoreHeight: false,
+          breakPages: true,
+          renderHeaders: true,
+          renderFooters: true,
+          useBase64URL: true
+        });
+        await yieldToUi();
+
+        var sections = host.querySelectorAll("section.docx");
+        if (!sections.length) { throw new Error("這份 DOCX 排不出任何頁面，可能已損毀或不是真的 .docx"); }
+        var doc = await PDFLib.PDFDocument.create();
+        for (var s = 0; s < sections.length; s += 1) {
+          progress(s, sections.length, entries[i].file.name + " 第 " + (s + 1) + " 頁");
+          await yieldToUi();
+          var rect = sections[s].getBoundingClientRect();
+          var canvas = await html2canvas(sections[s], {
+            scale: 2,
+            backgroundColor: "#ffffff",
+            logging: false,
+            useCORS: false
+          });
+          var blob = await canvasToBlob(canvas, "image/jpeg", opts.quality);
+          var image = await doc.embedJpg(new Uint8Array(await blob.arrayBuffer()));
+          var widthPt = Math.max(1, rect.width * PX_TO_PT);
+          var heightPt = Math.max(1, rect.height * PX_TO_PT);
+          var page = doc.addPage([widthPt, heightPt]);
+          page.drawImage(image, { x: 0, y: 0, width: widthPt, height: heightPt });
+        }
+        var saved = await doc.save();
+        addResult(outputName(entries[i].file.name, "pdf"),
+          new Blob([saved], { type: "application/pdf" }));
+        docxStage.innerHTML = "";
+      }
+    }
+
+    /* ---------------- 試算表 ---------------- */
+
+    async function readWorkbook(entry, opts) {
+      var XLSX = await loadXlsx();
+      if (entry.kind === "csv") {
+        var buffer = await entry.file.arrayBuffer();
+        var text = new TextDecoder(opts.encoding, { fatal: false }).decode(buffer);
+        if (text.charCodeAt(0) === 0xfeff) { text = text.slice(1); }
+        return { XLSX: XLSX, book: XLSX.read(text, { type: "string" }) };
+      }
+      return { XLSX: XLSX, book: XLSX.read(new Uint8Array(await entry.file.arrayBuffer()), { type: "array" }) };
+    }
+
+    async function sheetsConvert(target, opts) {
+      for (var i = 0; i < entries.length; i += 1) {
+        progress(i, entries.length, entries[i].file.name);
+        await yieldToUi();
+        var loadedBook = await readWorkbook(entries[i], opts);
+        var XLSX = loadedBook.XLSX;
+        var book = loadedBook.book;
+        var names = book.SheetNames;
+        var source = entries[i].file.name;
+
+        if (target === "xlsx") {
+          var out = XLSX.write(book, { bookType: "xlsx", type: "array" });
+          addResult(outputName(source, "xlsx"), new Blob([out], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          }));
+          continue;
+        }
+        if (target === "json") {
+          var bundle = {};
+          names.forEach(function (name) {
+            bundle[name] = XLSX.utils.sheet_to_json(book.Sheets[name], { defval: null });
+          });
+          addResult(outputName(source, "json"),
+            new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json;charset=utf-8" }));
+          continue;
+        }
+        if (target === "html") {
+          var parts = names.map(function (name) {
+            return "<h2>" + name + "</h2>\n" + XLSX.utils.sheet_to_html(book.Sheets[name]);
+          });
+          var page = "<!DOCTYPE html>\n<html lang=\"zh-Hant\">\n<head>\n<meta charset=\"UTF-8\">\n" +
+            "<title>" + baseName(source) + "</title>\n" +
+            "<style>body{margin:2em;font-family:system-ui,sans-serif}table{border-collapse:collapse;margin-bottom:2em}" +
+            "td,th{border:1px solid #999;padding:3px 7px}</style>\n</head>\n<body>\n" +
+            parts.join("\n") + "\n</body>\n</html>\n";
+          addResult(outputName(source, "html"), new Blob([page], { type: "text/html;charset=utf-8" }));
+          continue;
+        }
+        names.forEach(function (name) {
+          var csv = XLSX.utils.sheet_to_csv(book.Sheets[name]);
+          var suffix = names.length > 1 ? "-" + name.replace(/[^\w一-鿿-]+/g, "_") : "";
+          addResult(outputName(source, "csv", suffix),
+            new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+        });
+      }
+      progress(entries.length, entries.length, "完成");
+    }
+
+    /* ---------------- 排程 ---------------- */
+
+    async function dispatch(kind, target, opts) {
+      if (IMAGE_KINDS.indexOf(kind) >= 0) {
+        if (target === "pdf") { return await imagesToPdf(kind, opts); }
+        return await convertImages(kind, target, opts);
+      }
+      if (kind === "pdf") {
+        if (target === "png" || target === "jpeg") { return await pdfToImages(target, opts); }
+        if (target === "txt") { return await pdfToTxt(opts); }
+        if (target === "docx") { return await pdfToDocx(opts); }
+        if (target === "pdf-merge") { return await pdfMerge(); }
+        if (target === "pdf-split") { return await pdfSplit(); }
+        if (target === "pdf-pages") { return await pdfPickPages(opts); }
+        if (target === "pdf-rotate") { return await pdfRotate(opts); }
+      }
+      if (kind === "docx") {
+        if (target === "pdf") { return await docxToPdf(opts); }
+        return await docxToText(target);
+      }
+      if (kind === "xlsx" || kind === "csv") { return await sheetsConvert(target, opts); }
+      throw new Error("沒有這組轉檔：" + kindLabel(kind) + " → " + targetLabel(target));
+    }
+
+    async function run() {
+      if (busy) { return; }
+      var summary = summarizeKinds(entries);
+      var kind = summary.uniform;
+      var target = targetSelect.value;
+      if (!kind || !target) { return; }
+      if (target === "pdf-merge" && entries.length < 2) {
+        setState(runState, "合併需要至少兩份 PDF。", "error");
+        return;
+      }
+      busy = true;
+      runBtn.disabled = true;
+      clearResults();
+      var started = Date.now();
+      setState(runState, "轉檔中…", "");
+      try {
+        await dispatch(kind, target, readOptions());
+        setState(runState, "完成，耗時 " + describeElapsed(Date.now() - started), "ok");
+      } catch (err) {
+        progressBars.innerHTML = "";
+        setState(runState, "失敗：" + (err && err.message ? err.message : String(err)), "error");
+      } finally {
+        busy = false;
+        runBtn.disabled = entries.length === 0;
+      }
+    }
+
+    async function downloadZip() {
+      if (results.length < 2) { return; }
+      zipState.textContent = "打包中…";
+      try {
+        var JSZip = await loadJsZip();
+        var zip = new JSZip();
+        results.forEach(function (item) { zip.file(item.name, item.blob); });
+        var blob = await zip.generateAsync({ type: "blob" });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = "converted.zip";
+        link.click();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        zipState.textContent = formatBytes(blob.size);
+      } catch (err) {
+        zipState.textContent = "打包失敗：" + (err && err.message ? err.message : String(err));
+      }
+    }
+
+    fileInput.addEventListener("change", function () { addFiles(fileInput.files, true); });
+    clearBtn.addEventListener("click", function () { clearAll(); clearResults(); });
+    runBtn.addEventListener("click", function () { run(); });
+    zipBtn.addEventListener("click", function () { downloadZip(); });
+    targetSelect.addEventListener("change", function () {
+      var summary = summarizeKinds(entries);
+      if (!summary.uniform) { return; }
+      renderLimits(summary.uniform, targetSelect.value);
+      syncOptions(summary.uniform, targetSelect.value);
+      targetState.textContent = "輸出：" + targetLabel(targetSelect.value);
+    });
+
+    ["dragenter", "dragover"].forEach(function (type) {
+      dropZone.addEventListener(type, function (event) {
+        event.preventDefault();
+        dropZone.className = "drop hot";
+      });
+    });
+    ["dragleave", "drop"].forEach(function (type) {
+      dropZone.addEventListener(type, function (event) {
+        event.preventDefault();
+        dropZone.className = "drop";
+      });
+    });
+    dropZone.addEventListener("drop", function (event) {
+      if (event.dataTransfer && event.dataTransfer.files) { addFiles(event.dataTransfer.files); }
+    });
+
+    refreshTargets();
+  }
+
+  window.ConvertApp = { helpers: helpers, init: init };
+
+  if (!window.__CONVERT_SKIP_AUTO_INIT__) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  }
+})();
+</script>
+</body>
+</html>

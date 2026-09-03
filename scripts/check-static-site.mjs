@@ -111,6 +111,26 @@ for (const rel of [
   "subtitle/vendor/ort/ort-wasm-simd-threaded.asyncify.wasm",
   "subtitle/vendor/ort/ort-wasm-simd-threaded.mjs",
   "subtitle/vendor/ort/ort-wasm-simd-threaded.wasm",
+  "convert/index.html",
+  // /convert/ 的函式庫全部自帶且**只在按下轉檔時才動態載入**——所以下面那圈掃
+  // href/src 的迴圈一個都看不到（它們的路徑是 JS 字串），漏掉不會有任何錯誤訊息，
+  // 只會在使用者選了某種格式時才安靜地失敗。在這裡逐檔點名。
+  "convert/vendor/pdf.min.mjs",
+  "convert/vendor/pdf.worker.min.mjs",
+  "convert/vendor/pdf-lib.min.js",
+  "convert/vendor/jszip.min.js",
+  "convert/vendor/docx-preview.min.js",
+  "convert/vendor/mammoth.browser.min.js",
+  "convert/vendor/docx.mjs",
+  "convert/vendor/xlsx.full.min.js",
+  "convert/vendor/heic-to.min.js",
+  "convert/vendor/html2canvas-pro.min.js",
+  "convert/vendor/pako.min.js",
+  "convert/vendor/UTIF.js",
+  // pdf.js 沒有內嵌字型時要靠這兩包才畫得出字。少了 cmaps，用預定義 CMap 的中文 PDF
+  // 會整頁空白——而且 pdf.js 只在 console 抱怨，畫面上就是「轉出來是白的」。
+  "convert/vendor/pdfjs/cmaps/UniCNS-UCS2-H.bcmap",
+  "convert/vendor/pdfjs/standard_fonts/LiberationSans-Regular.ttf",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -179,8 +199,8 @@ if (has("index.html")) {
   // 這條擋的是「首頁又長出一個會打網路的區塊」。
   assertNoMatch("index.html", html, /stock-risk-feed\.json|bjkw-weather-proxy[^"]*\/health/, "root runtime fetches");
   assertNoMatch("index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "root body script");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/ and subtitle:/subtitle/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/, subtitle:/subtitle/ and convert:/convert/, got ${primaryLinks.join(", ")}`);
   }
   // CTA 改釘不變式，不釘六串字面值。原本六條 assertMatch 各自抄一次文案，
   // 沒有任何一條看得出「可見文字必須是 accessible name 的子字串」這件事——
@@ -437,13 +457,41 @@ if (has("subtitle/worker.js")) {
   assertNoMatch("subtitle/worker.js", worker, /language:\s*["']zh["']/, "hard-coded Chinese language token");
 }
 
+if (has("convert/index.html")) {
+  const html = await read("convert/index.html");
+  assertMatch("convert/index.html", html, /<html lang="zh-Hant">/, "convert document language");
+  assertMatch("convert/index.html", html, /<title>萬用轉檔台｜BJKW<\/title>/, "convert title");
+  assertMatch("convert/index.html", html, /<link rel="canonical" href="\/convert\/"/, "convert canonical");
+  assertMatch("convert/index.html", html, /<link rel="manifest" href="\/assets\/images\/site\.webmanifest">/, "convert manifest");
+  assertMatch("convert/index.html", html, /name="theme-color" content="#101418"/, "convert theme color");
+  assertMatch("convert/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "convert service worker registration");
+
+  // 這一頁的整個賣點是「檔案不會離開這台裝置」。下面三條把那句話變成可驗證的東西：
+  // 沒有跨來源網址、沒有自己發出的請求、沒有表單。少任何一條，那句話就可能是假的。
+  assertMatch("convert/index.html", html, /檔案不會離開這台裝置/, "convert privacy disclosure");
+  assertMatch("convert/index.html", html, /全部運算都在瀏覽器完成/, "convert local-only disclosure");
+  assertNoMatch("convert/index.html", html.slice(html.indexOf("<body")), /https?:\/\//, "convert external endpoints");
+  assertNoMatch("convert/index.html", html, /\bfetch\s*\(|XMLHttpRequest|sendBeacon|<form\b/, "convert outbound request paths");
+
+  // 保真度的三條紅線。這幾件事使用者在按下按鈕之前就必須知道，事後發現等於白轉一次：
+  // DOCX→PDF 出來的是圖片頁、PDF 沒有文字圖層時抽不到字、canvas 編不出 AVIF。
+  assertMatch("convert/index.html", html, /文字不可選取/, "convert must disclose the rasterised DOCX→PDF output");
+  assertMatch("convert/index.html", html, /沒有 OCR/, "convert must disclose that scanned PDFs yield no text");
+  assertMatch("convert/index.html", html, /不能輸出 AVIF/, "convert must disclose the AVIF encode limitation");
+
+  // vendor 走同源。指回 CDN 的話，自帶的那 11 MB 就白帶了，而且畫面上看不出差別。
+  assertMatch("convert/index.html", html, /var VENDOR = "\/convert\/vendor\/";/, "convert vendor path must be same-origin");
+  // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
+  assertMatch("convert/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "convert main script must sit right before </body>");
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

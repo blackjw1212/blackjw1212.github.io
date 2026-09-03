@@ -6,3 +6,7 @@
 # 該不該轉，是不必要的風險（wasm 開頭是 \0asm，猜對的機率很高，但沒有理由去賭）。
 # minified 的 .js 也一併標成 binary：那種檔案的逐行 diff 沒有任何閱讀價值。
 subtitle/vendor/** binary
+
+# /convert/ 自帶的 pdf.js、pdf-lib、SheetJS…同理：都是 minified 或二進位（.bcmap、
+# .pfb、.ttf）。行尾轉換對它們沒有好處，逐行 diff 也沒有閱讀價值。
+convert/vendor/** binary
