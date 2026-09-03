@@ -33,15 +33,21 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 - **首頁主要入口被釘死**為
   `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/`，
   順序與 href 都要一致（**字面值在條件與錯誤訊息各出現一次，兩處都要改**）。
-  CTA 數量不是硬編碼，是 `ctas.length !== primaryLinks.length`。
+  卡片數量不是硬編碼，是 `cards.length !== primaryLinks.length`。
   `data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
   **同一份清單被釘在兩個地方**：這支腳本，以及 `backend/test/frontend-smoke.test.js`
   的 `assert.deepEqual(primaryLinks, ...)`。只改一邊會讓 `npm test` 紅而靜態契約綠。
 - **各頁的 `<title>`、`canonical`、`theme-color` 逐字比對**。改標題要同步改這支腳本。
-- **首頁六顆入口 CTA 改釘不變式，不釘字面值**：可見文字必須恰好是 `開啟 <href>`，
-  且 `aria-label` 必須**以可見文字開頭**並比它更長。後者是 WCAG 2.5.3 Label in Name
-  ——語音控制使用者說出畫面上看到的字要叫得動按鈕。原本六條各抄一次文案的寫法
-  看不出這條規則，實測 `/weather/` 與 `/flight/` 兩顆長期違規而六條全綠。
+- **整張卡片就是連結，沒有 CTA 按鈕**：右上的路徑列（`.topnav`）與每張卡右下的
+  「開啟 /xxx/」按鈕（`.entry-button`）講的是同一份清單，已整組移除，兩者都被
+  `assertNoMatch` 釘成禁止項。可點範圍改成整張卡＝`<a class="entry …">`，
+  **屬性順序固定為 `class → data-primary-entry → href → aria-label`**，兩條正則都靠它。
+  **不可以改用 JS 做整卡可點**——首頁不得有 body 端 `<script>`（見下一條），
+  而且真連結免費附贈鍵盤操作與中鍵開新分頁。
+  釘的不變式是：`aria-label` 必須**以卡片 `<h2>` 開頭**（WCAG 2.5.3 Label in Name
+  ——語音控制使用者說出畫面上看到的標題要叫得動這張卡），且必須另外帶上目的地路徑。
+  舊版按鈕時代抄六次文案的寫法看不出這條規則，實測 `/weather/` 與 `/flight/`
+  兩顆長期違規而六條字面值斷言全綠。
 - **首頁是純靜態入口，不得有 body 端 `<script>`、不得在 runtime 抓任何東西**
   （`<head>` 的 service worker 註冊除外）。三張狀態卡已整組移除——那些數字在
   `/stocks/`、`/weather/` 內頁都講得更完整，而 10Y 沒有任何頁面拿它算東西。
