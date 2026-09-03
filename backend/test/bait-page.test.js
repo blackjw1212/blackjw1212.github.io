@@ -83,6 +83,21 @@ test("頁面公開的 helper 契約", async () => {
   assert.equal(app.helpers.HIGH_COST_SHARE, 0.4);
 });
 
+// pickList 對認不得的字是安靜丟掉的，所以詞彙表少一個字，匯入會「成功」但那一欄
+// 整個消失。淡水那組是後來補的，釘住免得被當成海水頁的雜訊刪掉。
+test("魚種與海域詞彙表涵蓋淡水", async () => {
+  const { app } = await loadPage();
+  for (const name of ["黑鯛", "臭肚", "福壽魚"]) {
+    assert.ok(plain(app.helpers.SPECIES).includes(name), `SPECIES 缺 ${name}`);
+  }
+  for (const name of ["近岸/港內", "海釣場", "水庫/池釣"]) {
+    assert.ok(plain(app.helpers.SEA_AREAS).includes(name), `SEA_AREAS 缺 ${name}`);
+  }
+  const item = plain(app.helpers.sanitizeItem({ name: "測試", targetSpecies: ["福壽魚"], seaArea: ["水庫/池釣"] }));
+  assert.deepEqual(item.targetSpecies, ["福壽魚"]);
+  assert.deepEqual(item.seaArea, ["水庫/池釣"]);
+});
+
 test("每克成本：包裝重量沒填或是 0 一律回 null，不讓成本變成 Infinity", async () => {
   const { app } = await loadPage();
   near(app.helpers.costPerGram(ITEM_A), 0.2, "A 每克成本");
