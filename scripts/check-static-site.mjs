@@ -188,8 +188,13 @@ if (has("index.html")) {
   // （可見「開啟機票決策台」，aria-label 卻是「開啟機票總成本決策台」），
   // 六條字面值全綠，因為它們只各自比對自己抄的那一串。
   const ctas = [...html.matchAll(/<a class="entry-button"[^>]*href="([^"]+)"[^>]*aria-label="([^"]+)">([^<]+)<\/a>/g)];
-  if (ctas.length !== 8) {
-    fail(`index.html should have exactly 7 entry CTAs, got ${ctas.length}`);
+  // 數量對著 primaryLinks 比，不要再寫死一個數字。CTA 與 data-primary-entry 標的是
+  // 同一批元素，各自釘一個常數就是兩個事實來源——實測分叉過一次：加第 8 顆入口時
+  // 條件改成了 8、錯誤訊息還留在 7，訊息會反過來誤導下一個人。
+  // 這樣寫順便多抓一種錯：某顆按鈕少了 data-primary-entry（或反過來多了一顆
+  // entry-button），兩邊數量對不上就會紅，而上面那條字串比對只看得到前者。
+  if (ctas.length !== primaryLinks.length) {
+    fail(`index.html has ${ctas.length} entry CTAs but ${primaryLinks.length} data-primary-entry links; every entry card needs both`);
   }
   for (const [, href, ariaLabel, visible] of ctas) {
     // 可見文字＝「開啟 <路徑>」。路徑本身就是這一頁的辨識詞（topbar 也是這樣列的），
