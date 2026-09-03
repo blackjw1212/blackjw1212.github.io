@@ -55,6 +55,13 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 檢查跑在哪種 pointer 底下，fine 就把整份報告標成不可信，並逐列點名哪幾頁有 coarse
 規則沒被套用。Claude 的瀏覽器窗格切 mobile preset 就會給 `pointer:coarse`。
 
+**但模擬綠燈不等於真機綠燈——最後一定要用真手機跑一次。** 桌機的行動裝置模擬給得出
+`pointer:coarse`、給得出視窗尺寸，**給不出原生表單控制項的度量**。實測 2026-09-03：
+模擬下 13 頁全綠，同一版在真手機上冒出 18 個違規，而且**全部是 `<select>`**
+（29–38px）——那是模擬結構上看不到的一類差異，不是我漏跑。
+真機用的網址是 `http://<區網 IP>:4173/...`（Node 的靜態伺服器預設就綁全介面），
+那不是 secure context，所以報告的「複製」鈕會退回「選起來長按複製」。
+
 其他寫進判準裡的事：
 
 - 頁面清單**跟著首頁的 `data-primary-entry` 走**，不重抄第四份（那份清單已經釘在
@@ -75,9 +82,19 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
   （點文字也會勾）。`/market/` 的 `.fld`、`/coupon/` 的 `.check`、`/flight/` 的 `.chk`
   都是撐 label 到 44px，方塊只從 17–19px 加到 20–22px。把方塊本身撐成 44px 只會變醜，
   而且沒解決問題。
+- **`<select>` 要先 `appearance:none`，`min-height` 才有用。** 這條在桌機模擬上看不出來：
+  模擬會乖乖套用 `min-height`，但真手機對 `appearance:menulist` 的 select 用的是 UA 的
+  原生控制項度量，`min-height` 整條被忽略。實測 2026-09-03 真機上五頁共 18 個 select
+  停在 29–38px，而同一版在模擬下全綠。改法是 `appearance:none` ＋ 自己補下拉箭頭，
+  **箭頭用兩道 `linear-gradient` 畫，不要用 SVG data URI**——SVG 需要
+  `xmlns="http://www.w3.org/2000/svg"`，那個 `http://` 會撞到 `/subtitle/` 的
+  「不得出現非 huggingface 的外部網址」（實測紅過一次）。
 - **特異度要對得上。** `/coupon/` 實測 `select{min-height:44px}`（0,0,1）打不贏既有的
   `.field select{min-height:40px}`（0,1,1），改完量出來仍是 40px。寫規則前先找同名的
-  既有規則，跟著它的選擇器層級寫。
+  既有規則，跟著它的選擇器層級寫。同一個坑的另外兩種形狀：`subtitle`／`convert` 的
+  `.picker select`（0,1,1）蓋掉了 `select{padding-right:30px}`，箭頭壓在文字上；
+  `flight` 的 media block 原本插在 `<style>` 中段，被更後面、同特異度的
+  `input,select,textarea` 蓋回去——**media query 一律收在 `<style>` 最後**。
 - **句中的行內文字連結不要強拉**（WCAG 2.5.8 明文豁免，硬撐會把行高撐開）。
   **但單獨佔一行的 CTA 不算行內**——`/forscan/` 通往兩個子頁的那兩顆只有 19px，
   它們是那頁的主要導覽，補了 class 撐到 44px；同頁 footer 句子裡那顆 14px 的維持原樣。
