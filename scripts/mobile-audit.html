@@ -278,8 +278,25 @@ document.getElementById("run").addEventListener("click", () => {
     document.getElementById("run").disabled = false;
   });
 });
-document.getElementById("copy").addEventListener("click", () => {
-  navigator.clipboard.writeText(document.getElementById("text").textContent);
+/* navigator.clipboard 只在 secure context 下存在。用真手機跑時網址是
+   http://<區網 IP>:4173，那不是 secure context——直接呼叫會 throw，按了沒反應
+   而且主控台在手機上也看不到。所以失敗就退回「幫你選起來，長按複製」。 */
+document.getElementById("copy").addEventListener("click", async () => {
+  const pre = document.getElementById("text");
+  const button = document.getElementById("copy");
+  try {
+    if (!navigator.clipboard) throw new Error("no clipboard api");
+    await navigator.clipboard.writeText(pre.textContent);
+    button.textContent = "已複製";
+  } catch (_) {
+    const range = document.createRange();
+    range.selectNodeContents(pre);
+    const selection = getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    button.textContent = "已選取，長按複製";
+  }
+  setTimeout(() => { button.textContent = "複製純文字報告"; }, 2500);
 });
 renderEnv();
 </script>
