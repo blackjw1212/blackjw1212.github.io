@@ -66,8 +66,38 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
   觸控目標（螢幕外的鍵盤 affordance）、句子裡的行內文字連結不算（WCAG 2.5.8 明文
   豁免，硬撐 44px 會把行高撐開）。改判準前先看原始碼裡那段註解。
 
-順帶一提，`/weather/` 的 `.radar-link` 用 `padding-block:15px` + `margin-block:-15px`
-把熱區撐到 45px 而不動標題列高度——行內 CTA 要補觸控目標時，那個做法比 `min-height` 好。
+## 補觸控目標的作法（44px）
+
+2026-09-03 全站 13 頁在 375 與 320 都已歸零。要再補時照下面幾條，不要每頁自己發明。
+最多的一頁是 `/market/`（一次 21 個），下面每條都有它的實例。
+
+- **撐 `<label>`，不要撐方塊。** 勾選框／單選鈕包在 label 裡時，命中區是 label
+  （點文字也會勾）。`/market/` 的 `.fld`、`/coupon/` 的 `.check`、`/flight/` 的 `.chk`
+  都是撐 label 到 44px，方塊只從 17–19px 加到 20–22px。把方塊本身撐成 44px 只會變醜，
+  而且沒解決問題。
+- **特異度要對得上。** `/coupon/` 實測 `select{min-height:44px}`（0,0,1）打不贏既有的
+  `.field select{min-height:40px}`（0,1,1），改完量出來仍是 40px。寫規則前先找同名的
+  既有規則，跟著它的選擇器層級寫。
+- **句中的行內文字連結不要強拉**（WCAG 2.5.8 明文豁免，硬撐會把行高撐開）。
+  **但單獨佔一行的 CTA 不算行內**——`/forscan/` 通往兩個子頁的那兩顆只有 19px，
+  它們是那頁的主要導覽，補了 class 撐到 44px；同頁 footer 句子裡那顆 14px 的維持原樣。
+- **`<summary>` 只有沒掛 class 的會漏。** `/market/` 的 `.fold>summary` 本來就有
+  `padding:12px 14px`（實測 46px），但另外四個裸的摺疊標題只有 18–21px。
+  補 `padding` ＋ `min-height`，**不要改 `display`**——改成 flex 會讓預設的三角形箭頭消失。
+- **`pointer:coarse` 還是 `max-width`，看那頁有沒有斷點。** 頁面已有 max-width 斷點就
+  寫進去。`/dash/` 一個 max-width 斷點都沒有（只有 `min-width:760px`），直接改基準規則
+  會連桌機 topbar 一起從 32px 長到 44px，所以照 `/weather/` 的做法用
+  `@media (pointer:coarse)`——只有真的用手指點的裝置才撐開。
+- **行內 CTA 可以用 padding ＋ 負 margin 而不動行高。** `/weather/` 的 `.radar-link` 用
+  `padding-block:15px` + `margin-block:-15px` 把熱區撐到 45px、標題列高度不變，
+  那個做法比 `min-height` 好。
+
+規則寫在哪：`esp32`／`forscan`／`forscan/service`／`forscan/sync3`／`subtitle`／`convert`
+是**同一套骨架**，共用的那段在六頁裡逐字相同（方便 diff 比對），各自寫在自己的
+`@media (max-width:640px)` 裡；只有 `forscan` 在後面多一條 `.subpage-cta`。
+`market`／`stocks` 用 `@media (max-width:760px)`。
+**改 `/stocks/` 那個區塊要小心**：`.header-shell{flex-direction:column` 與
+`.row-del{min-height:44px}` 兩行被 `frontend-smoke.test.js` 逐字釘住，動到就紅。
 
 ## 靜態契約 `scripts/check-static-site.mjs`
 
