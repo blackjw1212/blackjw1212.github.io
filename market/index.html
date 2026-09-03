@@ -200,7 +200,7 @@
       <span class="tagp">範圍 <b>上市＋上櫃</b></span>
       <span class="tagp">資料 <b>每日自動更新</b></span>
       <span class="tagp">篩選 <b>本益比／淨值比／殖利率</b></span>
-      <a href="/stocks/">← 回股票投資觀察台</a>
+      <a href="/stocks/">← 回股票觀測</a>
     </div>
   </div>
 </header>
@@ -867,7 +867,7 @@ function rowHtml(row){
     + '<td>' + codeLink(row.code, row.market, row.name) + '</td>'
     + '<td><span class="nm">' + escapeHtml(row.name) + '</span>'
       + '<span class="mk" style="margin-left:6px">' + (row.market === "tpex" ? "上櫃" : "上市") + '</span>'
-      + (row.watch ? '<span class="badge">觀察台</span>' : '')
+      + (row.watch ? '<span class="badge">觀測中</span>' : '')
       + (isLowBase(row) ? '<span class="lowbase" style="margin-left:6px">低基</span>' : '')
       + '</td>'
     + '<td class="px">' + fmt(row.close, 2) + '</td>'

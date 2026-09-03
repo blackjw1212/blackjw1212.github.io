@@ -235,10 +235,10 @@ test("root index is an entry console", async () => {
   assert.match(html, /<html lang="zh-Hant">/);
   assert.match(html, /<meta charset="UTF-8"/);
   assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1.0"/);
-  assert.match(html, /<title>BJKW 觀察控制台<\/title>/);
-  assert.match(html, /<meta name="description" content="BJKW 公開觀察控制台/);
+  assert.match(html, /<title>BJKW Console<\/title>/);
+  assert.match(html, /<meta name="description" content="BJKW Console，/);
   assert.match(html, /<link rel="canonical" href="\/"/);
-  assert.match(html, /property="og:title" content="BJKW 觀察控制台"/);
+  assert.match(html, /property="og:title" content="BJKW Console"/);
   assert.match(html, /name="theme-color" content="#101418"/);
   assert.match(html, /<main class="shell">/);
   assert.match(html, /href="\/stocks\/"/);
@@ -251,9 +251,9 @@ test("root index is an entry console", async () => {
   assert.match(html, /href="\/subtitle\/"/);
   assert.match(html, /href="\/convert\/"/);
   assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"], ["esp32", "/esp32/"], ["forscan", "/forscan/"], ["flight", "/flight/"], ["dash", "/dash/"], ["coupon", "/coupon/"], ["subtitle", "/subtitle/"], ["convert", "/convert/"]]);
-  assert.match(html, /股票投資觀察台/);
+  assert.match(html, /股票觀測/);
   assert.doesNotMatch(html, /href="\/ai\/"|data-primary-entry="ai"|AI Feed/);
-  assert.match(html, /BJKW 天氣觀察台/);
+  assert.match(html, /天氣與海象/);
   // 三張狀態卡（持股監控 / 美國 10Y 公債 / Weather Proxy）整組移除。這頁的職責是
   // 把人送進六個觀察台，那三個數字在各自的內頁都講得更完整：檔數與收盤日在
   // /stocks/、天氣代理能不能用進 /weather/ 就知道，而 10Y 根本沒有任何頁面拿它
@@ -276,6 +276,10 @@ test("root index is an entry console", async () => {
   // 「持股監控」「美國 10Y 公債」與 4.73% 這個百分比數值說完了，CWA 則在底下
   // 天氣入口卡的「資料：CWA through weather proxy」講過一次。移除，不要再加回來。
   assert.doesNotMatch(html, /class="tag"/, "status card chips duplicate what the page already says");
+  // 右上那排 /stocks/ /weather/ … 與每張卡右下的「開啟 /xxx/」按鈕講的是同一份清單，
+  // 已整組移除：整張卡片本身就是連結。靜態契約那邊釘的是同兩件事。
+  assert.doesNotMatch(html, /class="topnav"/, "the duplicated path nav must stay gone");
+  assert.doesNotMatch(html, /class="entry-button"/, "per-card CTA buttons must stay gone");
   assert.match(html, /focus-visible/);
   assert.doesNotMatch(html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/);
 });

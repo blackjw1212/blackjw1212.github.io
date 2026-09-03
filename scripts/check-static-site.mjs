@@ -182,13 +182,13 @@ if (has("index.html")) {
   assertMatch("index.html", html, /<html lang="zh-Hant">/, "zh-Hant document language");
   assertMatch("index.html", html, /<meta charset="UTF-8"/, "UTF-8 charset");
   assertMatch("index.html", html, /<meta name="viewport" content="width=device-width, initial-scale=1.0"/, "responsive viewport");
-  assertMatch("index.html", html, /<title>BJKW 觀察控制台<\/title>/, "root title");
-  assertMatch("index.html", html, /<meta name="description" content="BJKW 公開觀察控制台/, "root description");
+  assertMatch("index.html", html, /<title>BJKW Console<\/title>/, "root title");
+  assertMatch("index.html", html, /<meta name="description" content="BJKW Console，/, "root description");
   assertMatch("index.html", html, /<link rel="canonical" href="\/"/, "root canonical");
-  assertMatch("index.html", html, /property="og:title" content="BJKW 觀察控制台"/, "root og title");
+  assertMatch("index.html", html, /property="og:title" content="BJKW Console"/, "root og title");
   assertMatch("index.html", html, /name="theme-color" content="#101418"/, "root theme color");
   assertMatch("index.html", html, /<main class="shell">/, "root main shell");
-  assertMatch("index.html", html, /aria-label="主要觀察台"/, "primary nav label");
+  assertMatch("index.html", html, /aria-label="全部工具"/, "primary nav label");
   // 三張狀態卡（持股監控 / 美國 10Y 公債 / Weather Proxy）已整組移除。那三個數字
   // 在各自的內頁都講得更完整：檔數與收盤日在 /stocks/、天氣代理能不能用進
   // /weather/ 就知道，而 10Y 沒有任何頁面拿它算東西。首頁是入口，不是儀表板。
@@ -202,36 +202,36 @@ if (has("index.html")) {
   if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/") {
     fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/, subtitle:/subtitle/ and convert:/convert/, got ${primaryLinks.join(", ")}`);
   }
-  // CTA 改釘不變式，不釘六串字面值。原本六條 assertMatch 各自抄一次文案，
-  // 沒有任何一條看得出「可見文字必須是 accessible name 的子字串」這件事——
-  // 實測那時 /weather/ 與 /flight/ 兩顆按鈕都違反了 WCAG 2.5.3 Label in Name
-  // （可見「開啟機票決策台」，aria-label 卻是「開啟機票總成本決策台」），
-  // 六條字面值全綠，因為它們只各自比對自己抄的那一串。
-  const ctas = [...html.matchAll(/<a class="entry-button"[^>]*href="([^"]+)"[^>]*aria-label="([^"]+)">([^<]+)<\/a>/g)];
-  // 數量對著 primaryLinks 比，不要再寫死一個數字。CTA 與 data-primary-entry 標的是
-  // 同一批元素，各自釘一個常數就是兩個事實來源——實測分叉過一次：加第 8 顆入口時
-  // 條件改成了 8、錯誤訊息還留在 7，訊息會反過來誤導下一個人。
-  // 這樣寫順便多抓一種錯：某顆按鈕少了 data-primary-entry（或反過來多了一顆
-  // entry-button），兩邊數量對不上就會紅，而上面那條字串比對只看得到前者。
-  if (ctas.length !== primaryLinks.length) {
-    fail(`index.html has ${ctas.length} entry CTAs but ${primaryLinks.length} data-primary-entry links; every entry card needs both`);
+  // 整張卡片就是連結，沒有獨立的 CTA 按鈕了——右上那排路徑列與每張卡右下的
+  //「開啟 /xxx/」講的都是同一件事，兩者一起移除，可點範圍改成整張卡。
+  // 屬性順序（class → data-primary-entry → href → aria-label）是這裡與上面
+  // primaryLinks 那條正則共同依賴的，改版面時不要順手調換。
+  const cards = [...html.matchAll(/<a class="entry[^"]*" data-primary-entry="[^"]+" href="([^"]+)"[^>]*aria-label="([^"]+)">[\s\S]*?<h2>([^<]+)<\/h2>/g)];
+  // 數量對著 primaryLinks 比，不要再寫死一個數字。兩者標的是同一批元素，
+  // 各自釘一個常數就是兩個事實來源——實測分叉過一次：加第 8 顆入口時條件改成了 8、
+  // 錯誤訊息還留在 7，訊息會反過來誤導下一個人。
+  if (cards.length !== primaryLinks.length) {
+    fail(`index.html has ${cards.length} entry cards but ${primaryLinks.length} data-primary-entry links; every card is its own link`);
   }
-  for (const [, href, ariaLabel, visible] of ctas) {
-    // 可見文字＝「開啟 <路徑>」。路徑本身就是這一頁的辨識詞（topbar 也是這樣列的），
-    // 再複述一次卡片標題只是把同一句話講第二遍。
-    if (visible !== `開啟 ${href}`) {
-      fail(`index.html CTA for ${href} should read 「開啟 ${href}」, got 「${visible}」`);
+  for (const [, href, ariaLabel, title] of cards) {
+    // WCAG 2.5.3 Label in Name：卡片上看得見的標籤就是 <h2>，accessible name
+    // 必須以它開頭，否則語音控制使用者說出畫面上看到的標題會叫不動這張卡。
+    // 實測踩過的是舊版按鈕：可見「開啟機票決策台」、aria-label 卻是
+    //「開啟機票總成本決策台」，而當時六條字面值斷言全綠。
+    if (!ariaLabel.startsWith(title)) {
+      fail(`index.html card for ${href}: aria-label 「${ariaLabel}」 does not start with the visible 「${title}」`);
     }
-    // WCAG 2.5.3：accessible name 必須包含可見文字，否則語音控制使用者
-    // 說出畫面上看到的字會叫不動這顆按鈕。
-    if (!ariaLabel.startsWith(visible)) {
-      fail(`index.html CTA for ${href}: aria-label 「${ariaLabel}」 does not start with the visible 「${visible}」`);
-    }
-    // 而且要比可見文字多說一點——連結被抽出脈絡列表時，只有路徑不足以說明去處。
-    if (ariaLabel.length <= visible.length) {
-      fail(`index.html CTA for ${href}: aria-label adds nothing beyond the visible text`);
+    // 而且要比標題多說一點——連結被抽出脈絡列成一串時，光有標題不足以說明去處。
+    if (!ariaLabel.includes(href)) {
+      fail(`index.html card for ${href}: aria-label 「${ariaLabel}」 should also name the destination path`);
     }
   }
+  // 這兩樣是這次拿掉的東西，釘住不許回來：右上重複一次的路徑列，
+  // 以及每張卡右下那顆「開啟 /xxx/」按鈕（它一度是卡片裡唯一可點的地方）。
+  assertNoMatch("index.html", html, /class="topnav"/, "the duplicated top-right path nav");
+  // 只擋按鈕的樣式與它的**可見文字**（>開啟 /…）。卡片連結的 aria-label 仍然
+  // 要說得出「開啟 /stocks/」，所以不能連 aria-label 裡的那句一起擋掉。
+  assertNoMatch("index.html", html, /class="entry-button"|>開啟 \//, "per-card CTA buttons");
   assertNoMatch("index.html", html, /\/ai\/|AI 供應鏈觀察台|開啟 AI 觀察台|AI Feed/);
   assertNoMatch("index.html", html, /year-archive|categories|tags|works|Blackjw's Blog|Minimal Mistakes|Jekyll|Hackintosh|HomeSpan|Resume/i);
   assertNoMatch("index.html", html, /保證|可放心|買進|賣出|投資建議|安全資訊/);
@@ -239,8 +239,8 @@ if (has("index.html")) {
 
 if (has("stocks/index.html")) {
   const html = await read("stocks/index.html");
-  assertMatch("stocks/index.html", html, /<title>股票投資觀察台｜AI 供應鏈<\/title>/, "stocks title");
-  assertMatch("stocks/index.html", html, /<h1>股票投資觀察台<\/h1>/, "stocks h1");
+  assertMatch("stocks/index.html", html, /<title>股票觀測｜AI 供應鏈<\/title>/, "stocks title");
+  assertMatch("stocks/index.html", html, /<h1>股票觀測<\/h1>/, "stocks h1");
   assertMatch("stocks/index.html", html, /STATIC_STOCK_FEED_URL\s*=\s*"\/data\/stock-risk-feed\.json"/, "absolute stock feed path");
   assertMatch("stocks/index.html", html, /new URL\("https:\/\/tw\.tradingview\.com\/chart\/"\)/, "plain TradingView chart URL");
   assertNoMatch("stocks/index.html", html, /RetailConsole|個人參考基準|\/filings\b|MOPS/i);
@@ -285,7 +285,7 @@ if (has("weather/index.html")) {
 if (has("esp32/index.html")) {
   const html = await read("esp32/index.html");
   assertMatch("esp32/index.html", html, /<html lang="zh-Hant">/, "esp32 document language");
-  assertMatch("esp32/index.html", html, /<title>ESP32 韌體觀察台｜BJKW<\/title>/, "esp32 title");
+  assertMatch("esp32/index.html", html, /<title>ESP32 韌體｜BJKW<\/title>/, "esp32 title");
   assertMatch("esp32/index.html", html, /rel="canonical" href="\/esp32\/"/, "esp32 canonical");
   assertMatch("esp32/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "esp32 manifest");
   assertMatch("esp32/index.html", html, /name="theme-color" content="#101418"/, "esp32 dark theme color");
@@ -301,7 +301,7 @@ if (has("esp32/index.html")) {
 if (has("forscan/index.html")) {
   const html = await read("forscan/index.html");
   assertMatch("forscan/index.html", html, /<html lang="zh-Hant">/, "forscan document language");
-  assertMatch("forscan/index.html", html, /<title>Focus Mk3.5 FORScan 觀察台｜BJKW<\/title>/, "forscan title");
+  assertMatch("forscan/index.html", html, /<title>FORScan 設定｜Focus Mk3.5<\/title>/, "forscan title");
   assertMatch("forscan/index.html", html, /rel="canonical" href="\/forscan\/"/, "forscan canonical");
   assertMatch("forscan/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "forscan manifest");
   assertMatch("forscan/index.html", html, /name="theme-color" content="#101418"/, "forscan dark theme color");
@@ -342,7 +342,7 @@ if (has("forscan/service/index.html")) {
 if (has("flight/index.html")) {
   const html = await read("flight/index.html");
   assertMatch("flight/index.html", html, /<html lang="zh-Hant">/, "flight document language");
-  assertMatch("flight/index.html", html, /<title>機票總成本決策台<\/title>/, "flight title");
+  assertMatch("flight/index.html", html, /<title>機票總成本<\/title>/, "flight title");
   assertMatch("flight/index.html", html, /rel="canonical" href="\/flight\/"/, "flight canonical");
   assertMatch("flight/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "flight manifest");
   // 這一頁刻意用 #0E1621 而不是其他深色頁的 #101418——整套 panel/line 色階是配著它調的，
@@ -389,7 +389,7 @@ if (has("dash/index.html")) {
 if (has("coupon/index.html")) {
   const html = await read("coupon/index.html");
   assertMatch("coupon/index.html", html, /<html lang="zh-Hant">/, "coupon document language");
-  assertMatch("coupon/index.html", html, /<title>優惠疊加試算台｜BJKW<\/title>/, "coupon title");
+  assertMatch("coupon/index.html", html, /<title>優惠疊加｜BJKW<\/title>/, "coupon title");
   assertMatch("coupon/index.html", html, /rel="canonical" href="\/coupon\/"/, "coupon canonical");
   assertMatch("coupon/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "coupon manifest");
   assertMatch("coupon/index.html", html, /name="theme-color" content="#101418"/, "coupon theme color");
@@ -410,7 +410,7 @@ if (has("coupon/index.html")) {
 if (has("subtitle/index.html")) {
   const html = await read("subtitle/index.html");
   assertMatch("subtitle/index.html", html, /<html lang="zh-Hant">/, "subtitle document language");
-  assertMatch("subtitle/index.html", html, /<title>字幕生成台｜BJKW<\/title>/, "subtitle title");
+  assertMatch("subtitle/index.html", html, /<title>字幕生成｜BJKW<\/title>/, "subtitle title");
   assertMatch("subtitle/index.html", html, /rel="canonical" href="\/subtitle\/"/, "subtitle canonical");
   assertMatch("subtitle/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "subtitle manifest");
   assertMatch("subtitle/index.html", html, /name="theme-color" content="#101418"/, "subtitle theme color");
@@ -460,7 +460,7 @@ if (has("subtitle/worker.js")) {
 if (has("convert/index.html")) {
   const html = await read("convert/index.html");
   assertMatch("convert/index.html", html, /<html lang="zh-Hant">/, "convert document language");
-  assertMatch("convert/index.html", html, /<title>萬用轉檔台｜BJKW<\/title>/, "convert title");
+  assertMatch("convert/index.html", html, /<title>檔案轉換｜BJKW<\/title>/, "convert title");
   assertMatch("convert/index.html", html, /<link rel="canonical" href="\/convert\/"/, "convert canonical");
   assertMatch("convert/index.html", html, /<link rel="manifest" href="\/assets\/images\/site\.webmanifest">/, "convert manifest");
   assertMatch("convert/index.html", html, /name="theme-color" content="#101418"/, "convert theme color");

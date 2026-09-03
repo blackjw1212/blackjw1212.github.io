@@ -125,7 +125,7 @@ test("loading the feed populates rows, stamp and 52w footnote", async () => {
   assert.equal(elements.get("hiSince").textContent, "2026-07-01");
   const body = elements.get("mktBody").innerHTML;
   assert.match(body, /台積電/);
-  assert.match(body, /觀察台/, "watchlist codes should be badged");
+  assert.match(body, /觀測中/, "watchlist codes should be badged");
 });
 
 test("the stamp separates real preservation from ordinary missing fields", async () => {
