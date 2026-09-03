@@ -62,28 +62,6 @@ p.note{color:var(--dim);font-size:12.5px;margin:6px 0}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 @media(max-width:520px){.grid3{grid-template-columns:1fr 1fr}}
-/* 手機觸控目標。實測 375px：.lnk 與 button.sm 只有 25px，而「查價網址」
-   「建立方案」「記下」是每一列的主要動作；tabbtn 43、btn/select 42、
-   數字輸入 37、核取方塊 18。核取方塊包在 <label class="chk"> 裡，
-   真正的命中區是那個 label，所以撐 label 不是撐方塊。 */
-@media(max-width:640px){
-  .tabbtn{min-height:44px}
-  button.btn,button.sm,select,textarea,input:not([type=checkbox]){min-height:44px}
-  .lnk{min-height:44px;display:inline-flex;align-items:center}
-  .chk{min-height:44px;padding:0}
-  .chk input{width:22px;height:22px}
-  /* 寫死的 112 / 96px 擺在 flex 列裡，窄螢幕會把整列推寬 */
-  .px,.air .px{width:auto!important;min-width:0;flex:1}
-  #exportBox{min-height:180px}
-  .acbox{max-height:180px}
-  /* grid item 的 min-width 預設是 auto，1fr 擋不住 input[type=date] 的固有寬度：
-     實測 320px 下兩欄各被撐到 135px，整份文件 309 > 可用 305，橫向溢出 4px。
-     必須寫成 minmax(0,1fr)（跟 coupon 那條註解同一個坑）。 */
-  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-}
-/* 再窄就連兩欄都不夠：305px 扣掉 wrap 與 card 的 padding 後每欄只剩 119px，
-   日期欄位塞不下。收單欄。 */
-@media(max-width:360px){.grid{grid-template-columns:1fr}}
 .f{display:flex;flex-direction:column;gap:4px}
 .f label{font-size:11px;color:var(--dim);font-family:var(--mono);letter-spacing:.05em}
 input,select,textarea{background:#0B131C;border:1px solid var(--line);border-radius:5px;color:var(--text);padding:9px 10px;font-size:14px;font-family:var(--sans);width:100%}
@@ -166,6 +144,36 @@ svg.spark{width:100%;height:120px;display:block}
 #urlbox{position:fixed;inset:auto 0 0 0;background:var(--panel2);border-top:1px solid var(--amber);padding:12px 14px;z-index:40;display:none}
 #urlbox.on{display:block}
 #urlbox textarea{min-height:74px;font-family:var(--mono);font-size:11.5px}
+/* 這兩個 media block 必須留在 <style> 的最後。實測踩過：原本插在 .grid 定義的
+   後面，而 input,select,textarea 的基準規則在更後面——同特異度、後者勝，
+   select 的 padding-right 被蓋回 10px，自己畫的下拉箭頭就壓在文字上。 */
+/* 手機觸控目標。實測 375px：.lnk 與 button.sm 只有 25px，而「查價網址」
+   「建立方案」「記下」是每一列的主要動作；tabbtn 43、btn/select 42、
+   數字輸入 37、核取方塊 18。核取方塊包在 <label class="chk"> 裡，
+   真正的命中區是那個 label，所以撐 label 不是撐方塊。 */
+@media(max-width:640px){
+  .tabbtn{min-height:44px}
+  button.btn,button.sm,select,textarea,input:not([type=checkbox]){min-height:44px}
+  /* 真手機實測（2026-09-03）：min-height 對 appearance:menulist 的 select 無效——
+     手機用 UA 的原生控制項度量，量到的是 29–38px 而不是 44。桌機的行動裝置模擬
+     會乖乖套用 min-height，所以模擬跑出來是綠的、真機才紅。
+     appearance:none 之後高度才吃得到，代價是原生箭頭消失，用內嵌 SVG 補回來。 */
+  select{-webkit-appearance:none;appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,#8a97a2 50%),linear-gradient(135deg,#8a97a2 50%,transparent 50%);background-position:right 16px center,right 11px center;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+  .lnk{min-height:44px;display:inline-flex;align-items:center}
+  .chk{min-height:44px;padding:0}
+  .chk input{width:22px;height:22px}
+  /* 寫死的 112 / 96px 擺在 flex 列裡，窄螢幕會把整列推寬 */
+  .px,.air .px{width:auto!important;min-width:0;flex:1}
+  #exportBox{min-height:180px}
+  .acbox{max-height:180px}
+  /* grid item 的 min-width 預設是 auto，1fr 擋不住 input[type=date] 的固有寬度：
+     實測 320px 下兩欄各被撐到 135px，整份文件 309 > 可用 305，橫向溢出 4px。
+     必須寫成 minmax(0,1fr)（跟 coupon 那條註解同一個坑）。 */
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+/* 再窄就連兩欄都不夠：305px 扣掉 wrap 與 card 的 padding 後每欄只剩 119px，
+   日期欄位塞不下。收單欄。 */
+@media(max-width:360px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>

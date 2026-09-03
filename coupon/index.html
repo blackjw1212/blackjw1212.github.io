@@ -122,6 +122,11 @@
     /* 要跟 .field select 的 min-height:40px 同特異度才蓋得過去，
        單寫 select{} 是 (0,0,1) 打不贏 (0,1,1)，實測仍停在 40px。 */
     .field select,.field input[type=number],.field input[type=text]{min-height:44px}
+    /* 真手機實測（2026-09-03）：min-height 對 appearance:menulist 的 select 無效——
+       手機用 UA 的原生控制項度量，量到的是 29–38px 而不是 44。桌機的行動裝置模擬
+       會乖乖套用 min-height，所以模擬跑出來是綠的、真機才紅。
+       appearance:none 之後高度才吃得到，代價是原生箭頭消失，用內嵌 SVG 補回來。 */
+    .field select{-webkit-appearance:none;appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,#8a97a2 50%),linear-gradient(135deg,#8a97a2 50%,transparent 50%);background-position:right 16px center,right 11px center;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
     /* 每條規則底下的來源連結是密集的次要資訊，取 WCAG 2.5.8 的 24px 下限
        而不是 44px——五條各撐 44px 只會把這頁再拉長一截。 */
     .rule-src{min-height:24px;display:inline-flex;align-items:center}

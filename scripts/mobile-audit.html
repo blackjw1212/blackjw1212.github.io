@@ -165,7 +165,16 @@ function auditDocument(win) {
 
     const height = target.getBoundingClientRect().height;
     if (height < MIN_TAP) {
-      failures.push(`${label(el)}${target !== el ? "→" + label(target) : ""} = ${Math.round(height)}px`);
+      /* 連 computed style 一起回報。真手機實測過：<select> 的 min-height 會被 UA
+         忽略（appearance:menulist 用原生控制項度量，桌機模擬卻會乖乖套用），
+         報告只寫「34px」的話看不出是「規則沒寫」還是「寫了但被忽略」——
+         那兩件事的修法完全不同，前者補規則、後者要先 appearance:none。 */
+      const style = win.getComputedStyle(target);
+      const declared = parseFloat(style.minHeight);
+      const why = declared > height + 0.5
+        ? ` ⚠ min-height:${style.minHeight} 沒生效（appearance:${style.appearance}）`
+        : ` (min-height:${style.minHeight}, appearance:${style.appearance})`;
+      failures.push(`${label(el)}${target !== el ? "→" + label(target) : ""} = ${Math.round(height)}px${why}`);
     }
   }
 

@@ -87,6 +87,12 @@
        ——WCAG 2.5.8 對「句子裡的連結」有豁免，硬撐只會把行高撐開更難讀。 */
     .back{min-height:44px;display:inline-flex;align-items:center}
     .btn,.picker,select,input[type=file],input[type=text],input[type=number]{min-height:44px}
+    /* 真手機實測（2026-09-03）：min-height 對 appearance:menulist 的 select 無效——
+       手機用 UA 的原生控制項度量，量到的是 29–38px 而不是 44。桌機的行動裝置模擬
+       會乖乖套用 min-height，所以模擬跑出來是綠的、真機才紅。
+       appearance:none 之後高度才吃得到，代價是原生箭頭消失，用內嵌 SVG 補回來。 */
+    /* .picker select 是 (0,1,1)，單寫 select{} 蓋不過它的 padding，實測箭頭會壓到文字 */
+    select,.picker select{-webkit-appearance:none;appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,#8a97a2 50%),linear-gradient(135deg,#8a97a2 50%,transparent 50%);background-position:right 16px center,right 11px center;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
     /* 手機刻度：hero 26→16、卡片 16→14、h1 下限 28→22。
        clamp 的下限在 375px 恆生效，28px 會讓一個長標題吃掉三行。 */
     .topbar{gap:10px}
