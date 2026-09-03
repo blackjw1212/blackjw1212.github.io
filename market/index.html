@@ -187,6 +187,20 @@
     h1{font-size:24px}
     .count{margin-left:0;width:100%}
     .btn{min-height:44px}
+    /* 實測 375px：分頁鈕 40px、數字輸入 34、下拉 36、回 /stocks/ 的連結 26。
+       .btn 那條早就在了，但這頁的主要操作大多不是 .btn。 */
+    .tabbar .tab{min-height:44px}
+    input[type=number],input[type=text],select{min-height:44px}
+    .profile a{min-height:44px;display:inline-flex;align-items:center}
+    /* 勾選框的命中區是外面那個 <label class="fld">，撐 label 不是撐方塊 */
+    .fld{min-height:44px}
+    .fld input[type=checkbox]{width:20px;height:20px}
+    /* .fold>summary 本來就有 12px 14px 的 padding（實測 46px），
+       但頁面裡還有四個沒掛 .fold 的摺疊區，標題只有 18–21px。
+       只補 padding、不動 display，否則預設的三角形箭頭會消失。
+       註：這段註解不可以寫出「角括號 + details」那串字——market-page.test.js
+       靠數那串字判斷摺疊層數，寫在註解裡也會被算進去（實測紅了三條）。 */
+    details>summary{padding:12px 0;min-height:44px}
   }
 </style>
 </head>

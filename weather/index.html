@@ -980,9 +980,15 @@ body {
   border-radius: var(--radius-sm);
 }
 @media (pointer: coarse) {
+  /* .ext-link 是資料回來後才渲染出來的（沿海預報那顆 CTA），實測只有 20px，
+     靜態掃描看不到它，要等 fetch 完成才量得到。
+     .radar-link 不必列進來——它用 padding-block:15px + margin-block:-15px
+     自己把熱區撐到 45px 而不動標題列高度，那個做法比 min-height 更好。 */
   #coastSelect,
   .collapse-summary,
+  .ext-link,
   .future-tide-summary { min-height: 44px; }
+  .ext-link { display: inline-flex; align-items: center; }
 }
 
 /* ─── Tablet（768+）：進入 dashboard grid ─────────────────

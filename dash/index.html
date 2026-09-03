@@ -72,6 +72,10 @@
   .brand-kicker{font-family:var(--mono);color:var(--yellow);font-size:10px;line-height:1.1;letter-spacing:.08em}
   .brand-title{font-weight:700;font-size:14px}
   .back{color:var(--faint);font-family:var(--mono);font-size:12px;text-decoration:none}
+/* 返回鍵實測只有 18px。這頁沒有任何 max-width 斷點（只有 min-width:760px），
+   改基準規則會連桌機的 topbar 一起長高 12px，所以照 /weather/ 的做法用
+   pointer:coarse——真的用手指點的裝置才撐開。 */
+@media (pointer:coarse){.back{min-height:44px;display:inline-flex;align-items:center}}
   .back:hover{color:var(--cyan)}
   .back:focus-visible,button:focus-visible{outline:3px solid rgba(34,211,238,.75);outline-offset:3px}
 
