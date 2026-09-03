@@ -182,11 +182,51 @@
   footer{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-family:"Roboto Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
   footer b{color:var(--soft)}
 
+  /* 配置產生器的手機版卡片。桌機維持那張 15 欄的表格，手機把**同樣的欄位**
+     重排成資訊矩陣——實測 375px 下那張表是 1,242px 寬、塞在 315px 的橫捲容器裡，
+     要橫拉四個畫面才看得完一列，等於沒辦法比較。欄位一個都沒有減少，
+     只是換一種排法；兩邊由下面 760px 的 display 切換，同一份資料兩種版面。 */
+  .pick-cards{display:none}
+  .pick-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px 12px;margin-top:8px}
+  /* 權重最高的那檔獨立標示。picks 由最佳化器按權重降序給出，pick[0] 就是它。 */
+  .pick-card.pick-top{border-color:var(--amber);background:rgba(217,166,76,.06)}
+  .pick-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px}
+  .pick-badge{font-family:"Roboto Mono",monospace;color:var(--faint)}
+  .pick-top .pick-badge{color:var(--amber);font-weight:700}
+  .pick-type{color:var(--faint)}
+  .pick-id{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px;margin-top:4px;font-weight:700}
+  .pick-hero{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px;margin-top:6px}
+  .pick-hero>div{display:flex;align-items:baseline;gap:6px}
+  .pick-hero b{color:var(--faint);font-weight:500;font-size:11px;font-family:"Roboto Mono",monospace}
+  .pick-pct{font-family:"Roboto Mono",monospace;font-size:24px;font-weight:700;line-height:1.1}
+  .pick-top .pick-pct{color:var(--amber)}
+  .pick-ret{font-family:"Roboto Mono",monospace;font-size:16px;font-weight:700}
+  .pick-split{margin-top:3px;font-size:11px;color:var(--faint);font-family:"Roboto Mono",monospace}
+  /* 六格兩欄；發放月的值可能是「1·4·7·10」，給它整列 */
+  .pick-meta{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px 10px;margin-top:8px;font-size:12px;font-family:"Roboto Mono",monospace}
+  .pick-meta>div{grid-column:span 3;display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0;border-bottom:1px solid var(--line);padding-bottom:2px}
+  .pick-meta>div.wide{grid-column:span 6}
+  /* 320px 下半格只有 ≈128px，而「近12月殖利率 11.99%」與「近24月配息波動 0.56」
+     這兩格的標籤就吃掉 84px，實測會被擠出格子。窄螢幕給它們整列。
+     用 nth-child 而不是加 class：兩格在上面的 cell() 呼叫裡是相鄰的第 3、4 個，
+     順序一改這條就要跟著改——所以標籤名寫在這裡當對照。 */
+  @media (max-width:360px){
+    .pick-meta>div:nth-child(3),.pick-meta>div:nth-child(4){grid-column:span 6}
+  }
+  .pick-meta b{color:var(--faint);font-weight:500;white-space:nowrap}
+  .pick-score{margin-top:7px;font-size:11px;color:var(--soft)}
+  .pick-score b{color:var(--faint);font-weight:500;margin-right:6px}
+  /* 第 6 名以後改成單行高密度列（最佳化器通常只給 2–5 檔，這是保險） */
+  .pick-row{display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--line);padding:8px 0;font-size:12px;font-family:"Roboto Mono",monospace}
+  .pick-row .pick-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pick-row .pick-w{font-weight:700}
   @media (max-width:760px){
     .wrap{padding:0 14px}
     h1{font-size:24px}
     .count{margin-left:0;width:100%}
     .btn{min-height:44px}
+    .pick-cards{display:block}
+    .pick-table{display:none}
     /* 實測 375px：分頁鈕 40px、數字輸入 34、下拉 36、回 /stocks/ 的連結 26。
        .btn 那條早就在了，但這頁的主要操作大多不是 .btn。 */
     .tabbar .tab{min-height:44px}
@@ -3677,10 +3717,51 @@ function runSuggest(){
       + '那是<b>持續上漲的最佳情境</b>；震盪盤會因波動損耗持續侵蝕淨值，跌時同樣是兩倍。'
       + '近一年波動 56%、最大回撤 −31%，都是 0050 的兩倍。</div>'
     : '';
+  // 手機版卡片：欄位與下面那張表一模一樣，只是重排。picks 已按權重降序，
+  // 所以 pick[0] 就是「配置裡權重最高的那檔」——標題只講權重，不講「推薦」，
+  // 那是最佳化器對某個目標的解，不是建議。
+  const pickCardsHtml = function(){
+    const cell = function(label, value, wide){ return '<div' + (wide ? ' class="wide"' : '') + '><b>' + label + '</b>' + value + '</div>'; };
+    const tone = function(value, textValue){ return value == null ? "—" : '<span class="' + toneClass(value) + '">' + textValue + '</span>'; };
+    return '<div class="pick-cards">' + out.picks.map(function(pick, index){
+      const etf = pick.etf;
+      const totalRet = etf.totalReturn1y;
+      if (index >= 5) {
+        return '<div class="pick-row"><span>' + (index + 1) + '</span>'
+          + '<span class="pick-name">' + codeLink(pick.code, etf.market, pick.name) + ' ' + escapeHtml(pick.name) + '</span>'
+          + '<span class="pick-w">' + pick.pct + '%</span>'
+          + '<span>' + (totalRet == null ? "—" : tone(totalRet, signed(totalRet, 1) + '%')) + '</span></div>';
+      }
+      const divPart = totalRet == null ? null : Math.round((totalRet - etf.priceReturn1y) * 10) / 10;
+      return '<article class="pick-card' + (index === 0 ? ' pick-top' : '') + '">'
+        + '<div class="pick-head"><span class="pick-badge">'
+          + (index === 0 ? '\u{1F3C6} 權重最高' : '第 ' + (index + 1) + ' 順位')
+          + '</span><span class="pick-type">' + escapeHtml(etf.type) + '</span></div>'
+        + '<div class="pick-id">' + codeLink(pick.code, etf.market, pick.name)
+          + '<span class="nm">' + escapeHtml(pick.name) + '</span></div>'
+        + '<div class="pick-hero"><div><b>配置權重</b><span class="pick-pct">' + pick.pct + '%</span></div>'
+          + '<div><b>近1年總報酬</b>' + (totalRet == null
+              ? '<span class="stale">—</span>'
+              : '<span class="pick-ret ' + toneClass(totalRet) + '">' + signed(totalRet, 1) + '%</span>') + '</div></div>'
+        + (totalRet == null ? '' : '<div class="pick-split">其中　價差 ' + signed(etf.priceReturn1y, 1) + '%　配息 ' + signed(divPart, 1) + '%</div>')
+        + '<div class="pick-meta">'
+          + cell("年化波動", etf.volatility1y == null ? "—" : fmt(etf.volatility1y, 1) + '%')
+          + cell("最大回撤", tone(etf.maxDrawdown1y, etf.maxDrawdown1y == null ? "" : fmt(etf.maxDrawdown1y, 1) + '%'))
+          + cell("近12月殖利率", etf.yield == null ? "—" : fmt(etf.yield, 2) + '%')
+          + cell("近24月配息波動", cvText(etf))
+          + cell("折溢價", tone(etf.discountPremium, etf.discountPremium == null ? "" : signed(etf.discountPremium, 2) + '%'))
+          + cell("規模", etf.aum == null ? "—" : fmt(etf.aum, 0) + ' 億')
+          + cell("發放月", (etf.payMonths || []).length ? etf.payMonths.join("·") : "—", true)
+        + '</div>'
+        + '<div class="pick-score"><b>六維評分</b>' + scoreCell(etf) + '</div>'
+        + '</article>';
+    }).join("") + '</div>';
+  };
   box.innerHTML = '<div class="backtest-warn">近一年<b>回測</b>數字，不是預測。過去漲得多不代表接下來會漲——'
       + '以總報酬為目標等於「買去年表現最好的」，請把它當成比較的起點而不是結論。</div>'
     + leverageWarn
-    + '<div class="table-scroll" style="margin-top:10px"><table style="min-width:860px"><thead><tr>'
+    + pickCardsHtml()
+    + '<div class="table-scroll pick-table" style="margin-top:10px"><table style="min-width:860px"><thead><tr>'
       + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th>'
       + '<th>近1年總報酬</th><th>其中價差</th><th>其中配息</th><th>年化波動</th><th>最大回撤</th>'
       + '<th title="相對於候選池其他標的的百分位，0~10；管理費優勢無資料來源故不評分">六維評分</th>'
