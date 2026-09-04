@@ -58,6 +58,9 @@ test("頁面公開的 helper 契約", async () => {
   assert.equal(app.helpers.CATEGORIES, undefined, "分類不再掛在單品上");
   assert.deepEqual(plain(app.helpers.UNITS).map((row) => row.id), ["包", "杯", "克", "匙"]);
   assert.deepEqual(plain(app.helpers.WATER_TYPES), ["淡水", "海水"]);
+  for (const name of ["SPECIES_NAMES", "watersOf", "speciesForWaters"]) {
+    assert.ok(app.helpers[name], `缺 helper: ${name}`);
+  }
 });
 
 // 這一頁刻意沒有試算。留著半套（有欄位沒資料）比沒有更糟：畫面會一路掛著
@@ -72,6 +75,9 @@ test("沒有任何試算或審查的殘留", async () => {
     assert.equal(app.helpers[gone], undefined, `${gone} 不該還在`);
   }
   assert.doesNotMatch(html, /expectedFlowRate|gramsPerCup|foggingRate|viscosity|recommendedWaterRatio|shrimpRatio|shrimpStatus/);
+  // 加水量與熟成時間現場依狀況調整，寫進固定欄位只會記到一個不準的數字
+  assert.doesNotMatch(html, /waterAmount|waterUnit|prepLeadTimeMinutes|熟成／放置（分鐘）/);
+  assert.equal(plain(app.helpers.sanitizeRecipe({ title: "x", items: [], waterAmount: 3, prepLeadTimeMinutes: 5 }, null)).waterAmount, undefined);
   // 重量與價格是記著用的欄位，但不得長出任何用它們算的東西
   assert.doesNotMatch(html, /costPerGram|每克成本|總成本/);
   const item = plain(app.helpers.sanitizeItem({
@@ -81,15 +87,58 @@ test("沒有任何試算或審查的殘留", async () => {
   assert.deepEqual(Object.keys(item).sort(), ["flavorProfile", "id", "imageUrl", "name", "notes", "packWeightG", "targetSpecies", "unitPrice", "waterTypes"]);
 });
 
-test("魚種與水域詞彙表", async () => {
+test("每個目標都要有棲息水域，而且只能是淡水或海水", async () => {
   const { app } = await loadPage();
-  const water = plain(app.helpers.SPECIES_WATER);
-  // 每個魚種都要有水域歸屬，否則分組時會落到「其他」而沒人發現
-  for (const name of plain(app.helpers.SPECIES)) {
-    assert.ok(["淡水", "海水"].includes(water[name]), `${name} 沒有水域歸屬`);
+  const species = plain(app.helpers.SPECIES);
+  assert.ok(species.length >= 11, "清單太短了");
+  for (const row of species) {
+    assert.ok(row.name, "有一筆沒有名字");
+    assert.ok(Array.isArray(row.waters) && row.waters.length, `${row.name} 沒有棲息水域`);
+    for (const water of row.waters) {
+      assert.ok(["淡水", "海水"].includes(water), `${row.name} 的水域「${water}」不在詞彙表裡`);
+    }
   }
-  assert.equal(water["福壽魚"], "淡水");
-  assert.equal(water["黑鯛"], "海水");
+  assert.deepEqual(plain(app.helpers.SPECIES_NAMES), species.map((row) => row.name));
+});
+
+// 查證於 2026-09-04。這些是會被誤分的幾個，錯了會讓現場選不到或選到不可能的魚。
+test("棲息水域的分類要對得上查到的資料", async () => {
+  const { app } = await loadPage();
+  const w = (name) => plain(app.helpers.watersOf(name));
+  // 廣鹽性／河口：淡海皆有
+  assert.deepEqual(w("福壽魚"), ["淡水", "海水"], "吳郭魚廣鹽性，淡水到 35–40ppt 海水都活");
+  assert.deepEqual(w("黑鯛"), ["淡水", "海水"], "黑棘鯛廣鹽性，幼魚常在河口半淡鹹水域");
+  assert.deepEqual(w("豆仔"), ["淡水", "海水"], "大鱗鮻棲息含河口與淡水");
+  // 只在淡水
+  for (const name of ["鯽魚", "鯉魚", "泰國蝦"]) {
+    assert.deepEqual(w(name), ["淡水"], `${name} 只在淡水`);
+  }
+  // 只在海水：礁區魚不會在淡水出現
+  for (const name of ["黑毛", "白毛", "臭肚", "竹莢魚", "石斑"]) {
+    assert.deepEqual(w(name), ["海水"], `${name} 只在海水`);
+  }
+  assert.deepEqual(w("不存在的魚"), []);
+});
+
+test("選了水域之後，魚種清單只留那個水域釣得到的", async () => {
+  const { app } = await loadPage();
+  const names = (waters, chosen) => plain(app.helpers.speciesForWaters(waters, chosen)).map((row) => row.name);
+
+  const fresh = names(["淡水"], []);
+  assert.ok(fresh.includes("鯽魚") && fresh.includes("福壽魚"), "淡水應該有鯽魚與福壽魚");
+  for (const name of ["黑毛", "白毛", "臭肚", "竹莢魚", "石斑"]) {
+    assert.ok(!fresh.includes(name), `${name} 不該出現在淡水的選單裡`);
+  }
+  const sea = names(["海水"], []);
+  assert.ok(sea.includes("黑毛") && sea.includes("黑鯛"));
+  for (const name of ["鯽魚", "鯉魚", "泰國蝦"]) {
+    assert.ok(!sea.includes(name), `${name} 不該出現在海水的選單裡`);
+  }
+  // 沒選水域就全給
+  assert.equal(names([], []).length, plain(app.helpers.SPECIES).length);
+  assert.equal(names(["淡水", "海水"], []).length, plain(app.helpers.SPECIES).length);
+  // 已經勾起來的一律保留，否則它會從畫面消失卻還留在資料裡，連取消都取消不掉
+  assert.ok(names(["淡水"], ["臭肚"]).includes("臭肚"), "已勾選的要留著才取消得掉");
 });
 
 test("份量照原樣顯示，不做任何換算", async () => {
@@ -177,7 +226,7 @@ test("sanitizeRecipe：丟掉指向不存在單品的列與非正數用量", asy
   const { app } = await loadPage();
   const recipe = plain(app.helpers.sanitizeRecipe({
     title: "  ", createdAt: "壞日期", rating: 99, caughtTarget: "yes",
-    targetWaterTypes: ["淡水", "亂填"], waterAmount: -5, waterUnit: "亂填",
+    targetWaterTypes: ["淡水", "亂填"],
     items: [
       { itemId: "a", amount: 2, unit: "包" },
       { itemId: "ghost", amount: 1, unit: "包" },
@@ -190,8 +239,6 @@ test("sanitizeRecipe：丟掉指向不存在單品的列與非正數用量", asy
   assert.equal(recipe.rating, 5);
   assert.equal(recipe.caughtTarget, false, "只有布林 true 才算中魚");
   assert.deepEqual(recipe.targetWaterTypes, ["淡水"]);
-  assert.equal(recipe.waterAmount, 0);
-  assert.equal(recipe.waterUnit, "包");
   assert.deepEqual(recipe.items.map((row) => row.itemId), ["a", "b"]);
   assert.equal(recipe.items[1].unit, "包", "認不得的單位退回第一個");
 });
@@ -207,7 +254,7 @@ test("sanitizeState：單品去重、配方跟著已知單品收斂", async () =
   assert.equal(state.recipes.length, 1);
   assert.deepEqual(state.recipes[0].items.map((row) => row.itemId), ["a"], "b 不在單品庫裡就不該留下");
   assert.deepEqual(state.draft.items, []);
-  assert.equal(state.version, 4);
+  assert.equal(state.version, 5);
   assert.equal(app.helpers.sanitizeState(null), null);
 });
 
@@ -219,7 +266,7 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
   });
   const payload = plain(app.helpers.exportPayload(state));
   assert.equal(payload.kind, "bjkw-bait");
-  assert.equal(payload.version, 4);
+  assert.equal(payload.version, 5);
 
   const roundTrip = app.helpers.importPayload(JSON.stringify(payload));
   assert.equal(roundTrip.ok, true);
@@ -228,7 +275,7 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
 
   assert.match(app.helpers.importPayload("{ 壞掉的 json").reason, /JSON/);
   assert.match(app.helpers.importPayload(JSON.stringify({ items: [] })).reason, /kind/);
-  const oldVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 3 }));
+  const oldVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 4 }));
   assert.equal(oldVersion.ok, false);
   assert.match(oldVersion.reason, /沒有自動轉換/);
 });
@@ -289,6 +336,9 @@ test("紀錄的組成在寬螢幕要能一列放多項，備註要完整顯示",
   assert.match(html, /\.log-parts\{[^}]*grid-template-columns:repeat\(auto-fill,minmax\(260px,1fr\)\)/,
     "組成清單要用 auto-fill 決定欄數，不是固定單欄");
   assert.match(html, /function autoGrow\(/, "配方備註要撐到 scrollHeight，不要留在固定高度捲動");
+  // 開餌那頁的備註也一樣，不能只有紀錄那邊會撐
+  assert.match(html, /\$\("recipeNotes"\)\.addEventListener\("input"/, "開餌的備註要跟著輸入撐高");
+  assert.match(html, /autoGrow\(\$\("recipeNotes"\)\)/, "開餌的備註在載入既有內容時就要撐開");
   assert.match(html, /\.log-body textarea\{overflow:hidden/, "撐高之後不該再出現捲軸");
   assert.match(html, /row-spec/, "組成列要顯示整包重量與價格");
   assert.match(html, /row-note/, "組成列要顯示單品備註");
