@@ -254,6 +254,30 @@ test("內建的預設資料經得起 sanitize，沒有一項被丟掉", async ()
   }
 });
 
+// 之前三種失敗都印同一句「照片太多」。最常見的那種（整個網域被站上其他頁吃滿）
+// 根本不是照片的問題，照著訊息刪圖也不會好。
+test("存檔失敗要說得出真正的原因", async () => {
+  const { html } = await loadPage();
+  assert.match(html, /function saveError\(/, "應該有一個把失敗原因翻成人話的函式");
+  for (const reason of ["no-storage", "serialize", "too-big", "quota"]) {
+    assert.ok(html.includes(`"${reason}"`), `save 應該分辨得出 ${reason}`);
+  }
+  assert.doesNotMatch(html, /存不進瀏覽器：資料量超過上限（多半是照片太多）/, "那句話對三種失敗都印，是錯的");
+  assert.match(html, /整個網域的儲存空間滿了/, "quota 要講網域共用，不要怪照片");
+});
+
+test("預設資料補上包裝重量之後，要有辦法送到已經存過的人手上", async () => {
+  const { app, html } = await loadPage();
+  // 種子只在第一次開啟時帶入，所以改了種子對已存過的人不生效——那顆按鈕是唯一出口
+  assert.match(html, /id="reseed"/);
+  const seed = plain(app.helpers.seed());
+  const withWeight = seed.items.filter((item) => item.packWeightG !== null);
+  assert.ok(withWeight.length >= 6, `預設資料應該帶著包裝重量，目前只有 ${withWeight.length} 筆`);
+  for (const item of withWeight) {
+    assert.ok(item.packWeightG > 0, `${item.name} 的重量應該是正數`);
+  }
+});
+
 test("頁面結構的硬性前提", async () => {
   const { html } = await loadPage();
   assert.match(html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "主 script 必須緊貼 </body>");
