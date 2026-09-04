@@ -35,11 +35,11 @@ async function loadPage() {
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 const ITEM_A = {
-  id: "a", name: "福壽紅餌", category: "GROUNDBAIT",
+  id: "a", name: "福壽紅餌", packWeightG: 1000, unitPrice: 200,
   flavorProfile: ["腥"], targetSpecies: ["福壽魚"], waterTypes: ["淡水"],
 };
 const ITEM_B = {
-  id: "b", name: "誘粉", category: "ADDITIVE",
+  id: "b", name: "誘粉",
   flavorProfile: ["香"], targetSpecies: [], waterTypes: [],
 };
 const byId = { a: ITEM_A, b: ITEM_B };
@@ -54,7 +54,8 @@ test("頁面公開的 helper 契約", async () => {
     assert.equal(typeof app.helpers[name], "function", `缺 helper: ${name}`);
   }
   assert.equal(typeof app.init, "function");
-  assert.deepEqual(plain(app.helpers.CATEGORIES).map((row) => row.id), ["MAIN_BAIT", "GROUNDBAIT", "ADDITIVE"]);
+  assert.deepEqual(plain(app.helpers.PURPOSES).map((row) => row.id), ["MAIN_BAIT", "GROUNDBAIT"]);
+  assert.equal(app.helpers.CATEGORIES, undefined, "分類不再掛在單品上");
   assert.deepEqual(plain(app.helpers.UNITS).map((row) => row.id), ["包", "杯", "克", "匙"]);
   assert.deepEqual(plain(app.helpers.WATER_TYPES), ["淡水", "海水"]);
 });
@@ -70,12 +71,14 @@ test("沒有任何試算或審查的殘留", async () => {
   ]) {
     assert.equal(app.helpers[gone], undefined, `${gone} 不該還在`);
   }
-  assert.doesNotMatch(html, /expectedFlowRate|gramsPerCup|packWeightG|unitPrice|foggingRate|viscosity|recommendedWaterRatio|shrimpRatio|shrimpStatus/);
+  assert.doesNotMatch(html, /expectedFlowRate|gramsPerCup|foggingRate|viscosity|recommendedWaterRatio|shrimpRatio|shrimpStatus/);
+  // 重量與價格是記著用的欄位，但不得長出任何用它們算的東西
+  assert.doesNotMatch(html, /costPerGram|每克成本|總成本/);
   const item = plain(app.helpers.sanitizeItem({
-    name: "殘留測試", unitPrice: 100, packWeightG: 500, gramsPerCup: 250,
+    name: "殘留測試", gramsPerCup: 250, category: "ADDITIVE",
     viscosity: 5, foggingRate: 1, sinkingSpeed: "FAST", recommendedWaterRatio: 0.5,
   }));
-  assert.deepEqual(Object.keys(item).sort(), ["category", "flavorProfile", "id", "imageUrl", "name", "notes", "targetSpecies", "waterTypes"]);
+  assert.deepEqual(Object.keys(item).sort(), ["flavorProfile", "id", "imageUrl", "name", "notes", "packWeightG", "targetSpecies", "unitPrice", "waterTypes"]);
 });
 
 test("魚種與水域詞彙表", async () => {
@@ -108,6 +111,27 @@ test("步進值：包／杯／匙是 0.5，克是 50", async () => {
   assert.equal(app.helpers.stepOf("亂填"), 0.5);
 });
 
+test("重量與價格：沒填是 null，不用 0 頂替", async () => {
+  const { app } = await loadPage();
+  const filled = plain(app.helpers.sanitizeItem({ name: "有填", packWeightG: "1000", unitPrice: "200" }));
+  assert.equal(filled.packWeightG, 1000);
+  assert.equal(filled.unitPrice, 200);
+  // 0 元跟「還沒填」在畫面上是兩件事，兩者都收斂成 null 由畫面說「未填」
+  for (const raw of [{}, { packWeightG: "", unitPrice: "" }, { packWeightG: 0, unitPrice: 0 }, { packWeightG: -5, unitPrice: "abc" }]) {
+    const item = plain(app.helpers.sanitizeItem(Object.assign({ name: "沒填" }, raw)));
+    assert.equal(item.packWeightG, null, JSON.stringify(raw));
+    assert.equal(item.unitPrice, null, JSON.stringify(raw));
+  }
+});
+
+test("用途掛在配方上而不是單品上", async () => {
+  const { app } = await loadPage();
+  assert.deepEqual(plain(app.helpers.PURPOSES).map((row) => row.label), ["主餌", "A撒（Esa）"]);
+  assert.equal(plain(app.helpers.sanitizeRecipe({ title: "x", purpose: "GROUNDBAIT", items: [] }, null)).purpose, "GROUNDBAIT");
+  assert.equal(plain(app.helpers.sanitizeRecipe({ title: "x", purpose: "亂填", items: [] }, null)).purpose, "MAIN_BAIT", "認不得的用途退回主餌");
+  assert.equal(plain(app.helpers.sanitizeItem({ name: "單品", purpose: "MAIN_BAIT" })).purpose, undefined);
+});
+
 test("配方組成攤平；指向已刪除單品的列進 missing 而不是安靜消失", async () => {
   const { app } = await loadPage();
   const parts = plain(app.helpers.recipeParts({
@@ -130,14 +154,13 @@ test("sanitizeItem：名稱必填，列舉值對不上就退回預設，圖片�
   assert.equal(app.helpers.sanitizeItem(null), null);
 
   const item = plain(app.helpers.sanitizeItem({
-    id: "x", name: " 新料 ", category: "亂填",
+    id: "x", name: " 新料 ",
     flavorProfile: ["腥", "腥", "不存在的味型"],
     targetSpecies: ["福壽魚", "外星魚"],
     waterTypes: "不是陣列",
     imageUrl: "javascript:alert(1)",
   }));
   assert.equal(item.name, "新料");
-  assert.equal(item.category, "GROUNDBAIT");
   assert.deepEqual(item.flavorProfile, ["腥"]);
   assert.deepEqual(item.targetSpecies, ["福壽魚"]);
   assert.deepEqual(item.waterTypes, []);
@@ -179,7 +202,7 @@ test("sanitizeState：單品去重、配方跟著已知單品收斂", async () =
   assert.equal(state.recipes.length, 1);
   assert.deepEqual(state.recipes[0].items.map((row) => row.itemId), ["a"], "b 不在單品庫裡就不該留下");
   assert.deepEqual(state.draft.items, []);
-  assert.equal(state.version, 3);
+  assert.equal(state.version, 4);
   assert.equal(app.helpers.sanitizeState(null), null);
 });
 
@@ -191,7 +214,7 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
   });
   const payload = plain(app.helpers.exportPayload(state));
   assert.equal(payload.kind, "bjkw-bait");
-  assert.equal(payload.version, 3);
+  assert.equal(payload.version, 4);
 
   const roundTrip = app.helpers.importPayload(JSON.stringify(payload));
   assert.equal(roundTrip.ok, true);
@@ -200,7 +223,7 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
 
   assert.match(app.helpers.importPayload("{ 壞掉的 json").reason, /JSON/);
   assert.match(app.helpers.importPayload(JSON.stringify({ items: [] })).reason, /kind/);
-  const oldVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 2 }));
+  const oldVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 3 }));
   assert.equal(oldVersion.ok, false);
   assert.match(oldVersion.reason, /沒有自動轉換/);
 });
@@ -226,6 +249,9 @@ test("內建的預設資料經得起 sanitize，沒有一項被丟掉", async ()
     if (item.imageUrl) assert.match(item.imageUrl, /^data:image\//);
   }
   assert.ok(state.items.some((item) => item.imageUrl), "預設資料應該帶著商品縮圖");
+  for (const recipe of state.recipes) {
+    assert.ok(["MAIN_BAIT", "GROUNDBAIT"].includes(recipe.purpose), `配方「${recipe.title}」的用途不對`);
+  }
 });
 
 test("頁面結構的硬性前提", async () => {
@@ -238,4 +264,8 @@ test("頁面結構的硬性前提", async () => {
   assert.equal((html.match(/class="tab(?: on)?"/g) || []).length, 3);
   assert.match(html, /id="mixWaterTypes"/);
   assert.match(html, /id="itemWaterTypes"/);
+  assert.match(html, /id="recipePurpose"/);
+  assert.match(html, /id="itemPack"/);
+  assert.match(html, /id="itemPrice"/);
+  assert.doesNotMatch(html, /id="itemCategory"/, "分類選單不該還在單品表單裡");
 });
