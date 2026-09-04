@@ -501,11 +501,12 @@ if (has("bait/index.html")) {
   assertNoMatch("bait/index.html", html.slice(html.indexOf("<body")), /https?:\/\//, "bait external endpoints");
   assertNoMatch("bait/index.html", html, /\bfetch\s*\(|XMLHttpRequest|sendBeacon/, "bait outbound request paths");
 
-  // 這頁刻意是一本紀錄簿，不做試算也不做建議：份量只照原樣記著，不換算。
-  // 一旦要換算就得先有「每包幾克」，那個數字包裝上沒印、實際也沒人會去量，
-  // 半套的結果是畫面一路掛著「換算不出重量」。把「不換算」釘成契約。
-  assertMatch("bait/index.html", html, /不做任何試算或建議/, "bait must stay a plain logbook");
-  assertMatch("bait/index.html", html, /系統不替你換算/, "bait must not convert between units");
+  // 這頁不給開餌建議，唯一會算的是錢。而錢只算得出用「克」或「包」記的那幾列——
+  // 杯與匙沒有可靠的換算（同一個量杯裝紅餌與裝魔粒差很多），把那些當 0 加進去
+  // 等於謊報一個偏低的總價。所以「算不出來要說出來」是契約的一部分。
+  assertMatch("bait/index.html", html, /不給任何開餌建議/, "bait must not advise, only record");
+  assertMatch("bait/index.html", html, /杯與匙沒有可靠的換算/, "bait must disclose which units cannot be costed");
+  assertMatch("bait/index.html", html, /那幾列不列入總價/, "bait must disclose that uncostable rows are excluded");
   // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
   // 「單品庫」與「紀錄」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
   assertMatch("bait/index.html", html, /<div class="tabbar"/, "bait tab bar class drives the mobile audit walker");
