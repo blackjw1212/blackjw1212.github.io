@@ -501,9 +501,11 @@ if (has("bait/index.html")) {
   assertNoMatch("bait/index.html", html.slice(html.indexOf("<body")), /https?:\/\//, "bait external endpoints");
   assertNoMatch("bait/index.html", html, /\bfetch\s*\(|XMLHttpRequest|sendBeacon/, "bait outbound request paths");
 
-  // 量杯換克需要每個單品自己的密度，這頁刻意不替使用者猜。猜錯的話成本與綜合
-  // 比重會一起錯，而畫面上看起來完全正常——所以把「不猜」釘成契約。
-  assertMatch("bait/index.html", html, /沒填的單品只提供重量輸入，這裡不替你猜密度/, "bait must not guess bulk density");
+  // 這頁刻意是一本紀錄簿，不做試算也不做建議：份量只照原樣記著，不換算。
+  // 一旦要換算就得先有「每包幾克」，那個數字包裝上沒印、實際也沒人會去量，
+  // 半套的結果是畫面一路掛著「換算不出重量」。把「不換算」釘成契約。
+  assertMatch("bait/index.html", html, /不做任何試算或建議/, "bait must stay a plain logbook");
+  assertMatch("bait/index.html", html, /系統不替你換算/, "bait must not convert between units");
   // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
   // 「單品庫」與「紀錄」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
   assertMatch("bait/index.html", html, /<div class="tabbar"/, "bait tab bar class drives the mobile audit walker");
