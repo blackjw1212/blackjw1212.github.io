@@ -134,6 +134,7 @@
   .log-parts .row-main{display:flex;flex-direction:column;gap:2px}
   .row-amt{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;color:var(--ink);font-weight:700}
   .row-spec{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
+  .row-conv{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--teal);font-weight:700;white-space:nowrap}
   /* 單品備註要看得完，不要 ellipsis：現場翻紀錄就是為了看當初寫了什麼。 */
   .row-note{font-size:12px;color:var(--soft);line-height:1.45;margin-top:2px}
   /* 配方備註同理。textarea 預設固定高度會把長段落截在框裡（要捲才看得到），
@@ -742,19 +743,82 @@
     try { return window.localStorage || null; } catch (error) { return null; }
   }
 
-  /* 回報「為什麼存不進去」而不只是成敗。三種失敗長得完全不一樣，之前一律印
-     「照片太多」——而最常見的那種（整個網域的空間被站上其他頁吃掉）根本不是
-     照片的問題，照著訊息刪圖也不會好。 */
+  /* 為什麼不用 localStorage 當主要儲存：它每個網域有一個**硬上限 5MB**，而那 5MB
+     是站上所有頁共用的。實測使用者這頁只有 63 KB 也寫不進去，因為 /dash/ 的軌跡
+     與 /stocks/ 的報價快取已經把配額吃滿——照片再怎麼刪都不會好。
+     IndexedDB 沒有那道 5MB 的牆（同源配額通常是數百 MB 起跳），所以主存放改用它，
+     localStorage 只在 IndexedDB 不可用時當備援。 */
+  var DB_NAME = "bjkw-bait";
+  var DB_STORE = "state";
+  var DB_KEY = "v" + STATE_VERSION;
+
+  function openDb() {
+    return new Promise(function (resolve) {
+      var idb = null;
+      try { idb = window.indexedDB; } catch (error) { idb = null; }
+      if (!idb) { resolve(null); return; }
+      var request;
+      try { request = idb.open(DB_NAME, 1); } catch (error) { resolve(null); return; }
+      request.onupgradeneeded = function () {
+        var db = request.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+      };
+      request.onsuccess = function () { resolve(request.result); };
+      /* 無痕視窗、使用者停用網站資料、或 onblocked，一律當成沒有 IndexedDB
+         而不是卡在那裡等——等不到的話整頁不會初始化。 */
+      request.onerror = function () { resolve(null); };
+      request.onblocked = function () { resolve(null); };
+    });
+  }
+
+  function idbRead(db) {
+    return new Promise(function (resolve) {
+      var request;
+      try {
+        request = db.transaction(DB_STORE, "readonly").objectStore(DB_STORE).get(DB_KEY);
+      } catch (error) { resolve(null); return; }
+      request.onsuccess = function () { resolve(request.result || null); };
+      request.onerror = function () { resolve(null); };
+    });
+  }
+
+  function idbWrite(db, payload) {
+    return new Promise(function (resolve) {
+      var tx;
+      try { tx = db.transaction(DB_STORE, "readwrite"); } catch (error) { resolve(false); return; }
+      try { tx.objectStore(DB_STORE).put(payload, DB_KEY); } catch (error) { resolve(false); return; }
+      tx.oncomplete = function () { resolve(true); };
+      tx.onerror = function () { resolve(false); };
+      tx.onabort = function () { resolve(false); };
+    });
+  }
+
+  var dbHandle = null;
+
+  /* 回報「為什麼存不進去」而不只是成敗。四種失敗長得完全不一樣，最常見的那種
+     （網域的 localStorage 配額被別頁吃掉）根本不是照片的問題，照著訊息刪圖不會好。 */
   function save() {
-    var store = storage();
-    if (!store) return { ok: false, reason: "no-storage", chars: 0 };
     var payload;
     try {
       payload = JSON.stringify({ version: STATE_VERSION, items: state.items, recipes: state.recipes, draft: state.draft });
     } catch (error) {
-      return { ok: false, reason: "serialize", chars: 0 };
+      return Promise.resolve({ ok: false, reason: "serialize", chars: 0 });
     }
-    if (payload.length > STORE_MAX_CHARS) return { ok: false, reason: "too-big", chars: payload.length };
+    if (payload.length > STORE_MAX_CHARS) {
+      return Promise.resolve({ ok: false, reason: "too-big", chars: payload.length });
+    }
+    if (dbHandle) {
+      return idbWrite(dbHandle, payload).then(function (ok) {
+        if (ok) return { ok: true, reason: "", chars: payload.length };
+        return saveToLocalStorage(payload);
+      });
+    }
+    return Promise.resolve(saveToLocalStorage(payload));
+  }
+
+  function saveToLocalStorage(payload) {
+    var store = storage();
+    if (!store) return { ok: false, reason: "no-storage", chars: payload.length };
     try {
       store.setItem(STORE_KEY, payload);
     } catch (error) {
@@ -772,27 +836,47 @@
     if (result.reason === "too-big") {
       return "這份資料 " + size + "，超過本頁自訂的上限。刪幾張照片或幾份配方。";
     }
-    /* quota：整個網域的儲存空間是站上所有頁共用的，被別頁吃滿時這裡只有 48 KB
-       也會失敗。所以要講的是「網域滿了」，不是「你照片太多」。 */
-    return "瀏覽器拒絕寫入：這份資料只有 " + size + "，所以多半是整個網域的儲存空間滿了"
-      + "（跟站上其他頁共用，例如 /dash/ 的軌跡與 /stocks/ 的報價快取）。"
+    /* 走到這裡代表 IndexedDB 也不能用、localStorage 又滿了。 */
+    return "瀏覽器拒絕寫入：這份資料只有 " + size + "，而 IndexedDB 也用不了，"
+      + "所以退回 localStorage——那個空間是整個網域共用的，已經被站上其他頁佔滿"
+      + "（例如 /dash/ 的軌跡與 /stocks/ 的報價快取）。"
       + "先按「匯出 JSON」留一份，再到瀏覽器設定清掉本站的網站資料。";
   }
 
-  /* 存過就用存的，沒存過才帶入預設。帶入後立刻寫回去，所以把預設資料刪掉再重開
-     不會又長回來——除非整個瀏覽器資料被清掉。 */
+  /* 存過就用存的，沒存過才帶入預設。順序是 IndexedDB → localStorage（舊版留下來的）
+     → 種子。從 localStorage 撈到的會搬進 IndexedDB 並把原本那份刪掉——那 63 KB
+     還給網域共用的 5MB，站上其他頁也少一分壓力。 */
   function load() {
-    var store = storage();
-    var parsed = null;
-    if (store) {
-      try {
-        parsed = sanitizeState(JSON.parse(store.getItem(STORE_KEY) || "null"));
-      } catch (error) { parsed = null; }
-    }
-    if (parsed) { state = parsed; return false; }
-    var seeded = sanitizeState(SEED);
-    if (seeded) { state = seeded; save(); return true; }
-    return false;
+    return openDb().then(function (db) {
+      dbHandle = db;
+      return db ? idbRead(db) : null;
+    }).then(function (raw) {
+      var parsed = null;
+      if (raw) {
+        try { parsed = sanitizeState(JSON.parse(raw)); } catch (error) { parsed = null; }
+      }
+      if (parsed) { state = parsed; return false; }
+
+      var store = storage();
+      var migrated = null;
+      if (store) {
+        try { migrated = sanitizeState(JSON.parse(store.getItem(STORE_KEY) || "null")); } catch (error) { migrated = null; }
+      }
+      if (migrated) {
+        state = migrated;
+        return save().then(function (result) {
+          if (result.ok && dbHandle && store) {
+            try { store.removeItem(STORE_KEY); } catch (error) { /* 刪不掉就算了，只是沒把空間還回去 */ }
+          }
+          return false;
+        });
+      }
+
+      var seeded = sanitizeState(SEED);
+      if (!seeded) return false;
+      state = seeded;
+      return save().then(function () { return true; });
+    });
   }
 
   function setState(node, text, kind) {
@@ -889,10 +973,21 @@
       var detail = state.draft.items[i];
       var item = byId[detail.itemId];
       if (!item) continue;
+      /* 開餌時要看得到「這包多重、單價多少」，否則決定加幾包只能憑印象；
+         右邊同時顯示這個份量換算後的克數。 */
+      var spec = [];
+      if (item.packWeightG !== null) spec.push("整包 " + item.packWeightG + " g");
+      if (item.unitPrice !== null) spec.push("$" + item.unitPrice);
+      var per100 = pricePer100g(item);
+      if (per100 !== null) spec.push("每 100g $" + money(per100));
+      var grams = detail.unit === "克" ? null : usedGrams(detail, item);
+      var gramsText = detail.unit === "克" ? "" : (grams === null ? "換不成克" : "＝ " + money(grams) + " g");
       html += '<li class="row with-media">'
         + shotTag(item)
         + '<div class="row-main">'
-        + '<div class="row-top"><span class="row-name">' + esc(item.name) + "</span></div>"
+        + '<div class="row-top"><span class="row-name">' + esc(item.name) + "</span>"
+        + (gramsText ? '<span class="row-conv">' + esc(gramsText) + "</span>" : "") + "</div>"
+        + '<div class="row-spec">' + (spec.length ? esc(spec.join("　")) : "重量與價格未填") + "</div>"
         + '<div class="row-ctl">'
         + '<button class="step" type="button" data-step="-1" data-at="' + i + '" aria-label="減少 ' + esc(item.name) + '">−</button>'
         + '<input class="row-amount" type="number" min="0" step="any" inputmode="decimal" data-amount="' + i + '" value="' + esc(detail.amount) + '" aria-label="' + esc(item.name) + ' 用量">'
@@ -989,9 +1084,10 @@
       recipe.id = makeId("recipe");
       recipe.createdAt = todayISO();
       state.recipes.unshift(recipe);
-      var saved = save();
-      setState($("mixState"), saved.ok ? "已存成「" + recipe.title + "」，到「紀錄」分頁回填釣果。" : saveError(saved), saved.ok ? "ok" : "err");
       renderLog();
+      save().then(function (saved) {
+        setState($("mixState"), saved.ok ? "已存成「" + recipe.title + "」，到「紀錄」分頁補備註。" : saveError(saved), saved.ok ? "ok" : "err");
+      });
     });
     $("clearDraft").addEventListener("click", function () {
       state.draft = emptyDraft();
@@ -1165,16 +1261,14 @@
       } else {
         state.items.push(draft);
       }
-      var saved = save();
-      if (!saved.ok) {
-        setState($("itemState"), saveError(saved), "err");
-        return;
-      }
-      setState($("itemState"), "已儲存「" + draft.name + "」。", "ok");
+      var name = draft.name;
       resetItemForm();
       renderItems();
       renderMix();
       renderLog();
+      save().then(function (saved) {
+        setState($("itemState"), saved.ok ? "已儲存「" + name + "」。" : saveError(saved), saved.ok ? "ok" : "err");
+      });
     });
     $("resetItem").addEventListener("click", function () {
       resetItemForm();
@@ -1414,15 +1508,16 @@
         var known = {};
         for (var i = 0; i < state.items.length; i += 1) known[state.items[i].id] = true;
         state.draft = sanitizeRecipe(state.draft, known) || emptyDraft();
-        var saved = save();
         $("undoImport").hidden = false;
-        setState($("ioState"), saved.ok
-          ? "已匯入 " + state.items.length + " 個單品、" + state.recipes.length + " 份配方。"
-          : "已匯入 " + state.items.length + " 個單品、" + state.recipes.length + " 份配方，但沒存進瀏覽器：" + saveError(saved), saved.ok ? "ok" : "err");
         renderItems();
         hydrateMix();
         renderMix();
         renderLog();
+        save().then(function (saved) {
+          setState($("ioState"), saved.ok
+            ? "已匯入 " + state.items.length + " 個單品、" + state.recipes.length + " 份配方。"
+            : "已匯入 " + state.items.length + " 個單品、" + state.recipes.length + " 份配方，但沒存進瀏覽器：" + saveError(saved), saved.ok ? "ok" : "err");
+        });
       };
       reader.readAsText(file);
       event.target.value = "";
@@ -1442,14 +1537,15 @@
       var known = {};
       for (var i = 0; i < state.items.length; i += 1) known[state.items[i].id] = true;
       state.draft = sanitizeRecipe(state.draft, known) || emptyDraft();
-      var saved = save();
       $("undoImport").hidden = false;
-      setState($("ioState"), (saved.ok ? "已重新載入 " : "已重新載入（但沒存進瀏覽器：" + saveError(saved) + "）")
-        + state.items.length + " 個單品、" + state.recipes.length + " 份配方。原本的資料可以按「復原這次匯入」拿回來。", saved.ok ? "ok" : "err");
       renderItems();
       hydrateMix();
       renderMix();
       renderLog();
+      save().then(function (saved) {
+        setState($("ioState"), (saved.ok ? "已重新載入 " : "已重新載入（但沒存進瀏覽器：" + saveError(saved) + "）")
+          + state.items.length + " 個單品、" + state.recipes.length + " 份配方。原本的資料可以按「復原這次匯入」拿回來。", saved.ok ? "ok" : "err");
+      });
     });
 
     $("undoImport").addEventListener("click", function () {
@@ -1486,7 +1582,10 @@
   }
 
   function init() {
-    load();
+    return load().then(initAfterLoad);
+  }
+
+  function initAfterLoad() {
     resetItemForm();
     hydrateMix();
     renderItems();
@@ -1511,10 +1610,15 @@
   };
 
   if (!window.__BAIT_SKIP_AUTO_INIT__) {
+    var boot = function () {
+      init().catch(function (error) {
+        setState($("mixState"), "初始化失敗：" + (error && error.message ? error.message : error), "err");
+      });
+    };
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", init);
+      document.addEventListener("DOMContentLoaded", boot);
     } else {
-      init();
+      boot();
     }
   }
 })();

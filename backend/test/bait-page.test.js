@@ -316,7 +316,7 @@ test("存檔失敗要說得出真正的原因", async () => {
     assert.ok(html.includes(`"${reason}"`), `save 應該分辨得出 ${reason}`);
   }
   assert.doesNotMatch(html, /存不進瀏覽器：資料量超過上限（多半是照片太多）/, "那句話對三種失敗都印，是錯的");
-  assert.match(html, /整個網域的儲存空間滿了/, "quota 要講網域共用，不要怪照片");
+  assert.match(html, /那個空間是整個網域共用的/, "quota 要講網域共用，不要怪照片");
 });
 
 test("預設資料補上包裝重量之後，要有辦法送到已經存過的人手上", async () => {
@@ -459,6 +459,27 @@ test("預設配方的總重與成本要算得出來且全部有價格", async ()
   assert.equal(cost.pricedGrams, cost.totalGrams, "每一項都要有價格，否則每 100g 的分母會小於總重");
   assert.equal(Math.round(cost.per100 * 10) / 10, 12.9);
   assert.deepEqual(cost.unknown, []);
+});
+
+// localStorage 每個網域硬上限 5MB，而那 5MB 是站上所有頁共用的。實測這一頁只有
+// 63 KB 也寫不進去，因為別頁已經把配額吃滿——所以主存放不能是 localStorage。
+test("主存放是 IndexedDB，localStorage 只當備援", async () => {
+  const { html } = await loadPage();
+  assert.match(html, /window\.indexedDB/, "要用 IndexedDB");
+  assert.match(html, /function saveToLocalStorage\(/, "IndexedDB 不可用時要有備援");
+  // 舊版存在 localStorage 的資料要搬過去，並把原本那份刪掉還空間給網域
+  assert.match(html, /store\.removeItem\(STORE_KEY\)/, "搬完要把舊的 localStorage 那份刪掉");
+  // 開不起來時要當成沒有而不是卡住，否則整頁不會初始化
+  assert.match(html, /request\.onerror = function \(\) \{ resolve\(null\); \}/, "IndexedDB 開失敗要 resolve(null)");
+  assert.match(html, /request\.onblocked/, "onblocked 也要放行");
+});
+
+test("開餌列要看得到包裝重量與換算後的克數", async () => {
+  const { html } = await loadPage();
+  assert.match(html, /row-conv/, "開餌列要顯示換算後的克數");
+  // 決定加幾包時要看得到這包多重、單價多少，否則只能憑印象
+  assert.equal((html.match(/整包 " \+ (?:item|part)\.packWeightG/g) || []).length, 2,
+    "開餌與紀錄兩處都要顯示整包重量");
 });
 
 test("頁面結構的硬性前提", async () => {
