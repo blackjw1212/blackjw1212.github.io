@@ -302,6 +302,11 @@ test("內建的預設資料經得起 sanitize，沒有一項被丟掉", async ()
     if (item.imageUrl) assert.match(item.imageUrl, /^data:image\//);
   }
   assert.ok(state.items.some((item) => item.imageUrl), "預設資料應該帶著商品縮圖");
+  // 重量放 packWeightG，不要放進名稱：卡片下面那行已經寫了整包幾克，名稱再寫一次
+  // 是重複，而且換包裝規格時兩處會對不上。
+  for (const item of state.items) {
+    assert.doesNotMatch(item.name, /\d+\s*(?:kg|KG|g|G)/, `「${item.name}」的名稱裡有重量`);
+  }
   for (const recipe of state.recipes) {
     assert.ok(["MAIN_BAIT", "GROUNDBAIT"].includes(recipe.purpose), `配方「${recipe.title}」的用途不對`);
   }
