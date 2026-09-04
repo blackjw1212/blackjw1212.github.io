@@ -276,9 +276,9 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
 
   assert.match(app.helpers.importPayload("{ 壞掉的 json").reason, /JSON/);
   assert.match(app.helpers.importPayload(JSON.stringify({ items: [] })).reason, /kind/);
-  const oldVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 6 }));
-  assert.equal(oldVersion.ok, false);
-  assert.match(oldVersion.reason, /沒有自動轉換/);
+  // 舊版的匯出檔要收得下——拒收只會讓使用者手上那份備份變成廢紙
+  const oldVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 6, items: [], recipes: [] }));
+  assert.equal(oldVersion.ok, true);
 });
 
 // 預設資料走跟匯入完全同一條 sanitizeState，所以它不是特權資料。這條同時擋住
@@ -485,6 +485,89 @@ test("開餌列要看得到包裝重量與換算後的克數", async () => {
   // 決定加幾包時要看得到這包多重、單價多少，否則只能憑印象
   assert.equal((html.match(/整包 " \+ (?:item|part)\.packWeightG/g) || []).length, 2,
     "開餌與紀錄兩處都要顯示整包重量");
+});
+
+// 使用者實際回報的問題：加了新單品就得按「重新載入預設資料」，而那會把自己存的
+// 配方一起洗掉——「拿到新資料」與「留住自己的東西」變成二選一。
+test("補齊預設資料只補缺的、只填空的，不動使用者的東西", async () => {
+  const { app } = await loadPage();
+  const seed = plain(app.helpers.seed());
+  const first = seed.items[0];
+
+  const target = plain(app.helpers.sanitizeState({
+    items: [
+      // 同一個預設 id，但使用者把價格改過、名稱也改過
+      Object.assign({}, first, { name: "我改過的名字", unitPrice: 999, packWeightG: null, notes: "" }),
+      { id: "mine-1", name: "我自己建的料", packWeightG: 500, unitPrice: 20 },
+    ],
+    recipes: [{ id: "mine-r", title: "我自己的配方", items: [{ itemId: "mine-1", amount: 1, unit: "包" }] }],
+  }));
+
+  const report = plain(app.helpers.mergeSeed(target, seed));
+
+  // 使用者自己的東西原封不動
+  const mine = target.items.find((row) => row.id === "mine-1");
+  assert.equal(mine.name, "我自己建的料");
+  assert.equal(target.recipes.some((row) => row.id === "mine-r"), true, "使用者的配方不能被洗掉");
+
+  // 改過的值不覆蓋，空的才補
+  const touched = target.items.find((row) => row.id === first.id);
+  assert.equal(touched.name, "我改過的名字", "填過的欄位不准覆蓋");
+  assert.equal(touched.unitPrice, 999, "填過的價格不准覆蓋");
+  assert.equal(touched.packWeightG, first.packWeightG, "空的欄位要補上");
+  assert.equal(touched.notes, first.notes, "空的備註要補上");
+
+  // 其餘預設單品與配方都補進來
+  assert.equal(report.addedItems.length, seed.items.length - 1);
+  assert.equal(report.addedRecipes.length, seed.recipes.length);
+  assert.ok(report.filledItems.includes("我改過的名字"));
+
+  // 再跑一次應該完全沒有動作——自動補齊每次開啟都會跑，不能每次都改東西
+  const again = plain(app.helpers.mergeSeed(target, seed));
+  assert.deepEqual(again, { addedItems: [], addedRecipes: [], filledItems: [] });
+});
+
+test("刪掉的預設項不會被自動補齊復活", async () => {
+  const { app } = await loadPage();
+  const seed = plain(app.helpers.seed());
+  const dropped = seed.items[0].id;
+
+  const target = plain(app.helpers.sanitizeState({
+    items: seed.items.filter((row) => row.id !== dropped),
+    recipes: [],
+    dismissedSeedIds: [dropped],
+  }));
+  assert.deepEqual(target.dismissedSeedIds, [dropped], "刪過的預設 id 要留在狀態裡");
+
+  app.helpers.mergeSeed(target, seed);
+  assert.equal(target.items.some((row) => row.id === dropped), false, "刪掉的預設項不該復活");
+
+  // 不是預設 id 的不留，免得這份清單無限長大
+  const noise = plain(app.helpers.sanitizeState({ items: [], recipes: [], dismissedSeedIds: ["mine-1", dropped] }));
+  assert.deepEqual(noise.dismissedSeedIds, [dropped]);
+});
+
+// 之前 DB_KEY 是 "v" + STATE_VERSION，於是每次 schema 一改，舊資料就變成沒人讀得到
+// 的孤兒——使用者的感受就是「一改版東西就不見了」。
+test("儲存鍵固定，舊的版本鍵要能回溯", async () => {
+  const { html } = await loadPage();
+  assert.match(html, /var DB_KEY = "state";/, "儲存鍵不該把版本號寫進去");
+  assert.match(html, /var LEGACY_DB_KEYS = \["v7"/, "要能回頭撈舊的版本鍵");
+  assert.match(html, /function idbDelete\(/, "搬過來之後要把舊鍵刪掉");
+});
+
+test("匯入放寬到同版或更舊，比本頁新的才拒絕", async () => {
+  const { app } = await loadPage();
+  const payload = plain(app.helpers.exportPayload(app.helpers.sanitizeState({ items: [ITEM_A], recipes: [] })));
+  // 舊版備份不能變廢紙
+  for (const version of [1, 2, 3, 6, payload.version]) {
+    const result = app.helpers.importPayload(JSON.stringify(Object.assign({}, payload, { version })));
+    assert.equal(result.ok, true, `version ${version} 應該收得下`);
+  }
+  const newer = app.helpers.importPayload(JSON.stringify(Object.assign({}, payload, { version: payload.version + 1 })));
+  assert.equal(newer.ok, false, "比本頁新的要拒絕，收下來會安靜地丟掉看不懂的欄位");
+  assert.match(newer.reason, /比本頁的/);
+  assert.equal(app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait" })).ok, false);
 });
 
 test("頁面結構的硬性前提", async () => {
