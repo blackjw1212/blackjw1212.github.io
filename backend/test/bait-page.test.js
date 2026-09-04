@@ -143,6 +143,11 @@ test("配方組成攤平；指向已刪除單品的列進 missing 而不是安�
   }, byId));
   assert.deepEqual(parts.rows.map((row) => row.text), ["福壽紅餌 2 包", "誘粉 200 克"]);
   assert.deepEqual(parts.missing, ["ghost"]);
+  // 紀錄那頁要顯示整包重量、價格與單品備註，所以攤平時就得帶出來
+  assert.equal(parts.rows[0].packWeightG, 1000);
+  assert.equal(parts.rows[0].unitPrice, 200);
+  assert.equal(parts.rows[1].packWeightG, null, "沒填的維持 null，畫面才說得出「未填」");
+  assert.ok("notes" in parts.rows[0]);
   const empty = plain(app.helpers.recipeParts(null, byId));
   assert.deepEqual(empty.rows, []);
   assert.deepEqual(empty.missing, []);
@@ -276,6 +281,17 @@ test("預設資料補上包裝重量之後，要有辦法送到已經存過的�
   for (const item of withWeight) {
     assert.ok(item.packWeightG > 0, `${item.name} 的重量應該是正數`);
   }
+});
+
+// 桌機一列只放一項會浪費一大半橫向空間；備註被 textarea 截在框裡則是看不到內容。
+test("紀錄的組成在寬螢幕要能一列放多項，備註要完整顯示", async () => {
+  const { html } = await loadPage();
+  assert.match(html, /\.log-parts\{[^}]*grid-template-columns:repeat\(auto-fill,minmax\(260px,1fr\)\)/,
+    "組成清單要用 auto-fill 決定欄數，不是固定單欄");
+  assert.match(html, /function autoGrow\(/, "配方備註要撐到 scrollHeight，不要留在固定高度捲動");
+  assert.match(html, /\.log-body textarea\{overflow:hidden/, "撐高之後不該再出現捲軸");
+  assert.match(html, /row-spec/, "組成列要顯示整包重量與價格");
+  assert.match(html, /row-note/, "組成列要顯示單品備註");
 });
 
 test("頁面結構的硬性前提", async () => {

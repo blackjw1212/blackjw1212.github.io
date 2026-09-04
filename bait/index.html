@@ -126,10 +126,19 @@
   .log-title{font-weight:700;font-size:15px}
   .log-meta{font-size:12px;color:var(--faint);margin-top:4px;display:flex;flex-wrap:wrap;gap:3px 12px}
   /* 組成用跟開餌一樣的列（大圖靠左、垂直置中），不是橫著擠成一排。
+     minmax(260px,1fr) 讓它自己決定欄數：桌機 1030px 可用寬放得下三欄
+     （3×260+2×8=796 進得去、四欄 1064 進不去），375px 只剩一欄。
      紀錄卡本身是 --panel，列再深一階才分得出層次。 */
-  .log-parts{margin-top:8px;display:grid;gap:8px;list-style:none}
+  .log-parts{margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;list-style:none;align-items:stretch}
   .log-parts .row{background:var(--panel-2)}
-  .row-amt{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;color:var(--faint);margin-top:2px}
+  .log-parts .row-main{display:flex;flex-direction:column;gap:2px}
+  .row-amt{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;color:var(--ink);font-weight:700}
+  .row-spec{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
+  /* 單品備註要看得完，不要 ellipsis：現場翻紀錄就是為了看當初寫了什麼。 */
+  .row-note{font-size:12px;color:var(--soft);line-height:1.45;margin-top:2px}
+  /* 配方備註同理。textarea 預設固定高度會把長段落截在框裡（要捲才看得到），
+     所以渲染後把高度撐到 scrollHeight。 */
+  .log-body textarea{overflow:hidden;resize:none}
   .log-body{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
   .hit{color:var(--green);font-weight:700}
 
@@ -429,6 +438,11 @@
         itemId: item.id,
         name: item.name,
         imageUrl: item.imageUrl,
+        /* 正規化成 null：顯示端用 !== null 判斷「有沒有填」，undefined 會通過那個
+           判斷而印出「整包 undefined g」。 */
+        packWeightG: item.packWeightG === undefined ? null : item.packWeightG,
+        unitPrice: item.unitPrice === undefined ? null : item.unitPrice,
+        notes: item.notes || "",
         amount: detail.amount,
         unit: detail.unit,
         text: item.name + " " + formatAmount(detail.amount, detail.unit)
@@ -1115,9 +1129,16 @@
       var parts = recipeParts(recipe, byId);
       var partsHtml = "";
       for (var j = 0; j < parts.rows.length; j += 1) {
-        partsHtml += '<li class="row with-media">' + shotTag(parts.rows[j])
-          + '<div class="row-main"><div class="row-name">' + esc(parts.rows[j].name) + "</div>"
-          + '<div class="row-amt">' + esc(formatAmount(parts.rows[j].amount, parts.rows[j].unit)) + "</div></div></li>";
+        var part = parts.rows[j];
+        var spec = [];
+        if (part.packWeightG !== null) spec.push("整包 " + part.packWeightG + " g");
+        if (part.unitPrice !== null) spec.push("$" + part.unitPrice);
+        partsHtml += '<li class="row with-media">' + shotTag(part)
+          + '<div class="row-main"><div class="row-name">' + esc(part.name) + "</div>"
+          + '<div class="row-amt">' + esc(formatAmount(part.amount, part.unit)) + "</div>"
+          + '<div class="row-spec">' + (spec.length ? esc(spec.join("　")) : "重量與價格未填") + "</div>"
+          + (part.notes ? '<div class="row-note">' + esc(part.notes) + "</div>" : "")
+          + "</div></li>";
       }
       if (parts.missing.length) {
         partsHtml += '<li class="none">有 ' + parts.missing.length + " 項單品已從單品庫刪除。</li>";
@@ -1149,6 +1170,26 @@
     bindLogControls(node);
   }
 
+  /* textarea 的預設高度會把長段落截在框裡，要捲才看得到。先歸零再讀 scrollHeight
+     ——不歸零的話縮短內容時高度只會單向長大。
+     元素還在 hidden 的面板裡時 scrollHeight 是 0，撐出來會是 0px（再被 min-height
+     頂回固定高度）——所以切到「紀錄」分頁時要再撐一次，不能只在 render 當下做。 */
+  function autoGrow(area) {
+    if (!area || !area.style) return;
+    if (!area.scrollHeight) return;
+    area.style.height = "auto";
+    /* box-sizing 是 border-box，height 要含邊框，但 scrollHeight 只到 padding。
+       差的那 2px 會讓它仍然捲得動——offsetHeight - clientHeight 正好是邊框。 */
+    area.style.height = (area.scrollHeight + area.offsetHeight - area.clientHeight) + "px";
+  }
+
+  function growLogNotes() {
+    var node = $("logRows");
+    if (!node || !node.querySelectorAll) return;
+    var areas = node.querySelectorAll("textarea");
+    for (var i = 0; i < areas.length; i += 1) autoGrow(areas[i]);
+  }
+
   function findRecipe(id) {
     for (var i = 0; i < state.recipes.length; i += 1) {
       if (state.recipes[i].id === id) return state.recipes[i];
@@ -1175,6 +1216,8 @@
     }
     var areas = node.querySelectorAll("textarea");
     for (var j = 0; j < areas.length; j += 1) {
+      autoGrow(areas[j]);
+      areas[j].addEventListener("input", function (event) { autoGrow(event.target); });
       areas[j].addEventListener("change", function (event) {
         var recipe = findRecipe(event.target.getAttribute("data-notes"));
         if (!recipe) return;
@@ -1315,6 +1358,7 @@
         if (tab.setAttribute) tab.setAttribute("aria-selected", keys[i] === name ? "true" : "false");
       }
     }
+    if (name === "log") growLogNotes();
   }
 
   function init() {
