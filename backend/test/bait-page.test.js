@@ -343,8 +343,11 @@ test("紀錄的組成在寬螢幕要能一列放多項，備註要完整顯示",
   assert.match(html, /\.log-body textarea\{overflow:hidden/, "撐高之後不該再出現捲軸");
   assert.match(html, /row-spec/, "組成列要顯示整包重量與價格");
   assert.match(html, /每 100g \$/, "組成列要顯示每 100 克單價");
-  assert.match(html, /log-cost/, "卡片要顯示總價");
-  assert.match(html, /mix-total/, "卡片要顯示整鍋總重與每 100g 成本");
+  // 總重、總價、每 100g 三個數字併在卡片右上與標題同列，不另起一行
+  assert.match(html, /function costSummary\(/);
+  assert.match(html, /lc-main/, "總價是右上那組的主角");
+  assert.match(html, /lc-sub/, "總重與每 100g 是註腳");
+  assert.doesNotMatch(html, /mix-total/, "不該再有獨立的合計列");
   assert.match(html, /cost-note/, "少算了哪幾列要說出來");
   assert.match(html, /row-note/, "組成列要顯示單品備註");
 });

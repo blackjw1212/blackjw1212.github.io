@@ -140,8 +140,11 @@
      所以渲染後把高度撐到 scrollHeight。 */
   .log-body textarea{overflow:hidden;resize:none}
   .log-body{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
-  .log-cost{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800;font-size:17px;color:var(--teal);white-space:nowrap}
-  .mix-total{margin-top:6px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;color:var(--ink);border-top:1px solid var(--line);padding-top:6px}
+  /* 三個數字擠在標題右邊。窄螢幕上整組會換到下一行，但三個彼此不拆開
+     （align-items:baseline 讓大小不同的字對齊底線，不會上下跳）。 */
+  .log-cost{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}
+  .lc-main{font-weight:800;font-size:17px;color:var(--teal)}
+  .lc-sub{font-size:12px;color:var(--faint)}
   /* 總價漏掉哪幾列一定要說。用警示色而不是 --faint：這是「這個數字不完整」，
      不是可以略過的附註。 */
   .cost-note{margin-top:6px;font-size:12px;color:var(--amber)}
@@ -1254,16 +1257,11 @@
       var cost = recipeCost(recipe, byId);
       html += '<li class="log-item">'
         + '<div class="log-top"><span class="log-title">' + esc(recipe.title) + "</span>"
-        + '<span class="log-cost">' + (cost.total === null ? "" : "$" + money(cost.total)) + "</span></div>"
+        + costSummary(cost) + "</div>"
         + '<div class="log-meta"><span>' + esc(recipe.createdAt) + "</span>"
         + '<span class="tag">' + esc(labelOf(PURPOSES, recipe.purpose)) + "</span>"
         + (recipe.targetWaterTypes.length ? "<span>" + esc(recipe.targetWaterTypes.join("、")) + "</span>" : "")
         + (recipe.targetSpecies.length ? "<span>" + esc(recipe.targetSpecies.join("、")) + "</span>" : "")
-        + "</div>"
-        + '<div class="mix-total">'
-        + "總重 " + (cost.totalGrams === null ? "—" : esc(money(cost.totalGrams)) + " g")
-        + "　總價 " + (cost.total === null ? "—" : "$" + esc(money(cost.total)))
-        + "　每 100g " + (cost.per100 === null ? "—" : "$" + esc(money(cost.per100)))
         + "</div>"
         + costNote(cost)
         + '<ul class="log-parts">' + (partsHtml || '<li class="none">（沒有組成）</li>') + "</ul>"
@@ -1295,6 +1293,17 @@
     if (!node || !node.querySelectorAll) return;
     var areas = node.querySelectorAll("textarea");
     for (var i = 0; i < areas.length; i += 1) autoGrow(areas[i]);
+  }
+
+  /* 整鍋的三個數字擺在卡片右上，跟標題同一列。總價是主角（大、teal），
+     總重與每 100g 是它的註腳——分開放兩行的話，看總價時眼睛還要往下找。 */
+  function costSummary(cost) {
+    if (cost.totalGrams === null && cost.total === null) return '<span class="log-cost"></span>';
+    var html = '<span class="log-cost">';
+    if (cost.totalGrams !== null) html += '<span class="lc-sub">' + esc(money(cost.totalGrams)) + " g</span>";
+    if (cost.total !== null) html += '<span class="lc-main">$' + esc(money(cost.total)) + "</span>";
+    if (cost.per100 !== null) html += '<span class="lc-sub">$' + esc(money(cost.per100)) + "/100g</span>";
+    return html + "</span>";
   }
 
   /* 總價只加得起算得出來的那幾列，所以一定要說清楚少算了什麼——
