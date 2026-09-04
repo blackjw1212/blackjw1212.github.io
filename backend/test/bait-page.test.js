@@ -78,9 +78,11 @@ test("沒有任何試算或審查的殘留", async () => {
   // 加水量與熟成時間現場依狀況調整，寫進固定欄位只會記到一個不準的數字
   assert.doesNotMatch(html, /waterAmount|waterUnit|prepLeadTimeMinutes|熟成／放置（分鐘）/);
   assert.equal(plain(app.helpers.sanitizeRecipe({ title: "x", items: [], waterAmount: 3, prepLeadTimeMinutes: 5 }, null)).waterAmount, undefined);
-  // 評分與現場微調已移除
-  assert.doesNotMatch(html, /data-rating|data-insitu|inSituAdjustments/);
-  assert.equal(plain(app.helpers.sanitizeRecipe({ title: "x", items: [], rating: 3, inSituAdjustments: "x" }, null)).rating, undefined);
+  // 釣果欄位（評分／現場微調／中魚）已整組移除，結果紀錄靠備註
+  assert.doesNotMatch(html, /data-rating|data-insitu|inSituAdjustments|data-caught|caughtTarget|中目標魚/);
+  const stripped = plain(app.helpers.sanitizeRecipe({ title: "x", items: [], rating: 3, inSituAdjustments: "x", caughtTarget: true }, null));
+  assert.equal(stripped.rating, undefined);
+  assert.equal(stripped.caughtTarget, undefined);
   const item = plain(app.helpers.sanitizeItem({
     name: "殘留測試", gramsPerCup: 250, category: "ADDITIVE",
     viscosity: 5, foggingRate: 1, sinkingSpeed: "FAST", recommendedWaterRatio: 0.5,
@@ -226,7 +228,7 @@ test("sanitizeItem：名稱必填，列舉值對不上就退回預設，圖片�
 test("sanitizeRecipe：丟掉指向不存在單品的列與非正數用量", async () => {
   const { app } = await loadPage();
   const recipe = plain(app.helpers.sanitizeRecipe({
-    title: "  ", createdAt: "壞日期", caughtTarget: "yes",
+    title: "  ", createdAt: "壞日期",
     targetWaterTypes: ["淡水", "亂填"],
     items: [
       { itemId: "a", amount: 2, unit: "包" },
@@ -237,7 +239,6 @@ test("sanitizeRecipe：丟掉指向不存在單品的列與非正數用量", asy
   }, { a: true, b: true }));
   assert.equal(recipe.title, "未命名配方");
   assert.match(recipe.createdAt, /^\d{4}-\d{2}-\d{2}$/);
-  assert.equal(recipe.caughtTarget, false, "只有布林 true 才算中魚");
   assert.deepEqual(recipe.targetWaterTypes, ["淡水"]);
   assert.deepEqual(recipe.items.map((row) => row.itemId), ["a", "b"]);
   assert.equal(recipe.items[1].unit, "包", "認不得的單位退回第一個");
@@ -254,7 +255,7 @@ test("sanitizeState：單品去重、配方跟著已知單品收斂", async () =
   assert.equal(state.recipes.length, 1);
   assert.deepEqual(state.recipes[0].items.map((row) => row.itemId), ["a"], "b 不在單品庫裡就不該留下");
   assert.deepEqual(state.draft.items, []);
-  assert.equal(state.version, 6);
+  assert.equal(state.version, 7);
   assert.equal(app.helpers.sanitizeState(null), null);
 });
 
@@ -266,7 +267,7 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
   });
   const payload = plain(app.helpers.exportPayload(state));
   assert.equal(payload.kind, "bjkw-bait");
-  assert.equal(payload.version, 6);
+  assert.equal(payload.version, 7);
 
   const roundTrip = app.helpers.importPayload(JSON.stringify(payload));
   assert.equal(roundTrip.ok, true);
@@ -275,7 +276,7 @@ test("匯出／匯入：不是本頁的檔案一律拒絕，並說得出理由",
 
   assert.match(app.helpers.importPayload("{ 壞掉的 json").reason, /JSON/);
   assert.match(app.helpers.importPayload(JSON.stringify({ items: [] })).reason, /kind/);
-  const oldVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 5 }));
+  const oldVersion = app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 6 }));
   assert.equal(oldVersion.ok, false);
   assert.match(oldVersion.reason, /沒有自動轉換/);
 });
@@ -343,6 +344,7 @@ test("紀錄的組成在寬螢幕要能一列放多項，備註要完整顯示",
   assert.match(html, /row-spec/, "組成列要顯示整包重量與價格");
   assert.match(html, /每 100g \$/, "組成列要顯示每 100 克單價");
   assert.match(html, /log-cost/, "卡片要顯示總價");
+  assert.match(html, /mix-total/, "卡片要顯示整鍋總重與每 100g 成本");
   assert.match(html, /cost-note/, "少算了哪幾列要說出來");
   assert.match(html, /row-note/, "組成列要顯示單品備註");
 });
@@ -397,6 +399,63 @@ test("配方總價只加算得出來的，並逐列說明少算了什麼", async
   const none = plain(app.helpers.recipeCost({ items: [{ itemId: "c", amount: 1, unit: "克" }] }, items));
   assert.equal(none.total, null);
   assert.equal(plain(app.helpers.recipeCost({ items: [] }, items)).total, null);
+});
+
+// 整鍋的每 100 克成本用「算得出價格的重量」當分母。拿總重去除會被那些有重量
+// 卻沒價格的料稀釋，得到一個偏低而看起來合理的單價。
+test("整鍋總重與每 100 克成本：分母是算得出價格的那幾列，不是總重", async () => {
+  const { app } = await loadPage();
+  const items = {
+    a: { id: "a", name: "紅餌", packWeightG: 188, unitPrice: 35 },
+    b: { id: "b", name: "魔粒", packWeightG: 1800, unitPrice: 150 },
+    c: { id: "c", name: "小麥蛋白", packWeightG: null, unitPrice: null },
+  };
+  // a 2 包 = 376 g / $70；b 900 克 = 900 g / $75；c 200 克有重量但沒價格
+  const cost = plain(app.helpers.recipeCost({
+    items: [
+      { itemId: "a", amount: 2, unit: "包" },
+      { itemId: "b", amount: 900, unit: "克" },
+      { itemId: "c", amount: 200, unit: "克" },
+    ],
+  }, items));
+  assert.equal(cost.totalGrams, 1476, "總重要含沒價格的那 200 g");
+  assert.equal(cost.pricedGrams, 1276, "有價格的只有 376 + 900");
+  assert.ok(Math.abs(cost.total - 145) < 1e-9);
+  // 145 / 1276 * 100 = 11.36；若誤用總重 1476 會變 9.82
+  assert.ok(Math.abs(cost.per100 - 145 / 1276 * 100) < 1e-9, `per100 得到 ${cost.per100}`);
+  assert.ok(cost.per100 > 145 / cost.totalGrams * 100, "分母用總重會低報");
+
+  // c 沒有價格，所以它是 unknown，但重量仍然算進 totalGrams
+  assert.deepEqual(cost.unknown.map((row) => row.name), ["小麥蛋白"]);
+});
+
+test("一列都換不成克時，總重與每 100g 都是 null 而不是 0", async () => {
+  const { app } = await loadPage();
+  const items = { a: { id: "a", name: "紅餌", packWeightG: 188, unitPrice: 35 } };
+  const cost = plain(app.helpers.recipeCost({
+    items: [{ itemId: "a", amount: 1, unit: "杯" }, { itemId: "a", amount: 2, unit: "匙" }],
+  }, items));
+  assert.equal(cost.totalGrams, null);
+  assert.equal(cost.pricedGrams, null);
+  assert.equal(cost.total, null);
+  assert.equal(cost.per100, null);
+  assert.deepEqual(cost.unknown.map((row) => row.reason), ["「杯」換不成克", "「匙」換不成克"]);
+});
+
+// 種子那份配方是驗收基準：376 + 70 + 20 + 200 + 1800 = 2466 g，$319
+test("預設配方的總重與成本要算得出來且全部有價格", async () => {
+  const { app } = await loadPage();
+  const seed = plain(app.helpers.seed());
+  const byId = {};
+  for (const item of seed.items) byId[item.id] = item;
+  const base = seed.recipes.find((row) => row.items.length === 5);
+  assert.ok(base, "應該有一份五項組成的基礎配方");
+  const cost = plain(app.helpers.recipeCost(base, byId));
+  assert.equal(cost.totalGrams, 2466);
+  assert.equal(Math.round(cost.total), 319);
+  assert.equal(cost.pricedGrams, cost.totalGrams, "每一項都要有價格，否則每 100g 的分母會小於總重");
+  assert.equal(Math.round(cost.per100 * 10) / 10, 12.9);
+  assert.deepEqual(cost.unknown, []);
 });
 
 test("頁面結構的硬性前提", async () => {

@@ -507,6 +507,9 @@ if (has("bait/index.html")) {
   assertMatch("bait/index.html", html, /不給任何開餌建議/, "bait must not advise, only record");
   assertMatch("bait/index.html", html, /杯與匙沒有可靠的換算/, "bait must disclose which units cannot be costed");
   assertMatch("bait/index.html", html, /那幾列不列入總價/, "bait must disclose that uncostable rows are excluded");
+  // 整鍋單價的分母是「算得出價格的重量」而不是總重。兩個數字對不起來時看起來像
+  // 算錯，所以頁面必須說得出分母是什麼。
+  assertMatch("bait/index.html", html, /算得出價格的那幾列的重量<\/strong>，不是除以總重/, "bait must disclose the per-100g denominator");
   // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
   // 「單品庫」與「紀錄」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
   assertMatch("bait/index.html", html, /<div class="tabbar"/, "bait tab bar class drives the mobile audit walker");
