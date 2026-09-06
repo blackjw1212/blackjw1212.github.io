@@ -475,8 +475,12 @@ test("主存放是 IndexedDB，localStorage 只當備援", async () => {
   // 舊版存在 localStorage 的資料要搬過去，並把原本那份刪掉還空間給網域
   assert.match(html, /store\.removeItem\(STORE_KEY\)/, "搬完要把舊的 localStorage 那份刪掉");
   // 開不起來時要當成沒有而不是卡住，否則整頁不會初始化
-  assert.match(html, /request\.onerror = function \(\) \{ resolve\(null\); \}/, "IndexedDB 開失敗要 resolve(null)");
+  assert.match(html, /request\.onerror = function \(\) \{ done\(null\); \}/, "IndexedDB 開失敗要放行");
   assert.match(html, /request\.onblocked/, "onblocked 也要放行");
+  // 實測過：別的分頁還開著連線、或有 deleteDatabase 卡在佇列裡時，open 會三個回呼
+  // 都不觸發就無限排隊——load() 永遠不 resolve，畫面一片空白且主控台沒有訊息。
+  assert.match(html, /var DB_OPEN_TIMEOUT_MS = \d+;/, "open 一定要有逾時");
+  assert.match(html, /setTimeout\(function \(\) \{ done\(null\); \}, DB_OPEN_TIMEOUT_MS\)/, "逾時要退回沒有 IndexedDB");
 });
 
 test("開餌列要看得到包裝重量與換算後的克數", async () => {
@@ -527,6 +531,17 @@ test("補齊預設資料只補缺的、只填空的，不動使用者的東西",
   assert.deepEqual(again, { addedItems: [], addedRecipes: [], filledItems: [] });
 });
 
+// 使用者回報：刪掉預設配方之後按「補齊預設資料」，它們又回來了。
+// 原因是那顆按鈕會先清掉 dismissedSeedIds（我當初的設計是「按這顆就是把預設的
+// 都給我」）——結果就是刪不掉。刪除是使用者的決定，補齊不該推翻它。
+test("補齊按鈕不會清掉刪除紀錄，刪掉的預設項按了也不會復活", async () => {
+  const { html } = await loadPage();
+  const handler = html.slice(html.indexOf('$("reseed").addEventListener'), html.indexOf('$("undoImport").addEventListener'));
+  assert.doesNotMatch(handler, /dismissedSeedIds\s*=\s*\[\]/, "補齊按鈕不該清空刪除紀錄");
+  // 快照仍然要含它，按「復原」才還原得回去
+  assert.match(handler, /dismissedSeedIds: state\.dismissedSeedIds/);
+});
+
 test("刪掉的預設項不會被自動補齊復活", async () => {
   const { app } = await loadPage();
   const seed = plain(app.helpers.seed());
@@ -541,6 +556,16 @@ test("刪掉的預設項不會被自動補齊復活", async () => {
 
   app.helpers.mergeSeed(target, seed);
   assert.equal(target.items.some((row) => row.id === dropped), false, "刪掉的預設項不該復活");
+
+  // 配方也一樣——使用者回報的就是配方被找回來
+  const droppedRecipe = seed.recipes[0].id;
+  const withRecipeDropped = plain(app.helpers.sanitizeState({
+    items: seed.items,
+    recipes: seed.recipes.filter((row) => row.id !== droppedRecipe),
+    dismissedSeedIds: [droppedRecipe],
+  }));
+  app.helpers.mergeSeed(withRecipeDropped, seed);
+  assert.equal(withRecipeDropped.recipes.some((row) => row.id === droppedRecipe), false, "刪掉的預設配方不該復活");
 
   // 不是預設 id 的不留，免得這份清單無限長大
   const noise = plain(app.helpers.sanitizeState({ items: [], recipes: [], dismissedSeedIds: ["mine-1", dropped] }));
