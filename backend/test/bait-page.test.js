@@ -55,7 +55,7 @@ test("頁面公開的 helper 契約", async () => {
   }
   assert.equal(typeof app.init, "function");
   assert.deepEqual(plain(app.helpers.PURPOSES).map((row) => row.id), ["MAIN_BAIT", "GROUNDBAIT"]);
-  assert.equal(app.helpers.CATEGORIES, undefined, "分類不再掛在單品上");
+  assert.equal(app.helpers.CATEGORIES, undefined, "分類不再掛在品項上");
   assert.deepEqual(plain(app.helpers.UNITS).map((row) => row.id), ["包", "杯", "克", "匙"]);
   assert.deepEqual(plain(app.helpers.WATER_TYPES), ["淡水", "海水"]);
   for (const name of ["SPECIES_NAMES", "watersOf", "speciesForWaters"]) {
@@ -176,15 +176,15 @@ test("重量與價格：沒填是 null，不用 0 頂替", async () => {
   }
 });
 
-test("用途掛在配方上而不是單品上", async () => {
+test("用途掛在配方上而不是品項上", async () => {
   const { app } = await loadPage();
   assert.deepEqual(plain(app.helpers.PURPOSES).map((row) => row.label), ["主餌", "A撒（Esa）"]);
   assert.equal(plain(app.helpers.sanitizeRecipe({ title: "x", purpose: "GROUNDBAIT", items: [] }, null)).purpose, "GROUNDBAIT");
   assert.equal(plain(app.helpers.sanitizeRecipe({ title: "x", purpose: "亂填", items: [] }, null)).purpose, "MAIN_BAIT", "認不得的用途退回主餌");
-  assert.equal(plain(app.helpers.sanitizeItem({ name: "單品", purpose: "MAIN_BAIT" })).purpose, undefined);
+  assert.equal(plain(app.helpers.sanitizeItem({ name: "品項", purpose: "MAIN_BAIT" })).purpose, undefined);
 });
 
-test("配方組成攤平；指向已刪除單品的列進 missing 而不是安靜消失", async () => {
+test("配方組成攤平；指向已刪除品項的列進 missing 而不是安靜消失", async () => {
   const { app } = await loadPage();
   const parts = plain(app.helpers.recipeParts({
     items: [
@@ -195,7 +195,7 @@ test("配方組成攤平；指向已刪除單品的列進 missing 而不是安�
   }, byId));
   assert.deepEqual(parts.rows.map((row) => row.text), ["福壽紅餌 2 包", "誘粉 200 克"]);
   assert.deepEqual(parts.missing, ["ghost"]);
-  // 紀錄那頁要顯示整包重量、價格與單品備註，所以攤平時就得帶出來
+  // 紀錄那頁要顯示整包重量、價格與品項備註，所以攤平時就得帶出來
   assert.equal(parts.rows[0].packWeightG, 1000);
   assert.equal(parts.rows[0].unitPrice, 200);
   assert.equal(parts.rows[1].packWeightG, null, "沒填的維持 null，畫面才說得出「未填」");
@@ -225,7 +225,7 @@ test("sanitizeItem：名稱必填，列舉值對不上就退回預設，圖片�
   assert.equal(plain(app.helpers.sanitizeItem({ name: "有圖", imageUrl: "data:image/webp;base64,AAA" })).imageUrl, "data:image/webp;base64,AAA");
 });
 
-test("sanitizeRecipe：丟掉指向不存在單品的列與非正數用量", async () => {
+test("sanitizeRecipe：丟掉指向不存在品項的列與非正數用量", async () => {
   const { app } = await loadPage();
   const recipe = plain(app.helpers.sanitizeRecipe({
     title: "  ", createdAt: "壞日期",
@@ -244,7 +244,7 @@ test("sanitizeRecipe：丟掉指向不存在單品的列與非正數用量", asy
   assert.equal(recipe.items[1].unit, "包", "認不得的單位退回第一個");
 });
 
-test("sanitizeState：單品去重、配方跟著已知單品收斂", async () => {
+test("sanitizeState：品項去重、配方跟著已知品項收斂", async () => {
   const { app } = await loadPage();
   const state = plain(app.helpers.sanitizeState({
     items: [ITEM_A, ITEM_A, { name: "" }],
@@ -253,7 +253,7 @@ test("sanitizeState：單品去重、配方跟著已知單品收斂", async () =
   }));
   assert.equal(state.items.length, 1);
   assert.equal(state.recipes.length, 1);
-  assert.deepEqual(state.recipes[0].items.map((row) => row.itemId), ["a"], "b 不在單品庫裡就不該留下");
+  assert.deepEqual(state.recipes[0].items.map((row) => row.itemId), ["a"], "b 不在品項庫裡就不該留下");
   assert.deepEqual(state.draft.items, []);
   assert.equal(state.version, 7);
   assert.equal(app.helpers.sanitizeState(null), null);
@@ -289,7 +289,7 @@ test("內建的預設資料經得起 sanitize，沒有一項被丟掉", async ()
   assert.ok(seed, "應該有內建預設資料");
   const state = plain(app.helpers.sanitizeState(seed));
 
-  assert.equal(state.items.length, seed.items.length, "有單品在 sanitize 時被丟掉");
+  assert.equal(state.items.length, seed.items.length, "有品項在 sanitize 時被丟掉");
   assert.equal(state.recipes.length, seed.recipes.length, "有配方在 sanitize 時被丟掉");
   for (let i = 0; i < seed.recipes.length; i += 1) {
     assert.equal(state.recipes[i].items.length, seed.recipes[i].items.length,
@@ -354,7 +354,7 @@ test("紀錄的組成在寬螢幕要能一列放多項，備註要完整顯示",
   assert.match(html, /lc-sub/, "總重與每 100g 是註腳");
   assert.doesNotMatch(html, /mix-total/, "不該再有獨立的合計列");
   assert.match(html, /cost-note/, "少算了哪幾列要說出來");
-  assert.match(html, /row-note/, "組成列要顯示單品備註");
+  assert.match(html, /row-note/, "組成列要顯示品項備註");
 });
 
 test("每 100 克單價：兩欄都填了才算得出來", async () => {
@@ -401,7 +401,7 @@ test("配方總價只加算得出來的，並逐列說明少算了什麼", async
   assert.ok(Math.abs(cost.total - 145) < 1e-9, `總價應該是 145，得到 ${cost.total}`);
   assert.equal(cost.counted, 2);
   assert.deepEqual(cost.unknown.map((row) => row.reason),
-    ["缺價格或包裝重量", "「杯」換不成克", "單品已刪除"]);
+    ["缺價格或包裝重量", "「杯」換不成克", "品項已刪除"]);
 
   // 一列都算不出來時回 null 而不是 0
   const none = plain(app.helpers.recipeCost({ items: [{ itemId: "c", amount: 1, unit: "克" }] }, items));
@@ -487,7 +487,7 @@ test("開餌列要看得到包裝重量與換算後的克數", async () => {
     "開餌與紀錄兩處都要顯示整包重量");
 });
 
-// 使用者實際回報的問題：加了新單品就得按「重新載入預設資料」，而那會把自己存的
+// 使用者實際回報的問題：加了新品項就得按「重新載入預設資料」，而那會把自己存的
 // 配方一起洗掉——「拿到新資料」與「留住自己的東西」變成二選一。
 test("補齊預設資料只補缺的、只填空的，不動使用者的東西", async () => {
   const { app } = await loadPage();
@@ -517,7 +517,7 @@ test("補齊預設資料只補缺的、只填空的，不動使用者的東西",
   assert.equal(touched.packWeightG, first.packWeightG, "空的欄位要補上");
   assert.equal(touched.notes, first.notes, "空的備註要補上");
 
-  // 其餘預設單品與配方都補進來
+  // 其餘預設品項與配方都補進來
   assert.equal(report.addedItems.length, seed.items.length - 1);
   assert.equal(report.addedRecipes.length, seed.recipes.length);
   assert.ok(report.filledItems.includes("我改過的名字"));
@@ -583,5 +583,5 @@ test("頁面結構的硬性前提", async () => {
   assert.match(html, /id="recipePurpose"/);
   assert.match(html, /id="itemPack"/);
   assert.match(html, /id="itemPrice"/);
-  assert.doesNotMatch(html, /id="itemCategory"/, "分類選單不該還在單品表單裡");
+  assert.doesNotMatch(html, /id="itemCategory"/, "分類選單不該還在品項表單裡");
 });

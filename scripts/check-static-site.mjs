@@ -511,7 +511,7 @@ if (has("bait/index.html")) {
   // 算錯，所以頁面必須說得出分母是什麼。
   assertMatch("bait/index.html", html, /算得出價格的那幾列的重量<\/strong>，不是除以總重/, "bait must disclose the per-100g denominator");
   // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
-  // 「單品庫」與「紀錄」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
+  // 「品項庫」與「紀錄」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
   assertMatch("bait/index.html", html, /<div class="tabbar"/, "bait tab bar class drives the mobile audit walker");
   // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
   assertMatch("bait/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "bait main script must sit right before </body>");

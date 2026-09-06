@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>餌料配方｜BJKW</title>
-<meta name="description" content="釣魚餌料的配方紀錄本：單品原料庫、每次開餌的組成與份量、事後回填釣果。全部存在自己的瀏覽器裡。" />
+<meta name="description" content="釣魚餌料的配方紀錄本：品項原料庫、每次開餌的組成與份量、事後回填釣果。全部存在自己的瀏覽器裡。" />
 <link rel="canonical" href="/bait/" />
 <meta property="og:title" content="餌料配方" />
-<meta property="og:description" content="單品原料庫與開餌配方紀錄，資料只留在這台裝置。" />
+<meta property="og:description" content="品項原料庫與開餌配方紀錄，資料只留在這台裝置。" />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -97,11 +97,11 @@
   .none{color:var(--faint);font-size:13px;padding:8px 0}
   .tag{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--soft)}
 
-  /* 單品庫是「認得出是哪一包」的地方，所以用卡片而不是表格：圖片吃滿卡片寬度，
+  /* 品項庫是「認得出是哪一包」的地方，所以用卡片而不是表格：圖片吃滿卡片寬度，
      375px 下兩欄約 150px 見方，比表格裡那顆 56px 大三倍。 */
   /* 120 是量出來的下限，不是猜的：320px 螢幕 → .shell 296 → .card 內距後約 266，
      兩欄需要 2×min + 12 的間距 ≤ 266，也就是 min ≤ 127。150 與 130 實測都會掉成
-     單欄，一張圖 272px 見方、七個單品把那一頁拉到 4500px。 */
+     單欄，一張圖 272px 見方、七個品項把那一頁拉到 4500px。 */
   .item-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
   .item-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden;display:flex;flex-direction:column}
   .item-card .shot{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:var(--panel-2);border-bottom:1px solid var(--line)}
@@ -135,7 +135,7 @@
   .row-amt{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;color:var(--ink);font-weight:700}
   .row-spec{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
   .row-conv{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--teal);font-weight:700;white-space:nowrap}
-  /* 單品備註要看得完，不要 ellipsis：現場翻紀錄就是為了看當初寫了什麼。 */
+  /* 品項備註要看得完，不要 ellipsis：現場翻紀錄就是為了看當初寫了什麼。 */
   .row-note{font-size:12px;color:var(--soft);line-height:1.45;margin-top:2px}
   /* 配方備註同理。textarea 預設固定高度會把長段落截在框裡（要捲才看得到），
      所以渲染後把高度撐到 scrollHeight。 */
@@ -156,7 +156,7 @@
 
   @media (max-width:820px){
     /* minmax(0,1fr) 而不是 1fr：grid item 的 min-width 預設是 auto，
-       單欄時單品庫那張表會把整欄撐到內容寬度，整頁跟著橫向捲動。 */
+       單欄時品項庫那張表會把整欄撐到內容寬度，整頁跟著橫向捲動。 */
     .grid{grid-template-columns:minmax(0,1fr)}
   }
   /* media query 收在 <style> 最後：同特異度的規則後來居上，插在中段會被下面的
@@ -201,7 +201,7 @@
 
   <div class="tabbar" id="tabbar" role="tablist" aria-label="餌料系統分頁">
     <button class="tab on" id="tabMix" type="button" role="tab" aria-selected="true">開餌</button>
-    <button class="tab" id="tabItems" type="button" role="tab" aria-selected="false">單品庫</button>
+    <button class="tab" id="tabItems" type="button" role="tab" aria-selected="false">品項庫</button>
     <button class="tab" id="tabLog" type="button" role="tab" aria-selected="false">紀錄</button>
   </div>
 
@@ -209,11 +209,11 @@
     <div class="grid">
       <section class="card" aria-labelledby="mixHeading">
         <h2 id="mixHeading">組成</h2>
-        <label class="field"><span>加入單品</span>
-          <select id="addItem" aria-label="加入單品"><option value="">選一個單品…</option></select>
+        <label class="field"><span>加入品項</span>
+          <select id="addItem" aria-label="加入品項"><option value="">選一個品項…</option></select>
         </label>
         <ul class="rows" id="mixRows"></ul>
-        <p class="none" id="mixEmpty">還沒加任何東西。單品庫是空的就先去建一筆。</p>
+        <p class="none" id="mixEmpty">還沒加任何東西。品項庫是空的就先去建一筆。</p>
 
       </section>
 
@@ -244,7 +244,7 @@
   <div id="itemsPanel" hidden>
     <div class="grid">
       <section class="card" aria-labelledby="itemFormHeading">
-        <h2 id="itemFormHeading">新增單品</h2>
+        <h2 id="itemFormHeading">新增品項</h2>
         <label class="field"><span>名稱</span><input id="itemName" type="text" maxlength="40"></label>
         <div class="duo">
           <label class="field"><span>包裝重量（克，可留空）</span>
@@ -265,16 +265,16 @@
         </label>
         <label class="field"><span>備註</span><textarea id="itemNotes" maxlength="200"></textarea></label>
         <div class="btnrow">
-          <button class="btn primary" id="saveItem" type="button">儲存單品</button>
+          <button class="btn primary" id="saveItem" type="button">儲存品項</button>
           <button class="btn" id="resetItem" type="button">清空表單</button>
         </div>
         <p class="state" id="itemState"></p>
       </section>
 
       <section class="card" aria-labelledby="itemListHeading">
-        <h2 id="itemListHeading">單品庫</h2>
+        <h2 id="itemListHeading">品項庫</h2>
         <div class="item-grid" id="itemRows"></div>
-        <p class="none" id="itemEmpty">還沒有任何單品。左邊建一筆。</p>
+        <p class="none" id="itemEmpty">還沒有任何品項。左邊建一筆。</p>
       </section>
     </div>
   </div>
@@ -303,13 +303,13 @@
   <footer class="notes">
     <ul>
       <li>這是一本紀錄簿，不給任何開餌建議：味型、組成與釣果都照你填的原樣存著。唯一會算的是錢。</li>
-      <li>主餌還是 A 撒是配方層的事，開完那鍋再選；單品本身不預先分類。</li>
+      <li>主餌還是 A 撒是配方層的事，開完那鍋再選；品項本身不預先分類。</li>
       <li>勾了水域之後，魚種清單只留那個水域釣得到的——礁區的海水魚不會出現在淡水的選單裡。已經勾起來的一律保留，才不會有取消不掉的殘留。</li>
       <li>沒有加水量與熟成時間的欄位：那兩個現場依狀況調整，寫進固定欄位只會記到一個不準的數字。要記就寫進備註。</li>
       <li>每 100 克單價＝購買價格 ÷ 包裝重量，兩欄都填了才算得出來。</li>
       <li>整鍋總重與總價只加得起用「克」或「包」記的那幾列。<strong>杯與匙沒有可靠的換算</strong>——同一個量杯裝紅餌與裝魔粒差很多——那幾列不列入總價，並在卡片上點名少算了哪些。</li>
       <li>整鍋的每 100 克成本＝總價 ÷ <strong>算得出價格的那幾列的重量</strong>，不是除以總重。有重量卻沒填價格的料若算進分母，那個單價會被稀釋成偏低的數字。</li>
-      <li>第一次開啟會帶入一組預設的單品與配方，可以直接改或整批刪掉。之後每次開啟會自動把<strong>新增的</strong>預設項補進來，只補缺的、只填空的欄位——你自己建的單品與存的配方都不會被動到。刪掉的預設項也不會復活。</li>
+      <li>第一次開啟會帶入一組預設的品項與配方，可以直接改或整批刪掉。之後每次開啟會自動把<strong>新增的</strong>預設項補進來，只補缺的、只填空的欄位——你自己建的品項與存的配方都不會被動到。刪掉的預設項也不會復活。</li>
       <li>整頁在瀏覽器裡運算，不上傳任何東西，也沒有帳號。</li>
     </ul>
   </footer>
@@ -335,8 +335,8 @@
   var STORE_MAX_CHARS = 4000000;
   var IMAGE_MAX_CHARS = 60000;
 
-  /* 主餌還是 Esa 是「這鍋調出來要拿去做什麼」，不是單品本身的屬性——同一包
-     紅餌可以進主餌也可以進 A 撒。所以它掛在配方上，不掛在單品上。 */
+  /* 主餌還是 Esa 是「這鍋調出來要拿去做什麼」，不是品項本身的屬性——同一包
+     紅餌可以進主餌也可以進 A 撒。所以它掛在配方上，不掛在品項上。 */
   var PURPOSES = [
     { id: "MAIN_BAIT", label: "主餌" },
     { id: "GROUNDBAIT", label: "A撒（Esa）" }
@@ -468,7 +468,7 @@
     return String(Math.round(num * 100) / 100) + " " + (UNIT_IDS.indexOf(unit) >= 0 ? unit : UNIT_IDS[0]);
   }
 
-  /* 把配方的組成攤平成可顯示的列。指向已刪除單品的列會落在 missing，
+  /* 把配方的組成攤平成可顯示的列。指向已刪除品項的列會落在 missing，
      由呼叫端報出去——安靜跳過的話，畫面上就是少了一行而沒人知道。 */
   function recipeParts(recipe, itemsById) {
     var details = recipe && Array.isArray(recipe.items) ? recipe.items : [];
@@ -541,7 +541,7 @@
     for (var i = 0; i < details.length; i += 1) {
       var detail = details[i];
       var item = detail && itemsById ? itemsById[detail.itemId] : null;
-      if (!item) { unknown.push({ itemId: detail ? detail.itemId : "", name: "", reason: "單品已刪除" }); continue; }
+      if (!item) { unknown.push({ itemId: detail ? detail.itemId : "", name: "", reason: "品項已刪除" }); continue; }
       var grams = usedGrams(detail, item);
       if (grams === null) {
         unknown.push({ itemId: item.id, name: item.name, reason: detail.unit === "杯" || detail.unit === "匙" ? "「" + detail.unit + "」換不成克" : "缺包裝重量" });
@@ -600,7 +600,7 @@
       if (!detail || typeof detail !== "object") continue;
       var itemId = clampText(detail.itemId, 40);
       if (!itemId) continue;
-      /* 指向已刪除單品的列直接丟掉——留著只會在每次開啟時再報一次缺件。 */
+      /* 指向已刪除品項的列直接丟掉——留著只會在每次開啟時再報一次缺件。 */
       if (knownItemIds && !knownItemIds[itemId]) continue;
       var amount = Number(detail.amount);
       if (!isFinite(amount) || amount <= 0) continue;
@@ -723,13 +723,13 @@
   }
 
   /* 把預設資料**合併**進現有狀態，不是取代它。
-     這是使用者實際踩到的問題：加了新單品就得按「重新載入」，而那會把自己存的
+     這是使用者實際踩到的問題：加了新品項就得按「重新載入」，而那會把自己存的
      配方一起洗掉，等於要在「拿到新資料」與「留住自己的東西」之間二選一。
 
      規則：
-     - 缺的預設單品／配方補進來；使用者刪過的（dismissedSeedIds）不補回去
-     - 已經存在的預設單品只填空欄位，使用者填過的值一律不動
-     - 使用者自己建的單品與配方完全不碰
+     - 缺的預設品項／配方補進來；使用者刪過的（dismissedSeedIds）不補回去
+     - 已經存在的預設品項只填空欄位，使用者填過的值一律不動
+     - 使用者自己建的品項與配方完全不碰
      回傳做了什麼，讓畫面說得出來。 */
   function mergeSeed(target, seed) {
     var report = { addedItems: [], addedRecipes: [], filledItems: [] };
@@ -771,7 +771,7 @@
     for (var k = 0; k < clean.recipes.length; k += 1) {
       var seedRecipe = clean.recipes[k];
       if (dismissed[seedRecipe.id] || haveRecipe[seedRecipe.id]) continue;
-      /* 補進來的配方要重新收斂一次：它引用的單品可能被使用者刪掉了。 */
+      /* 補進來的配方要重新收斂一次：它引用的品項可能被使用者刪掉了。 */
       var known = {};
       for (var m = 0; m < target.items.length; m += 1) known[target.items[m].id] = true;
       var fixed = sanitizeRecipe(seedRecipe, known);
@@ -785,9 +785,9 @@
 
   function mergeSummary(report) {
     var bits = [];
-    if (report.addedItems.length) bits.push("新增 " + report.addedItems.length + " 個單品（" + report.addedItems.join("、") + "）");
+    if (report.addedItems.length) bits.push("新增 " + report.addedItems.length + " 個品項（" + report.addedItems.join("、") + "）");
     if (report.addedRecipes.length) bits.push("新增 " + report.addedRecipes.length + " 份配方（" + report.addedRecipes.join("、") + "）");
-    if (report.filledItems.length) bits.push("補上 " + report.filledItems.length + " 個單品的空欄位（" + report.filledItems.join("、") + "）");
+    if (report.filledItems.length) bits.push("補上 " + report.filledItems.length + " 個品項的空欄位（" + report.filledItems.join("、") + "）");
     return bits.join("；");
   }
 
@@ -1205,7 +1205,7 @@
   }
 
   function renderMix() {
-    fillSelect($("addItem"), [{ id: "", label: state.items.length ? "選一個單品…" : "單品庫是空的" }].concat(
+    fillSelect($("addItem"), [{ id: "", label: state.items.length ? "選一個品項…" : "品項庫是空的" }].concat(
       state.items.map(function (item) {
         return { id: item.id, label: item.name };
       })
@@ -1280,7 +1280,7 @@
     });
   }
 
-  /* --------------------------- 單品庫 --------------------------- */
+  /* --------------------------- 品項庫 --------------------------- */
 
   var itemForm = { flavorProfile: [], targetSpecies: [], waterTypes: [], imageUrl: "" };
 
@@ -1305,8 +1305,8 @@
     $("itemImage").value = "";
     $("itemPack").value = "";
     $("itemPrice").value = "";
-    $("itemFormHeading").textContent = "新增單品";
-    $("saveItem").textContent = "儲存單品";
+    $("itemFormHeading").textContent = "新增品項";
+    $("saveItem").textContent = "儲存品項";
     renderItemForm();
   }
 
@@ -1324,8 +1324,8 @@
     $("itemNotes").value = item.notes;
     $("itemPack").value = item.packWeightG === null ? "" : item.packWeightG;
     $("itemPrice").value = item.unitPrice === null ? "" : item.unitPrice;
-    $("itemFormHeading").textContent = "編輯單品";
-    $("saveItem").textContent = "更新單品";
+    $("itemFormHeading").textContent = "編輯品項";
+    $("saveItem").textContent = "更新品項";
     renderItemForm();
     setState($("itemState"), "正在編輯「" + item.name + "」。", "");
   }
@@ -1371,7 +1371,7 @@
     }
   }
 
-  /* 刪單品要一起清掉引用它的配方列，否則那些配方每次開啟都會報一次缺件。 */
+  /* 刪品項要一起清掉引用它的配方列，否則那些配方每次開啟都會報一次缺件。 */
   function removeItem(id) {
     var kept = [];
     var removedName = "";
@@ -1509,7 +1509,7 @@
           + "</div></li>";
       }
       if (parts.missing.length) {
-        partsHtml += '<li class="none">有 ' + parts.missing.length + " 項單品已從單品庫刪除。</li>";
+        partsHtml += '<li class="none">有 ' + parts.missing.length + " 項品項已從品項庫刪除。</li>";
       }
       var cost = recipeCost(recipe, byId);
       html += '<li class="log-item">'
@@ -1569,7 +1569,7 @@
     if (!cost.unknown.length) return "";
     var bits = [];
     for (var i = 0; i < cost.unknown.length; i += 1) {
-      bits.push((cost.unknown[i].name || "已刪除的單品") + "（" + cost.unknown[i].reason + "）");
+      bits.push((cost.unknown[i].name || "已刪除的品項") + "（" + cost.unknown[i].reason + "）");
     }
     var text = (cost.total === null ? "算不出總價：" : "總價未含 ") + bits.join("、");
     /* 有克數卻沒價格的列會進總重、不進總價，那條每 100g 的分母因此比總重小。
@@ -1651,7 +1651,7 @@
       /* revokeObjectURL 不能緊接在 click 之後同步呼叫——會安靜地取消掉剛觸發的
          下載，按了沒反應而且主控台一個字都沒有。 */
       setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
-      setState($("ioState"), "已匯出 " + state.items.length + " 個單品、" + state.recipes.length + " 份配方。", "ok");
+      setState($("ioState"), "已匯出 " + state.items.length + " 個品項、" + state.recipes.length + " 份配方。", "ok");
     });
 
     $("importFile").addEventListener("change", function (event) {
@@ -1679,8 +1679,8 @@
         renderLog();
         save().then(function (saved) {
           setState($("ioState"), saved.ok
-            ? "已匯入 " + state.items.length + " 個單品、" + state.recipes.length + " 份配方。"
-            : "已匯入 " + state.items.length + " 個單品、" + state.recipes.length + " 份配方，但沒存進瀏覽器：" + saveError(saved), saved.ok ? "ok" : "err");
+            ? "已匯入 " + state.items.length + " 個品項、" + state.recipes.length + " 份配方。"
+            : "已匯入 " + state.items.length + " 個品項、" + state.recipes.length + " 份配方，但沒存進瀏覽器：" + saveError(saved), saved.ok ? "ok" : "err");
         });
       };
       reader.readAsText(file);
@@ -1689,7 +1689,7 @@
 
     /* 預設資料只在第一次開啟時帶入，所以之後改了種子（例如補上包裝重量）對已經
        存過的人不會生效。這顆按鈕是那個出口，走跟匯入同一條 undo 快照。 */
-    /* 補齊而不是取代。以前這顆是整組覆蓋，於是「想拿到新單品」與「留住自己存的
+    /* 補齊而不是取代。以前這顆是整組覆蓋，於是「想拿到新品項」與「留住自己存的
        配方」變成二選一——這是使用者實際回報的問題。現在它只補缺的、只填空的，
        使用者自己建的東西完全不碰。平常也不必按：每次開啟都會自動跑一次。 */
     $("reseed").addEventListener("click", function () {
