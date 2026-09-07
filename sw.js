@@ -1,5 +1,5 @@
 /* BJKW Public Console — service worker */
-const VERSION = "bjkw-v8";
+const VERSION = "bjkw-v9";
 const CACHE = `bjkw-${VERSION}`;
 
 /* App shell：可導覽頁面 + 必要圖示。刻意保持輕量，不預載 512k 大圖。 */
@@ -28,6 +28,11 @@ const PRECACHE = [
   "/convert/",
   // 這一頁沒有 vendor，整份就是那一個 HTML；離線在船上或堤防上開得起來才有意義。
   "/bait/",
+  "/float/",
+  // 唯一被預載的 feed。這一頁的用途就是站在消波塊上查「3B 要打幾顆鉛」，
+  // 那個場合多半沒訊號。/data/ 走 network-first，預載只是保證第一次離線也有東西；
+  // 檔案約 12KB，跟其他頁面比可以忽略。頁面刻意不加 ?v= 參數，cache key 才不會每天換。
+  "/data/floats.json",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",
