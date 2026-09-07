@@ -164,7 +164,7 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 ## 部署：`pages-deploy.yml` 的 allowlist
 
 ```
-cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle convert data assets dist/
+cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle convert bait float data assets dist/
 ```
 
 **新增頂層頁面目錄一定要加進這行**，並同步加進 `sw.js` 的 `PRECACHE`（順手 bump `VERSION`，
@@ -283,10 +283,10 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
 - 累進差額最容易抄錯且肉眼看不出來 → schema 測試用「在每個級距交界處兩式必須相等」
   的定義性檢查擋住。
 
-## /coupon/：data/ 裡唯一人工維護的 feed
+## /coupon/：人工維護的 feed 之一
 
-`data/coupons.json` **不由 CI 寫入**，是這個 repo 唯一一份人工維護的 feed。
-沒有 workflow 碰它，改它就是改 repo 內容。
+`data/coupons.json` **不由 CI 寫入**，是這個 repo 兩份人工維護的 feed 之一
+（另一份是 `data/floats.json`，見下一節）。沒有 workflow 碰它，改它就是改 repo 內容。
 
 **為什麼是人工的**（查證於 2026-09-03，不要再研究一次）：
 
@@ -319,6 +319,78 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
 **複查節奏**：信用卡回饋每季，且 6/30 與 12/31 前後強制複查（銀行權益換檔集中在這兩點）；
 支付加碼每月 1 日；平台優惠碼週為單位、基本上維護不起所以不收。
 `reviewedAt` 超過 21 天頁面轉警示色、60 天轉紅。
+
+## /float/：第二份人工維護的 feed
+
+`data/floats.json` **不由 CI 寫入**（磯釣咬鉛與浮標號數的重量對照）。頁面是 `/float/`，
+骨架照 `/coupon/`：fetch 一份 `data/` 底下的人工 feed、行內 script 緊貼 `</body>`、
+純函式掛 `window.FloatApp.helpers`、`__FLOAT_SKIP_AUTO_INIT__` 擋自動初始化。
+下面只記這一頁**額外**的規則。
+
+- **`loadFromShot` 是這份資料的定義性檢查**（對應稅務那邊的「累進差額在級距交界處必須相等」）。
+  浮標號數的意義就是「吃得下同名咬鉛」，所以 `floats[].loadGrams` 必須等於同名
+  `shots[].grams`。兩張表分叉時肉眼完全看不出來，但配鉛試算給出的**每一個**數字都會是錯的。
+  `float-schema.test.js` 逐列比對。只有負浮力標（`000`／`00`）與 `0` 號可以 `loadFromShot: null`。
+- **feed 的網址不加 `?v=` 日期參數，而且 `/data/floats.json` 進了 `sw.js` 的 `PRECACHE`。**
+  這跟 `/coupon/` 的做法不一樣，**不要「順手統一」**。`sw.js` 對 `/data/` 走 network-first，
+  線上一定拿到最新的；加日期參數等於每天換一個 cache key，隔天在沒訊號的堤防上就整頁是空的。
+  釣具規格一年動不了幾次，網址固定＋預載才是對的取捨。靜態契約用
+  `assertNoMatch(/floats\.json\?/)` 釘住這件事。
+- **`confidence` 只有三個值，而且與 `variants[]` 正交。** `cross-checked`（≥2 個來源給同一個
+  數字，測試會檢查 `sourceIds.length >= 2`）／`single-source`／`conflicting`（來源分歧，
+  **值留 `null`**、把看到的數字記進 `variants`）。廠牌差異走 `variants[]`，不塞進 confidence——
+  「這個數字有多可信」與「別家給的是多少」是兩件事。
+- **7B／8B 刻意留 `null`。** 唯一給出數值的來源，它整條 B 系刻度都與台灣通用表不同級
+  （該表 5B＝2.0、6B＝2.5，通用表是 1.85／2.65），不能單獨挪用它的 7B。硬填一個看起來
+  合理的數字不會讓任何測試變紅，只會讓人在釣場上配錯鉛。
+- **`seenVia` 記的是「這個來源是怎麼被讀到的」**，只有 `search-summary` 與 `opened` 兩個值。
+  改成 `opened` 的判準是**人開過那一頁、在上面看到那些數字**——HTTP 200 不算，
+  字串比對命中也不算。目前 13 筆全部是 `search-summary`（建表時的環境沒有對外連線），
+  這件事同時寫在 `verificationMethod`、渲染在頁面的鮮度列上、並由靜態契約釘住那句揭露。
+- **配鉛建議用窮舉而不是貪婪。** 這條刻度不是線性的（2B ＝ 0.75 g，不是 B 的兩倍），
+  貪婪法會湊歪；候選只有十幾種、最多三顆，窮舉最準也夠快。
+
+### 來源複查 `scripts/float-source-audit.mjs`
+
+人工執行，把每個來源反查成「它撐著哪幾列、那幾列宣稱的數值是什麼」。
+`--fetch` 會實際拓頁面、在純文字裡比對那些數字；`--only <id>` 只跑一個來源。
+**它不寫任何檔案**，`seenVia` 一律人工改。
+
+```
+node scripts/float-source-audit.mjs                  離線清單（無網路也能跑）
+node scripts/float-source-audit.mjs --fetch          實際拓頁面並比對數值
+node scripts/float-source-audit.mjs --only tw-neio   只處理一個來源
+```
+
+**它刻意不進 `verify.sh` 與 CI**，理由同 `mobile-audit.html` 那條界線：
+
+1. 它要打十幾個外站。CI 不該把別人的部落格當成自己綠燈的條件——那些站掛一天，
+   這個 repo 就紅一天，而那跟本站的程式碼對不對無關。
+2. 那些站對 GitHub runner IP 的行為跟家用網路不同（TWSE 就對 runner 回過 HTML 錯誤頁）。
+   在 CI 量到的「被擋」是假訊號，會訓練人忽略紅燈。
+3. 產出是「人接下來要去看哪幾頁」，不是布林值。自動化只能縮小範圍，不能替代閱讀。
+
+但它的**純函式被 `backend/test/float-source-audit.test.js` 蓋著**（那支不碰網路），
+所以邏輯仍有 CI 迴歸保護。也因此那支工具**必須有 isMain guard**——照
+`seed-market-52w.mjs` 省略 guard 的話，`npm test` 的那行 import 會真的去打十幾個外站。
+
+只有 `dead`（404／410）會 exit 1：連結真的沒了，該列從此沒有出處。`blocked`（403／429）
+與 `unreachable`（5xx／網路錯誤）都不算失敗——部落格擋機器人是常態，人開得起來。
+**注意**：如果你在有出口代理的環境跑，代理擋掉的網域也會回 403，工具會報成 `blocked`，
+分不出是站方擋的還是代理擋的，也不該去分。
+
+### 真機 smoke test（每次動這頁的版面都要跑）
+
+`mobile-audit.html` 在 `pointer:coarse` 下綠燈**不等於**真機綠燈——CLAUDE.md 上面那節
+已經記過一次：模擬給不出原生表單控制項的度量。這一頁有**三個 `<select>`**，正是踩過的那類。
+
+1. 起 `.claude/launch.json` 的 `static-site`，手機開 `http://<區網 IP>:4173/float/`。
+2. **三個 select 逐一量**：`#shotFamily`（咬鉛對照的系列篩選）、`#floatPick`、`#residualPick`
+   （配鉛試算）。要看三件事：高度真的 ≥44px；`appearance:none` 之後自己用兩道
+   `linear-gradient` 畫的箭頭有畫出來、而且沒壓到文字；點下去的命中區對得上。
+3. `.step` 步進鈕（−／＋）的命中區、分頁列三顆 tab、來源清單那十幾條連結。
+4. **320 與 375 兩個寬度都要看。** 橫捲只該發生在 `.table-wrap` 內，body 不可橫捲。
+5. 走訪**三個分頁**都要量——切過去之前那些控制項是 `display:none`，整批會被當成不可見跳過。
 
 ## data/ 是 CI 寫的
 
