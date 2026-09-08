@@ -132,6 +132,16 @@ for (const rel of [
   "convert/vendor/pdfjs/cmaps/UniCNS-UCS2-H.bcmap",
   "convert/vendor/pdfjs/standard_fonts/LiberationSans-Regular.ttf",
   "bait/index.html",
+  // /sky/ 的數學庫與星表都是主 script 用動態 import() / fetch 取的，
+  // 掃 href/src 的迴圈一個都看不到 —— 漏檔時 Site check 會綠、Pages deploy 才炸。
+  "sky/index.html",
+  "sky/lib/angles.mjs",
+  "sky/lib/time.mjs",
+  "sky/lib/coords.mjs",
+  "sky/lib/orientation.mjs",
+  "sky/lib/catalog.mjs",
+  "sky/lib/project.mjs",
+  "sky/data/bsc5-mag6.json",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -200,8 +210,8 @@ if (has("index.html")) {
   // 這條擋的是「首頁又長出一個會打網路的區塊」。
   assertNoMatch("index.html", html, /stock-risk-feed\.json|bjkw-weather-proxy[^"]*\/health/, "root runtime fetches");
   assertNoMatch("index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "root body script");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/|bait:/bait/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/, subtitle:/subtitle/, convert:/convert/ and bait:/bait/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/|bait:/bait/|sky:/sky/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/, subtitle:/subtitle/, convert:/convert/, bait:/bait/ and sky:/sky/, got ${primaryLinks.join(", ")}`);
   }
   // 整張卡片就是連結，沒有獨立的 CTA 按鈕了——右上那排路徑列與每張卡右下的
   //「開啟 /xxx/」講的都是同一件事，兩者一起移除，可點範圍改成整張卡。
@@ -517,13 +527,37 @@ if (has("bait/index.html")) {
   assertMatch("bait/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "bait main script must sit right before </body>");
 }
 
+if (has("sky/index.html")) {
+  const html = await read("sky/index.html");
+  assertMatch("sky/index.html", html, /<html lang="zh-Hant">/, "sky document language");
+  assertMatch("sky/index.html", html, /<title>星空辨識｜BJKW<\/title>/, "sky title");
+  assertMatch("sky/index.html", html, /<link rel="canonical" href="\/sky\/"/, "sky canonical");
+  assertMatch("sky/index.html", html, /<link rel="manifest" href="\/assets\/images\/site\.webmanifest">/, "sky manifest");
+  assertMatch("sky/index.html", html, /name="theme-color" content="#05070d"/, "sky theme color");
+  assertMatch("sky/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "sky service worker registration");
+
+  // 相機影像與所有運算都留在本機。這一頁只向自己的星表檔發請求，沒有任何跨來源網址。
+  assertNoMatch("sky/index.html", html.slice(html.indexOf("<body")), /https?:\/\//, "sky external endpoints");
+  assertMatch("sky/index.html", html, /相機影像只進到這個分頁的畫布，不會上傳、不會存檔/, "sky local-only disclosure");
+
+  // 兩條誠實性宣告。拿掉任何一條，畫面就會宣稱一個它做不到的準確度：
+  // 相機視野角沒有任何標準介面問得到（MediaTrackSettings 沒有這個欄位），
+  // 而磁偏角查不到可引用的來源，所以畫面上的方位角是磁北的。
+  assertMatch("sky/index.html", html, /沒有任何標準介面問得到/, "sky must disclose the camera field of view cannot be queried");
+  assertMatch("sky/index.html", html, /磁偏角）目前沒有修正/, "sky must disclose that declination is not corrected");
+  assertMatch("sky/index.html", html, /瓶頸是手機的地磁方位角/, "sky must disclose where the accuracy limit actually is");
+
+  // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
+  assertMatch("sky/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "sky main script must sit right before </body>");
+}
+
 if (has("bjkw_weather.html")) {
   const html = await read("bjkw_weather.html");
   assertMatch("bjkw_weather.html", html, /url=\/weather\//, "meta redirect");
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bait/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bait/index.html", "sky/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

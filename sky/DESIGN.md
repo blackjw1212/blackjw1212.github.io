@@ -2,9 +2,8 @@
 
 > 這份檔案是 `/sky/` 的活規格，四個 Phase 都會回來查它。
 > 通用規則在 `~/.claude/CLAUDE.md`、本 repo 的專案事實在根目錄 `CLAUDE.md`，這裡不重抄。
-> **Phase 1–3 的演算層已實作並通過驗證**：`sky/lib/*.mjs` ＋
-> `backend/test/sky-*.test.js`，76 條測試。Phase 2 的頁面端（授權、事件接線）與
-> Phase 4 仍是待驗證的意圖，不是承諾。
+> **四個 Phase 都已實作，`/sky/` 已接上首頁與部署**：102 條測試。
+> 唯一沒做的是真機驗證 —— 相機、感測器、觸控目標都必須在真手機上再跑一次。
 
 ## 這是什麼
 
@@ -235,7 +234,7 @@ applyDeclination(magneticAzimuth, declinationDeg) → magneticAzimuth + declinat
 ```
 sky/
   DESIGN.md              本檔
-  index.html             (Phase 2+) 單頁：UI + 行內 classic script，緊貼 </body>
+  index.html             ✅ 單頁：相機 + canvas 疊加，行內 classic script 緊貼 </body>
   lib/
     angles.mjs           ✅ toRadians / toDegrees / clamp / normalizeDeg
                             / normalizeHourAngle / angularSeparation
@@ -253,7 +252,8 @@ sky/
                             / fuseAngleDeg / createPointingFilter
     catalog.mjs          ✅ parseCatalog / loadCatalog / queryCone
                             / queryConeForDate / nearestStar / describeStar
-    project.mjs          (P4) 天球 → 螢幕像素
+    project.mjs          ✅ directionFromHorizontal / horizontalFromDirection
+                            / basisFromPointing / createProjector
   data/
     bsc5-mag6.json       ✅ 5,080 顆（Yale BSC5，Vmag ≤ 6），220 KB / gzip 75 KB
 backend/test/
@@ -261,9 +261,10 @@ backend/test/
   sky-coords.test.js     ✅ 23 條（angles / coords / 邊界 / 歲差 / 折射 / geomag 介面）
   sky-orientation.test.js ✅ 25 條（姿態→指向 / 陀螺儀速率 / 互補濾波 / 有狀態包裝）
   sky-catalog.test.js    ✅ 17 條（schema / 不變量 / 查詢正確性 / 接縫 / 歲差串接 / 效能）
+  sky-project.test.js    ✅ 17 條（基底重建 / 投影 / roll / 反投影 / 錐體半徑）
+  sky-page.test.js       ✅ 9 條（行內 script 的 helpers）
 scripts/
   build-sky-catalog.mjs  ✅ 離線一次性轉檔工具（不進 Actions、不會上線）
-  sky-page.test.js       (P2+) 行內 script 的 helpers
 ```
 
 `sky-coords.test.js` 同時涵蓋 `angles.mjs` 與 `geomag.mjs`：前者是座標轉換的純支援函式，
@@ -454,20 +455,87 @@ IAU 官方清單在本環境取不到，所以只記下已知差異：
 
 （完整 38 筆用 `node scripts/build-sky-catalog.mjs --cross-check-hyg` 重新列出。）
 
-### Phase 4：AR 疊加
+### Phase 4：相機畫面疊加 —— 已完成（真機未驗）
 
-- 相機需要 `getUserMedia`。**全 repo 目前沒有任何 `getUserMedia` 的使用先例**，
-  沒有可抄的權限流程，這一段要自己建立並補進本檔。
-- 需要相機的實際 FOV 才能把角度換成像素；`MediaTrackSettings` 不一定給得出來，
-  可能得做成使用者可校正的參數。這一點尚未查證。
+`sky/lib/project.mjs` ＋ `sky/index.html` ＋ `backend/test/sky-project.test.js`（17 條）
+＋ `backend/test/sky-page.test.js`（9 條）。
+
+#### 開工前先量掉的一個疑慮：天頂的萬向鎖
+
+Phase 2 平滑的是 (方位角, 仰角, roll)，而這組參數在天頂是奇異的 —— 那正是看星星時
+最常指的方向。動手改成四元數之前先量：
+
+| 仰角 | 相機軸誤差（角度法） | 相機軸誤差（向量法） | 畫面上方誤差 | 最大轉速 |
+|---|---|---|---|---|
+| 10° | 0.703° | 0.703° | 0.390° | 3.4°/s |
+| 45° | 0.643° | 0.643° | 0.525° | 5.1°/s |
+| 88° | 0.583° | 0.578° | 0.627° | 6.8°/s |
+| 90° | 0.616° | 0.578° | 0.624° | 7.2°/s |
+
+**差距 0.04 度，沒有肉眼可見的亂轉，所以 Phase 2 不必改。** 原因是方位角的誤差會被
+`cos(仰角)` 壓掉。這一段留著是因為「天頂會壞掉」的直覺很合理但是錯的。
+
+而且 `basisFromPointing` 重建出的三軸與旋轉矩陣的真實三軸在 30 萬組隨機姿態下
+**最大差 9e-14 度** —— (方位角, 仰角, roll) 無損保留了完整姿態。
+
+> 量這件事時踩到一個坑：一開始用 `acos(點積)` 量兩個向量的夾角，量到 2e-6 度，
+> 差點誤判成公式有錯。`acos` 的引數趨近 1 時相對誤差會炸開，那是**量尺自己的底噪**。
+> 換成弦長之後才看到真正的 9e-14。這正是 `angles.mjs` 裡註明「用 haversine 不用
+> acos」的同一個坑。
+
+#### 投影
+
+針孔模型、正方形像素，所以垂直視野角由畫面高度推出來，不是第二個自由參數。
+
+- **背後的天體必須擋掉**：除以負的深度會得到一個看起來完全正常的座標，
+  把背後的星畫到畫面上。
+- **`coneRadiusDeg`** 是畫面四角落到光軸的夾角，拿它當星表查詢的錐體半徑，
+  就不會漏掉角落也不會多撈整片天空。有一條測試用 3,000 組隨機方向確認
+  「畫面內的星必定在這個半徑內」。
+- 反投影 `unproject()` 讓使用者點畫面問「那裡是什麼」，與 `project()` 互為反函數
+  （全畫面 500 組，誤差 < 1e-8 px）。
+
+#### 相機視野角拿不到，所以做成可校正
+
+**MediaStream 沒有任何標準欄位提供 FOV**，也沒有跨瀏覽器的方法問得到鏡頭焦距。
+`DEFAULT_HORIZONTAL_FOV_DEG = 65` 只是起始值。頁面提供滑桿讓使用者用一顆認得出來的
+亮星校正，結果存進 `localStorage`。靜態契約釘住頁面必須說出這件事。
+
+#### 每一幀的管線
+
+```
+感測器 → orientationToPointing → createPointingFilter（平滑）
+       → createProjector（建基底 + 焦距）
+相機軸 → trueAltitudeFromApparentDeg（拆掉折射）→ horizontalToEquatorial
+       → queryConeForDate（precess 回 J2000 後查星表，半徑用 coneRadiusDeg）
+每顆星 → precessJ2000ToDate → equatorialToHorizontal
+       → apparentAltitudeFromTrueDeg（補上折射）→ project → 畫點與標籤
+```
+
+**折射修正在這裡是加在星上而不是相機軸上**（§1 寫的是後者）。兩者都對，但疊加畫面
+要的是「鏡頭看到的位置」，把每顆星各自搬到視位置比對整條光軸做一次修正更準 ——
+折射隨仰角非線性，畫面上下緣的差在地平線附近可以到零點幾度。§1 那個方向仍然適用於
+「判斷鏡頭正中央指著什麼」這種單一方向的問題。
+
+#### 頁面端
+
+- `getUserMedia` 在本 repo沒有先例，權限流程是新寫的：一次點擊裡依序要相機、
+  方位感測器（iOS 的 `requestPermission` 只能在使用者手勢的呼叫堆疊裡呼叫）、
+  位置，失敗只在畫面上降級不 alert。
+- 缺什麼一次講完（`describeBlockers`），不要讓使用者一項一項試。
+- 標籤重疊會讓畫面變成一團字，`selectLabels` 依亮度貪婪挑選並跳過太近的。
 
 ---
 
-## 新頁上線時必須同步改的六處
+## 新頁上線時必須同步改的六處（2026-09-08 已全部完成）
 
-**`sky/index.html` 真的存在的那一刻**，下面六處要一起改。缺任何一處都會出現
-「Site check 綠但 Pages deploy 失敗」或「靜態契約綠但 npm test 紅」—— 兩個 workflow
-檢查的東西不同，綠燈不代表上線成功。
+`sky/index.html` 落地時這六處已經一起改完。清單留著是給下一個新頁用的 ——
+缺任何一處都會出現「Site check 綠但 Pages deploy 失敗」或「靜態契約綠但 npm test 紅」，
+兩個 workflow 檢查的東西不同，綠燈不代表上線成功。
+
+**驗證部署那一步的方法**：照 `pages-deploy.yml` 的 `cp -R` 那行複製到一個暫存目錄，
+再對它跑 `node scripts/check-static-site.mjs <該目錄>` —— 那正是 workflow 做的事，
+可以在推之前就抓到漏掉的目錄。
 
 1. **首頁 `index.html`**：新增一張卡片，屬性順序固定 `class → data-primary-entry → href →
    aria-label`（兩條正則都靠它），`aria-label` 必須以卡片 `<h2>` 開頭並另外帶上目的地路徑。

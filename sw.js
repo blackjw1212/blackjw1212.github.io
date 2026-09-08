@@ -1,5 +1,5 @@
 /* BJKW Public Console — service worker */
-const VERSION = "bjkw-v8";
+const VERSION = "bjkw-v9";
 const CACHE = `bjkw-${VERSION}`;
 
 /* App shell：可導覽頁面 + 必要圖示。刻意保持輕量，不預載 512k 大圖。 */
@@ -28,6 +28,9 @@ const PRECACHE = [
   "/convert/",
   // 這一頁沒有 vendor，整份就是那一個 HTML；離線在船上或堤防上開得起來才有意義。
   "/bait/",
+  // /sky/ 只放入口 HTML。星表（220 KB）與 sky/lib/*.mjs 刻意不進 PRECACHE：
+  // 那會讓只想看 /stocks/ 的訪客先吞下整份星表。它們走下面既有的 cache-first
+  // 靜態資產分支，真的開這一頁時才進快取。
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",

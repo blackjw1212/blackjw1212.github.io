@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BJKW Console</title>
-<meta name="description" content="BJKW Console，十個瀏覽器端小工具的入口：股票觀測、天氣與海象、ESP32 韌體、FORScan 設定、機票總成本、騎乘儀表板、優惠疊加、字幕生成、檔案轉換與餌料配方。" />
+<meta name="description" content="BJKW Console，十一個瀏覽器端小工具的入口：股票觀測、天氣與海象、ESP32 韌體、FORScan 設定、機票總成本、騎乘儀表板、優惠疊加、字幕生成、檔案轉換、餌料配方與星空辨識。" />
 <link rel="canonical" href="/" />
 <meta property="og:title" content="BJKW Console" />
-<meta property="og:description" content="快速進入股票觀測、天氣與海象、ESP32 韌體、FORScan 設定、機票總成本、騎乘儀表板、優惠疊加、字幕生成、檔案轉換與餌料配方。" />
+<meta property="og:description" content="快速進入股票觀測、天氣與海象、ESP32 韌體、FORScan 設定、機票總成本、騎乘儀表板、優惠疊加、字幕生成、檔案轉換、餌料配方與星空辨識。" />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -62,6 +62,7 @@
   .subtitle-accent{box-shadow:inset 4px 0 0 rgba(147,197,253,.72)}
   .convert-accent{box-shadow:inset 4px 0 0 rgba(190,164,120,.72)}
   .bait-accent{box-shadow:inset 4px 0 0 rgba(244,114,182,.72)}
+  .sky-accent{box-shadow:inset 4px 0 0 rgba(138,180,255,.72)}
   .footnote{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   @media (prefers-reduced-motion:reduce){
     .entry{transition:none}
@@ -244,6 +245,21 @@
       </div>
       <div class="entry-foot">
         <div class="entry-limit">限制：份量單位不換算，照原樣記著</div>
+      </div>
+    </a>
+
+    <a class="entry sky-accent" data-primary-entry="sky" href="/sky/" aria-label="星空辨識 — 開啟 /sky/">
+      <div>
+        <small>SKY &amp; STAR ATLAS</small>
+        <h2>星空辨識</h2>
+        <p>用相機、GPS、時間與姿態感測器算出鏡頭指向天球的哪裡，把亮星的名字疊回畫面。星表與所有運算都在本機。</p>
+        <ul>
+          <li>準確度受限於手機的地磁方位角，典型偏差 2 到 10 度。</li>
+          <li>相機視野角沒有標準介面可問，要自己校正一次。</li>
+        </ul>
+      </div>
+      <div class="entry-foot">
+        <div class="entry-limit">限制：磁偏角未修正，方位角是磁北的</div>
       </div>
     </a>
   </nav>
