@@ -2,9 +2,9 @@
 
 > 這份檔案是 `/sky/` 的活規格，四個 Phase 都會回來查它。
 > 通用規則在 `~/.claude/CLAUDE.md`、本 repo 的專案事實在根目錄 `CLAUDE.md`，這裡不重抄。
-> **Phase 1 與 Phase 2 的演算層已實作並通過驗證**：`sky/lib/*.mjs` ＋
-> `backend/test/sky-*.test.js`，59 條測試。Phase 2 的頁面端（授權、事件接線）與
-> Phase 3–4 仍是待驗證的意圖，不是承諾。
+> **Phase 1–3 的演算層已實作並通過驗證**：`sky/lib/*.mjs` ＋
+> `backend/test/sky-*.test.js`，76 條測試。Phase 2 的頁面端（授權、事件接線）與
+> Phase 4 仍是待驗證的意圖，不是承諾。
 
 ## 這是什麼
 
@@ -251,14 +251,18 @@ sky/
                             / pointingFromMatrix / orientationToPointing
                             / rotationRateFromEvent / rotationRateToPointingRates
                             / fuseAngleDeg / createPointingFilter
-    catalog.mjs          (P3) 星表載入 + 單位向量 + k-d tree
+    catalog.mjs          ✅ parseCatalog / loadCatalog / queryCone
+                            / queryConeForDate / nearestStar / describeStar
     project.mjs          (P4) 天球 → 螢幕像素
   data/
-    bsc5-mag6.json       (P3) 精簡亮星表（Yale BSC，Vmag ≤ 6）
+    bsc5-mag6.json       ✅ 5,080 顆（Yale BSC5，Vmag ≤ 6），220 KB / gzip 75 KB
 backend/test/
   sky-time.test.js       ✅ 11 條
   sky-coords.test.js     ✅ 23 條（angles / coords / 邊界 / 歲差 / 折射 / geomag 介面）
   sky-orientation.test.js ✅ 25 條（姿態→指向 / 陀螺儀速率 / 互補濾波 / 有狀態包裝）
+  sky-catalog.test.js    ✅ 17 條（schema / 不變量 / 查詢正確性 / 接縫 / 歲差串接 / 效能）
+scripts/
+  build-sky-catalog.mjs  ✅ 離線一次性轉檔工具（不進 Actions、不會上線）
   sky-page.test.js       (P2+) 行內 script 的 helpers
 ```
 
@@ -360,13 +364,95 @@ W3C 的 `deviceorientation` 是內旋 Z-X'-Y''，`R = Rz(α)·Rx(β)·Ry(γ)`，
   `deviceorientation` 不提供磁場強度，因此無法從這一層判斷，可能要靠
   `webkitCompassAccuracy`（僅 iOS）或請使用者做 8 字校正。
 
-### Phase 3：星表
+### Phase 3：星表檢索 —— 已完成
 
-- 資料源 Yale Bright Star Catalog，篩 `Vmag ≤ 6.0`，約 9,000 筆。需要一支離線轉檔 script
-  （放 `scripts/`，該目錄不在部署 allowlist、不會上線）。
-- 赤經赤緯先轉成三維單位向量再建 k-d tree：球面上的「最近」在角度空間有接縫（§5.5），
-  在向量空間沒有。
-- 查詢預算 < 5 ms。
+`sky/lib/catalog.mjs` ＋ `sky/data/bsc5-mag6.json` ＋ `scripts/build-sky-catalog.mjs`
+＋ `backend/test/sky-catalog.test.js`（17 條）。
+
+#### 資料來源與授權
+
+**所有權威來源在本專案的網路環境都連不到**（實測 2026-09-08）：CDS/VizieR、HEASARC、
+IAU 官方星名表都是連線被拒，Harvard TDC 回 403。唯一可達的是 `raw.githubusercontent.com`。
+
+選定 `brettonw/YaleBrightStarCatalog` 的 **`bsc5-all.json`**：
+
+- 它有**數值化**的 RA/Dec 分量（`RAh/RAm/RAs`、`DEd/DEm/DEs`、`DE-`），不必解析
+  `"00h 05m 09.9s"` 這種字串，少一整類失敗模式。座標是 J2000，與 §1 的管線相符。
+- **授權乾淨**：底層 BSC5 是公有領域（Harvard TDC / NASA ADC），鏡像 repo 的 MIT
+  只蓋它自己的轉換腳本。**刻意不用 HYG-Database** —— 它是 CC BY-SA 4.0，
+  會讓這個 repo 出現第一份帶分享相同條款的資料。
+- Vmag ≤ 6.0 → **5,080 顆**，其中 2,738 顆有稱號。
+
+#### 怎麼驗證一份沒有權威來源可對的資料
+
+同 Phase 1 的原則：**不比對記憶中的座標，比對幾何與統計上必然成立的事實**。
+這組檢查同時是 `build-sky-catalog.mjs` 的寫入閘門（不過就 exit 1 且不寫檔，
+照 `update-tax-params.mjs` 的模式）與 `sky-catalog.test.js` 的斷言 ——
+兩邊都釘住，重新產生資料時弄壞了會在 CI 當場紅。
+
+| 檢查 | 實得 |
+|---|---|
+| 最亮五顆 | Sirius −1.46、Canopus −0.72、Arcturus −0.04、Rigil Kentaurus −0.01、Vega 0.03 |
+| 距北天極 2° 內最亮 | Polaris，距極 **0.736°** |
+| 距南天極 2° 內最亮 | Polaris Australis（σ Oct），距極 1.044° |
+| 星等累積數 | V≤1:15、≤2:50、≤3:174、≤4:518、≤5:1630、≤6:5080 |
+| log N 相鄰斜率 | 0.47–0.54（理論約 0.6，實際天空因銀河結構略平） |
+| HR 重複 / 座標越界 | 0 / 0 |
+
+**另用 HYG-Database 當不出貨的獨立 oracle**（`--cross-check-hyg` 旗標；HYG 是
+CC BY-SA，**一個位元組都不進 repo**，同 Phase 1 用 pyerfa 的模式）：
+
+- 以 HR 對上 5,044 / 5,080
+- 位置差：中位 **0.59″**、99% 在 3.5″ 內、最大 21.9″，**無一超過 60″**
+- 星等差：中位 **0.010**；45 顆差 > 0.5（多為變星，兩表取樣時期不同）
+
+#### 線性掃描勝過 k-d tree（實測）
+
+原規格要求「實現 k-d Tree 或 Spatial Hashing，確保搜尋時間小於 5 ms」。
+量測結果讓這條失去理由：
+
+| 視野 | 平均命中 | 線性掃描 | k-d tree |
+|---|---|---|---|
+| 5° | 9.7 顆 | 0.0065 ms | 0.0016 ms |
+| 10° | 38.9 顆 | **0.0071 ms** | 0.0036 ms |
+| 30° | 342 顆 | **0.0124 ms** | 0.0176 ms |
+| 60° | 1,274 顆 | **0.0242 ms** | 0.0543 ms |
+
+k-d tree 只在窄視野快 2 倍，**30° 以上反而慢 2 倍**（遍歷開銷超過省下的比較），
+還要多約 120 行與一次 10 ms 建樹。線性掃描已是 5 ms 預算的 1/700；就算日後放寬到
+Vmag ≤ 8（約 4 萬顆）也只有 0.06 ms。**想「優化」這段之前先重跑這個量測。**
+
+實作上的兩個要點：
+
+- **比的是三維點積不是角距**：單位向量內積單調對應角距，整趟掃描只有乘加、
+  沒有三角函數，而且 0/360 接縫在向量空間裡根本不存在。只有真的命中的那幾顆
+  才算一次 `acos` 換成度。
+- **要 precess 的是查詢方向，不是星表**：轉一個方向 vs 轉 5,080 顆星，
+  而且旋轉保角、錐體半徑不必跟著變。有一條測試量出「不做這一步會差 0.35 度」，
+  那正是誤差預算表裡歲差那一行的依據。
+
+#### 名稱：5,080 顆全收，46% 沒有稱號
+
+Vmag ≤ 6 裡只有 334 顆有俗名、1,482 顆有 Bayer、2,194 顆有 Flamsteed；
+**2,342 顆（46.1%）三者皆無**。決定是全部收錄、無稱號者標 `HR 1234`，
+查詢結果帶 `hasDesignation` 讓 Phase 4 自己決定畫不畫標籤 ——
+星座形狀需要那些暗星，拿掉就跟真實天空對不起來。
+
+**俗名用 BSC5 的（公有領域），其中 38 個是舊稱**，與 IAU 現行名不同。
+IAU 官方清單在本環境取不到，所以只記下已知差異：
+
+| HR | BSC5 | IAU 現行 |
+|---|---|---|
+| 264 | Navi | Cih |
+| 437 | Kullat Nunu | Alpherg |
+| 510 | Torcularis Septentrionalis | Torcular |
+| 963 | Fornacis | Dalim |
+| 1346 / 1373 | Hyadum I / II | Prima / Secunda Hyadum |
+| 1577 | Kabdhilinan | Hassaleh |
+| 1605 | Haldus | Almaaz |
+| 1612 / 1641 | Haedus / Hoedus II | Saclateni / Haedus |
+
+（完整 38 筆用 `node scripts/build-sky-catalog.mjs --cross-check-hyg` 重新列出。）
 
 ### Phase 4：AR 疊加
 
