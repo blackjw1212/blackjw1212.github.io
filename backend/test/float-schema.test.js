@@ -93,6 +93,9 @@ test("沒有出處的數字不准進資料檔", async () => {
   for (const id of feed.mainSinker.sourceIds) {
     assert.ok(ids.has(id), `mainSinker 引用了不存在的來源 ${id}`);
   }
+  for (const id of feed.depthPolicy.sourceIds) {
+    assert.ok(ids.has(id), `depthPolicy 引用了不存在的來源 ${id}`);
+  }
 });
 
 test("可信度標記說得出它憑什麼", async () => {
@@ -229,6 +232,37 @@ test("主鉛門檻的克數必須等於同名咬鉛的重量", async () => {
   assert.ok(feed.shots.some((s) => s.family === main.family && s.grams != null),
     "主鉛的系列裡沒有任何可用的號數");
   assert.match(main.verifiedAt || "", DATE);
+});
+
+// 能力邊界寫成資料契約。這條的用意不是描述現況，是當**跳板**：
+// 哪天有人想加「沉入 X 公分」，他得先把 computable 翻成 true，而那一翻就會撞上
+// 下面這條——每一列浮標都要有可驗證的幾何／體積函數，而那種資料現在一列都沒有。
+// 換句話說，要加深度就得先把資料補齊，不能只加一個公式。
+test("沉入深度的能力邊界是資料契約，不是註解", async () => {
+  const feed = await loadFeed();
+  const policy = feed.depthPolicy;
+  assert.ok(policy, "depthPolicy 不可缺——少了它，頁面那段揭露就沒有資料來源");
+  assert.equal(typeof policy.computable, "boolean");
+  assert.ok(Array.isArray(policy.blockers) && policy.blockers.length >= 4,
+    "四條阻擋要逐條寫出來，否則「算不出來」讀起來像偷懶");
+  // 順序有意義：硬的排前面。幾何資料缺席是主要阻擋，水體密度只是環境偏移。
+  assert.match(policy.blockers[0], /幾何|浮力曲線/, "第一條阻擋應該是缺幾何／浮力曲線資料");
+  assert.match(policy.blockers[policy.blockers.length - 1], /密度/,
+    "水體密度是最後一條——它讓結果偏移，不是主要阻擋");
+  assert.ok(Array.isArray(policy.allowedWhen) && policy.allowedWhen.length,
+    "要講清楚在什麼條件下才談得上計算");
+  assert.match(policy.beyondFullSubmersion || "", /持續下沉/,
+    "超過臨界之後是持續下沉，不是停在某個深度");
+  assert.match(policy.verifiedAt || "", DATE);
+
+  if (policy.computable) {
+    // 翻成 true 的那個人要面對這條。這裡刻意不寫「怎麼算」——那是他的工作，
+    // 但他不能在沒有幾何資料的情況下宣稱算得出來。
+    for (const row of feed.floats) {
+      assert.ok(row.geometry && Number.isFinite(row.geometry.waterlineAreaMm2),
+        `depthPolicy.computable 為 true，但 ${row.label} 沒有可驗證的幾何資料`);
+    }
+  }
 });
 
 test("餘浮力設定指得到一顆真的咬鉛", async () => {

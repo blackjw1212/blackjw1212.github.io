@@ -545,6 +545,30 @@ if (has("float/index.html")) {
   // 頁面會把來源網址渲染成連結。那些連結不得夾帶聯盟行銷追蹤參數——資料檔那一側
   // 由 float-schema.test.js 把關，這裡擋的是頁面自己加上去。
   assertNoMatch("float/index.html", html, /[?&](utm_[a-z]+|aff(?:iliate)?_?id|ref|tag)=/i, "float affiliate tracking parameters");
+  // ── FLOAT_DEPTH_CALCULATION_INVARIANT ────────────────────────────────────
+  // 不得由「浮標號數／鉛重／名義浮力／通用換算比例」推導或顯示「沉入深度」。
+  //
+  // 這條擋的是一種很好寫、很好看、而且永遠不會有測試變紅的假功能：拿多出來的
+  // 公克數乘一個常數，印出「沉入 3.2 cm」。那個數字算不出來，理由按硬度排序是
+  //   1. 沒有該浮標的實際幾何／浮力曲線資料（本表明講不收各廠型號的實測浮力）
+  //   2. 阿波是非等截面形狀，沒入體積與吃水深度不是固定線性關係
+  //   3. 標、鉛、母線與其他配件共同構成受力系統，浮標不是單獨受力的物體
+  //   4. 水體密度只是讓實際結果再偏移的環境變數
+  // 只有當某個型號真的有可驗證的體積函數或實測吃水校正資料時才談得上計算，
+  // 而那種資料一旦進來，depthPolicy.computable 會跟著改，schema 測試會要求幾何欄位。
+  //
+  // 判法是「下沉語彙 + 數字 + 長度單位」同時出現。純粹講重量的句子不受影響。
+  assertNoMatch("float/index.html", html,
+    /(沉入|沉到|下沉|吃水|沒入)[^。<]{0,16}\d+(?:\.\d+)?\s*(?:mm|cm|公分|公厘|毫米|公尺|米)/,
+    "float must not print a fabricated sink depth");
+  // 超過完全沒入的臨界之後沒有平衡點。這兩句是那條不變式在畫面上的樣子，
+  // 少了它們，使用者會以為「會沉」是指停在某個深度。
+  assertMatch("float/index.html", html, /沒有可計算的平衡吃水深度/, "float must state that no equilibrium depth exists");
+  assertMatch("float/index.html", html, /不是停在某個固定深度/, "float must rule out a fixed sink depth");
+  // 能力邊界要講得出理由，否則「算不出來」讀起來像偷懶。
+  assertMatch("float/index.html", html, /為什麼這裡不給「沉入幾公分」/, "float must explain the boundary");
+  assertMatch("float/index.html", html, /id="depthBlockers"/, "float must render the blockers from data");
+
   // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
   // 「浮標號數」與「配鉛試算」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
   assertMatch("float/index.html", html, /<div class="tabbar"/, "float tab bar class drives the mobile audit walker");
