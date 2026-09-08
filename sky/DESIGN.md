@@ -2,8 +2,9 @@
 
 > 這份檔案是 `/sky/` 的活規格，四個 Phase 都會回來查它。
 > 通用規則在 `~/.claude/CLAUDE.md`、本 repo 的專案事實在根目錄 `CLAUDE.md`，這裡不重抄。
-> **Phase 1 已實作並通過驗證**：`sky/lib/*.mjs` ＋ `backend/test/sky-*.test.js`，34 條測試。
-> Phase 2–4 的段落仍是待驗證的意圖，不是承諾。
+> **Phase 1 與 Phase 2 的演算層已實作並通過驗證**：`sky/lib/*.mjs` ＋
+> `backend/test/sky-*.test.js`，59 條測試。Phase 2 的頁面端（授權、事件接線）與
+> Phase 3–4 仍是待驗證的意圖，不是承諾。
 
 ## 這是什麼
 
@@ -246,7 +247,10 @@ sky/
                             / apparentAltitudeFromTrueDeg
     geomag.mjs           ✅ 介面 only：applyDeclination / lookupDeclination
                             / DECLINATION_TABLE（空表，理由見 §6）
-    orientation.mjs      (P2) 互補濾波
+    orientation.mjs      ✅ orientationToMatrix / cameraAxisFromMatrix
+                            / pointingFromMatrix / orientationToPointing
+                            / rotationRateFromEvent / rotationRateToPointingRates
+                            / fuseAngleDeg / createPointingFilter
     catalog.mjs          (P3) 星表載入 + 單位向量 + k-d tree
     project.mjs          (P4) 天球 → 螢幕像素
   data/
@@ -254,6 +258,7 @@ sky/
 backend/test/
   sky-time.test.js       ✅ 11 條
   sky-coords.test.js     ✅ 23 條（angles / coords / 邊界 / 歲差 / 折射 / geomag 介面）
+  sky-orientation.test.js ✅ 25 條（姿態→指向 / 陀螺儀速率 / 互補濾波 / 有狀態包裝）
   sky-page.test.js       (P2+) 行內 script 的 helpers
 ```
 
@@ -292,15 +297,68 @@ html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)
 
 ## Phase 2–4 的已知前提（尚未定稿）
 
-### Phase 2：感測器融合
+### Phase 2：感測器融合 —— 演算層已完成，頁面端未動
+
+`sky/lib/orientation.mjs` ＋ `backend/test/sky-orientation.test.js`（25 條）。
+下面四條是實作過程中查證出來、且**與直覺相反**的事實。
+
+#### 姿態角 → 相機指向
+
+W3C 的 `deviceorientation` 是內旋 Z-X'-Y''，`R = Rz(α)·Rx(β)·Ry(γ)`，
+把裝置座標轉成世界 ENU。**後鏡頭的光軸恆為裝置的 −z**，所以相機軸就是 `−R·(0,0,1)`。
+
+- **`screen.orientation.angle` 不進方位角的換算**（初版規格說要，是錯的）。
+  鏡頭固定在機身上，螢幕內容怎麼轉都不會改變光軸指向。螢幕角度影響的只有 roll
+  ——世界的上方落在畫面的哪個方向——那是 Phase 4 畫標籤時的事。
+- **α 與方位角轉向相反**：α 是繞天頂逆時針量的，方位角順時針為正，直立時
+  `az = 360 − α`。把 alpha 直接當方位角用，畫面會左右相反。
+- 正對天頂／天底時方位角在幾何上不存在，回 `azimuthDefined: false`
+  （與 Phase 1 的 `raDefined` 同一個模式）。
+
+驗證方式：封閉形式對三個基本矩陣連乘（5,000 組隨機，最大差 0）、正交性與 det=1、
+六個「手機這樣拿 → 鏡頭看哪裡」的直覺案例。
+
+#### 陀螺儀速率 → 指向速率
+
+**`DeviceMotionEvent.rotationRate` 的欄位沿用 alpha/beta/gamma 這三個名字，
+但它們是繞 z / x / y 的角速度**，與 `deviceorientation` 的三個角同名不同軸。
+照名字對接會把三軸接錯，而且只會表現成「轉起來怪怪的」，不會有任何錯誤訊息。
+
+映射是 `ω_world = R·ω_device`、`v̇ = ω_world × v`，再投影到方位角與仰角。
+用中央差分做數值微分獨立驗證，相對誤差 3e-6（殘差主要來自差分本身）。
+
+#### 互補濾波
+
+`fuseAngleDeg()`：先用陀螺儀預測，再往量測值拉回一部分。兩個容易寫錯的地方：
+
+- **權重是 `exp(−dt/τ)`，不是常數。** 感測器回呼的間隔本來就不規則（掉幀、
+  背景分頁），寫死 0.98 會讓平滑程度隨幀率漂移。指數形式讓「一段時間切成幾份」
+  得到同一個答案，測試釘住了這條。
+- **循環角要走最短路徑。** 359 度與 1 度的中點是 0 度不是 180 度；直接寫
+  `w·a + (1−w)·b` 會讓使用者面向北方時畫面瞬間甩到南方。
+
+有陀螺儀時穩態落後為 0；沒有時退化成純低通，落後約「速率 × τ」（測試量到 60°/s
+轉頭時約 21 度，與 `rate × τ` 相符）。`DEFAULT_TIME_CONSTANT_SECONDS = 0.35`
+**是起始值不是調校值** —— 調它需要真手機。
+
+#### 有狀態的包裝 `createPointingFilter()`
+
+替呼叫端管住三件實際會發生的事：第一筆沒有前值可混、時間戳重複或倒退不可改變狀態、
+間隔超過 `MAX_GAP_SECONDS`（分頁切走再切回來）要重新初始化而不是拿舊速率去積分。
+
+#### 還沒做的：頁面端
 
 - **iOS 13+ 的 `DeviceOrientationEvent.requestPermission()` 只能在使用者手勢的呼叫堆疊裡呼叫。**
   自動要會直接被拒，而且之後要不回來。`dash/index.html` 已有可抄的完整範例與註解，
   包含把「傾角授權」與 wakeLock 併成同一顆按鈕的做法。
 - 授權與錯誤的 UI 照全站慣例走 `setState(node, message, tone)`（tone 為 `""` / `"ok"` / `"error"`），
   **只在畫面上降級，不 alert、不 throw 到頂層**。
-- `screen.orientation.angle` 要納入方位角換算，`dash/index.html` 的 `normalizeLean()`
-  是既有的參考實作。
+- **`webkitCompassHeading` 與 α 的關係尚未查證**：iOS 上 α 的原點是否為磁北、
+  `webkitCompassHeading` 給的是磁北還是真北，都要真機確認。演算層刻意不假設，
+  只收「已經是真北的方位角」。
+- τ 的實機調校、以及地磁受干擾（靠近金屬、磁吸配件）時的偵測。
+  `deviceorientation` 不提供磁場強度，因此無法從這一層判斷，可能要靠
+  `webkitCompassAccuracy`（僅 iOS）或請使用者做 8 字校正。
 
 ### Phase 3：星表
 
