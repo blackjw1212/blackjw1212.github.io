@@ -107,6 +107,8 @@
   .verdict{font-size:14px;color:var(--soft);margin-bottom:12px}
   .suggest{border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:6px;background:var(--panel);padding:11px 13px;font-size:13px}
   .suggest b{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber)}
+  .blockers{margin:0 0 0 18px;display:grid;gap:7px;font-size:12px;color:var(--faint)}
+  .blockers li::marker{color:var(--amber)}
 
   .srclist{display:grid;gap:2px;list-style:none}
   .srclist a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}
@@ -250,9 +252,16 @@
             <span class="big-label">已掛合計</span>
             <span class="sub" id="currentOut">—</span>
           </div>
+          <div>
+            <span class="big-label">浮力使用率</span>
+            <span class="sub" id="ratioOut">—</span>
+          </div>
         </div>
         <p class="verdict" id="verdictOut">選一顆浮標。</p>
         <div class="suggest" id="suggestOut"></div>
+        <h3>為什麼這裡不給「沉入幾公分」</h3>
+        <p class="lead" id="depthPolicyLead"></p>
+        <ul class="blockers" id="depthBlockers"></ul>
       </div>
     </div>
   </section>
@@ -460,6 +469,15 @@
     };
   }
 
+  // 浮力使用率：已掛 ÷ 完全沒入的臨界。這是這份資料**算得出來**的那一半——
+  // 它是重量的比例，不是深度。系統可以回答「還差多少重量會完全沒入」，
+  // 不能回答「現在沉入多少公分」，理由見 feed.depthPolicy。
+  function loadRatio(feed, floatLabel, residualLabel, mainLabel, counts) {
+    const target = targetGrams(feed, floatLabel, residualLabel);
+    if (target == null || target <= 0) return null;
+    return Math.round((sumRig(feed, mainLabel, counts) / target) * 100);
+  }
+
   function balance(feed, floatLabel, residualLabel, mainLabel, counts) {
     const target = targetGrams(feed, floatLabel, residualLabel);
     const current = sumRig(feed, mainLabel, counts);
@@ -539,6 +557,17 @@
       : '<li class="muted">—</li>';
   }
 
+  function renderDepthPolicy() {
+    const policy = (state.feed && state.feed.depthPolicy) || null;
+    if (!policy) {
+      $("depthPolicyLead").textContent = "讀不到資料，這段說明也一起沒了。";
+      $("depthBlockers").innerHTML = "";
+      return;
+    }
+    $("depthPolicyLead").textContent = policy.beyondFullSubmersion;
+    $("depthBlockers").innerHTML = policy.blockers.map((b) => `<li>${esc(b)}</li>`).join("");
+  }
+
   function renderSources() {
     const sources = (state.feed && state.feed.sources) || [];
     $("sourceList").innerHTML = sources.length
@@ -598,6 +627,8 @@
     $("mainOut").textContent = state.mainLabel
       ? `${state.mainLabel}｜${fmtGrams(mainSinkerGrams(state.feed, state.mainLabel))}`
       : "無";
+    const ratio = loadRatio(state.feed, state.floatLabel, state.residualLabel, state.mainLabel, state.counts);
+    $("ratioOut").textContent = ratio == null ? "—" : `${ratio}%`;
     if (result.target == null) {
       delta.textContent = "—";
       $("targetOut").textContent = "—";
@@ -613,18 +644,20 @@
     if (result.verdict === "balanced") {
       delta.classList.add("ok");
       delta.textContent = "0.00 g";
-      $("verdictOut").textContent = "已經平水：目標鉛重與已掛的咬鉛相符。";
+      $("verdictOut").textContent = "已經到達完全沒入的臨界：再加任何重量，浮標就會開始下沉。";
       $("suggestOut").innerHTML = "";
       return result;
     }
     if (result.verdict === "over") {
       delta.classList.add("over");
-      $("verdictOut").textContent = `超重 ${fmtGrams(Math.abs(result.delta))}——這顆標會沉下去。拿掉一些咬鉛，或換大一號的標。`;
+      // 超過完全沒入的臨界之後沒有平衡點：浮力已經到頂，多出來的重量沒有東西去平衡它。
+      // 這裡刻意不給任何「沉到 X 公分」——那是這個資料模型算不出來的東西，見 depthPolicy。
+      $("verdictOut").textContent = `已超出浮標最大可支撐重量 ${fmtGrams(Math.abs(result.delta))}，沒有可計算的平衡吃水深度。浮標將持續下沉，不是停在某個固定深度；實際下沉速度取決於浮標形狀、水阻、線組與水流等因素。要浮起來就拿掉一些重量，或換大一號的標。`;
       $("suggestOut").innerHTML = "";
       return result;
     }
 
-    $("verdictOut").textContent = `還差 ${fmtGrams(result.delta)} 才吃滿。標會露出水面，這段就是剩下的浮力。`;
+    $("verdictOut").textContent = `還差 ${fmtGrams(result.delta)}。標會露出水面，這段就是剩下的浮力——再增加約 ${fmtGrams(result.delta)} 負載後，將接近浮標完全沒入的臨界狀態。`;
     const suggestion = suggestRig(state.feed, state.floatLabel, result.delta, !!state.mainLabel);
     if (!suggestion) {
       $("suggestOut").innerHTML = '<span class="muted">差額太小，現有的咬鉛級距補不上來。</span>';
@@ -729,6 +762,7 @@
     renderFreshness();
     renderShots();
     renderFloats();
+    renderDepthPolicy();
     renderSources();
     renderPickers();
     bindInputs();
@@ -754,6 +788,7 @@
       mainSinkerGrams,
       needsMainSinker,
       sumRig,
+      loadRatio,
       targetGrams,
       suggestShots,
       suggestRig,

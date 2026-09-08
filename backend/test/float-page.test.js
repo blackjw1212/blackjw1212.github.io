@@ -45,7 +45,7 @@ test("頁面公開的 helper 契約", async () => {
   for (const name of [
     "shotOf", "shotGrams", "floatOf", "floatLoad", "sumShots",
     "usableShots", "targetGrams", "suggestShots", "balance",
-    "mainSinkerOptions", "mainSinkerGrams", "needsMainSinker", "sumRig", "suggestRig",
+    "mainSinkerOptions", "mainSinkerGrams", "needsMainSinker", "sumRig", "suggestRig", "loadRatio",
     "round2", "daysBetween", "todayISO",
   ]) {
     assert.equal(typeof app.helpers[name], "function", `缺 helper: ${name}`);
@@ -195,6 +195,36 @@ test("主鉛選單只給號數，而且加總算得進去", async () => {
   assert.equal(mainSinkerGrams(feed, "不存在"), 0);
   assert.equal(sumRig(feed, "", { B: 1 }), 0.55, "沒選主鉛時等於舊行為");
   assert.equal(sumRig(feed, "1号", { B: 1 }), 4.3);
+});
+
+// 系統可以回答「還差多少重量會完全沒入」，不能回答「現在沉入多少公分」。
+// 浮力使用率是前者的一種說法——它是重量的比例，不帶任何長度單位。
+test("浮力使用率算的是重量比例，不是深度", async () => {
+  const { app } = await loadPage();
+  const feed = await loadFeed();
+  const { loadRatio } = app.helpers;
+
+  // 3B 標（0.95）＋ G3（0.25）＝ 1.20 是完全沒入的臨界。掛一顆 B（0.55）＝ 46%。
+  assert.equal(loadRatio(feed, "3B", "G3", "", { B: 1 }), 46);
+  assert.equal(loadRatio(feed, "3B", "G3", "", {}), 0, "什麼都沒掛就是 0%");
+  assert.equal(loadRatio(feed, "3B", "G3", "", { "4B": 1 }), 100, "剛好到臨界是 100%");
+  assert.ok(loadRatio(feed, "3B", "G3", "", { "2B": 1, B: 1 }) > 100, "超過臨界會大於 100%");
+  assert.equal(loadRatio(feed, "000", "G3", "", {}), null, "算不出臨界就不給比例");
+  assert.equal(loadRatio(null, "3B", "G3", "", {}), null);
+});
+
+// 這條擋的是往回退。helpers 一旦長出「算深度」的東西，靜態契約那條
+// FLOAT_DEPTH_CALCULATION_INVARIANT 只擋得到印在畫面上的字串，擋不到函式本身。
+test("helpers 不可以長出任何算沉入深度的東西", async () => {
+  const { app } = await loadPage();
+  const names = Object.keys(app.helpers);
+  for (const name of names) {
+    assert.doesNotMatch(name, /depth|sinkDepth|submersion|draft/i,
+      `helpers 出現了疑似計算吃水深度的函式: ${name}`);
+  }
+  const feed = await loadFeed();
+  assert.equal(feed.depthPolicy.computable, false,
+    "要改成算得出來，得先補齊幾何資料——float-schema.test.js 有對應的檢查");
 });
 
 test("建議組合湊得出差額，而且只用真的存在的咬鉛", async () => {

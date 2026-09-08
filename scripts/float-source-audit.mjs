@@ -165,6 +165,15 @@ export function buildChecklist(feed) {
     });
   }
 
+  const depth = feed.depthPolicy;
+  if (depth) {
+    push(depth.sourceIds, {
+      path: "depthPolicy",
+      kind: "text",
+      value: "沉入深度算不出來的四條阻擋——這是能力邊界，核對時看的是理由站不站得住，不是數字",
+    });
+  }
+
   const residual = feed.residualBuoyancy;
   if (residual) {
     for (const value of residual.rangeGrams || []) {
