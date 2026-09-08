@@ -2,7 +2,8 @@
 
 > 這份檔案是 `/sky/` 的活規格，四個 Phase 都會回來查它。
 > 通用規則在 `~/.claude/CLAUDE.md`、本 repo 的專案事實在根目錄 `CLAUDE.md`，這裡不重抄。
-> **本文件目前只有 Phase 1 是定稿**，Phase 2–4 的段落是待驗證的意圖，不是承諾。
+> **Phase 1 已實作並通過驗證**：`sky/lib/*.mjs` ＋ `backend/test/sky-*.test.js`，34 條測試。
+> Phase 2–4 的段落仍是待驗證的意圖，不是承諾。
 
 ## 這是什麼
 
@@ -103,51 +104,68 @@ A = normalizeDeg( atan2( -sin H · cos δ,  sin δ · cos φ - cos δ · sin φ 
 H = normalizeHourAngle(LST - α)
 ```
 
-### 5. 邊界條件
+### 5. 邊界條件（每條都有對應測試）
 
-**每一條都要有一個對應的測試。** 這些不是理論上的角落，是實際會在使用者手上發生的輸入
-（把手機舉到正上方就是天頂）。
+**這一節在 2026-09-08 被實測改寫過。** 初版規格對其中三條的猜測是錯的，而且錯得很像對的
+——保留這段修正紀錄，是因為同一個直覺很容易再犯一次。實測腳本的結論見下面各條。
 
-#### 5.1 `asin` 引數溢位 → `NaN`
+#### 5.1 `asin` 引數溢位 → `NaN`（成立，而且比預期常見得多）
 
-`sin a · sin φ + cos a · cos φ · cos A` 在數學上必定落在 `[-1, 1]`，但浮點運算會給出
-`1.0000000000000002`，`Math.asin` 對它回 `NaN`，**而且不拋錯**。之後每一步都是 `NaN`，
+`sin a · sin φ + cos a · cos φ · cos A` 在數學上必定落在 `[-1, 1]`，但浮點會給出
+`1.0000000000000002`，`Math.asin` 對它回 `NaN` 且不拋錯。之後每一步都是 `NaN`，
 畫面上就是「星星都不見了」而主控台一個字都沒有。
 
-一律 `clamp(x, -1, 1)`。repo 已有先例：`dash/index.html` 的 `haversineMeters()` 用
-`Math.min(1, ...)` 收斂 `Math.asin` 的引數。
+**實測**：40 萬組隨機擾動中出現 4,450 次，正反兩個方向都會發生。觸發條件是
+`a ≈ φ` 且 `A ≈ 0` —— 那正是**把手機指向天球極（北極星）**，是這個 app 最常見的動作
+之一，不是理論上的角落。
 
-#### 5.2 天頂 `a = +90°`
+→ `asin` 與 `acos` 的引數一律 `clamp(x, -1, 1)`。
 
-`cos a = 0` 讓 `atan2` 的分子與分母**同時**為 0。`Math.atan2(0, 0)` 在 JS 定義為 `0`，
-於是 `H = 0`、`α = LST`、`δ = φ` —— **恰好是正確答案**。
+#### 5.2 天頂、天底、觀測者在地極：**不需要特例分支**（初版說需要，是錯的）
 
-但這是巧合，不是設計。顯式分支回 `{ dec: φ, hourAngle: 0 }`，並用測試釘住，
-不要留給下一個人去驗證 `atan2(0,0)` 的規格。
+初版寫「天頂時分子分母同時為 0，`Math.atan2(0,0)` 只是恰好給出正確答案」。**這是錯的。**
 
-#### 5.3 天底 `a = -90°`
+實測：`Math.cos(90 * π/180)` 是 `6.123233995736766e-17`，**不是 0**。所以在天頂時
+分母 `x = sin a · cos φ − cos a · sin φ · cos A` 收斂到 `cos φ ≠ 0`，`atan2` 條件良好，
+得到 `H ≈ 4e-15°`、`δ = φ`（誤差 < 1e-12°）。天底同理得 `H = ±180°`、`δ = −φ`；
+初版說它「取決於 `-0` 的號誌」也不對 —— 號誌來自 `±6.1e-17` 這個真實的微小值，
+而且 `+180` 與 `−180` 本來就是同一個方向。
 
-正確答案是 `δ = -φ`、`H = 180°`。公式會走到 `atan2(-0, -cos φ)`，回 `-π`，
-換算後是 `-180°` —— 數值等價，但**取決於 `-0` 的號誌**（`-sin A · cos a` 在 `cos a = +0`
-時是 `-0`）。同樣顯式分支。
+觀測者站在地極（`|φ| = 90`）時公式一樣良好定義（`δ` 就等於仰角）。初版開的
+「clamp 到 89.9999 並標記 degenerate」處方是在解一個不存在的問題，而且 clamp 本身
+會引入誤差。**真正沒有意義的是「經度」**，所以 LST 無從決定 —— 那是資料問題，
+不是這條公式的問題。
 
-#### 5.4 極點 `|φ| → 90°`
+→ 三種情況都不加分支。但**三種都要有測試把行為釘住**，否則日後有人「順手加個 if」
+就改了行為。時角輸出統一正規化成 `+180`，讓輸出有唯一形式。
 
-`cos φ = 0` 時 `atan2` 本身仍良好定義，但**經度在極點沒有意義**，LST 因此也失去意義：
-同一個 `(A, a)` 配上任何 `λ` 都會得到不同的 `α`，而且每一個看起來都很正常。
+#### 5.3 唯一真正的 0/0：站在地極、又剛好指著天頂
 
-判準：`|φ| > 89.9999` 時 clamp 到 `±89.9999`，並在回傳值帶 `degenerate: true`，
-讓 UI 有機會說「在極點附近方位角無法決定赤經」。
+此時 `cos φ` 與 `cos a` 同時是 6.1e-17，分子分母都塌成 0，`H` 隨 `A` 亂跳（實測 0、−45、−0）。
 
-#### 5.5 `α` 跨 0/360 的接縫
+但這是**正確答案**：這時看的就是天球極本身，而天極的赤經在定義上就不存在。
+
+→ 判準因此不是「觀測者在哪」而是「看到的是不是天極」：`|δ| > 90 − 1e-9` 時回
+`raDefined: false`。這同時涵蓋 5.1 那個 clamp 之後 `δ = 90` 的情況。**不可以回一個
+看起來很正常的赤經。**
+
+#### 5.4 `α` 跨 0/360 的接縫（成立）
 
 `359.9°` 與 `0.1°` 的角距是 `0.2°`，不是 `359.8°`。星表查詢**一律**走
 `angularSeparation()`，禁止對赤經直接相減 —— 否則 0h 附近的星會整批漏抓，
 而且其他天區看起來完全正常。
 
-#### 5.6 螢幕方向與 roll
+角距用 haversine 而不是 `acos(sin·sin + cos·cos·cos)`：後者在小角度時引數趨近 1，
+`acos` 的相對誤差會炸開。Phase 3 的比對全是視野內的小角度，這是那件事的前提。
 
-`roll` 只影響 Phase 4 的畫面投影，**不影響 `(α, δ)`**。Phase 1 的函式簽章裡不要有它。
+#### 5.5 `H` 與 `A` 的正規化不可互用（成立）
+
+`normalizeHourAngle` → `(-180, 180]`，`normalizeDeg` → `[0, 360)`。
+混用產生整整 360° 的誤差而且不拋錯。
+
+#### 5.6 `roll` 不影響 `(α, δ)`
+
+只影響 Phase 4 的畫面投影。Phase 1 的函式簽章裡沒有它。
 
 ### 6. 磁偏角
 
@@ -157,8 +175,11 @@ applyDeclination(magneticAzimuth, declinationDeg) → magneticAzimuth + declinat
 
 **東偏為正。** Phase 1 只定這個介面與符號慣例，實作分兩段：
 
-1. 先做常數表（台灣本島一個值就夠用）。照 repo 對人工維護資料的慣例，每筆必附來源網址與
+1. 常數表（台灣本島一個值就夠用）。照 repo 對人工維護資料的慣例，每筆必附來源網址與
    查詢日期（參考 `data/coupons.json` 的 `sourceUrl` / `verifiedAt`）。
+   **這張表目前是空的，那是刻意的不是漏做**：NOAA 的線上磁偏角計算器（`ngdc.noaa.gov`）
+   在本專案的網路環境被 egress proxy 擋住（實測 2026-09-08），拿不到可引用的數值，
+   而沒有出處的數字不寫進資料檔。要補這張表，先解決取得可引用來源的問題。
 2. **查不到就回 `null`，不准填 0。** 這是 repo 既有的紅線（見根目錄 `CLAUDE.md` 關於
    `domesticRatio` 的那段：誤填 0 比 `null` 危險，因為 `null` 會讓上層回退到「未修正」的
    提示，而 0 會讓畫面自信地指錯方向）。
@@ -174,7 +195,7 @@ applyDeclination(magneticAzimuth, declinationDeg) → magneticAzimuth + declinat
 |---|---|---|
 | 地磁方位角（手機） | ±2°～±10° | **最大宗。準確度的戰場在 Phase 2，不在這裡。** |
 | 加速度計傾角 | ±1°～±2° | 同上 |
-| 忽略歲差（J2000 → 2026） | ≈ 0.36°（50.29″/年 × 26 年） | **做**：rigorous 三角轉換，便宜且確定 |
+| 忽略歲差（J2000 → 2026） | **實測 0.349°**（SOFA 旋轉矩陣，Betelgeuse 位置） | **做**：rigorous 三角轉換，便宜且確定 |
 | 大氣折射（地平線） | 0.57°（34′） | **做**：Bennett 公式 |
 | 大氣折射（30° 仰角） | 0.03°（1.7′） | 同一支函式順便涵蓋 |
 | 忽略章動與 equation of equinoxes | < 0.005° | 忽略 |
@@ -190,9 +211,17 @@ applyDeclination(magneticAzimuth, declinationDeg) → magneticAzimuth + declinat
 
 1. **Round-trip 不變量**：隨機 1,000 組 `(φ, λ, t, A, a)`，`horizontalToEquatorial` 後再
    `equatorialToHorizontal`，誤差 < 1e-9 度。極點與天頂／天底另有專屬測試，不混進這一條。
-2. **對齊公開標準值**：用 Meeus《Astronomical Algorithms》的 GMST 例題與金星地平座標例題
-   當固定測試向量。**實作時翻原書核對數字，不可憑記憶抄** —— 記錯一位不會讓任何測試變紅，
-   只會讓所有測試一起錯。記得套用 §2 的 `+180°` 方位角換算。
+2. **對齊公開標準值**：oracle 是 **pyerfa（IAU SOFA 的直譯版）**，不是 Meeus 那本書 ——
+   書本身也是在轉述這套標準模型，直接對上游比對可以完全避開「抄錯的參考答案」這個風險
+   （錯的 oracle 會讓測試自洽但全錯，比測試失敗危險）。
+   已完成的比對（2026-09-08）：
+   - `gmstDeg` vs `erfa.gmst82`：1970–2030 間最大差 **0.00016 角秒**
+   - 地平↔赤道 vs `erfa.hd2ae`：5 組向量，殘差 < 1e-8 度
+   - 歲差係數 vs `erfa.prec76`：±40 年內差 **0.000000000 角秒**
+   - 交叉核對：上述向量同時重現了 Meeus Example 12.a（13h10m46.3668s，差 0.0004 角秒）
+     與 13.b（金星 A=68.0337°/h=15.1249°，差 0.02″/0.09″），連帶證實 §2 的 `+180°` 換算。
+   重新產生 fixture 的方法寫在兩支測試檔的檔頭。**pyerfa 不是這個 repo 的相依**，
+   是人工比對時在 repo 外的 venv 裡跑的（backend/ 沒有 lockfile、CI 也沒有 npm install）。
 3. **邊界條件**：§5 的六條各一個測試。
 4. **Stellarium 人工對齊**：同一組時間與地點，方位角差 < 0.1°。
    **這一條不進 CI**，理由與 `scripts/mobile-audit.html` 完全相同：需要外部軟體，
@@ -207,21 +236,29 @@ sky/
   DESIGN.md              本檔
   index.html             (Phase 2+) 單頁：UI + 行內 classic script，緊貼 </body>
   lib/
-    angles.mjs           (P1) normalizeDeg / normalizeHourAngle / clamp / angularSeparation
-    time.mjs             (P1) julianDay / julianCenturies / gmstDeg / lstDeg
-    coords.mjs           (P1) horizontalToEquatorial / equatorialToHorizontal
-                              / precessDateToJ2000 / refraction
-    geomag.mjs           (P1) applyDeclination + 磁偏角查表介面
+    angles.mjs           ✅ toRadians / toDegrees / clamp / normalizeDeg
+                            / normalizeHourAngle / angularSeparation
+    time.mjs             ✅ julianDay / julianCenturies / gmstDeg / lstDeg
+    coords.mjs           ✅ horizontalToHourAngle / hourAngleToHorizontal
+                            / horizontalToEquatorial / equatorialToHorizontal
+                            / precessionAnglesDeg / precessJ2000ToDate / precessDateToJ2000
+                            / refractionDeg / trueAltitudeFromApparentDeg
+                            / apparentAltitudeFromTrueDeg
+    geomag.mjs           ✅ 介面 only：applyDeclination / lookupDeclination
+                            / DECLINATION_TABLE（空表，理由見 §6）
     orientation.mjs      (P2) 互補濾波
     catalog.mjs          (P3) 星表載入 + 單位向量 + k-d tree
     project.mjs          (P4) 天球 → 螢幕像素
   data/
     bsc5-mag6.json       (P3) 精簡亮星表（Yale BSC，Vmag ≤ 6）
 backend/test/
-  sky-time.test.js       (P1)
-  sky-coords.test.js     (P1)
+  sky-time.test.js       ✅ 11 條
+  sky-coords.test.js     ✅ 23 條（angles / coords / 邊界 / 歲差 / 折射 / geomag 介面）
   sky-page.test.js       (P2+) 行內 script 的 helpers
 ```
+
+`sky-coords.test.js` 同時涵蓋 `angles.mjs` 與 `geomag.mjs`：前者是座標轉換的純支援函式，
+後者在 Phase 1 只有三個斷言，各自開一支檔案不划算。等 `geomag.mjs` 真的長出模型再拆。
 
 ### 為什麼純數學庫是獨立 ESM，不塞進行內 script
 
