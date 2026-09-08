@@ -50,11 +50,13 @@ test("每個來源都有唯一 id、https 網址，且不夾帶推廣參數", as
     assert.ok(source.title, `${source.id} 缺 title`);
     assert.match(source.url || "", /^https:\/\//, `${source.id} 的 url 必須是 https`);
     assert.doesNotMatch(source.url, TRACKING, `${source.id} 的 url 夾帶了推廣追蹤參數`);
-    // seenVia 記的是「這個來源是怎麼被讀到的」。目前全部是搜尋摘要——
-    // 之後在能上網的機器上逐頁核對過，就把該列改成 opened。少了這個欄位，
-    // 「多來源一致」會被讀成「已經開過那些頁」。
-    assert.ok(["search-summary", "opened"].includes(source.seenVia),
-      `${source.id} 的 seenVia 必須是 search-summary 或 opened，得到 ${source.seenVia}`);
+    // seenVia 記的是「這個來源是怎麼被讀到的」，三個值都代表不同的可信程度：
+    //   search-summary  從搜尋結果摘要讀到，沒開過原始頁
+    //   user-supplied   使用者提供，本專案沒有自己確認過
+    //   opened          有人開過那一頁、在上面看到那些數字（HTTP 200 不算）
+    // 少了這個欄位，「多來源一致」會被讀成「已經開過那些頁」。
+    assert.ok(["search-summary", "opened", "user-supplied"].includes(source.seenVia),
+      `${source.id} 的 seenVia 異常: ${source.seenVia}`);
   }
 });
 
@@ -112,13 +114,21 @@ test("咬鉛：系列、換算方式與分歧值都合法", async () => {
       assert.ok(Number.isFinite(shot.grams) && shot.grams > 0, `${shot.label} 的 grams 異常`);
     }
     for (const variant of shot.variants || []) {
-      assert.ok(Number.isFinite(variant.grams) && variant.grams > 0,
-        `${shot.label} 的 variant 數值異常`);
+      // 來源給的可能是一個單值，也可能本來就是一個區間（例如「3.20〜3.40 g」）。
+      // 區間照原樣記成 gramsRange——取中點等於捏造一個來源沒給過的數字。
+      const hasValue = Number.isFinite(variant.grams) && variant.grams > 0;
+      const range = variant.gramsRange;
+      const hasRange = Array.isArray(range) && range.length === 2
+        && range.every((v) => Number.isFinite(v) && v > 0) && range[0] < range[1];
+      assert.ok(hasValue !== hasRange,
+        `${shot.label} 的 variant 必須剛好有 grams 或 gramsRange 其中一個`);
       assert.ok(ids.has(variant.sourceId),
         `${shot.label} 的 variant 引用了不存在的來源 ${variant.sourceId}`);
       // 記一個跟主值一樣的 variant 只會讓畫面上多一列噪音。
-      assert.notEqual(variant.grams, shot.grams,
-        `${shot.label} 的 variant 與主值相同，不該記成分歧`);
+      if (hasValue) {
+        assert.notEqual(variant.grams, shot.grams,
+          `${shot.label} 的 variant 與主值相同，不該記成分歧`);
+      }
     }
   }
 });
@@ -146,6 +156,29 @@ test("浮標號數的負荷必須等於同名咬鉛的重量", async () => {
     assert.equal(row.loadGrams, shot.grams,
       `${row.label} 的負荷 ${row.loadGrams} 與同名咬鉛 ${shot.label} 的 ${shot.grams} 不一致`);
   }
+});
+
+// 7B／8B 是這份資料唯一「有數字可填卻刻意不填」的地方，值得單獨釘住：
+// 三個來源給三組互不重疊的數字，挑任何一組當主值都是在替使用者猜。
+test("7B／8B 的三組分歧都要留著，而且區間不可以被折成中點", async () => {
+  const feed = await loadFeed();
+  for (const label of ["7B", "8B"]) {
+    const shot = feed.shots.find((s) => s.label === label);
+    assert.equal(shot.grams, null, `${label} 不可以取值`);
+    assert.equal(shot.confidence, "conflicting");
+    assert.ok(shot.variants.length >= 3,
+      `${label} 應該記著三組分歧，目前只有 ${shot.variants.length} 組`);
+    // 每組都要指得出是誰給的，否則畫面上那幾個數字沒有意義。
+    assert.equal(new Set(shot.variants.map((v) => v.sourceId)).size, shot.variants.length,
+      `${label} 的 variants 有重複來源`);
+  }
+
+  // 來源給的是「3.20〜3.40」一個區間。折成 3.30 會憑空生出一個沒人講過的數字，
+  // 而且剛好撞上另一個來源的 3.30，看起來像兩個來源互相佐證——正好相反。
+  const range = feed.shots.find((s) => s.label === "8B").variants.find((v) => v.gramsRange);
+  assert.ok(range, "8B 應該有一組區間型的 variant");
+  assert.deepEqual(range.gramsRange, [3.2, 3.4]);
+  assert.equal(range.grams, undefined, "區間型的 variant 不可以同時寫一個單值");
 });
 
 test("同一系列內的重量必須單調遞增", async () => {

@@ -117,6 +117,25 @@ test("孤兒來源會在報告裡被指名", () => {
   assert.match(report, /支撐 0 項/);
 });
 
+// 表頭原本是用「總數減 opened」推出 search-summary 的筆數。seenVia 加了第三個值
+// （user-supplied）之後那種推法就開始說謊，而且報告看起來完全正常。
+test("表頭的 seenVia 統計要逐值計數，不可以用減法推", () => {
+  const source = (id, seenVia) => ({ id, title: id, url: `https://example.com/${id}`, kind: "blog", seenVia });
+  const feed = {
+    reviewedAt: "2026-09-08",
+    sources: [source("a", "opened"), source("b", "search-summary"), source("c", "user-supplied"), source("d", "user-supplied")],
+    shots: [{ label: "X", grams: 1, sourceIds: ["a", "b", "c", "d"], variants: [] }],
+    floats: [], makerVariance: [],
+  };
+  const report = formatReport(buildChecklist(feed), feed, { fetch: false });
+  assert.match(report, /來源 4 筆：/);
+  assert.match(report, /user-supplied 2/);
+  assert.match(report, /search-summary 1/);
+  assert.match(report, /opened 1/);
+  // 舊寫法會印成 search-summary 3。
+  assert.doesNotMatch(report, /search-summary 3/);
+});
+
 test("報告一定要講清楚命中率不是正確率，而且工具不寫檔", async () => {
   const feed = await loadFeed();
   const report = formatReport(buildChecklist(feed), feed, { fetch: false });
