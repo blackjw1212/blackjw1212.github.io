@@ -45,6 +45,7 @@ test("頁面公開的 helper 契約", async () => {
   for (const name of [
     "shotOf", "shotGrams", "floatOf", "floatLoad", "sumShots",
     "usableShots", "targetGrams", "suggestShots", "balance",
+    "mainSinkerOptions", "mainSinkerGrams", "needsMainSinker", "sumRig", "suggestRig",
     "round2", "daysBetween", "todayISO",
   ]) {
     assert.equal(typeof app.helpers[name], "function", `缺 helper: ${name}`);
@@ -112,23 +113,88 @@ test("平衡判定：不足、剛好、超重", async () => {
   const feed = await loadFeed();
   const { balance } = app.helpers;
 
-  const under = balance(feed, "3B", "G3", { B: 1 });
+  const under = balance(feed, "3B", "G3", "", { B: 1 });
   assert.equal(under.target, 1.2);
   assert.equal(under.current, 0.55);
   assert.equal(under.delta, 0.65);
   assert.equal(under.verdict, "under");
 
   // 4B 一顆就是 1.20，正好等於 3B 標＋G3 餘浮力。
-  const level = balance(feed, "3B", "G3", { "4B": 1 });
+  const level = balance(feed, "3B", "G3", "", { "4B": 1 });
   assert.equal(level.delta, 0);
   assert.equal(level.verdict, "balanced");
 
-  const over = balance(feed, "3B", "G3", { "2B": 1, B: 1 });
+  const over = balance(feed, "3B", "G3", "", { "2B": 1, B: 1 });
   assert.equal(over.current, 1.3);
   assert.equal(over.delta, -0.1);
   assert.equal(over.verdict, "over");
 
-  assert.equal(balance(feed, "000", "G3", {}).verdict, "unknown");
+  // 主鉛要算進已掛合計。2 号標（7.50）＋G3（0.25）＝7.75，掛 2 号主鉛剩 0.25。
+  const withMain = balance(feed, "2号", "G3", "2号", {});
+  assert.equal(withMain.target, 7.75);
+  assert.equal(withMain.current, 7.5);
+  assert.equal(withMain.delta, 0.25);
+  assert.equal(withMain.verdict, "under");
+
+  assert.equal(balance(feed, "000", "G3", "", {}).verdict, "unknown");
+});
+
+// 這是這一頁最容易做錯的一件事：配重是兩段的——號數標用相對應號數的鉛墜當主配重
+// 穿在母線上，再用子線的咬鉛微調。先前只給咬鉛，2 号標的 7.75 g 目標會被湊成
+// 三顆 6B，而現場沒有人那樣配。
+test("號數標要先給主鉛，再用子線咬鉛補餘額", async () => {
+  const { app } = await loadPage();
+  const feed = await loadFeed();
+  const { suggestRig, targetGrams, sumRig } = app.helpers;
+
+  const target = targetGrams(feed, "2号", "G3");
+  assert.equal(target, 7.75);
+  const rig = plain(suggestRig(feed, "2号", target, false));
+  assert.equal(rig.mainSinker, "2号", "應該先掛相對應號數的主鉛");
+  assert.deepEqual(rig.labels, ["G3"], "餘額用子線咬鉛補");
+  assert.equal(rig.diff, 0);
+  assert.equal(sumRig(feed, rig.mainSinker, countOf(rig.labels)), 7.75);
+
+  // 建議裡不可以出現第二顆主鉛——号数是穿在母線上的一顆，不是拿來疊的。
+  const usable = new Set(plain(app.helpers.usableShots(feed)).map((s) => s.label));
+  for (const label of rig.labels) assert.ok(usable.has(label), `子線不該出現 ${label}`);
+});
+
+test("5B 以內的阿波不建議主鉛——阿波本身就是主配重", async () => {
+  const { app } = await loadPage();
+  const feed = await loadFeed();
+  const { suggestRig, needsMainSinker } = app.helpers;
+
+  assert.equal(needsMainSinker(feed, "3B"), false);
+  assert.equal(needsMainSinker(feed, "5B"), false, "門檻是「大於」，5B 本身不掛主鉛");
+  assert.equal(needsMainSinker(feed, "0.5号"), true, "0.5 号（1.87）已經超過 5B（1.85）");
+
+  const rig = plain(suggestRig(feed, "3B", 1.2, false));
+  assert.equal(rig.mainSinker, null, "門檻以內不可以建議鉛墜");
+  assert.ok(rig.labels.length);
+});
+
+test("已經選了主鉛就只補咬鉛，不會再建議第二顆", async () => {
+  const { app } = await loadPage();
+  const feed = await loadFeed();
+  const rig = plain(app.helpers.suggestRig(feed, "2号", 0.25, true));
+  assert.equal(rig.mainSinker, null);
+  assert.deepEqual(rig.labels, ["G3"]);
+});
+
+test("主鉛選單只給號數，而且加總算得進去", async () => {
+  const { app } = await loadPage();
+  const feed = await loadFeed();
+  const { mainSinkerOptions, sumRig, mainSinkerGrams } = app.helpers;
+
+  const labels = plain(mainSinkerOptions(feed)).map((s) => s.label);
+  assert.ok(labels.every((l) => l.includes("号")), `主鉛選單混進了非號數: ${labels}`);
+  assert.ok(labels.includes("5号"), "實務上到 5 号都有人用");
+
+  assert.equal(mainSinkerGrams(feed, ""), 0, "沒選主鉛就是 0");
+  assert.equal(mainSinkerGrams(feed, "不存在"), 0);
+  assert.equal(sumRig(feed, "", { B: 1 }), 0.55, "沒選主鉛時等於舊行為");
+  assert.equal(sumRig(feed, "1号", { B: 1 }), 4.3);
 });
 
 test("建議組合湊得出差額，而且只用真的存在的咬鉛", async () => {
@@ -173,5 +239,7 @@ test("讀不到資料時不會爆，只是算不出東西", async () => {
   assert.equal(sumShots(null, { B: 1 }), 0);
   assert.equal(targetGrams(null, "3B", "G3"), null);
   assert.deepEqual(plain(usableShots(null)), []);
-  assert.equal(balance(null, "3B", "G3", {}).verdict, "unknown");
+  assert.equal(balance(null, "3B", "G3", "", {}).verdict, "unknown");
+  assert.equal(app.helpers.sumRig(null, "1号", { B: 1 }), 0);
+  assert.equal(app.helpers.needsMainSinker(null, "2号"), false);
 });

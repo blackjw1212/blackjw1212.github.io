@@ -48,8 +48,17 @@ test("每個來源都有唯一 id、https 網址，且不夾帶推廣參數", as
     assert.ok(!seen.has(source.id), `來源 id 重複: ${source.id}`);
     seen.add(source.id);
     assert.ok(source.title, `${source.id} 缺 title`);
-    assert.match(source.url || "", /^https:\/\//, `${source.id} 的 url 必須是 https`);
-    assert.doesNotMatch(source.url, TRACKING, `${source.id} 的 url 夾帶了推廣追蹤參數`);
+    // 現場經驗沒有網址，但它仍然是出處。允許 url 為 null，但條件收得很緊：
+    // 必須明確標成 field-knowledge ＋ user-supplied，畫面上才看得出那是經驗而非文件。
+    if (source.url === null) {
+      assert.equal(source.kind, "field-knowledge",
+        `${source.id} 沒有網址，kind 必須是 field-knowledge`);
+      assert.equal(source.seenVia, "user-supplied",
+        `${source.id} 沒有網址，seenVia 必須是 user-supplied`);
+    } else {
+      assert.match(source.url || "", /^https:\/\//, `${source.id} 的 url 必須是 https`);
+      assert.doesNotMatch(source.url, TRACKING, `${source.id} 的 url 夾帶了推廣追蹤參數`);
+    }
     // seenVia 記的是「這個來源是怎麼被讀到的」，三個值都代表不同的可信程度：
     //   search-summary  從搜尋結果摘要讀到，沒開過原始頁
     //   user-supplied   使用者提供，本專案沒有自己確認過
@@ -80,6 +89,9 @@ test("沒有出處的數字不准進資料檔", async () => {
   }
   for (const id of feed.residualBuoyancy.sourceIds) {
     assert.ok(ids.has(id), `residualBuoyancy 引用了不存在的來源 ${id}`);
+  }
+  for (const id of feed.mainSinker.sourceIds) {
+    assert.ok(ids.has(id), `mainSinker 引用了不存在的來源 ${id}`);
   }
 });
 
@@ -200,6 +212,23 @@ test("同一系列內的重量必須單調遞增", async () => {
   check(["G10", "G8", "G7", "G6", "G5", "G4", "G3", "G2", "G1"], "ジンタン G");
   check(["B", "2B", "3B", "4B", "5B", "6B", "7B", "8B"], "ガン玉 B");
   check(["0.3号", "0.5号", "0.8号", "1号", "1.5号", "2号", "3号", "4号", "5号"], "号数");
+});
+
+// 第二條定義性檢查（第一條是 loadFromShot）。「該不該掛主鉛」的門檻寫的是 5B，
+// 那個克數必須真的等於咬鉛表裡的 5B——分叉時肉眼看不出來，但建議會從錯的地方
+// 開始分歧：門檻偏低會對著小標建議鉛墜，偏高會讓深場標只給你一堆咬鉛。
+test("主鉛門檻的克數必須等於同名咬鉛的重量", async () => {
+  const feed = await loadFeed();
+  const main = feed.mainSinker;
+  const shot = feed.shots.find((s) => s.label === main.thresholdShot);
+  assert.ok(shot, `mainSinker.thresholdShot ${main.thresholdShot} 不在咬鉛表裡`);
+  assert.equal(main.thresholdGrams, shot.grams,
+    `門檻 ${main.thresholdGrams} 與 ${shot.label} 的 ${shot.grams} 不一致`);
+  // 主鉛用的是号数刻度，而且那個系列裡真的要有東西可選。
+  assert.equal(main.family, "go");
+  assert.ok(feed.shots.some((s) => s.family === main.family && s.grams != null),
+    "主鉛的系列裡沒有任何可用的號數");
+  assert.match(main.verifiedAt || "", DATE);
 });
 
 test("餘浮力設定指得到一顆真的咬鉛", async () => {

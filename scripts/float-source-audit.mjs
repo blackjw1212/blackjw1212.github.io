@@ -151,6 +151,20 @@ export function buildChecklist(feed) {
     push(row.sourceIds, { path: `floats/${row.label}.loadGrams`, kind: "number", value: row.loadGrams });
   }
 
+  const main = feed.mainSinker;
+  if (main) {
+    push(main.sourceIds, {
+      path: "mainSinker.thresholdGrams",
+      kind: "number",
+      value: main.thresholdGrams,
+    });
+    push(main.sourceIds, {
+      path: "mainSinker.rule",
+      kind: "text",
+      value: `${main.thresholdShot} 以內不掛主鉛，號數以上才用鉛墜當主配重`,
+    });
+  }
+
   const residual = feed.residualBuoyancy;
   if (residual) {
     for (const value of residual.rangeGrams || []) {
@@ -175,6 +189,7 @@ export function buildChecklist(feed) {
 
 const STATUS_LABEL = {
   ok: "ok",
+  "no-url": "無網址",
   dead: "連結已死",
   blocked: "被擋（人開得起來）",
   unreachable: "取不到（可重試）",
@@ -202,7 +217,7 @@ export function formatReport(rows, feed, mode) {
   lines.push("");
 
   let index = 0;
-  const tally = { ok: 0, dead: 0, blocked: 0, unreachable: 0 };
+  const tally = { ok: 0, dead: 0, blocked: 0, unreachable: 0, "no-url": 0 };
   let hit = 0;
   let miss = 0;
   let textOnly = 0;
@@ -212,7 +227,8 @@ export function formatReport(rows, feed, mode) {
     lines.push("─".repeat(74));
     lines.push(`[${String(index).padStart(2)}/${String(rows.length).padStart(2)}] ${row.id}  (${row.kind})  seenVia=${row.seenVia}`);
     lines.push(`        ${row.title}`);
-    lines.push(`        ${row.url}`);
+    // url 為 null 的是現場經驗，沒有頁面可以開。印一行空白會讓人以為連結掉了。
+    lines.push(`        ${row.url || "（無網址：使用者現場經驗，沒有頁面可核對）"}`);
     if (!row.claims.length) {
       lines.push("        支撐 0 項——沒有任何一列引用它。要嘛補上引用，要嘛從 sources 移除。");
     } else {
@@ -241,7 +257,7 @@ export function formatReport(rows, feed, mode) {
 
   lines.push("─".repeat(74));
   if (mode.fetch) {
-    lines.push(`合計　ok ${tally.ok}｜被擋 ${tally.blocked}｜取不到 ${tally.unreachable}｜連結已死 ${tally.dead}`);
+    lines.push(`合計　ok ${tally.ok}｜被擋 ${tally.blocked}｜取不到 ${tally.unreachable}｜連結已死 ${tally.dead}｜無網址 ${tally["no-url"]}`);
     lines.push(`數值　命中 ${hit} ／ 未命中 ${miss}（文字主張 ${textOnly} 項不列入比對）`);
     lines.push("");
   }
@@ -269,6 +285,16 @@ async function main() {
 
   if (mode.fetch) {
     for (const row of rows) {
+      // 對 null 發請求會直接丟例外，而且現場經驗本來就沒有頁面可拓。
+      if (!row.url) {
+        row.result = {
+          status: "no-url",
+          httpStatus: 0,
+          detail: "現場經驗，沒有頁面可核對——要確認只能問提供的人。",
+          claims: row.claims.map((claim) => ({ ...claim, hit: null })),
+        };
+        continue;
+      }
       try {
         const { status, text } = await fetchText(row.url);
         row.result = {
