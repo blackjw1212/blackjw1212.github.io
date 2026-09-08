@@ -17,7 +17,10 @@
     { "id": "tw-arq", "title": "磯釣阿波入門：阿波號數、浮力、導管一篇就懂", "url": "https://www.arq-inc.com/blogs/news/abo-guide-1", "kind": "shop", "seenVia": "search-summary" },
     { "id": "tw-laogui", "title": "《磯釣入門》實戰篇：浮標的調校｜老鬼の磯釣筆記", "url": "https://el1a41.pixnet.net/blog/posts/15322190558", "kind": "blog", "seenVia": "search-summary" },
     { "id": "cn-taobao-item", "title": "包膠咬鉛商品規格（通用標準刻度）", "url": "https://world.taobao.com/item/Ym5vK0RFeDAyc2N2WnYwYk5rK0hOQT09.htm", "kind": "shop", "seenVia": "user-supplied" },
-    { "id": "tw-dinball", "title": "磯釣入門 Q&A｜釣魚人 dinball", "url": "https://fishing.dinball.com/guide/beginning/iso/iso-qa.html", "kind": "shop", "seenVia": "user-supplied" }
+    { "id": "tw-dinball", "title": "磯釣入門 Q&A｜釣魚人 dinball", "url": "https://fishing.dinball.com/guide/beginning/iso/iso-qa.html", "kind": "shop", "seenVia": "user-supplied" },
+    { "id": "jp-tsuriken-gandama", "title": "ウキ釣り超入門：ガン玉使いが釣果アップの決め手！｜釣研", "url": "https://tsuriken.co.jp/ukitsuri/?p=117", "kind": "maker", "seenVia": "search-summary" },
+    { "id": "tw-kknews-abo", "title": "阿波的號數與自重、以及阿波與咬鉛使用要領", "url": "https://kknews.cc/zh-tw/other/8v5lmeg.html", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "field-blackjw", "title": "使用者現場經驗（磯釣實務）", "url": null, "kind": "field-knowledge", "seenVia": "user-supplied" }
   ],
   "shots": [
     { "label": "G10", "grams": 0.03, "family": "jintan", "derivation": "listed", "confidence": "single-source", "sourceIds": ["jp-deraturi"], "verifiedAt": "2026-09-07", "variants": [], "note": "只有一個來源列出，且該來源整條刻度與台灣通用表不同級。" },
@@ -63,8 +66,18 @@
     { "label": "1号", "loadFromShot": "1号", "loadGrams": 3.75, "sinks": false, "use": "深場與大風浪的通用號數。", "confidence": "cross-checked", "sourceIds": ["jp-fishingfishing", "tw-arq"], "verifiedAt": "2026-09-07", "note": null },
     { "label": "1.5号", "loadFromShot": "1.5号", "loadGrams": 5.63, "sinks": false, "use": "深場強流。", "confidence": "single-source", "sourceIds": ["jp-fishingfishing"], "verifiedAt": "2026-09-07", "note": null },
     { "label": "2号", "loadFromShot": "2号", "loadGrams": 7.50, "sinks": false, "use": "台灣阿波的常用上限；再上去多半是特定深場。", "confidence": "cross-checked", "sourceIds": ["jp-fishingfishing", "tw-arq"], "verifiedAt": "2026-09-07", "note": null },
-    { "label": "3号", "loadFromShot": "3号", "loadGrams": 11.25, "sinks": false, "use": "極深場（例如東引）才會用到。", "confidence": "single-source", "sourceIds": ["tw-arq"], "verifiedAt": "2026-09-07", "note": null }
+    { "label": "3号", "loadFromShot": "3号", "loadGrams": 11.25, "sinks": false, "use": "極深場（例如東引）才會用到。", "confidence": "single-source", "sourceIds": ["tw-arq"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "4号", "loadFromShot": "4号", "loadGrams": 15.00, "sinks": false, "use": "極深場、強流的遠投釣組。", "confidence": "single-source", "sourceIds": ["field-blackjw", "tw-arq"], "verifiedAt": "2026-09-08", "note": "文件來源多半只寫到「3 号以上」，這一級的存在是依現場經驗補的。" },
+    { "label": "5号", "loadFromShot": "5号", "loadGrams": 18.75, "sinks": false, "use": "實務上的上限，極深場、強流、需要大幅遠投時。", "confidence": "single-source", "sourceIds": ["field-blackjw", "tw-arq"], "verifiedAt": "2026-09-08", "note": "同 4 号，依現場經驗補的。" }
   ],
+  "mainSinker": {
+    "thresholdShot": "5B",
+    "thresholdGrams": 1.85,
+    "family": "go",
+    "sourceIds": ["tw-arq", "tw-laogui", "jp-tsuriken-gandama", "tw-kknews-abo"],
+    "verifiedAt": "2026-09-08",
+    "note": "5B 以內的阿波，阿波本身就是主配重，不另外掛鉛墜，只在子線上夾小咬鉛調整鉤餌的下沉狀態。號數以上才用中通鉛／転環鉛當主鉛穿在母線上，子線的 G 系咬鉛只做微調。所以「該用幾號的鉛墜」看的是浮標號數的負荷，不是差額。"
+  },
   "residualBuoyancy": {
     "defaultShot": "G3",
     "rangeGrams": [0.2, 0.3],

@@ -214,6 +214,7 @@
   <section class="card" id="panelCalc" role="tabpanel" aria-labelledby="tabCalc" hidden>
     <h2>配鉛試算</h2>
     <p class="lead">算的只有一件事：<b>把這顆標壓到平水，還差多少公克</b>。不判斷魚況、不建議該用哪顆標。</p>
+    <p class="lead">配重是兩段的：<b>號數標用相對應號數的鉛墜當主配重穿在母線上，再用子線的咬鉛微調</b>。<span id="mainSinkerLead">5B 以內的阿波本身就是主配重</span>，那個範圍不掛鉛墜，只夾小咬鉛。</p>
     <div class="calc">
       <div>
         <label class="field">
@@ -224,7 +225,11 @@
           <span>餘浮力（要一起吃掉才會平水）</span>
           <select id="residualPick"></select>
         </label>
-        <h3>已掛的咬鉛</h3>
+        <label class="field">
+          <span>主鉛（母線上的中通鉛／転環鉛）</span>
+          <select id="mainSinker"></select>
+        </label>
+        <h3>子線上的咬鉛</h3>
         <div class="shots" id="shotPicker"></div>
       </div>
       <div>
@@ -236,6 +241,10 @@
           <div>
             <span class="big-label">目標總鉛重</span>
             <span class="sub" id="targetOut">—</span>
+          </div>
+          <div>
+            <span class="big-label">主鉛</span>
+            <span class="sub" id="mainOut">—</span>
           </div>
           <div>
             <span class="big-label">已掛合計</span>
@@ -299,6 +308,7 @@
     shotQuery: "",
     floatLabel: "",
     residualLabel: "",
+    mainLabel: "",
     counts: {},
   };
 
@@ -360,6 +370,33 @@
     return ((feed && feed.shots) || []).filter((s) => s.grams != null && s.family !== "go");
   }
 
+  // 主鉛是穿在母線上的中通鉛／転環鉛，用的是号数刻度。它跟子線咬鉛是兩種角色：
+  // 主鉛一顆、負責主配重；咬鉛好幾顆、負責微調。usableShots() 不含号数是對的
+  // ——那是子線咬鉛的清單——但那不代表号数不進試算，先前就是漏了這條管道。
+  function mainSinkerOptions(feed) {
+    const family = (feed && feed.mainSinker && feed.mainSinker.family) || "go";
+    return ((feed && feed.shots) || []).filter((s) => s.family === family && s.grams != null);
+  }
+
+  function mainSinkerGrams(feed, label) {
+    if (!label) return 0;
+    const grams = shotGrams(feed, label);
+    return grams == null ? 0 : grams;
+  }
+
+  function sumRig(feed, mainLabel, counts) {
+    return round2(mainSinkerGrams(feed, mainLabel) + sumShots(feed, counts));
+  }
+
+  // 「該不該掛主鉛」看的是浮標號數的負荷，不是差額——來源那句話講的就是
+  // 「5B 以內的阿波，阿波本身就是主配重，不額外使用鉛垂」。
+  function needsMainSinker(feed, floatLabel) {
+    const threshold = feed && feed.mainSinker ? feed.mainSinker.thresholdGrams : null;
+    const load = floatLoad(feed, floatLabel);
+    if (threshold == null || load == null) return false;
+    return load > threshold;
+  }
+
   function targetGrams(feed, floatLabel, residualLabel) {
     const load = floatLoad(feed, floatLabel);
     if (load == null) return null;
@@ -396,9 +433,36 @@
     return best;
   }
 
-  function balance(feed, floatLabel, residualLabel, counts) {
+  // 兩段式建議：先決定主鉛，餘額才交給子線咬鉛的窮舉。
+  // 主鉛取「最大的、不超過差額的號數」——現場就是這樣配，號數對著標的號數走。
+  function suggestRig(feed, floatLabel, deficitGrams, mainChosen) {
+    if (!(deficitGrams > TOLERANCE)) return null;
+    if (mainChosen || !needsMainSinker(feed, floatLabel)) {
+      const shots = suggestShots(feed, deficitGrams);
+      return shots ? { mainSinker: null, labels: shots.labels, grams: shots.grams, diff: shots.diff } : null;
+    }
+    const candidates = mainSinkerOptions(feed).filter((s) => s.grams <= deficitGrams + TOLERANCE);
+    if (!candidates.length) {
+      const shots = suggestShots(feed, deficitGrams);
+      return shots ? { mainSinker: null, labels: shots.labels, grams: shots.grams, diff: shots.diff } : null;
+    }
+    const main = candidates.reduce((best, s) => (s.grams > best.grams ? s : best));
+    const remainder = round2(deficitGrams - main.grams);
+    const shots = suggestShots(feed, remainder);
+    if (!shots) {
+      return { mainSinker: main.label, labels: [], grams: main.grams, diff: round2(Math.abs(remainder)) };
+    }
+    return {
+      mainSinker: main.label,
+      labels: shots.labels,
+      grams: round2(main.grams + shots.grams),
+      diff: shots.diff,
+    };
+  }
+
+  function balance(feed, floatLabel, residualLabel, mainLabel, counts) {
     const target = targetGrams(feed, floatLabel, residualLabel);
-    const current = sumShots(feed, counts);
+    const current = sumRig(feed, mainLabel, counts);
     if (target == null) return { target: null, current, delta: null, verdict: "unknown" };
     const delta = round2(target - current);
     let verdict = "balanced";
@@ -503,6 +567,18 @@
     }
     $("residualPick").value = state.residualLabel;
 
+    const mainRule = (state.feed && state.feed.mainSinker) || null;
+    if (mainRule) {
+      $("mainSinkerLead").textContent = `${mainRule.thresholdShot}（${mainRule.thresholdGrams} g）以內的阿波本身就是主配重`;
+    }
+    const mainOptions = mainSinkerOptions(state.feed);
+    const thresholdShot = mainRule ? mainRule.thresholdShot : "5B";
+    $("mainSinker").innerHTML = [`<option value="">無（${esc(thresholdShot)} 以內不掛主鉛）</option>`]
+      .concat(mainOptions.map((s) => `<option value="${esc(s.label)}">${esc(s.label)}｜${fmtGrams(s.grams)}</option>`))
+      .join("");
+    if (!mainOptions.some((s) => s.label === state.mainLabel)) state.mainLabel = "";
+    $("mainSinker").value = state.mainLabel;
+
     $("shotPicker").innerHTML = usableShots(state.feed).map((s) => {
       const count = state.counts[s.label] || 0;
       return `<div class="shot-row">
@@ -516,9 +592,12 @@
   }
 
   function renderResult() {
-    const result = balance(state.feed, state.floatLabel, state.residualLabel, state.counts);
+    const result = balance(state.feed, state.floatLabel, state.residualLabel, state.mainLabel, state.counts);
     const delta = $("deltaOut");
     delta.className = "big";
+    $("mainOut").textContent = state.mainLabel
+      ? `${state.mainLabel}｜${fmtGrams(mainSinkerGrams(state.feed, state.mainLabel))}`
+      : "無";
     if (result.target == null) {
       delta.textContent = "—";
       $("targetOut").textContent = "—";
@@ -546,14 +625,17 @@
     }
 
     $("verdictOut").textContent = `還差 ${fmtGrams(result.delta)} 才吃滿。標會露出水面，這段就是剩下的浮力。`;
-    const suggestion = suggestShots(state.feed, result.delta);
+    const suggestion = suggestRig(state.feed, state.floatLabel, result.delta, !!state.mainLabel);
     if (!suggestion) {
       $("suggestOut").innerHTML = '<span class="muted">差額太小，現有的咬鉛級距補不上來。</span>';
     } else {
       const tail = suggestion.diff <= TOLERANCE
         ? "剛好補平。"
         : `補完仍差 ${fmtGrams(suggestion.diff)}——咬鉛是離散級距，湊不到剛好是常態。`;
-      $("suggestOut").innerHTML = `補這幾顆：<b>${suggestion.labels.map(esc).join(" ＋ ")}</b>（合計 ${fmtGrams(suggestion.grams)}）。${esc(tail)}`;
+      const parts = [];
+      if (suggestion.mainSinker) parts.push(`母線主鉛 <b>${esc(suggestion.mainSinker)}</b>`);
+      if (suggestion.labels.length) parts.push(`子線咬鉛 <b>${suggestion.labels.map(esc).join(" ＋ ")}</b>`);
+      $("suggestOut").innerHTML = `${parts.join("，再加")}（合計 ${fmtGrams(suggestion.grams)}）。${esc(tail)}`;
     }
     return result;
   }
@@ -616,6 +698,10 @@
       state.residualLabel = event.target.value;
       renderResult();
     });
+    $("mainSinker").addEventListener("change", (event) => {
+      state.mainLabel = event.target.value;
+      renderResult();
+    });
     $("shotPicker").addEventListener("click", (event) => {
       const button = event.target.closest ? event.target.closest(".step") : null;
       if (!button) return;
@@ -664,8 +750,13 @@
       floatLoad,
       sumShots,
       usableShots,
+      mainSinkerOptions,
+      mainSinkerGrams,
+      needsMainSinker,
+      sumRig,
       targetGrams,
       suggestShots,
+      suggestRig,
       balance,
       round2,
       daysBetween,

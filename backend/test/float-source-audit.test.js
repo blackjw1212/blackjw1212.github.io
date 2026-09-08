@@ -100,6 +100,10 @@ test("清單抓得到的宣稱涵蓋四個來源欄位", async () => {
   assert.ok(paths.some((p) => p.endsWith(".variants")), "分歧值也要被列進去——那正是最該人工看的");
   assert.ok(paths.includes("residualBuoyancy.rangeGrams"));
   assert.ok(paths.includes("makerVariance"));
+  // mainSinker 那段也要進清單，否則它引用的來源會變成「撐 0 項」的孤兒，
+  // 而下一條測試正好會因此紅掉——但紅的原因會指向資料，不是指向這裡漏掃。
+  assert.ok(paths.includes("mainSinker.thresholdGrams"));
+  assert.ok(paths.includes("mainSinker.rule"));
 
   // 刻意未取值的 7B / 8B 不會產生數值宣稱，但要留一條文字提醒，不可以整列消失。
   const conflicting = rows.flatMap((row) => row.claims).filter((c) => c.path === "shots/7B.grams");
@@ -134,6 +138,19 @@ test("表頭的 seenVia 統計要逐值計數，不可以用減法推", () => {
   assert.match(report, /opened 1/);
   // 舊寫法會印成 search-summary 3。
   assert.doesNotMatch(report, /search-summary 3/);
+});
+
+// 現場經驗沒有網址。報告印一行空白會讓人以為連結掉了，所以要明講「沒有頁面可核對」。
+test("無網址的來源要在報告裡被標出來", async () => {
+  const feed = {
+    reviewedAt: "2026-09-08",
+    sources: [{ id: "field-x", title: "現場經驗", url: null, kind: "field-knowledge", seenVia: "user-supplied" }],
+    shots: [{ label: "X", grams: 1, sourceIds: ["field-x"], variants: [] }],
+    floats: [], makerVariance: [],
+  };
+  const report = formatReport(buildChecklist(feed), feed, { fetch: false });
+  assert.match(report, /無網址/);
+  assert.doesNotMatch(report, /^\s*null\s*$/m, "不可以把 null 直接印出來");
 });
 
 test("報告一定要講清楚命中率不是正確率，而且工具不寫檔", async () => {

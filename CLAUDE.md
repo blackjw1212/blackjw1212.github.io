@@ -355,11 +355,25 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
   `search-summary`（從搜尋摘要讀到，沒開過原始頁）／`user-supplied`（使用者提供，
   本專案沒有自己確認過）／`opened`（人開過那一頁、在上面看到那些數字）。
   改成 `opened` 的判準就是最後那句——**HTTP 200 不算，字串比對命中也不算**。
-  目前 15 筆：13 筆 `search-summary`（建表時的環境沒有對外連線）＋ 2 筆 `user-supplied`，
+  目前 18 筆：15 筆 `search-summary`（建表時的環境沒有對外連線）＋ 3 筆 `user-supplied`，
   `opened` 0 筆。這件事同時寫在 `verificationMethod`、渲染在頁面的鮮度列上、
   並由靜態契約釘住那句揭露。
+- **`sources[].url` 可以是 `null`，但條件收得很緊。** 現場經驗沒有網址，它仍然是出處
+  ——「沒出處的數字不准進表」這條不變式不該因此被繞過。`url` 為 `null` 時 `kind` 必須是
+  `field-knowledge` 且 `seenVia` 必須是 `user-supplied`，畫面與複查報告上才看得出
+  那是經驗而非文件。`float-source-audit.mjs` 的 `--fetch` 會跳過這種來源
+  （對 `null` 發請求會直接丟例外），報告也不印空白網址。
+- **配鉛是兩段的，不要只做咬鉛那一半。** 號數標用**相對應號數的鉛墜當主配重穿在母線上**
+  （中通鉛／転環鉛），再用**子線的咬鉛微調**。門檻有出處：「5B 以內的阿波，阿波本身
+  就是主配重，不額外使用鉛垂，僅在子線上夾上小咬鉛」——所以 `mainSinker.thresholdShot`
+  是 `5B`，而且 `needsMainSinker()` 比的是**浮標號數的負荷**，不是差額。
+  第一版漏了這條管道：`usableShots()` 不含 `go` **是對的**（那是子線咬鉛的清單），
+  但當時除了它沒有第二個配重來源，結果 2 号標的 7.75 g 目標被湊成三顆 6B。
+  門檻寫在資料裡而不是 JS 常數，才附得上出處；`float-schema.test.js` 有第二條定義性
+  檢查釘住 `thresholdGrams === shots["5B"].grams`。
 - **配鉛建議用窮舉而不是貪婪。** 這條刻度不是線性的（2B ＝ 0.75 g，不是 B 的兩倍），
-  貪婪法會湊歪；候選只有十幾種、最多三顆，窮舉最準也夠快。
+  貪婪法會湊歪；候選只有十幾種、最多三顆，窮舉最準也夠快。主鉛那一段例外——
+  它是「取最大的、不超過差額的號數」，因為現場就是照標的號數配。
 
 ### 來源複查 `scripts/float-source-audit.mjs`
 
@@ -393,12 +407,13 @@ node scripts/float-source-audit.mjs --only tw-neio   只處理一個來源
 ### 真機 smoke test（每次動這頁的版面都要跑）
 
 `mobile-audit.html` 在 `pointer:coarse` 下綠燈**不等於**真機綠燈——CLAUDE.md 上面那節
-已經記過一次：模擬給不出原生表單控制項的度量。這一頁有**三個 `<select>`**，正是踩過的那類。
+已經記過一次：模擬給不出原生表單控制項的度量。這一頁有**四個 `<select>`**，正是踩過的那類。
 
 1. 起 `.claude/launch.json` 的 `static-site`，手機開 `http://<區網 IP>:4173/float/`。
-2. **三個 select 逐一量**：`#shotFamily`（咬鉛對照的系列篩選）、`#floatPick`、`#residualPick`
-   （配鉛試算）。要看三件事：高度真的 ≥44px；`appearance:none` 之後自己用兩道
-   `linear-gradient` 畫的箭頭有畫出來、而且沒壓到文字；點下去的命中區對得上。
+2. **四個 select 逐一量**：`#shotFamily`（咬鉛對照的系列篩選）、`#floatPick`、
+   `#residualPick`、`#mainSinker`（配鉛試算）。要看三件事：高度真的 ≥44px；
+   `appearance:none` 之後自己用兩道 `linear-gradient` 畫的箭頭有畫出來、而且沒壓到文字；
+   點下去的命中區對得上。
 3. `.step` 步進鈕（−／＋）的命中區、分頁列三顆 tab、來源清單那十幾條連結。
 4. **320 與 375 兩個寬度都要看。** 橫捲只該發生在 `.table-wrap` 內，body 不可橫捲。
 5. 走訪**三個分頁**都要量——切過去之前那些控制項是 `display:none`，整批會被當成不可見跳過。
