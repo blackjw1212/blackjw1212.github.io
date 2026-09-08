@@ -421,7 +421,11 @@
 
   function variantCell(variants) {
     if (!variants || !variants.length) return '<span class="muted">—</span>';
-    return variants.map((v) => `${fmtGrams(v.grams)}<span class="muted">（${esc(v.sourceId)}）</span>`).join("<br>");
+    // 來源給的可能是單值，也可能本來就是一個區間。區間照原樣顯示，不折成中點。
+    return variants.map((v) => {
+      const value = v.gramsRange ? `${v.gramsRange[0].toFixed(2)}〜${fmtGrams(v.gramsRange[1])}` : fmtGrams(v.grams);
+      return `${value}<span class="muted">（${esc(v.sourceId)}）</span>`;
+    }).join("<br>");
   }
 
   function visibleShots() {

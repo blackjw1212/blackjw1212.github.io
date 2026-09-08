@@ -1,7 +1,7 @@
 {
-  "reviewedAt": "2026-09-07",
+  "reviewedAt": "2026-09-08",
   "scope": "日式磯釣（フカセ）通用的咬鉛重量表，以及浮標號數所對應的鉛負荷。只收「跨廠通用的標記制度」，不收各廠自訂型號的實測浮力。",
-  "verificationMethod": "本表數值以多組獨立搜尋結果交叉比對而來，未逐頁開啟原始頁面人工核對。每一列的 sources[].seenVia 標明該來源是怎麼被讀到的。",
+  "verificationMethod": "本表數值多數以多組獨立搜尋結果交叉比對而來，另有部分由使用者提供，未逐頁開啟原始頁面人工核對。每一列的 sources[].seenVia 標明該來源是怎麼被讀到的。",
   "sources": [
     { "id": "tw-neio", "title": "咬鉛重量對照表｜Neio's fishing notes", "url": "https://neiofishing.pixnet.net/blog/post/40759941", "kind": "blog", "seenVia": "search-summary" },
     { "id": "tw-hiko06", "title": "咬鉛．轉環鉛重量表｜魚彩釣具", "url": "https://hiko06.pixnet.net/blog/post/109002980", "kind": "shop", "seenVia": "search-summary" },
@@ -15,7 +15,9 @@
     { "id": "jp-gandama-uki", "title": "円錐ウキの浮力表示の意味｜ガン玉の重さとの関係は？", "url": "https://gandama-fishing.com/fukase-uki-furyokuhyouji/", "kind": "blog", "seenVia": "search-summary" },
     { "id": "jp-tsuttarou", "title": "円錐ウキの浮力「000・00・0・G2・B・2B・3B」を初心者向けに解説", "url": "https://tsuttarou.net/archives/273056", "kind": "blog", "seenVia": "search-summary" },
     { "id": "tw-arq", "title": "磯釣阿波入門：阿波號數、浮力、導管一篇就懂", "url": "https://www.arq-inc.com/blogs/news/abo-guide-1", "kind": "shop", "seenVia": "search-summary" },
-    { "id": "tw-laogui", "title": "《磯釣入門》實戰篇：浮標的調校｜老鬼の磯釣筆記", "url": "https://el1a41.pixnet.net/blog/posts/15322190558", "kind": "blog", "seenVia": "search-summary" }
+    { "id": "tw-laogui", "title": "《磯釣入門》實戰篇：浮標的調校｜老鬼の磯釣筆記", "url": "https://el1a41.pixnet.net/blog/posts/15322190558", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "cn-taobao-item", "title": "包膠咬鉛商品規格（通用標準刻度）", "url": "https://world.taobao.com/item/Ym5vK0RFeDAyc2N2WnYwYk5rK0hOQT09.htm", "kind": "shop", "seenVia": "user-supplied" },
+    { "id": "tw-dinball", "title": "磯釣入門 Q&A｜釣魚人 dinball", "url": "https://fishing.dinball.com/guide/beginning/iso/iso-qa.html", "kind": "shop", "seenVia": "user-supplied" }
   ],
   "shots": [
     { "label": "G10", "grams": 0.03, "family": "jintan", "derivation": "listed", "confidence": "single-source", "sourceIds": ["jp-deraturi"], "verifiedAt": "2026-09-07", "variants": [], "note": "只有一個來源列出，且該來源整條刻度與台灣通用表不同級。" },
@@ -33,8 +35,8 @@
     { "label": "4B", "grams": 1.20, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 1.50, "sourceId": "jp-deraturi" }], "note": null },
     { "label": "5B", "grams": 1.85, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 2.00, "sourceId": "jp-deraturi" }], "note": "與 0.5 号（1.87 g）幾乎同重，實務上當成同一級。" },
     { "label": "6B", "grams": 2.65, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 2.50, "sourceId": "jp-deraturi" }], "note": "有來源指出第一精工的 6B 與 FUJIWARA 的 5B 同重——這一級開始廠牌差異已大於一個級距。" },
-    { "label": "7B", "grams": null, "family": "gandama", "derivation": "listed", "confidence": "conflicting", "sourceIds": ["jp-deraturi", "jp-kawauma"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 4.50, "sourceId": "jp-deraturi" }], "note": "台灣通用表沒有這一級；唯一給出數值的來源，其 B 系整條刻度都與通用表不同級（該表 5B＝2.0、6B＝2.5），不能單獨挪用它的 7B。未取值。" },
-    { "label": "8B", "grams": null, "family": "gandama", "derivation": "listed", "confidence": "conflicting", "sourceIds": ["jp-deraturi", "jp-kawauma"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 5.00, "sourceId": "jp-deraturi" }], "note": "同 7B，未取值。" },
+    { "label": "7B", "grams": null, "family": "gandama", "derivation": "listed", "confidence": "conflicting", "sourceIds": ["cn-taobao-item", "tw-dinball", "jp-deraturi", "jp-kawauma"], "verifiedAt": "2026-09-08", "variants": [{ "grams": 2.70, "sourceId": "cn-taobao-item" }, { "grams": 3.30, "sourceId": "tw-dinball" }, { "grams": 4.50, "sourceId": "jp-deraturi" }], "note": "三個來源給三個不同的數字，沒有一組拿得到獨立佐證，因此不取值。2.70 接在本表 6B（2.65）之後只差 0.05 g——本表前面每一級是 +0.20〜+0.80，所以那個來源的 6B 應該不是 2.65，兩套不能混用。3.30／4.00 那組的級距（+0.65／+0.70）倒是接得上本表，但只有單一來源。" },
+    { "label": "8B", "grams": null, "family": "gandama", "derivation": "listed", "confidence": "conflicting", "sourceIds": ["cn-taobao-item", "tw-dinball", "jp-deraturi", "jp-kawauma"], "verifiedAt": "2026-09-08", "variants": [{ "gramsRange": [3.20, 3.40], "sourceId": "cn-taobao-item" }, { "grams": 4.00, "sourceId": "tw-dinball" }, { "grams": 5.00, "sourceId": "jp-deraturi" }], "note": "同 7B，三組分歧且互不重疊，未取值。第一組來源給的本來就是一個區間（3.20〜3.40），照原樣記成 gramsRange——取中點等於捏造一個來源沒給過的數字。" },
     { "label": "0.3号", "grams": 1.30, "family": "go", "derivation": "measured", "confidence": "single-source", "sourceIds": ["jp-yamawa"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 1.125, "sourceId": "tw-neio" }], "note": "廠商規格表的實測重量。用 1 号＝3.75 g 名目換算會得到 1.125 g——号数在小號段並不是線性的。" },
     { "label": "0.5号", "grams": 1.87, "family": "go", "derivation": "measured", "confidence": "single-source", "sourceIds": ["jp-yamawa"], "verifiedAt": "2026-09-07", "variants": [], "note": "廠商規格表的實測重量，與名目換算 1.875 g 相符。" },
     { "label": "0.8号", "grams": 3.00, "family": "go", "derivation": "nominal", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-shoretw"], "verifiedAt": "2026-09-07", "variants": [], "note": "由 1 号＝3.75 g 名目換算。" },

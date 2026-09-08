@@ -134,11 +134,15 @@ export function buildChecklist(feed) {
       });
     }
     for (const variant of shot.variants || []) {
-      push([variant.sourceId], {
-        path: `shots/${shot.label}.variants`,
-        kind: "number",
-        value: variant.grams,
-      });
+      // 區間型的 variant 把兩端各列成一項——人在頁面上要找的就是那兩個數字。
+      const values = variant.gramsRange ? variant.gramsRange : [variant.grams];
+      for (const value of values) {
+        push([variant.sourceId], {
+          path: `shots/${shot.label}.variants`,
+          kind: "number",
+          value,
+        });
+      }
     }
   }
 
@@ -184,10 +188,17 @@ function formatClaim(claim) {
 
 export function formatReport(rows, feed, mode) {
   const lines = [];
-  const opened = (feed.sources || []).filter((s) => s.seenVia === "opened").length;
+  const sources = feed.sources || [];
+  // 逐值計數，不要用「總數減 opened」推——seenVia 加了第三個值之後那種推法就是錯的
+  // （實測：兩筆 user-supplied 被算進了 search-summary）。
+  const bySeenVia = new Map();
+  for (const source of sources) {
+    bySeenVia.set(source.seenVia, (bySeenVia.get(source.seenVia) || 0) + 1);
+  }
+  const breakdown = [...bySeenVia].map(([key, count]) => `${key} ${count}`).join(" ／ ");
   lines.push(`BJKW /float/ 來源複查｜${mode.fetch ? "實際拓頁面" : "離線清單"}`);
   lines.push(`資料檔 data/floats.json　核對日 ${feed.reviewedAt}`);
-  lines.push(`來源 ${(feed.sources || []).length} 筆：opened ${opened} ／ search-summary ${(feed.sources || []).length - opened}`);
+  lines.push(`來源 ${sources.length} 筆：${breakdown}`);
   lines.push("");
 
   let index = 0;
