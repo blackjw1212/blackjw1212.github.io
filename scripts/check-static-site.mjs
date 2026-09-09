@@ -178,6 +178,7 @@ for (const rel of [
   "sky/lib/catalog.mjs",
   "sky/lib/project.mjs",
   "sky/data/bsc5-mag6.json",
+  "sky/data/star-names-zh.json",
   "bjkw_weather.html",
   "404.html",
   "data/stock-risk-feed.json",
@@ -676,6 +677,27 @@ if (has("sky/index.html")) {
   // 取景器是滿版的，右上角的控制面板疊在它上面。下面三條釘的都是「桌機上看不出來、
   // 真手機上壞掉」的那一類 —— 那正是這一頁踩過的坑（授權順序也是同一類）。
   assertMatch("sky/index.html", html, /height:100dvh/, "sky stage must fill the viewport");
+  // 星表與中文星名表的網址**不得帶查詢參數**。它們在 /sky/data/ 底下、不是 /data/，
+  // 走的是 sw.js 的 cache-first 靜態資產分支，所以每天換一個 cache key ＝ 隔天必定
+  // miss ＝ 沒訊號時整頁不能用，而觀星正好發生在沒訊號的地方。實測 2026-09-09：
+  // 同一天沒訊號 ok、隔一天沒訊號 FAIL。同 /float/ 的 floats.json 那條。
+  // 星表重新產生時改用 bump sw.js 的 VERSION。
+  // 正面比對「fetch 拿到的就是那個常數本身」。第一版寫成「檔名後面不得接 ?」，
+  // 但網址是常數、問號是在別處串上去的，那條正則永遠不會命中——反向測試當場抓到，
+  // 兩種改壞的寫法都照樣綠燈。要釘的是呼叫點，不是字面值。
+  // has() 包起來，不要直接 read()。缺檔本身由 mustExist 負責報告；在這裡讀不到會丟出
+  // 例外，而 fail() 只收訊息不中斷 —— 例外會讓整支腳本當場結束、**它後面的每一條檢查
+  // 從此都不會跑到**。上一輪已經用 entriesNav[0] 踩過同一個坑，這次是三條既有的
+  // sky 版面測試一起紅才發現。
+  if (has("sky/lib/catalog.mjs")) {
+    const skyLib = await read("sky/lib/catalog.mjs");
+    assertMatch("sky/lib/catalog.mjs", skyLib, /fetchImpl\(CATALOG_URL,/,
+      "the catalogue fetch must pass CATALOG_URL unmodified (no cache-busting suffix)");
+    assertMatch("sky/lib/catalog.mjs", skyLib, /fetchImpl\(STAR_NAMES_ZH_URL,/,
+      "the name-table fetch must pass STAR_NAMES_ZH_URL unmodified");
+    assertNoMatch("sky/lib/catalog.mjs", skyLib, /\?v=/, "any dated cache key in the sky data loader");
+  }
+
 
   // viewport-fit=cover 之下沒有 safe-area inset，面板會鑽進瀏海／狀態列底下。
   // 模擬器的 inset 全是 0，所以這件事只有真機看得出來。

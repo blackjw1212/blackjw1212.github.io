@@ -1,0 +1,936 @@
+{
+  "note": "中文星名（繁體）。人工維護，CI 不寫這個檔——同 data/coupons.json 與 data/floats.json。",
+  "updatedAt": "2026-09-09",
+  "scope": "Vmag ≤ 2.5 且 BSC5 有西方專名的 80 顆。疊加層最多只顯 8 個標籤而且挑最亮的，所以這個範圍涵蓋畫面上真的會被標到的星；更暗的星沒有中文名不是遺漏，是刻意的範圍。",
+  "shipped": 78,
+  "verificationMethod": "名稱先憑對中國星官（三垣二十八宿）傳統的既有認識逐筆寫出，再與 Stellarium 的 chinese skyculture 逐筆對照。對照結果：80 筆中 77 筆逐字一致（扣掉繁簡字形差異之後），3 筆不同。其中 1 筆只是數字寫法（廿二／二十二）＝同一顆星，記進 variants 後保留主值；另外 2 筆是真的分歧（侯／候、尾宿七／尾宿六），依「來源分歧就留 null」的慣例把值清成 null，畫面自動回退成西方專名。沒有人開過儀象考成原書，這件事寫在 classical-xingguan 那筆來源的 seenVia 裡，不要美化成已查證。",
+  "licenceNote": "Stellarium 的 chinese skyculture 是 CC BY-SA 4.0，只當本機核對用的 oracle，一個位元組都不進這個 repo——同 pyerfa 與 HYG 那個既有模式，也同這個 repo 當初否決 HYG 的理由。星名本身是儀象考成一系古籍的公有領域名稱，受著作權保護的是他們的彙編，不是名稱本身。",
+  "sources": [
+    {
+      "id": "classical-xingguan",
+      "title": "中國傳統星官名（三垣二十八宿，儀象考成一系）",
+      "url": null,
+      "kind": "reference-tradition",
+      "seenVia": "author-knowledge",
+      "note": "本專案沒有開過原書。這些名稱是憑既有認識寫出的，再靠 stellarium-cn 逐筆核對；核對結果寫在 verificationMethod。"
+    },
+    {
+      "id": "stellarium-cn",
+      "title": "Stellarium skycultures/chinese（僅作核對，未採用其資料）",
+      "url": "https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/chinese/index.json",
+      "kind": "cross-check-only",
+      "seenVia": "opened",
+      "licence": "CC BY-SA 4.0",
+      "note": "它的鍵是 HIP，而我們的星表沒有 HIP 欄位，所以要經由 skycultures/modern 的「IAU 專名→HIP」對照表 join。內容為簡體。"
+    }
+  ],
+  "stars": {
+    "15": {
+      "zh": "壁宿二",
+      "en": "Alpheratz",
+      "bayer": "α And",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "21": {
+      "zh": "王良一",
+      "en": "Caph",
+      "bayer": "β Cas",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "99": {
+      "zh": "火鳥六",
+      "en": "Ankaa",
+      "bayer": "α Phe",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "168": {
+      "zh": "王良四",
+      "en": "Schedar",
+      "bayer": "α Cas",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "188": {
+      "zh": "土司空",
+      "en": "Diphda",
+      "bayer": "β Cet",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "264": {
+      "zh": "策",
+      "en": "Navi",
+      "bayer": "γ Cas",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "337": {
+      "zh": "奎宿九",
+      "en": "Mirach",
+      "bayer": "β And",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "424": {
+      "zh": "勾陳一",
+      "en": "Polaris",
+      "bayer": "α UMi",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "472": {
+      "zh": "水委一",
+      "en": "Achernar",
+      "bayer": "α Eri",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "603": {
+      "zh": "天大將軍一",
+      "en": "Almach",
+      "bayer": "γ¹ And",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "617": {
+      "zh": "婁宿三",
+      "en": "Hamal",
+      "bayer": "α Ari",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "936": {
+      "zh": "大陵五",
+      "en": "Algol",
+      "bayer": "β Per",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1017": {
+      "zh": "天船三",
+      "en": "Mirfak",
+      "bayer": "α Per",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1457": {
+      "zh": "畢宿五",
+      "en": "Aldebaran",
+      "bayer": "α Tau",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1708": {
+      "zh": "五車二",
+      "en": "Capella",
+      "bayer": "α Aur",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1713": {
+      "zh": "參宿七",
+      "en": "Rigel",
+      "bayer": "β Ori",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1790": {
+      "zh": "參宿五",
+      "en": "Bellatrix",
+      "bayer": "γ Ori",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1791": {
+      "zh": "五車五",
+      "en": "Elnath",
+      "bayer": "β Tau",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1852": {
+      "zh": "參宿三",
+      "en": "Mintaka",
+      "bayer": "δ Ori",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1903": {
+      "zh": "參宿二",
+      "en": "Alnilam",
+      "bayer": "ε Ori",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "1948": {
+      "zh": "參宿一",
+      "en": "Alnitak",
+      "bayer": "ζ Ori",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2004": {
+      "zh": "參宿六",
+      "en": "Saiph",
+      "bayer": "κ Ori",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2061": {
+      "zh": "參宿四",
+      "en": "Betelgeuse",
+      "bayer": "α Ori",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2088": {
+      "zh": "五車三",
+      "en": "Menkalinan",
+      "bayer": "β Aur",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2294": {
+      "zh": "軍市一",
+      "en": "Mirzam",
+      "bayer": "β CMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2326": {
+      "zh": "老人",
+      "en": "Canopus",
+      "bayer": "α Car",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2421": {
+      "zh": "井宿三",
+      "en": "Alhena",
+      "bayer": "γ Gem",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2491": {
+      "zh": "天狼",
+      "en": "Sirius",
+      "bayer": "α CMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2618": {
+      "zh": "弧矢七",
+      "en": "Adhara",
+      "bayer": "ε CMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2693": {
+      "zh": "弧矢一",
+      "en": "Wezen",
+      "bayer": "δ CMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2827": {
+      "zh": "弧矢二",
+      "en": "Aludra",
+      "bayer": "η CMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2891": {
+      "zh": "北河二",
+      "en": "Castor",
+      "bayer": "α Gem",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2943": {
+      "zh": "南河三",
+      "en": "Procyon",
+      "bayer": "α CMi",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "2990": {
+      "zh": "北河三",
+      "en": "Pollux",
+      "bayer": "β Gem",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "3165": {
+      "zh": "弧矢增二十二",
+      "en": "Naos",
+      "bayer": "ζ Pup",
+      "confidence": "cross-checked",
+      "variants": [
+        {
+          "zh": "弧矢增廿二",
+          "per": "stellarium-cn"
+        }
+      ],
+      "note": "同一顆、同一個序數，只是「廿二」與「二十二」的數字寫法不同。",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "3307": {
+      "zh": "海石一",
+      "en": "Avior",
+      "bayer": "ε Car",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "3634": {
+      "zh": "天記",
+      "en": "Suhail",
+      "bayer": "λ Vel",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "3685": {
+      "zh": "南船五",
+      "en": "Miaplacidus",
+      "bayer": "β Car",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "3699": {
+      "zh": "海石二",
+      "en": "Aspidiske",
+      "bayer": "ι Car",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "3748": {
+      "zh": "星宿一",
+      "en": "Alphard",
+      "bayer": "α Hya",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "3982": {
+      "zh": "軒轅十四",
+      "en": "Regulus",
+      "bayer": "α Leo",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "4295": {
+      "zh": "天璇",
+      "en": "Merak",
+      "bayer": "β UMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "4301": {
+      "zh": "天樞",
+      "en": "Dubhe",
+      "bayer": "α UMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "4534": {
+      "zh": "五帝座一",
+      "en": "Denebola",
+      "bayer": "β Leo",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "4554": {
+      "zh": "天璣",
+      "en": "Phecda",
+      "bayer": "γ UMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "4730": {
+      "zh": "十字架二",
+      "en": "Acrux",
+      "bayer": "α¹ Cru",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "4763": {
+      "zh": "十字架一",
+      "en": "Gacrux",
+      "bayer": "γ Cru",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "4853": {
+      "zh": "十字架三",
+      "en": "Mimosa",
+      "bayer": "β Cru",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "4905": {
+      "zh": "玉衡",
+      "en": "Alioth",
+      "bayer": "ε UMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5054": {
+      "zh": "開陽",
+      "en": "Mizar",
+      "bayer": "ζ UMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5056": {
+      "zh": "角宿一",
+      "en": "Spica",
+      "bayer": "α Vir",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5191": {
+      "zh": "搖光",
+      "en": "Alkaid",
+      "bayer": "η UMa",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5267": {
+      "zh": "馬腹一",
+      "en": "Hadar",
+      "bayer": "β Cen",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5288": {
+      "zh": "庫樓三",
+      "en": "Menkent",
+      "bayer": "θ Cen",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5340": {
+      "zh": "大角",
+      "en": "Arcturus",
+      "bayer": "α Boo",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5459": {
+      "zh": "南門二",
+      "en": "Rigil Kentaurus",
+      "bayer": "α¹ Cen",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5563": {
+      "zh": "北極二",
+      "en": "Kochab",
+      "bayer": "β UMi",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5793": {
+      "zh": "貫索四",
+      "en": "Alphecca",
+      "bayer": "α CrB",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "5953": {
+      "zh": "房宿三",
+      "en": "Dschubba",
+      "bayer": "δ Sco",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6134": {
+      "zh": "心宿二",
+      "en": "Antares",
+      "bayer": "α Sco",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6217": {
+      "zh": "三角形三",
+      "en": "Atria",
+      "bayer": "α TrA",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6378": {
+      "zh": "宋",
+      "en": "Sabik",
+      "bayer": "η Oph",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6527": {
+      "zh": "尾宿八",
+      "en": "Shaula",
+      "bayer": "λ Sco",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6553": {
+      "zh": "尾宿五",
+      "en": "Sargas",
+      "bayer": "θ Sco",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6556": {
+      "zh": null,
+      "en": "Rasalhague",
+      "bayer": "α Oph",
+      "confidence": "conflicting",
+      "variants": [
+        {
+          "zh": "侯"
+        },
+        {
+          "zh": "候",
+          "per": "stellarium-cn"
+        }
+      ],
+      "note": "天市垣的 α Oph。「侯」（爵位）與「候」（守候）只差一個部首，兩種寫法坊間都見得到，而本專案唯一的獨立對照給的是後者，無法判定，故留 null。",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6580": {
+      "zh": null,
+      "en": "Girtab",
+      "bayer": "κ Sco",
+      "confidence": "conflicting",
+      "variants": [
+        {
+          "zh": "尾宿七"
+        },
+        {
+          "zh": "尾宿六",
+          "per": "stellarium-cn"
+        }
+      ],
+      "note": "κ Sco 在尾宿九星裡排第幾，兩份說法不同（七／六）。這不是寫法差異而是「指哪一顆」的差異，錯了會指錯星，故留 null。",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6705": {
+      "zh": "天棓四",
+      "en": "Eltanin",
+      "bayer": "γ Dra",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "6879": {
+      "zh": "箕宿三",
+      "en": "Kaus Australis",
+      "bayer": "ε Sgr",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "7001": {
+      "zh": "織女一",
+      "en": "Vega",
+      "bayer": "α Lyr",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "7121": {
+      "zh": "斗宿四",
+      "en": "Nunki",
+      "bayer": "σ Sgr",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "7557": {
+      "zh": "河鼓二",
+      "en": "Altair",
+      "bayer": "α Aql",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "7790": {
+      "zh": "孔雀十一",
+      "en": "Peacock",
+      "bayer": "α Pav",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "7796": {
+      "zh": "天津一",
+      "en": "Sadr",
+      "bayer": "γ Cyg",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "7924": {
+      "zh": "天津四",
+      "en": "Deneb",
+      "bayer": "α Cyg",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "8162": {
+      "zh": "天鉤五",
+      "en": "Alderamin",
+      "bayer": "α Cep",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "8308": {
+      "zh": "危宿三",
+      "en": "Enif",
+      "bayer": "ε Peg",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "8425": {
+      "zh": "鶴一",
+      "en": "Alnair",
+      "bayer": "α Gru",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "8728": {
+      "zh": "北落師門",
+      "en": "Fomalhaut",
+      "bayer": "α PsA",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "8775": {
+      "zh": "室宿二",
+      "en": "Scheat",
+      "bayer": "β Peg",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    },
+    "8781": {
+      "zh": "室宿一",
+      "en": "Markab",
+      "bayer": "α Peg",
+      "confidence": "cross-checked",
+      "sourceIds": [
+        "classical-xingguan",
+        "stellarium-cn"
+      ],
+      "asOf": "2026-09-09"
+    }
+  }
+}

@@ -17,6 +17,7 @@ import { angularSeparation, clamp, toDegrees, toRadians } from "./angles.mjs";
 import { precessDateToJ2000 } from "./coords.mjs";
 
 export const CATALOG_URL = "/sky/data/bsc5-mag6.json";
+export const STAR_NAMES_ZH_URL = "/sky/data/star-names-zh.json";
 
 function requireFiniteNumber(name, value) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -62,26 +63,72 @@ export function parseCatalog(json) {
 }
 
 /**
- * 載入星表。**一定要帶 ?v= 版本參數**：sw.js 對靜態資產是 cache-first，
- * 少了它回訪使用者會永遠拿到舊星表且沒有任何徵兆。
- * /market/ 與 /coupon/ 用的是同一個手法。
+ * 載入星表與中文星名表。
+ *
+ * **網址不加日期版本參數。** 這裡原本抄了 /market/ 與 /coupon/ 的手法，
+ * 但那些是一天更新好幾班的 feed，而星表是 J2000 平位置——只有
+ * build-sky-catalog.mjs 重跑時才會變，不是每天變。
+ *
+ * 加上日期參數的代價是這一頁**根本不能離線用**。星表在 /sky/data/ 底下、
+ * 不是 /data/，所以走的是 sw.js 的 cache-first 靜態資產分支；每天換一個
+ * cache key ＝ 隔天必定 miss ＝ 沒訊號時整頁不能用。而觀星發生的地方
+ * 正好就是沒訊號的地方。實測（2026-09-09，清空快取後、關掉伺服器）：
+ *
+ *     同一天、沒訊號  -> ok count=5080
+ *     隔一天、沒訊號  -> FAIL: Failed to fetch
+ *
+ * 這與 CLAUDE.md 給 /float/ 寫的那條是同一條規則（「隔天在沒訊號的堤防上
+ * 就整頁是空的」）。改法也一樣：網址固定，**星表重新產生時 bump sw.js 的
+ * VERSION**，靠 activate 的清理把舊 cache 丟掉。靜態契約釘住這件事。
  */
 export async function loadCatalog(fetchImpl = globalThis.fetch) {
-  const version = new Date().toISOString().slice(0, 10);
-  const response = await fetchImpl(`${CATALOG_URL}?v=${version}`, {
-    headers: { Accept: "application/json" },
-  });
+  const response = await fetchImpl(CATALOG_URL, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`星表載入失敗：HTTP ${response.status}`);
-  return parseCatalog(await response.json());
+  const catalog = parseCatalog(await response.json());
+  catalog.namesZh = await loadStarNamesZh(fetchImpl);
+  return catalog;
 }
 
-/** 第 index 顆星的完整描述。沒有任何稱號的回退成 `HR 1234`。 */
+/**
+ * 中文星名表（人工維護）。**載不到不可以讓整頁掛掉**：它是加分項，
+ * 星表本身才是必要的。回退成空表，標籤就照舊用英文專名。
+ */
+export async function loadStarNamesZh(fetchImpl = globalThis.fetch) {
+  try {
+    const response = await fetchImpl(STAR_NAMES_ZH_URL, { headers: { Accept: "application/json" } });
+    if (!response.ok) return {};
+    return parseStarNamesZh(await response.json());
+  } catch (error) {
+    return {};
+  }
+}
+
+/** 把人工表攤平成 { [hr]: 中文名 }，值為 null 的列直接丟掉（那是「刻意沒有」）。 */
+export function parseStarNamesZh(json) {
+  const stars = (json && json.stars) || {};
+  const out = {};
+  for (const hr of Object.keys(stars)) {
+    const zh = stars[hr] && stars[hr].zh;
+    if (typeof zh === "string" && zh) out[Number(hr)] = zh;
+  }
+  return out;
+}
+
+/**
+ * 第 index 顆星的完整描述。沒有任何稱號的回退成 `HR 1234`。
+ *
+ * **有中文星名就以中文為 label。** 疊加層寫的是那一個字串，所以中文優先在這裡決定；
+ * 英文專名仍留在 `common`，讓「畫面中央附近」那張表與點擊查詢可以中英並列。
+ * 沒有中文名的（人工表沒建、或刻意留 null）自動回退成原本的英文順序。
+ */
 export function describeStar(catalog, index) {
   const designation = catalog.designations[index] || {};
   const hr = catalog.hr[index];
   const constellation = designation.c || null;
+  const zh = (catalog.namesZh && catalog.namesZh[hr]) || null;
   let label;
-  if (designation.n) label = designation.n;
+  if (zh) label = zh;
+  else if (designation.n) label = designation.n;
   else if (designation.b) label = constellation ? `${designation.b} ${constellation}` : designation.b;
   else if (designation.f) label = constellation ? `${designation.f} ${constellation}` : designation.f;
   else label = `HR ${hr}`;
@@ -90,11 +137,12 @@ export function describeStar(catalog, index) {
     index,
     hr,
     label,
+    zh,
     common: designation.n || null,
     bayer: designation.b || null,
     flamsteed: designation.f || null,
     constellation,
-    hasDesignation: Boolean(designation.n || designation.b || designation.f),
+    hasDesignation: Boolean(zh || designation.n || designation.b || designation.f),
     magnitude: catalog.mag[index],
     raDeg: catalog.raDeg[index],
     decDeg: catalog.decDeg[index],
