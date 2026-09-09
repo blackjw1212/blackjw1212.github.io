@@ -178,6 +178,20 @@ cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market we
 `node scripts/check-static-site.mjs <該目錄>` —— 那正是 workflow 做的事，
 漏掉的目錄當場就會現形，不必等 Actions 紅了才知道。
 
+**平行分支會讓 `VERSION` 撞號，而且不會有任何徵兆**（實測 2026-09-09）：
+兩條分支各自從 `v8` bump 到 `v9`，git 看到兩邊文字相同、**不判成衝突**，
+合併結果就是 `v9` —— 跟已經部署的那個 `v9` 一模一樣，cache key 等於沒變。
+所有測試全綠、Pages deploy 成功，但回訪的瀏覽器繼續端出舊的預載首頁，
+新頁的卡片就是不出現。**合併 main 之後要比對的不是「我有沒有 bump」，
+而是「合併結果的 VERSION 是否不同於 `origin/main` 上的 VERSION」**：
+
+```
+git show origin/main:sw.js | grep 'VERSION ='   # 已部署的
+grep 'VERSION =' sw.js                          # 合併結果
+```
+
+相同就再往上推一格。
+
 ## 前端測試的硬性前提
 
 `backend/test/market-page.test.js` / `frontend-smoke.test.js` 是用 `vm` 載入頁面的
@@ -664,8 +678,20 @@ vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外
   直接拿 alpha 當方位角，畫面會左右相反。
 - **互補濾波的權重必須是 `exp(−dt/τ)` 而不是常數**：感測器回呼的間隔本來就不規則，
   寫死 0.98 會讓平滑程度隨幀率漂移。
-- **真機從未驗過。** 相機、感測器授權、觸控目標、疊加到底對不對得齊都還沒在真手機上跑過，
-  逐項的檢查單在 `sky/DESIGN.md` 末尾。
+- **iOS 的感測器授權必須在使用者手勢的呼叫堆疊裡，排在任何 `await` 之前。**
+  實測 2026-09-09 真機：`start()` 先 `await` 了載入函式庫、星表與 `getUserMedia`，
+  輪到 `DeviceOrientationEvent.requestPermission()` 時手勢已經被消耗掉，回
+  `Requesting device orientation access requires a user gesture to prompt`
+  ——**相機拿得到、方位權限當場失敗**，所以看起來像「相機好了但感測器壞了」。
+  `requestMotionPermissions()` 同步呼叫方向與動作兩個 requestPermission（iOS 上是
+  兩個分開的 API），之後才串載入流程。這個順序被靜態契約釘住：抽出 `start()` 的函式體、
+  去掉行註解、比對 `requestMotionPermissions(` 與第一個 `.then(` 的位置。
+  **去註解那一步是必要的**——第一版沒做，抓到的是解釋這條規則的註解裡的同名字樣，
+  斷言永遠通過，反向測試當場抓到。
+- **錯誤路徑要把相機關掉。** 授權失敗時相機還開著，錄影指示燈亮、預覽在跑，
+  但覆蓋層沒有作用——看起來像成功了。`catch` 裡 `stopCamera()`。
+- **真機只驗過一次，而且是失敗的那次。** 觸控目標、疊加對不對得齊都還沒驗，
+  逐項的檢查單與第一次的結果在 `sky/DESIGN.md` 末尾。
 
 ## 計劃審查閘門
 

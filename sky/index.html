@@ -279,28 +279,48 @@
     });
   }
 
-  function requestOrientation() {
-    var needsAsk = typeof DeviceOrientationEvent !== "undefined" &&
-      typeof DeviceOrientationEvent.requestPermission === "function";
-    var chain = needsAsk ? DeviceOrientationEvent.requestPermission() : Promise.resolve("granted");
-    return chain.then(function (result) {
-      if (result !== "granted") throw new Error("方位感測器沒有授權");
-      window.addEventListener("deviceorientation", function (event) {
-        var angles = readOrientationEvent(event);
-        if (!angles) return;
-        latest.orientation = angles;
-        ready.orientation = true;
-      });
-      if (typeof DeviceMotionEvent !== "undefined" &&
-          typeof DeviceMotionEvent.requestPermission === "function") {
-        return DeviceMotionEvent.requestPermission().catch(function () { return "denied"; });
-      }
-      return "granted";
-    }).then(function () {
-      window.addEventListener("devicemotion", function (event) {
-        latest.rotationRate = event.rotationRate || null;
-      });
+  // iOS 只在**使用者手勢的呼叫堆疊裡**才給要權限的機會。這兩個 requestPermission
+  // 必須在任何 await / .then 之前同步發出去 —— 排在 getUserMedia 或 fetch 後面，
+  // 手勢就已經被消耗掉，拿到的是
+  // 「Requesting device orientation access requires a user gesture to prompt」。
+  // 實測 2026-09-09 在真機上踩過：相機拿得到、方位權限當場失敗。
+  // 兩個都要同步呼叫：動作與方向在 iOS 上是分開的 API。
+  function requestMotionPermissions() {
+    var asks = [];
+    if (typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function") {
+      asks.push(DeviceOrientationEvent.requestPermission());
+    }
+    if (typeof DeviceMotionEvent !== "undefined" &&
+        typeof DeviceMotionEvent.requestPermission === "function") {
+      asks.push(DeviceMotionEvent.requestPermission().catch(function () { return "denied"; }));
+    }
+    if (!asks.length) return Promise.resolve(["granted"]);
+    return Promise.all(asks);
+  }
+
+  function attachSensorListeners(results) {
+    // 方向是必要的，動作（陀螺儀）不是——沒有它濾波會退化成純低通，仍然可用。
+    if (results[0] !== "granted") {
+      throw new Error("方位感測器沒有授權。iOS 拒絕過一次就不會再問，" +
+        "要到「設定 → Safari → 動作與方向存取權」重新開啟。");
+    }
+    window.addEventListener("deviceorientation", function (event) {
+      var angles = readOrientationEvent(event);
+      if (!angles) return;
+      latest.orientation = angles;
+      ready.orientation = true;
     });
+    window.addEventListener("devicemotion", function (event) {
+      latest.rotationRate = event.rotationRate || null;
+    });
+  }
+
+  function stopCamera() {
+    if (!stream) return;
+    stream.getTracks().forEach(function (track) { track.stop(); });
+    stream = null;
+    el.preview.srcObject = null;
   }
 
   function requestLocation() {
@@ -482,7 +502,14 @@
   function start() {
     el.startBtn.disabled = true;
     setState(el.permState, "要求權限中…", "");
-    loadLibraries()
+
+    // 這一行必須是 start() 做的第一件事，而且不可以排在任何 .then 後面。
+    // 理由見 requestMotionPermissions() 的註解；靜態契約會檢查這個順序。
+    var permissions = requestMotionPermissions();
+
+    permissions
+      .then(function (results) { attachSensorListeners(results); })
+      .then(function () { return loadLibraries(); })
       .then(function () {
         filter = lib.orientation.createPointingFilter();
         return lib.catalog.loadCatalog();
@@ -492,7 +519,6 @@
         ready.catalog = true;
         return startCamera();
       })
-      .then(function () { return requestOrientation(); })
       .then(function () { return requestLocation(); })
       .then(function () {
         el.stageHint.hidden = true;
@@ -503,6 +529,9 @@
         requestAnimationFrame(frame);
       })
       .catch(function (error) {
+        // 相機開著但覆蓋層沒作用時，錄影指示燈還亮著、預覽還在跑，
+        // 看起來像成功了。錯誤路徑一定要把它關掉，狀態才誠實。
+        stopCamera();
         el.startBtn.disabled = false;
         setState(el.permState, "失敗：" + (error && error.message ? error.message : String(error)), "error");
       });

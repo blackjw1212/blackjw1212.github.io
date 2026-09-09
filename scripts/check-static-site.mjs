@@ -606,6 +606,26 @@ if (has("sky/index.html")) {
   assertMatch("sky/index.html", html, /磁偏角）目前沒有修正/, "sky must disclose that declination is not corrected");
   assertMatch("sky/index.html", html, /瓶頸是手機的地磁方位角/, "sky must disclose where the accuracy limit actually is");
 
+  // iOS 只在使用者手勢的呼叫堆疊裡才給要權限的機會。start() 一旦先 await 了載入、
+  // 星表或 getUserMedia，DeviceOrientationEvent.requestPermission() 就會拿到
+  // 「requires a user gesture to prompt」——實測 2026-09-09 在真機上踩過，
+  // 相機拿得到、方位權限當場失敗。所以這個順序是契約，不是風格。
+  const skyStart = html.match(/\n  function start\(\) \{[\s\S]*?\n  \}\n/)?.[0];
+  if (!skyStart) {
+    fail("sky/index.html: 找不到 start()，無法檢查授權順序");
+  } else {
+    // 先把行註解拿掉再比位置。第一版沒有這一步，結果抓到的是解釋這條規則的
+    // 註解裡的同名字樣（它永遠在最前面），斷言因此永遠通過——反向測試當場抓到。
+    const skyStartCode = skyStart.replace(/\/\/[^\n]*/g, "");
+    const askAt = skyStartCode.indexOf("requestMotionPermissions(");
+    const thenAt = skyStartCode.indexOf(".then(");
+    if (askAt < 0) {
+      fail("sky/index.html: start() 必須呼叫 requestMotionPermissions()");
+    } else if (thenAt >= 0 && askAt > thenAt) {
+      fail("sky/index.html: requestMotionPermissions() 必須在 start() 的第一個 .then() 之前呼叫（iOS 需要使用者手勢）");
+    }
+  }
+
   // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
   assertMatch("sky/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "sky main script must sit right before </body>");
 }
