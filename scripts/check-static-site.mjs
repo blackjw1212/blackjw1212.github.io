@@ -672,6 +672,18 @@ if (has("sky/index.html")) {
 
   // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
   assertMatch("sky/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "sky main script must sit right before </body>");
+
+  // 取景器是滿版的，右上角的控制面板疊在它上面。下面三條釘的都是「桌機上看不出來、
+  // 真手機上壞掉」的那一類 —— 那正是這一頁踩過的坑（授權順序也是同一類）。
+  assertMatch("sky/index.html", html, /height:100dvh/, "sky stage must fill the viewport");
+
+  // viewport-fit=cover 之下沒有 safe-area inset，面板會鑽進瀏海／狀態列底下。
+  // 模擬器的 inset 全是 0，所以這件事只有真機看得出來。
+  assertMatch("sky/index.html", html, /env\(safe-area-inset-top/, "sky HUD must respect the safe area");
+
+  // 畫布現在鋪滿第一屏。禁用平移手勢會讓人捲不到下面的說明與星表，
+  // 而且不會有任何徵兆——只在手機上發生。
+  assertNoMatch("sky/index.html", html, /\.stage canvas\{[^}]*touch-action:\s*none/, "sky canvas must not swallow pan gestures");
 }
 
 if (has("bjkw_weather.html")) {
