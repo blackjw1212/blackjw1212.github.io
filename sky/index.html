@@ -72,24 +72,34 @@
      展開狀態語意。env(safe-area-inset-*) 是必要的而不是講究：viewport-fit=cover
      之下沒有它，面板會鑽進瀏海／狀態列底下，而桌機模擬的 inset 全是 0、
      完全看不出來。 */
+  /* 收合時只剩一顆 44px 的齒輪，展開才長成面板。寬度與背景都掛在 [open] 上，
+     所以收合態不會有一條空的橫條佔著畫面。 */
   .hud{position:absolute;z-index:2;
     top:calc(env(safe-area-inset-top,0px) + 10px);
     right:calc(env(safe-area-inset-right,0px) + 10px);
-    width:min(248px,66vw);margin:0;
+    margin:0;border-radius:22px;
     background:rgba(14,19,29,.55);
     -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-    border:1px solid rgba(232,237,246,.14);border-radius:12px;
-    text-shadow:0 1px 2px rgba(0,0,0,.6);
+    border:1px solid rgba(232,237,246,.14);
+    text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  .hud[open]{width:min(248px,66vw);border-radius:12px;
     /* 橫向或矮螢幕時面板不可以吃掉整個畫面，超過就自己捲。 */
     max-height:calc(100% - 20px);overflow:auto}
   /* 不要改 summary 的 display（那會連預設箭頭一起弄丟）；這裡是刻意收掉預設
-     箭頭改用自己的字元，所以兩個 list-style 都要寫。 */
-  .hud > summary{min-height:44px;padding:11px 14px;cursor:pointer;font-size:13px;
+     箭頭改用自己的圖示，所以兩個 list-style 都要寫。 */
+  .hud > summary{min-height:44px;min-width:44px;cursor:pointer;font-size:13px;
     color:var(--muted);list-style:none;display:flex;align-items:center;
-    justify-content:space-between;gap:8px}
+    justify-content:center;gap:8px}
   .hud > summary::-webkit-details-marker{display:none}
-  .hud > summary::after{content:"\25B8";transition:transform .15s ease}
-  .hud[open] > summary::after{transform:rotate(90deg)}
+  /* 齒輪用文字字元畫，**不可以用 SVG data URI** —— SVG 需要 xmlns，那個網址會撞到
+     這一頁「body 內不得出現外部網址」的靜態契約。variant 設成 text 是為了讓
+     iOS 不要把它渲染成彩色 emoji。 */
+  .hud > summary::before{content:"\2699";font-size:19px;line-height:1;
+    font-variant-emoji:text}
+  .hud-title{display:none}
+  .hud[open] > summary{min-width:0;padding:11px 14px;justify-content:space-between}
+  .hud[open] .hud-title{display:block}
+  .hud[open] > summary::before{order:2;font-size:15px;opacity:.75}
   .hud-body{padding:0 14px 12px}
   .hud .state{margin:4px 0}
   .hud .fld{margin:10px 0}
@@ -136,7 +146,7 @@
      media query 收在 <style> 最後，這是這個 repo 踩過的特異度順序坑。 */
   @media (max-height:480px){
     .hud{max-height:calc(100% - 20px)}
-    .hud > summary{padding:9px 12px}
+    .hud[open] > summary{padding:9px 12px}
     .hud-body{padding:0 12px 10px}
     .hud .fld{margin:8px 0}
     .hud .state{margin:2px 0;font-size:12px}
@@ -159,8 +169,8 @@
     <p class="state" id="permState">尚未開始。相機與方位感測器都需要你按一下才能要權限。</p>
   </div>
 
-  <details class="hud" id="controls" open>
-    <summary>設定與狀態</summary>
+  <details class="hud" id="controls">
+    <summary aria-label="設定與狀態"><span class="hud-title">設定與狀態</span></summary>
     <div class="hud-body">
       <p class="state" id="fixState">位置與時間：尚未取得</p>
       <p class="state" id="pointState">指向：尚未取得</p>
@@ -204,6 +214,7 @@
         <li>地磁北與真北的差（磁偏角）目前沒有修正，因為查不到可引用的數值來源。未校正時畫面上的方位角就是感測器給的磁北值。</li>
         <li>可以用月亮把方位校準：月亮的位置算得準（對 ELP/MPP02 的最差誤差 18 角秒），把它當基準點一次量出偏差。<strong>但量到的是整條管線的觀測偏差</strong>——磁偏角、手機磁力計的硬鐵軟鐵誤差、感測器融合的殘差全混在裡面，所以它不等於磁偏角，本站也不會這樣宣稱。校正只在你當下的位置與時間有效。</li>
         <li>白天也會照算照畫，只是天上看不到星。</li>
+        <li><strong>重新整理會再問一次權限，那是 iOS 的行為，頁面壓不下來。</strong>方向與動作的授權綁在單一份文件上，重新載入就是新的一份。位置已經改成沿用上一次的座標（只留在這台裝置）：<strong>30 分鐘內重新整理不會再問位置</strong>，因為那種情況下根本不會去呼叫定位；超過 30 分鐘才會重新定位，超過 12 小時的舊座標直接丟掉。相機可以試著在 Safari 網址列的選單裡把這個網站的相機設成允許——<strong>這條我沒有在 iOS 上驗證過</strong>，只是它是唯一可能有效的方向。</li>
       </ul>
     </div>
   </details>
@@ -266,6 +277,46 @@
       if (clear) chosen.push(candidate);
     }
     return chosen;
+  }
+
+  // 上一次的定位。這一頁需要位置只是為了算地方恆星時與地平座標，精度需求極低：
+  // 經度差 0.1 度（約 10 km）＝ 天球差 0.1 度，緯度同量級——相對於這一頁 2 到 10 度的
+  // heading 誤差可以忽略。所以重新整理時直接拿上次的座標開始算，不必等 GPS 收斂，
+  // 位置權限是「僅允許一次」的話也不必再問一次。
+  //
+  // 12 小時是刻意的：再舊就可能跨了一趟移動，而觀星本來就常常是「開車到某個點」。
+  // 過期就丟掉、老實重新定位，不要拿一個可能在兩百公里外的座標算。
+  var FIX_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+  // 比這個新就**完全不呼叫定位** —— 這才是「重整不會再問一次位置」的關鍵。
+  // 只把座標快取起來、照樣呼叫 watchPosition 的話，iOS 的「僅允許一次」仍然會再問；
+  // 那一版實測過，第二次載入還是叫了一次 watchPosition。
+  // 30 分鐘內就算開了車，位移頂多幾十公里 ＝ 天球上零點幾度，遠小於這一頁 2 到 10 度的
+  // heading 誤差，所以不重新定位是安全的。
+  var FIX_REFRESH_AFTER_MS = 30 * 60 * 1000;
+
+  function parseStoredFix(raw, nowMs, maxAgeMs) {
+    if (!raw) return null;
+    var parsed;
+    try { parsed = JSON.parse(raw); } catch (error) { return null; }
+    if (!parsed || typeof parsed !== "object") return null;
+    var lat = parsed.latitude;
+    var lon = parsed.longitude;
+    var at = parsed.at;
+    if (typeof lat !== "number" || !isFinite(lat) || lat < -90 || lat > 90) return null;
+    if (typeof lon !== "number" || !isFinite(lon) || lon < -180 || lon > 180) return null;
+    if (typeof at !== "number" || !isFinite(at)) return null;
+    // 未來的時間戳代表時鐘被調過或資料被動過手腳，一樣不可信。
+    if (at > nowMs) return null;
+    if (nowMs - at > maxAgeMs) return null;
+    return { latitude: lat, longitude: lon, accuracy: parsed.accuracy, at: at };
+  }
+
+  function describeFixAge(ageMs) {
+    if (!isFinite(ageMs) || ageMs < 0) return "";
+    var minutes = Math.round(ageMs / 60000);
+    if (minutes < 1) return "剛剛";
+    if (minutes < 60) return minutes + " 分鐘前";
+    return Math.round(minutes / 60) + " 小時前";
   }
 
   // 月亮適不適合現在拿來校正。純函式，掛進 helpers 讓測試釘住每一條判準。
@@ -374,6 +425,8 @@
     formatStarName: formatStarName,
     describeMoonCalibration: describeMoonCalibration,
     nextHeadingOffsetDeg: nextHeadingOffsetDeg,
+    parseStoredFix: parseStoredFix,
+    describeFixAge: describeFixAge,
   };
 
   // ── 以下需要 DOM / 瀏覽器 API，測試不會執行到。────────────────────────────
@@ -399,6 +452,8 @@
   var calibrating = false;
   var lastMoon = null;
   var lastProjector = null;
+  var watchId = null;
+  var FIX_STORAGE_KEY = "bjkw-sky-last-fix";
   var running = false;
   var magnitudeLimit = 4.5;
   var lastHits = [];
@@ -474,22 +529,68 @@
   }
 
   function stopCamera() {
+    stopWatchingLocation();
     if (!stream) return;
     stream.getTracks().forEach(function (track) { track.stop(); });
     stream = null;
     el.preview.srcObject = null;
   }
 
+  function rememberFix(coords) {
+    try {
+      window.localStorage.setItem(FIX_STORAGE_KEY, JSON.stringify({
+        latitude: coords.latitude, longitude: coords.longitude,
+        accuracy: coords.accuracy, at: Date.now(),
+      }));
+    } catch (error) { /* 無痕視窗會丟例外，這次就只用記憶體裡的 */ }
+  }
+
+  function restoreFix() {
+    var raw = null;
+    try { raw = window.localStorage.getItem(FIX_STORAGE_KEY); } catch (error) { return null; }
+    return parseStoredFix(raw, Date.now(), FIX_MAX_AGE_MS);
+  }
+
+  function stopWatchingLocation() {
+    if (watchId === null) return;
+    // watchPosition 不 clear 就會一直定位。第一版連 watch id 都沒接住，頁面開著就
+    // 持續耗電，而且錯誤路徑關掉相機之後它還在跑——觀星時最不該發生的事，
+    // 而且完全沒有徵兆。
+    try { navigator.geolocation.clearWatch(watchId); } catch (error) { /* 已經沒了就算了 */ }
+    watchId = null;
+  }
+
   function requestLocation() {
     return new Promise(function (resolve) {
       if (!navigator.geolocation) return resolve(null);
-      navigator.geolocation.watchPosition(function (position) {
+
+      // 有夠新的舊座標就先用它，讓畫面立刻能算，不必等 GPS 收斂。
+      var cached = restoreFix();
+      var settled = false;
+      if (cached) {
+        var age = Date.now() - cached.at;
+        latest.position = cached;
+        ready.location = true;
+        setState(el.fixState, "位置：" + cached.latitude.toFixed(3) + "、" +
+          cached.longitude.toFixed(3) + "（上次取得，" + describeFixAge(age) + "）", "warn");
+        settled = true;
+        resolve(cached);
+        // 夠新就到此為止，連呼叫都不呼叫——呼叫了才會跳權限提示。
+        if (age < FIX_REFRESH_AFTER_MS) return;
+      }
+
+      watchId = navigator.geolocation.watchPosition(function (position) {
         latest.position = position.coords;
         ready.location = true;
+        rememberFix(position.coords);
         setState(el.fixState, "位置：" + position.coords.latitude.toFixed(3) + "、" +
           position.coords.longitude.toFixed(3) + "（±" + Math.round(position.coords.accuracy) + " m）", "ok");
-        resolve(position.coords);
+        // 這一頁不需要持續追蹤——精度需求是公里級，拿到一次就夠了。
+        stopWatchingLocation();
+        if (!settled) { settled = true; resolve(position.coords); }
       }, function () {
+        stopWatchingLocation();
+        if (settled) return;  // 已經用舊座標開始了，定位失敗不必推翻它
         setState(el.fixState, "位置：拿不到，無法算地方恆星時", "error");
         resolve(null);
       }, { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 });

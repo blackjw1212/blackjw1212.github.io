@@ -757,6 +757,21 @@ vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外
   `erfa.pvtob` 向量相減產生，方法不同才算獨立驗證。
 - **`hidden` 屬性會被任何帶 class 的 display 宣告蓋掉**（`.btn` 是 `inline-flex`），
   元素照樣顯示且毫無徵兆。`/sky/` 已統一加 `[hidden]{display:none !important}`。
+- **iOS 重新整理會重問方向與相機權限，那是平台行為，頁面壓不下來**（授權綁在單一份
+  document 上）。已查證不是我們讓頁面載入兩次（`sw.js` 沒有 reload），也不是呼叫方式錯。
+  **但位置那一個消得掉**：夠新的座標就**完全不呼叫定位**（`FIX_REFRESH_AFTER_MS`
+  30 分鐘）——只快取座標、照樣呼叫 `watchPosition` 是**不夠的**，呼叫本身就會跳提示，
+  第一版就是這樣，用 CDP 假造 geolocation 才量出第二次載入仍呼叫了一次。
+  `/weather/` 同一招（`bjkw-weather-last-fix`）。
+- **`watchPosition` 一定要 `clearWatch`。** `/sky/` 原本連 watch id 都沒接住，頁面開著
+  就持續定位——觀星時最不該發生的耗電，而且完全沒有徵兆。靜態契約釘住「有接住 id」
+  與「有呼叫 clearWatch」。
+- **右上角面板預設收合成一顆齒輪**（44px）。齒輪用文字字元 `\2699` 畫，
+  **不可以用 SVG data URI**——SVG 需要 xmlns，那個網址會撞到本頁「body 內不得出現
+  外部網址」的契約，同 `<select>` 箭頭那個坑。收合後沒有可見文字，所以 `<summary>`
+  要帶 `aria-label`，契約也釘住 skip link 仍指得到控制項。
+- **只改頁面 HTML（`/sky/`、`/weather/`）不必 bump `VERSION`**：兩者都是導覽、走
+  network-first。要 bump 的是 `sky/lib/*.mjs` 那種 cache-first 的資產。
 - **真機只驗過一次，而且是失敗的那次。** 觸控目標、疊加對不對得齊都還沒驗，
   逐項的檢查單與第一次的結果在 `sky/DESIGN.md` 末尾（版面與中文星名改版後共 16 項）。
 

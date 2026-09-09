@@ -719,6 +719,18 @@ if (has("sky/index.html")) {
   // 畫布現在鋪滿第一屏。禁用平移手勢會讓人捲不到下面的說明與星表，
   // 而且不會有任何徵兆——只在手機上發生。
   assertNoMatch("sky/index.html", html, /\.stage canvas\{[^}]*touch-action:\s*none/, "sky canvas must not swallow pan gestures");
+
+  // 控制面板收合成純圖示之後就沒有可見文字了，summary 必須自己帶 aria-label，
+  // 否則螢幕閱讀器只會念到一個齒輪符號。跳到控制項的 skip link 也要仍然指得到它。
+  assertMatch("sky/index.html", html, /<summary aria-label="[^"]+"/, "sky HUD toggle must keep an accessible name");
+  assertMatch("sky/index.html", html, /<a class="skip" href="#controls"/, "sky skip link must still reach the controls");
+
+  // watchPosition 不 clear 就會一直定位——觀星時最不該發生的耗電，而且毫無徵兆。
+  // 第一版連 watch id 都沒接住。這條釘住「有接住、而且有地方會清掉」。
+  assertMatch("sky/index.html", html, /watchId = navigator\.geolocation\.watchPosition\(/,
+    "sky must keep the geolocation watch id so it can be cleared");
+  assertMatch("sky/index.html", html, /navigator\.geolocation\.clearWatch\(watchId\)/,
+    "sky must actually clear the geolocation watch");
 }
 
 if (has("bjkw_weather.html")) {
