@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -116,4 +116,57 @@ test("void elements do not need closing", () => {
   const out = runCheck(page("", ok));
   assert.doesNotMatch(out, /entries nav:/,
     "img／br 這類空元素沒有結束標籤，把它們算進堆疊會全面誤報");
+});
+
+// ── /sky/ 的滿版取景器與右上角控制面板 ─────────────────────────────────────
+// 這三條釘的都是「桌機模擬綠燈、真手機壞掉」的那一類。fixture 只放 sky/index.html，
+// 其他契約項目（標題、canonical…）當然會失敗，跟上面的作法一樣只斷言自己那一條。
+function runSkyCheck(html) {
+  const dir = mkdtempSync(join(tmpdir(), "bjkw-sky-contract-"));
+  try {
+    mkdirSync(join(dir, "sky"), { recursive: true });
+    writeFileSync(join(dir, "sky", "index.html"), html, "utf8");
+    try {
+      execFileSync(process.execPath, [script, dir], { encoding: "utf8", stdio: "pipe" });
+      return "";
+    } catch (error) {
+      return String(error.stderr || "");
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const skyPage = (style) =>
+  `<!DOCTYPE html><html lang="zh-Hant"><head><style>${style}</style></head>` +
+  `<body><div class="stage"><canvas id="overlay"></canvas></div></body></html>`;
+
+const SKY_LAYOUT_OK = ".stage{height:100vh;height:100dvh}" +
+  ".hud{top:calc(env(safe-area-inset-top,0px) + 10px)}" +
+  ".stage canvas{touch-action:manipulation}";
+
+test("a sky stage that is not full-viewport fails the static contract", () => {
+  const out = runSkyCheck(skyPage(SKY_LAYOUT_OK.replace("height:100vh;height:100dvh", "height:62vh")));
+  assert.match(out, /sky stage must fill the viewport/,
+    "取景器退回固定高度就不是全螢幕了，這條要紅");
+});
+
+// inset 在桌機模擬上永遠是 0，所以拿掉它在模擬下完全看不出來，只有真機會被瀏海切到。
+test("a sky HUD without safe-area insets fails the static contract", () => {
+  const out = runSkyCheck(skyPage(SKY_LAYOUT_OK.replace(/top:calc\([^)]*\)[^;}]*/, "top:10px")));
+  assert.match(out, /sky HUD must respect the safe area/,
+    "少了 safe-area，面板會鑽進瀏海底下，而模擬器看不出來");
+});
+
+// 畫布鋪滿第一屏之後，禁用平移＝整頁捲不動，而且沒有任何錯誤訊息。
+test("a sky canvas that swallows pan gestures fails the static contract", () => {
+  const out = runSkyCheck(skyPage(SKY_LAYOUT_OK.replace("touch-action:manipulation", "touch-action:none")));
+  assert.match(out, /sky canvas must not swallow pan gestures/,
+    "滿版畫布不能吞掉平移，否則捲不到下面的說明與星表");
+});
+
+test("the shipped sky layout raises none of the three complaints", () => {
+  const out = runSkyCheck(skyPage(SKY_LAYOUT_OK));
+  assert.doesNotMatch(out, /sky stage must fill|sky HUD must respect|sky canvas must not/,
+    "正常的版面不可誤報，否則這三條會被當成雜訊而被關掉");
 });

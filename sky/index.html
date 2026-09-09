@@ -36,12 +36,59 @@
   .skip{position:absolute;left:-9999px}
   .skip:focus{left:8px;top:8px;z-index:50;background:var(--panel);padding:10px 14px;border-radius:8px}
 
-  .stage{position:relative;width:100%;height:62vh;min-height:320px;background:#000;overflow:hidden}
+  /* 取景器佔滿整個視窗。dvh 讓網址列收合／展開時高度跟著走；沒有 dvh 的
+     瀏覽器落在前面那行 vh。說明與星表在下面，往下捲得到。 */
+  .stage{position:relative;width:100%;height:100vh;height:100dvh;min-height:320px;
+    background:#000;overflow:hidden}
   .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%}
   .stage video{object-fit:cover;background:#000}
-  .stage canvas{touch-action:none}
-  .stage-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    text-align:center;padding:24px;color:var(--muted);font-size:14px}
+  /* 這裡曾經是完全禁用觸控手勢。舞台只佔 62vh 時還有別處可以拖著捲，改成滿版之後
+     整個第一屏都是這張畫布——那樣會讓人捲不到下面的說明與星表，而且不會有任何
+     徵兆。畫布只處理點擊，本來就不需要吞掉平移，改成保留捲動與縮放、只關掉
+     雙擊縮放。 */
+  .stage canvas{touch-action:manipulation}
+
+  /* 置中的開始區。它鋪滿整個舞台，所以預設不吃指標事件——有 blocker 時它會在
+     running 中繼續顯示，若不放行就會把畫布的點擊全部吃掉（點畫面問「那裡是
+     什麼」當場失效，而且不會報錯）。 */
+  /* 靠下對齊，不是置中：右上角那塊面板最高會壓到畫面中段，置中的文字會鑽到它底下
+     （實測 500×725 下提示文字 y=295 與面板的 10〜328 正面對撞）。放在下緣同時也是
+     拇指構得到的位置。 */
+  .stage-dock{position:absolute;inset:0;z-index:1;pointer-events:none;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+    gap:12px;text-align:center;
+    padding:24px 24px calc(env(safe-area-inset-bottom,0px) + 32px)}
+  .stage-dock[hidden]{display:none}
+  .stage-dock .btn{pointer-events:auto}
+  .stage-hint{color:var(--muted);font-size:14px;margin:0;max-width:34ch;
+    text-shadow:0 1px 2px rgba(0,0,0,.7)}
+  .stage-dock .state{margin:0;max-width:34ch;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+
+  /* 右上角的半透明控制面板。用 <details> 是為了零新增 JS 就拿到鍵盤操作與
+     展開狀態語意。env(safe-area-inset-*) 是必要的而不是講究：viewport-fit=cover
+     之下沒有它，面板會鑽進瀏海／狀態列底下，而桌機模擬的 inset 全是 0、
+     完全看不出來。 */
+  .hud{position:absolute;z-index:2;
+    top:calc(env(safe-area-inset-top,0px) + 10px);
+    right:calc(env(safe-area-inset-right,0px) + 10px);
+    width:min(248px,66vw);margin:0;
+    background:rgba(14,19,29,.55);
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border:1px solid rgba(232,237,246,.14);border-radius:12px;
+    text-shadow:0 1px 2px rgba(0,0,0,.6);
+    /* 橫向或矮螢幕時面板不可以吃掉整個畫面，超過就自己捲。 */
+    max-height:calc(100% - 20px);overflow:auto}
+  /* 不要改 summary 的 display（那會連預設箭頭一起弄丟）；這裡是刻意收掉預設
+     箭頭改用自己的字元，所以兩個 list-style 都要寫。 */
+  .hud > summary{min-height:44px;padding:11px 14px;cursor:pointer;font-size:13px;
+    color:var(--muted);list-style:none;display:flex;align-items:center;
+    justify-content:space-between;gap:8px}
+  .hud > summary::-webkit-details-marker{display:none}
+  .hud > summary::after{content:"\25B8";transition:transform .15s ease}
+  .hud[open] > summary::after{transform:rotate(90deg)}
+  .hud-body{padding:0 14px 12px}
+  .hud .state{margin:4px 0}
+  .hud .fld{margin:10px 0}
 
   main{padding:16px;max-width:760px;margin:0 auto}
   h1{font-size:20px;margin:0 0 4px}
@@ -82,30 +129,33 @@
 <div class="stage">
   <video id="preview" playsinline muted autoplay></video>
   <canvas id="overlay"></canvas>
-  <div class="stage-hint" id="stageHint">按下方的「開啟相機與感測器」開始。相機影像只在這台裝置上顯示，不會被送出去。</div>
+
+  <div class="stage-dock" id="stageDock">
+    <p class="stage-hint" id="stageHint">相機影像只在這台裝置上顯示，不會被送出去。</p>
+    <button class="btn primary" id="startBtn" type="button">開啟相機與感測器</button>
+    <p class="state" id="permState">尚未開始。相機與方位感測器都需要你按一下才能要權限。</p>
+  </div>
+
+  <details class="hud" id="controls" open>
+    <summary>設定與狀態</summary>
+    <div class="hud-body">
+      <p class="state" id="fixState">位置與時間：尚未取得</p>
+      <p class="state" id="pointState">指向：尚未取得</p>
+      <label class="fld" for="fovRange">
+        <span>相機水平視野角 <output id="fovOut">65°</output>　—　拿不到鏡頭參數，要自己校正</span>
+        <input type="range" id="fovRange" min="35" max="100" step="1" value="65">
+      </label>
+      <label class="fld" for="magRange">
+        <span>顯示到幾等星 <output id="magOut">4.5</output></span>
+        <input type="range" id="magRange" min="1" max="6" step="0.5" value="4.5">
+      </label>
+    </div>
+  </details>
 </div>
 
 <main>
   <h1>星空辨識</h1>
   <p class="lede">用相機、GPS、時間與姿態感測器算出鏡頭指向天球的哪裡，把亮星疊回畫面。星表與所有運算都在本機。</p>
-
-  <div id="controls" class="panel">
-    <button class="btn primary" id="startBtn" type="button">開啟相機與感測器</button>
-    <p class="state" id="permState">尚未開始。相機與方位感測器都需要你按一下才能要權限。</p>
-    <p class="state" id="fixState">位置與時間：尚未取得</p>
-    <p class="state" id="pointState">指向：尚未取得</p>
-  </div>
-
-  <div class="panel">
-    <label class="fld" for="fovRange">
-      <span>相機水平視野角 <output id="fovOut">65°</output>　—　拿不到鏡頭參數，要自己校正</span>
-      <input type="range" id="fovRange" min="35" max="100" step="1" value="65">
-    </label>
-    <label class="fld" for="magRange">
-      <span>顯示到幾等星 <output id="magOut">4.5</output></span>
-      <input type="range" id="magRange" min="1" max="6" step="0.5" value="4.5">
-    </label>
-  </div>
 
   <div class="panel">
     <h2 style="font-size:15px;margin:0 0 8px">畫面中央附近</h2>
@@ -234,7 +284,11 @@
 
   // ── 以下需要 DOM / 瀏覽器 API，測試不會執行到。────────────────────────────
 
-  var FOV_STORAGE_KEY = "bjkw-sky-fov";
+  // 換過一次 key。舞台從 62vh 改成滿版，長寬比從約 0.77 變成 0.46，而 video 是
+  // object-fit:cover ——那是裁切，所以同一支鏡頭在畫面上呈現的水平視野角跟著變了，
+  // 舊的校正值在新版面下是錯的。讓它退回誠實的預設 65（旁邊本來就寫著要自己校正），
+  // 比沿用一個在別的裁切下量到的數字好。
+  var FOV_STORAGE_KEY = "bjkw-sky-fov-v2";
   var el = {};
   var lib = null;
   var catalog = null;
@@ -355,6 +409,8 @@
       renderFrame();
     } catch (error) {
       running = false;
+      el.stageDock.hidden = false;
+      el.startBtn.hidden = false;
       el.startBtn.disabled = false;
       setState(el.permState, "疊加已中止：" + (error && error.message ? error.message : String(error)), "error");
       return;
@@ -521,10 +577,14 @@
       })
       .then(function () { return requestLocation(); })
       .then(function () {
-        el.stageHint.hidden = true;
         resizeCanvas();
         var blockers = describeBlockers(ready);
         setState(el.permState, blockers || "相機與感測器就緒。", blockers ? "warn" : "ok");
+        // 規則：dock 可見 ⇔ 還有話要說。全部到位就整塊收掉，把畫面讓給取景器；
+        // 還缺東西就留著，否則那句「還缺：…」會寫進一個看不到的元素。
+        el.stageHint.hidden = true;
+        el.startBtn.hidden = true;
+        el.stageDock.hidden = !blockers;
         running = true;
         requestAnimationFrame(frame);
       })
@@ -532,6 +592,8 @@
         // 相機開著但覆蓋層沒作用時，錄影指示燈還亮著、預覽還在跑，
         // 看起來像成功了。錯誤路徑一定要把它關掉，狀態才誠實。
         stopCamera();
+        el.stageDock.hidden = false;
+        el.startBtn.hidden = false;
         el.startBtn.disabled = false;
         setState(el.permState, "失敗：" + (error && error.message ? error.message : String(error)), "error");
       });
@@ -541,6 +603,7 @@
     el.preview = document.getElementById("preview");
     el.overlay = document.getElementById("overlay");
     el.stageHint = document.getElementById("stageHint");
+    el.stageDock = document.getElementById("stageDock");
     el.startBtn = document.getElementById("startBtn");
     el.permState = document.getElementById("permState");
     el.fixState = document.getElementById("fixState");
