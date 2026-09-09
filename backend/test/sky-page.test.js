@@ -34,7 +34,7 @@ const star = (overrides) => Object.assign(
 
 test("the page exposes its pure helpers without running the browser code", async () => {
   const helpers = await loadHelpers();
-  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent", "formatStarName"]) {
+  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent", "formatStarName", "describeMoonCalibration", "nextHeadingOffsetDeg"]) {
     assert.equal(typeof helpers[name], "function", `${name} 應該可以被測到`);
   }
 });
@@ -181,4 +181,73 @@ test("without a panel rect every visible star is still a candidate", async () =>
     star({ label: "暗", magnitude: 4, xPx: 10, yPx: 300 }),
   ];
   assert.deepEqual(helpers.selectLabels(hits, {}).map((c) => c.label), ["亮", "暗"]);
+});
+
+// ── 月亮校正 ───────────────────────────────────────────────────────────
+
+const moon = (o) => Object.assign({ altitudeDeg: 45, illuminatedFraction: 0.8 }, o);
+
+test("the Moon below the horizon is refused, with the altitude said out loud", async () => {
+  const helpers = await loadHelpers();
+  const v = helpers.describeMoonCalibration(moon({ altitudeDeg: -20 }));
+  assert.equal(v.usable, false);
+  assert.match(v.text, /地平線下/);
+  assert.match(v.text, /-20/, "要說出仰角，不能只給一個灰掉的按鈕");
+});
+
+test("a new Moon is refused because you cannot see it", async () => {
+  const helpers = await loadHelpers();
+  const v = helpers.describeMoonCalibration(moon({ illuminatedFraction: 0.01 }));
+  assert.equal(v.usable, false);
+  assert.match(v.text, /新月/);
+});
+
+test("a Moon too low is refused even though it is up", async () => {
+  const helpers = await loadHelpers();
+  // 折射與地物遮蔽在低空都會讓人對不準，所以「看得到」不等於「校得準」。
+  const v = helpers.describeMoonCalibration(moon({ altitudeDeg: 4 }));
+  assert.equal(v.usable, false);
+  assert.match(v.text, /太低/);
+});
+
+test("a crescent is allowed but warns that the centre is guesswork", async () => {
+  const helpers = await loadHelpers();
+  const v = helpers.describeMoonCalibration(moon({ illuminatedFraction: 0.12 }));
+  assert.equal(v.usable, true);
+  assert.equal(v.level, "warn");
+  assert.match(v.text, /弦月|中心/);
+});
+
+test("a high gibbous Moon is the good case", async () => {
+  const helpers = await loadHelpers();
+  const v = helpers.describeMoonCalibration(moon({ altitudeDeg: 60, illuminatedFraction: 0.9 }));
+  assert.equal(v.usable, true);
+  assert.equal(v.level, "ok");
+});
+
+test("no Moon at all is refused without throwing", async () => {
+  const helpers = await loadHelpers();
+  assert.equal(helpers.describeMoonCalibration(null).usable, false);
+});
+
+test("the heading offset moves the sky the way the tap says", async () => {
+  const helpers = await loadHelpers();
+  // 使用者說真正的月亮在方位 100，而我們算出它在 103 → 畫面要往 +3 度轉。
+  assert.equal(helpers.nextHeadingOffsetDeg(0, 100, 103), 3);
+  // 已經有 5 度偏移時要**累加**，不是取代——第二次校正是在第一次的基礎上微調。
+  assert.equal(helpers.nextHeadingOffsetDeg(5, 100, 103), 8);
+});
+
+test("the offset takes the short way round north", async () => {
+  const helpers = await loadHelpers();
+  // 觀測 359、推算 2 → 差是 +3，不是 −357。0/360 接縫是這種校正最容易錯的地方。
+  assert.equal(helpers.nextHeadingOffsetDeg(0, 359, 2), 3);
+  assert.equal(helpers.nextHeadingOffsetDeg(0, 2, 359), -3);
+});
+
+test("the accumulated offset stays in [-180, 180]", async () => {
+  const helpers = await loadHelpers();
+  const big = helpers.nextHeadingOffsetDeg(170, 0, 30);
+  assert.ok(big >= -180 && big <= 180, `實得 ${big}`);
+  assert.equal(big, -160, "170 + 30 = 200 應該回繞成 -160");
 });

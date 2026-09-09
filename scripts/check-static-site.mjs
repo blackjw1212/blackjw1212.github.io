@@ -177,6 +177,7 @@ for (const rel of [
   "sky/lib/orientation.mjs",
   "sky/lib/catalog.mjs",
   "sky/lib/project.mjs",
+  "sky/lib/moon.mjs",
   "sky/data/bsc5-mag6.json",
   "sky/data/star-names-zh.json",
   "bjkw_weather.html",
@@ -649,6 +650,18 @@ if (has("sky/index.html")) {
   // 而磁偏角查不到可引用的來源，所以畫面上的方位角是磁北的。
   assertMatch("sky/index.html", html, /沒有任何標準介面問得到/, "sky must disclose the camera field of view cannot be queried");
   assertMatch("sky/index.html", html, /磁偏角）目前沒有修正/, "sky must disclose that declination is not corrected");
+
+  // 月亮校正量到的是**整條 heading 管線的觀測偏差**（磁偏角 + 磁力計硬鐵軟鐵誤差 +
+  // 融合殘差），不是磁偏角。把它叫成磁偏角等於宣稱一個沒被分離出來的量，
+  // 同 geomag.mjs 那條「不可以用 0 代替未知」的紅線。資料模型上兩者分開命名，
+  // 頁面上也要說清楚。
+  // 釘的字串要挑**只出現在畫面文案裡**的那一句。第一版釘的字樣在程式註解裡也有，
+  // 結果把可見文案改成「量到的就是磁偏角」照樣綠燈——反向測試當場抓到。
+  // 這是這個 repo 記過兩次的「註解也算」，這次是反過來咬人：註解替錯的文案背書。
+  assertMatch("sky/index.html", html, /不等於磁偏角，本站也不會這樣宣稱/,
+    "sky must not pass the Moon-derived offset off as magnetic declination");
+  assertNoMatch("sky/index.html", html, /localStorage[^)]*declination|declinationDeg/,
+    "a storage key or field that calls the heading offset a declination");
   assertMatch("sky/index.html", html, /瓶頸是手機的地磁方位角/, "sky must disclose where the accuracy limit actually is");
 
   // iOS 只在使用者手勢的呼叫堆疊裡才給要權限的機會。start() 一旦先 await 了載入、
