@@ -121,6 +121,22 @@
   .note{color:var(--muted);font-size:13px}
   ul{margin:8px 0;padding-left:20px}
   li{margin:4px 0}
+
+  /* 矮螢幕（主要是橫拿）。實測 2026-09-09：812×375 時面板高 318 ＝ 舞台的 85%；
+     720×320 時被 max-height 夾在 300 ＝ 94%，而且開始區的提示文字與狀態列**真的
+     和面板重疊**（量測工具逐項點名 .stage-hint 與 #permState）。直式量不到這件事。
+     兩件事一起處理：把面板的垂直佔用壓下來，並把開始區推到面板左邊那一欄。
+     media query 收在 <style> 最後，這是這個 repo 踩過的特異度順序坑。 */
+  @media (max-height:480px){
+    .hud{max-height:calc(100% - 20px)}
+    .hud > summary{padding:9px 12px}
+    .hud-body{padding:0 12px 10px}
+    .hud .fld{margin:8px 0}
+    .hud .state{margin:2px 0;font-size:12px}
+    /* 面板佔住右邊那一欄，開始區就只用剩下的寬度置中，不要鑽到它底下。 */
+    .stage-dock{padding-right:calc(min(248px,66vw) + 24px);
+      padding-bottom:calc(env(safe-area-inset-bottom,0px) + 16px);gap:8px}
+  }
 </style>
 </head>
 <body>
@@ -142,7 +158,7 @@
       <p class="state" id="fixState">位置與時間：尚未取得</p>
       <p class="state" id="pointState">指向：尚未取得</p>
       <label class="fld" for="fovRange">
-        <span>相機水平視野角 <output id="fovOut">65°</output>　—　拿不到鏡頭參數，要自己校正</span>
+        <span>相機水平視野角 <output id="fovOut">65°</output>　要自己校正</span>
         <input type="range" id="fovRange" min="35" max="100" step="1" value="65">
       </label>
       <label class="fld" for="magRange">
@@ -214,8 +230,15 @@
     var opts = options || {};
     var maxLabels = typeof opts.maxLabels === "number" ? opts.maxLabels : 8;
     var minSeparationPx = typeof opts.minSeparationPx === "number" ? opts.minSeparationPx : 48;
+    // 右上角那塊控制面板蓋在畫布上。落在它底下的標籤是白畫的——實測截圖右緣就有
+    // 一個被切掉一半的星名。把面板的矩形傳進來，命中的候選跳過、換下一顆亮星，
+    // 名額才不會浪費在看不見的地方。沒傳就是整張畫布都可用。
+    var avoid = opts.avoidRect || null;
     var candidates = hits.filter(function (hit) {
-      return hit.visible && hit.hasDesignation;
+      if (!hit.visible || !hit.hasDesignation) return false;
+      if (avoid && hit.xPx >= avoid.left && hit.xPx <= avoid.right
+        && hit.yPx >= avoid.top && hit.yPx <= avoid.bottom) return false;
+      return true;
     }).slice().sort(function (a, b) { return a.magnitude - b.magnitude; });
 
     var chosen = [];
@@ -230,6 +253,14 @@
       if (clear) chosen.push(candidate);
     }
     return chosen;
+  }
+
+  // 星名同時要能中英並列（表格與點擊查詢用）。疊加層只寫 label（中文優先），
+  // 這裡把英文專名補在後面；沒有中文名時 label 本來就是英文，不要重複寫兩次。
+  function formatStarName(star) {
+    if (!star) return "—";
+    if (star.zh && star.common && star.common !== star.zh) return star.zh + " " + star.common;
+    return star.label;
   }
 
   function formatAltAz(azimuthDeg, altitudeDeg) {
@@ -280,6 +311,7 @@
     describeBlockers: describeBlockers,
     readOrientationEvent: readOrientationEvent,
     clampFovDeg: clampFovDeg,
+    formatStarName: formatStarName,
   };
 
   // ── 以下需要 DOM / 瀏覽器 API，測試不會執行到。────────────────────────────
@@ -483,6 +515,23 @@
     renderNearby(drawn);
   }
 
+  // 控制面板在畫布座標系裡的矩形（畫布是 devicePixelRatio 放大過的，CSS px 要乘回去）。
+  // 面板收合時只剩標題列，矩形跟著縮小，被讓開的天區也跟著變小——所以這裡每幀重讀，
+  // 不要快取。拿不到就回 null，代表整張畫布都可以放標籤。
+  function hudRectPx(ratio) {
+    if (!el.controls) return null;
+    var stage = el.overlay.getBoundingClientRect();
+    var hud = el.controls.getBoundingClientRect();
+    if (!hud.width || !hud.height) return null;
+    var pad = 6 * ratio;
+    return {
+      left: (hud.left - stage.left) * ratio - pad,
+      right: (hud.right - stage.left) * ratio + pad,
+      top: (hud.top - stage.top) * ratio - pad,
+      bottom: (hud.bottom - stage.top) * ratio + pad,
+    };
+  }
+
   function paint(drawn) {
     var ctx = el.overlay.getContext("2d");
     ctx.clearRect(0, 0, el.overlay.width, el.overlay.height);
@@ -497,10 +546,15 @@
       ctx.fill();
     }
 
-    ctx.font = (13 * ratio) + "px system-ui, sans-serif";
+    // 字型要跟 body 同一套：少了 CJK 那一段，中文星名在某些裝置上會掉成豆腐字。
+    ctx.font = (13 * ratio) + 'px system-ui, -apple-system, "Noto Sans TC", sans-serif';
     ctx.fillStyle = "#8ab4ff";
     ctx.textBaseline = "middle";
-    var labels = selectLabels(drawn, { maxLabels: 8, minSeparationPx: 52 * ratio });
+    var labels = selectLabels(drawn, {
+      maxLabels: 8,
+      minSeparationPx: 52 * ratio,
+      avoidRect: hudRectPx(ratio),
+    });
     for (var k = 0; k < labels.length; k += 1) {
       ctx.fillText(labels[k].label, labels[k].xPx + 8 * ratio, labels[k].yPx);
     }
@@ -526,7 +580,7 @@
     }
     var html = "";
     for (var i = 0; i < rows.length; i += 1) {
-      html += "<tr><td>" + rows[i].label + "</td><td>" + (rows[i].constellation || "—") +
+      html += "<tr><td>" + formatStarName(rows[i]) + "</td><td>" + (rows[i].constellation || "—") +
         '</td><td class="num">' + rows[i].magnitude.toFixed(2) +
         '</td><td class="num">' + rows[i].offAxisDeg.toFixed(1) + "°</td></tr>";
     }
@@ -548,7 +602,7 @@
       if (!best || distance < best.distance) best = { star: lastHits[i], distance: distance };
     }
     if (best && best.distance < 60 * ratio) {
-      setState(el.tapState, best.star.label + "（" + (best.star.constellation || "無星座") +
+      setState(el.tapState, formatStarName(best.star) + "（" + (best.star.constellation || "無星座") +
         "，" + best.star.magnitude.toFixed(2) + " 等）", "ok");
     } else {
       setState(el.tapState, "那附近沒有這個亮度以上的星。", "");
@@ -604,6 +658,7 @@
     el.overlay = document.getElementById("overlay");
     el.stageHint = document.getElementById("stageHint");
     el.stageDock = document.getElementById("stageDock");
+    el.controls = document.getElementById("controls");
     el.startBtn = document.getElementById("startBtn");
     el.permState = document.getElementById("permState");
     el.fixState = document.getElementById("fixState");

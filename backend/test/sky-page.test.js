@@ -34,7 +34,7 @@ const star = (overrides) => Object.assign(
 
 test("the page exposes its pure helpers without running the browser code", async () => {
   const helpers = await loadHelpers();
-  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent"]) {
+  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent", "formatStarName"]) {
     assert.equal(typeof helpers[name], "function", `${name} 應該可以被測到`);
   }
 });
@@ -143,4 +143,42 @@ test("the field of view is clamped and parsed back from storage", async () => {
   assert.equal(clampFovDeg(500), 100, "太寬要夾住");
   assert.equal(clampFovDeg("abc"), 65, "壞掉的值退回預設");
   assert.equal(clampFovDeg(null), 65);
+});
+
+// ── 中文星名與面板遮擋 ─────────────────────────────────────────────────
+
+test("a star with a Chinese name reads Chinese first, English after", async () => {
+  const helpers = await loadHelpers();
+  assert.equal(
+    helpers.formatStarName({ zh: "搖光", common: "Alkaid", label: "搖光" }),
+    "搖光 Alkaid");
+});
+
+test("a star without a Chinese name is not padded with a duplicate", async () => {
+  const helpers = await loadHelpers();
+  // 沒有中文名時 label 本來就是英文，寫成「Alkaid Alkaid」是最容易犯的那個錯。
+  assert.equal(helpers.formatStarName({ zh: null, common: "Alkaid", label: "Alkaid" }), "Alkaid");
+  assert.equal(helpers.formatStarName({ zh: null, common: null, label: "HR 1234" }), "HR 1234");
+  assert.equal(helpers.formatStarName(null), "—");
+});
+
+test("labels falling under the control panel are skipped, not wasted", async () => {
+  const helpers = await loadHelpers();
+  // 面板蓋住畫布右上角。落在它底下的標籤是白畫的，名額要讓給看得見的星。
+  const avoidRect = { left: 100, right: 200, top: 0, bottom: 100 };
+  const hits = [
+    star({ label: "被蓋住的亮星", magnitude: 0, xPx: 150, yPx: 50 }),
+    star({ label: "看得見的暗星", magnitude: 4, xPx: 10, yPx: 300 }),
+  ];
+  const chosen = helpers.selectLabels(hits, { avoidRect });
+  assert.deepEqual(chosen.map((c) => c.label), ["看得見的暗星"]);
+});
+
+test("without a panel rect every visible star is still a candidate", async () => {
+  const helpers = await loadHelpers();
+  const hits = [
+    star({ label: "亮", magnitude: 0, xPx: 150, yPx: 50 }),
+    star({ label: "暗", magnitude: 4, xPx: 10, yPx: 300 }),
+  ];
+  assert.deepEqual(helpers.selectLabels(hits, {}).map((c) => c.label), ["亮", "暗"]);
 });

@@ -726,8 +726,23 @@ vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外
   改成 `manipulation` 才是 439，而且壞掉時沒有任何徵兆。
   **不走 Fullscreen API**：iPhone 的 Safari 不支援對一般元素呼叫 `requestFullscreen()`。
   **改這頁不必 bump `sw.js` 的 `VERSION`**：`/sky/` 是導覽、走 network-first。
+- **星表的網址不加日期版本參數，重新產生星表時改用 bump `sw.js` 的 `VERSION`。**
+  星表在 `/sky/data/` 底下、不是 `/data/`，走的是 cache-first 靜態資產分支，
+  而且刻意沒進 `PRECACHE`。每天換一個 cache key ＝ 隔天必定 miss ＝ **沒訊號時整頁
+  不能用**，而觀星正好發生在沒訊號的地方。實測：修之前「隔一天、沒訊號」是
+  `FAIL: Failed to fetch`，修之後 ok。同 `/float/` 的 `floats.json` 那條。
+  靜態契約釘的是**呼叫點**（`fetchImpl(CATALOG_URL,` 要逐字如此），不是檔名後面
+  有沒有問號——網址是常數、問號在別處串上去，釘字面值那版永遠不會命中。
+  **改 `sky/lib/*.mjs` 也要 bump `VERSION`**，理由同 `/subtitle/` 的 worker：cache-first。
+- **中文星名是人工表 `sky/data/star-names-zh.json`**（第三份人工維護的 feed）。
+  範圍是 Vmag ≤ 2.5 且有西方專名的 80 顆——疊加層最多顯 8 個標籤且挑最亮的，
+  這個範圍就涵蓋畫面上真的會被標到的星。**不可以從 CC BY-SA 的來源抽**：
+  Stellarium 的 chinese skyculture 授權正是當初否決 HYG 的同一個，只能當
+  本機核對用的 oracle（`scripts/sky-name-audit.mjs`，不進 CI，理由同
+  `float-source-audit.mjs`）。來源分歧的兩筆（侯／候、尾宿七／尾宿六）**值留 `null`**、
+  畫面回退英文，照 `/float/` 7B／8B 的慣例。
 - **真機只驗過一次，而且是失敗的那次。** 觸控目標、疊加對不對得齊都還沒驗，
-  逐項的檢查單與第一次的結果在 `sky/DESIGN.md` 末尾（版面改版後又多了 5 項）。
+  逐項的檢查單與第一次的結果在 `sky/DESIGN.md` 末尾（版面與中文星名改版後共 16 項）。
 
 ## 計劃審查閘門
 

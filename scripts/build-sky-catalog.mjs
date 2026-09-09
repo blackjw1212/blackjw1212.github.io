@@ -144,6 +144,10 @@ function validate(rows) {
   // 這些字串會被頁面插進 innerHTML（sky/index.html 的 renderNearby），
   // 而這份資料是從網路重新產生的。目前 BSC5 的名稱只有希臘字母與上標，
   // 但那是這批資料碰巧的性質，不是來源給的保證。
+  //
+  // 中文星名**不經過這支腳本**（sky/data/star-names-zh.json 是人工維護的），
+  // 所以它有自己的同款檢查，在 backend/test/sky-star-names.test.js 裡。
+  // 兩邊都要有，少一邊就等於那條路徑沒有防線。
   const unsafe = rows.filter((row) => [row.common, row.bayer, row.flamsteed, row.constellation]
     .some((value) => typeof value === "string" && /[<>&"']/.test(value)));
   if (unsafe.length) {

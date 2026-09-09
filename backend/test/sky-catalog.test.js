@@ -236,18 +236,39 @@ test("skipping the precession step would miss by about a third of a degree", () 
 
 // ─────────────────────────── 載入與效能 ───────────────────────────
 
-// sw.js 對靜態資產是 cache-first，沒有 ?v= 的話回訪使用者會永遠拿到舊星表。
-// /market/ 與 /coupon/ 都是這樣做的，這條把同樣的慣例釘在 /sky/ 上。
-test("loadCatalog busts the service worker cache", async () => {
-  let requested = null;
+// 這條原本反過來要求「必須帶 ?v=YYYY-MM-DD」，抄的是 /market/ 與 /coupon/ 的慣例。
+// 那個慣例對「一天更新好幾班的 feed」是對的，對星表是錯的：星表是 J2000 平位置，
+// 只有 build-sky-catalog.mjs 重跑時才會變。而星表在 /sky/data/ 底下、不是 /data/，
+// 走的是 sw.js 的 cache-first 靜態資產分支，所以每天換一個 cache key ＝ 隔天必定
+// miss ＝ 沒訊號時整頁不能用，而觀星正好發生在沒訊號的地方。
+//
+// 實測（2026-09-09，清空快取、關掉伺服器後用 CDP 量）：
+//   同一天、沒訊號 -> ok count=5080ㄧ隔一天、沒訊號 -> FAIL: Failed to fetch
+//
+// 同 CLAUDE.md 給 /float/ 的那條。星表重新產生時改用 bump sw.js 的 VERSION。
+test("loadCatalog uses a stable URL so the catalogue survives offline", async () => {
+  const requested = [];
   const fakeFetch = async (url) => {
-    requested = url;
+    requested.push(url);
     return { ok: true, json: async () => raw };
   };
   const loaded = await loadCatalog(fakeFetch);
-  assert.ok(requested.startsWith(CATALOG_URL), `實得 ${requested}`);
-  assert.match(requested, /\?v=\d{4}-\d{2}-\d{2}/, "必須帶日期版本參數（sw.js 是 cache-first）");
+  assert.ok(requested.includes(CATALOG_URL), `星表網址必須逐字等於 ${CATALOG_URL}，實得 ${requested.join(", ")}`);
+  for (const url of requested) {
+    assert.doesNotMatch(url, /\?/, `不得帶任何查詢參數，否則 cache key 會漂掉：${url}`);
+  }
   assert.equal(loaded.count, catalog.count);
+});
+
+// 中文星名表是加分項，載不到必須回退成英文標籤而不是讓整頁掛掉。
+test("a missing Chinese-name table degrades to English labels, not a dead page", async () => {
+  const fakeFetch = async (url) => {
+    if (url === CATALOG_URL) return { ok: true, json: async () => raw };
+    throw new Error("network down");
+  };
+  const loaded = await loadCatalog(fakeFetch);
+  assert.equal(loaded.count, catalog.count, "星表本身仍要載得起來");
+  assert.deepEqual(loaded.namesZh, {}, "名稱表回退成空表");
 });
 
 test("a failed fetch reports the status instead of throwing something opaque", async () => {
