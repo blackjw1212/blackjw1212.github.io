@@ -35,6 +35,40 @@ function assertNoMatch(rel, text, pattern, label = String(pattern)) {
   if (pattern.test(text)) fail(`${rel} still contains forbidden content: ${label}`);
 }
 
+// 標籤巢狀檢查。這裡的每一條斷言都是字面值比對，而字面值擋不住「結構壞掉」——
+// 實測 2026-09-09：合併衝突把某張卡結尾的兩個關閉標籤一起吃掉，之後
+// primaryLinks（抓的是開始標籤）、cards（正則是非貪婪的）、數量比對、
+// aria-label 那幾條全部照樣綠燈，靜態契約與 npm test 都沒紅。
+// 瀏覽器則會自動收掉那個未關的連結，把後面那張卡重新掛進前一張卡的容器裡；
+// 那個容器在手機版的斷點裡是隱藏的，所以症狀是「桌機看得到、手機看不到」，
+// 而且看起來像快取問題——我為此白查了兩輪。用堆疊比對開關標籤才擋得住這一類。
+function assertWellNested(rel, fragment, label) {
+  const VOID = new Set([
+    "area", "base", "br", "col", "embed", "hr", "img",
+    "input", "link", "meta", "source", "track", "wbr",
+  ]);
+  const stack = [];
+  // 註解與 doctype 以 <! 開頭，這條正則只吃字母開頭的標籤名，會自然跳過。
+  const tagPattern = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?(\/?)>/g;
+  let match;
+  while ((match = tagPattern.exec(fragment))) {
+    const [, closing, rawName, selfClosing] = match;
+    const name = rawName.toLowerCase();
+    if (VOID.has(name) || selfClosing) continue;
+    if (!closing) {
+      stack.push(name);
+      continue;
+    }
+    const open = stack.pop();
+    if (open !== name) {
+      fail(`${rel} ${label}: </${name}> closes <${open ?? "nothing"}> — tags are not properly nested`);
+    }
+  }
+  if (stack.length) {
+    fail(`${rel} ${label}: unclosed <${stack.join(">, <")}>`);
+  }
+}
+
 // 每一頁的 CSS 自訂屬性都必須在同一頁定義過（各頁的 <style> 是自足的，沒有共用樣式表）。
 //
 // 實測踩過：market/index.html 用了 var(--panel-2) 與 var(--surface)，
@@ -202,6 +236,16 @@ if (has("index.html")) {
   assertMatch("index.html", html, /name="theme-color" content="#101418"/, "root theme color");
   assertMatch("index.html", html, /<main class="shell">/, "root main shell");
   assertMatch("index.html", html, /aria-label="全部工具"/, "primary nav label");
+  // 入口那一段的標籤必須自己收乾淨——這是「卡片在手機版消失」那個 bug 的守門條。
+  // fail() 只是把訊息收進陣列、不中斷執行，所以這裡不能直接 entriesNav[0]——
+  // 丟出例外會讓整個腳本當場結束，它後面的每一條檢查從此都不會跑到（實測就是
+  // 這樣讓三條既有測試一起紅的）。要用 else，不要用 early return 之外的捷徑。
+  const entriesNav = html.match(/<nav class="entries"[\s\S]*?<\/nav>/);
+  if (!entriesNav) {
+    fail('index.html has no <nav class="entries"> block');
+  } else {
+    assertWellNested("index.html", entriesNav[0], "entries nav");
+  }
   // 三張狀態卡（持股監控 / 美國 10Y 公債 / Weather Proxy）已整組移除。那三個數字
   // 在各自的內頁都講得更完整：檔數與收盤日在 /stocks/、天氣代理能不能用進
   // /weather/ 就知道，而 10Y 沒有任何頁面拿它算東西。首頁是入口，不是儀表板。

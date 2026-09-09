@@ -42,7 +42,10 @@
   .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
   .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
   .entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-  .entry{display:flex;text-decoration:none;color:inherit;min-height:286px;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:20px;transition:border-color .15s ease,transform .15s ease}
+  /* 286px 是有卡片底部說明時的高度；那條說明列佔 22 margin + 1 border + 14 padding
+     + 17 行高 = 54px，移除後基準等量下修。卡片只剩一個子元素，space-between 沒有
+     東西可分配，一併拿掉。 */
+  .entry{display:flex;text-decoration:none;color:inherit;min-height:232px;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:20px;transition:border-color .15s ease,transform .15s ease}
   .entry:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
   .entry:hover{border-color:#4c5e6b;transform:translateY(-2px)}
   .entry small{display:block;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:12px}
@@ -50,8 +53,6 @@
   .entry p{margin-top:12px;color:var(--soft);font-size:14px}
   .entry ul{display:grid;gap:6px;margin:16px 0 0 18px;color:var(--soft);font-size:13px}
   .entry li::marker{color:var(--amber)}
-  .entry-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
-  .entry-limit{color:var(--faint);font-size:12px}
   .stocks-accent{box-shadow:inset 4px 0 0 rgba(66,184,168,.7)}
   .weather-accent{box-shadow:inset 4px 0 0 rgba(103,199,229,.72)}
   .esp32-accent{box-shadow:inset 4px 0 0 rgba(217,166,76,.7)}
@@ -69,12 +70,12 @@
     .entry{transition:none}
     .entry:hover{transform:none}
   }
-  /* 手機版是啟動器，不是閱讀頁。實測 375px 單欄要捲 3.6 個螢幕，而其中
-     長度的來源不是間距——padding 與 min-height 全調緊也只省 4%——是每張卡
-     的注意事項（合計 403px）與「資料：…」那行（56px × 9 = 504px）。
-     兩者在各自的內頁都講得更完整，頁尾那句「判讀方式與資料限制寫在各工具
-     內頁」講的就是這件事，所以手機版收起來，改成兩欄 171px 的磁磚：
-     九張卡一個螢幕看得完，而且九個標題一個都不換行。 */
+  /* 手機版是啟動器，不是閱讀頁。實測 375px 單欄要捲 3.6 個螢幕，而長度的
+     來源不是間距——padding 與 min-height 全調緊也只省 4%——是每張卡的注意
+     事項。那些在各自的內頁都講得更完整，頁尾那句「判讀方式與資料限制寫在
+     各工具內頁」講的就是這件事，所以手機版收起來，改成兩欄的磁磚。
+     卡片底部那條分隔線與它底下的單行說明已整組移除（桌機版一併），
+     理由同上：那行字在內頁講得更完整，留在首頁只是把卡片撐長。 */
   @media (max-width:640px){
     .shell{width:min(100% - 24px,1200px);padding-top:18px}
     .entries{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -84,7 +85,7 @@
     .entry small{font-size:10px}
     .entry h2{font-size:17px;line-height:1.25;margin-top:4px}
     .entry p{margin-top:6px;font-size:12px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden}
-    .entry ul,.entry-foot{display:none}
+    .entry ul{display:none}
   }
 </style>
 </head>
@@ -111,9 +112,6 @@
           <li>只呈現客觀數據，不產生任何買賣訊號。</li>
         </ul>
       </div>
-      <div class="entry-foot">
-        <div class="entry-limit">資料：Worker / TWSE / static fallback</div>
-      </div>
     </a>
 
     <a class="entry weather-accent" data-primary-entry="weather" href="/weather/" aria-label="天氣與海象 — 開啟 /weather/">
@@ -125,9 +123,6 @@
           <li>出行前仍應確認官方資料與現場狀況。</li>
         </ul>
       </div>
-      <div class="entry-foot">
-        <div class="entry-limit">資料：CWA through weather proxy</div>
-      </div>
     </a>
 
     <a class="entry esp32-accent" data-primary-entry="esp32" href="/esp32/" aria-label="ESP32 韌體 — 開啟 /esp32/">
@@ -138,9 +133,6 @@
         <ul>
           <li>不公開裝置部署位置與連線細節。</li>
         </ul>
-      </div>
-      <div class="entry-foot">
-        <div class="entry-limit">內容：靜態專案總覽</div>
       </div>
     </a>
 
@@ -154,9 +146,6 @@
           <li>數值逐車不同，僅供觀察參考。</li>
         </ul>
       </div>
-      <div class="entry-foot">
-        <div class="entry-limit">內容：社群交叉比對整理</div>
-      </div>
     </a>
 
     <a class="entry flight-accent" data-primary-entry="flight" href="/flight/" aria-label="機票總成本 — 開啟 /flight/">
@@ -168,9 +157,6 @@
           <li>票價需自行到各查價網站確認。</li>
           <li>輸入的資料只留在本機瀏覽器，不上傳。</li>
         </ul>
-      </div>
-      <div class="entry-foot">
-        <div class="entry-limit">內容：手動輸入的試算工具</div>
       </div>
     </a>
 
@@ -185,9 +171,6 @@
           <li>資料只留在本機瀏覽器，不上傳、不記錄行經路線。</li>
         </ul>
       </div>
-      <div class="entry-foot">
-        <div class="entry-limit">資料：手機 GPS 與姿態感測器</div>
-      </div>
     </a>
 
     <a class="entry coupon-accent" data-primary-entry="coupon" href="/coupon/" aria-label="優惠疊加 — 開啟 /coupon/">
@@ -199,9 +182,6 @@
           <li>資料是人工核對的快照，過期優惠自動隱藏。</li>
           <li>回饋多為事後給付，不等於當下少付。</li>
         </ul>
-      </div>
-      <div class="entry-foot">
-        <div class="entry-limit">內容：人工核對的優惠快照</div>
       </div>
     </a>
 
@@ -215,9 +195,6 @@
           <li>首次使用需要下載模型，之後由瀏覽器快取。</li>
         </ul>
       </div>
-      <div class="entry-foot">
-        <div class="entry-limit">限制：需要 WebGPU 才跑得順</div>
-      </div>
     </a>
     <a class="entry convert-accent" data-primary-entry="convert" href="/convert/" aria-label="檔案轉換 — 開啟 /convert/">
       <div>
@@ -228,9 +205,6 @@
           <li>檔案不會離開這台裝置，全部運算都在瀏覽器完成。</li>
           <li>每種轉檔會失去什麼都逐項寫明，不假裝無損。</li>
         </ul>
-      </div>
-      <div class="entry-foot">
-        <div class="entry-limit">限制：沒有 OCR，掃描檔抽不到字</div>
       </div>
     </a>
 
@@ -244,9 +218,6 @@
           <li>資料只留在這台裝置，要帶走得自己匯出 JSON。</li>
         </ul>
       </div>
-      <div class="entry-foot">
-        <div class="entry-limit">限制：份量單位不換算，照原樣記著</div>
-      </div>
     </a>
 
     <a class="entry float-accent" data-primary-entry="float" href="/float/" aria-label="浮標配鉛 — 開啟 /float/">
@@ -259,8 +230,7 @@
           <li>只換算重量，不判斷魚況也不建議該用哪顆標。</li>
         </ul>
       </div>
-      <div class="entry-foot">
-        <div class="entry-limit">限制：人工核對的快照，非廠商規格書</div>
+    </a>
 
     <a class="entry sky-accent" data-primary-entry="sky" href="/sky/" aria-label="星空辨識 — 開啟 /sky/">
       <div>
@@ -271,9 +241,6 @@
           <li>準確度受限於手機的地磁方位角，典型偏差 2 到 10 度。</li>
           <li>相機視野角沒有標準介面可問，要自己校正一次。</li>
         </ul>
-      </div>
-      <div class="entry-foot">
-        <div class="entry-limit">限制：磁偏角未修正，方位角是磁北的</div>
       </div>
     </a>
   </nav>
