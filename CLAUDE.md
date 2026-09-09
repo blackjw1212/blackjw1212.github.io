@@ -180,10 +180,9 @@ cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market we
 
 **平行分支會讓 `VERSION` 撞號，而且不會有任何徵兆**（實測 2026-09-09）：
 兩條分支各自從 `v8` bump 到 `v9`，git 看到兩邊文字相同、**不判成衝突**，
-合併結果就是 `v9` —— 跟已經部署的那個 `v9` 一模一樣，cache key 等於沒變。
-所有測試全綠、Pages deploy 成功，但回訪的瀏覽器繼續端出舊的預載首頁，
-新頁的卡片就是不出現。**合併 main 之後要比對的不是「我有沒有 bump」，
-而是「合併結果的 VERSION 是否不同於 `origin/main` 上的 VERSION」**：
+合併結果就是 `v9` —— 跟已經部署的那個 `v9` 一模一樣，cache key 等於沒變，
+而所有測試全綠、Pages deploy 也成功。**合併 main 之後要比對的不是
+「我有沒有 bump」，而是「合併結果的 VERSION 是否不同於 `origin/main` 上的 VERSION」**：
 
 ```
 git show origin/main:sw.js | grep 'VERSION ='   # 已部署的
@@ -191,6 +190,21 @@ grep 'VERSION =' sw.js                          # 合併結果
 ```
 
 相同就再往上推一格。
+
+**但撞號不會造成「新頁上線後首頁還是舊的」——那條因果是錯的，我判斷錯過一次。**
+`sw.js` 的導覽從 `v7` 起就是 **network-first**（`req.mode === "navigate"` → `fetch(req)`，
+只有網路失敗才回快取），所以 service worker 端不出舊的 `/`；而且即使 VERSION 相同，
+`sw.js` 的檔案內容變了就會觸發更新，`cache.add("/")` 會覆蓋同名快取裡的那一份。
+撞號真正的代價是「舊 cache 不會被 `activate` 的清理刪掉」，不是首頁變舊。
+
+**首頁沒更新時的判別順序**（不要一開始就怪 service worker）：
+
+1. 先確認部署本身：`pages-deploy` 的 `Check static site` 那一步是對 `dist` 跑的，
+   而入口字面值是逐字比對，過了就代表 artifact 裡的 `index.html` 一定是對的。
+2. 用**不同的 cache key** 試同一份檔案：正常模式開 `/index.html`。它與 `/` 內容相同、
+   快取項目不同。看得到新卡片就是 `/` 那個 key 的快取（CDN 或裝置的 HTTP 快取）。
+3. 逆快取的最小介入是**手動觸發一次 `pages-deploy`**（它有 `workflow_dispatch`），
+   重新發佈會清掉 GitHub Pages 的邊緣快取，不必改任何程式碼。
 
 ## 前端測試的硬性前提
 

@@ -77,3 +77,43 @@ test("one typo reported once, not once per usage", () => {
   const hits = (out.match(/undefined CSS variable --nik/g) || []).length;
   assert.equal(hits, 1, `同一個錯字用三次只該報一行，實得 ${hits} 行——洗版會蓋掉其他失敗訊息`);
 });
+
+// 入口卡片的標籤巢狀。實測 2026-09-09 踩過：合併衝突把某張卡結尾的 </div></a>
+// 一起吃掉，靜態契約與 npm test 全綠——因為既有的斷言全是字面值比對，抓開始標籤
+// 的正則照樣抓得到 12 個入口。瀏覽器則自動收掉那個未關的連結，把後面那張卡
+// 重新掛進前一張卡的容器裡，而那個容器在 max-width:640px 底下是隱藏的：
+// 症狀是「桌機看得到、手機看不到」，看起來完全像快取問題。
+const nav = (inner) => `<nav class="entries" id="entries" aria-label="全部工具">${inner}</nav>`;
+const card = (slug, body) =>
+  `<a class="entry ${slug}-accent" data-primary-entry="${slug}" href="/${slug}/" aria-label="x — 開啟 /${slug}/">${body}</a>`;
+
+test("an unclosed entry card fails the static contract", () => {
+  // float 卡少了自己的 </a>，sky 卡因此被瀏覽器接到它裡面——這就是實際出過的形狀。
+  const broken = nav(
+    `<a class="entry float-accent" data-primary-entry="float" href="/float/" aria-label="x — 開啟 /float/"><div><h2>浮標配鉛</h2></div>` +
+    card("sky", "<div><h2>星空辨識</h2></div>"));
+  const out = runCheck(page("", broken));
+  assert.match(out, /entries nav: .*not properly nested|entries nav: unclosed/,
+    "少一個 </a> 必須紅，這正是實際發生過而且沒被抓到的錯誤");
+});
+
+test("an unclosed inner div inside a card fails too", () => {
+  const broken = nav(card("sky", "<div><h2>星空辨識</h2>"));
+  const out = runCheck(page("", broken));
+  assert.match(out, /entries nav: .*not properly nested|entries nav: unclosed/,
+    "少一個 </div> 同樣會讓後面的卡片被重新掛載，不能只擋 </a>");
+});
+
+test("well-formed entry cards raise no nesting complaint", () => {
+  const ok = nav(card("float", "<div><h2>浮標配鉛</h2></div>") + card("sky", "<div><h2>星空辨識</h2></div>"));
+  const out = runCheck(page("", ok));
+  assert.doesNotMatch(out, /entries nav:/,
+    "正常的標籤不可誤報，否則這條檢查會被當成雜訊而被關掉");
+});
+
+test("void elements do not need closing", () => {
+  const ok = nav(card("sky", "<div><h2>星空辨識</h2><img src=\"/a.png\" alt=\"\"><br></div>"));
+  const out = runCheck(page("", ok));
+  assert.doesNotMatch(out, /entries nav:/,
+    "img／br 這類空元素沒有結束標籤，把它們算進堆疊會全面誤報");
+});
