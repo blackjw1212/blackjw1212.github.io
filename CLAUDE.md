@@ -81,6 +81,9 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 ## 補觸控目標的作法（44px）
 
 2026-09-03 全站 13 頁在 375 與 320 都已歸零。要再補時照下面幾條，不要每頁自己發明。
+（`/float/` 與 `/sky/` 都是那次之後才加的頁，不在那 13 頁裡。`/sky/` **從未量過**：
+它只有 range 與 button、刻意沒有 `<select>`——那是真機上唯一冒出 18 個違規的元素——
+但那不能取代實測。）
 最多的一頁是 `/market/`（一次 21 個），下面每條都有它的實例。
 
 - **撐 `<label>`，不要撐方塊。** 勾選框／單選鈕包在 label 裡時，命中區是 label
@@ -134,7 +137,7 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 比一般 lint 嚴格很多，改頁面前先知道它管什麼，否則 CI 會紅：
 
 - **首頁主要入口被釘死**為
-  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/`，
+  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/|bait:/bait/|float:/float/|sky:/sky/`，
   順序與 href 都要一致（**字面值在條件與錯誤訊息各出現一次，兩處都要改**）。
   卡片數量不是硬編碼，是 `cards.length !== primaryLinks.length`。
   `data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
@@ -164,12 +167,16 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 ## 部署：`pages-deploy.yml` 的 allowlist
 
 ```
-cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle convert bait float data assets dist/
+cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle convert bait float sky data assets dist/
 ```
 
 **新增頂層頁面目錄一定要加進這行**，並同步加進 `sw.js` 的 `PRECACHE`（順手 bump `VERSION`，
 不然 cache key 沒變、舊使用者拿不到新清單）。否則 Site check 會過、Pages deploy 會失敗 ——
 兩個 workflow 檢查的東西不同，綠燈不代表上線成功。
+
+**推之前可以先驗這一步**：照上面那行 `cp -R` 複製到一個暫存目錄，再對它跑
+`node scripts/check-static-site.mjs <該目錄>` —— 那正是 workflow 做的事，
+漏掉的目錄當場就會現形，不必等 Actions 紅了才知道。
 
 ## 前端測試的硬性前提
 
@@ -599,6 +606,66 @@ vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外
 - **不做影音**：`@ffmpeg/core` 單執行緒版 unpacked 61.69 MB，而 GitHub Pages 送不出
   COOP/COEP，多執行緒在這裡開不起來。UI 上沒有假裝支援。
 - vendor 的版本與來源網址記在 `convert/vendor/SOURCES.md`。
+
+## `/sky/`：相機 + 感測器的天體辨識
+
+`sky/lib/*.mjs` 是**原生 ESM，由 `node --test` 直接 import**，不走 `vm` 抽行內 script
+那條路——天文公式需要密集數值測試，值得為它換掉那個 hack。頁面主 script 仍是 classic、
+緊貼 `</body>`（`window.SkyApp.helpers`、`__SKY_SKIP_AUTO_INIT__`），數學庫用 `import()`
+動態載入，那正是 `/convert/` 載 vendor 的做法。代價：`check-static-site.mjs` 掃 href/src
+看不到動態 import，`sky/lib/*.mjs` 與 `sky/data/*.json` 已在 `mustExist` 逐檔點名，
+加新模組要同步加。
+
+完整規格與所有量測數字在 `sky/DESIGN.md`。下面只記會害人重做一次的事。
+
+- **權威天文資料來源在這個環境全部連不到**（實測 2026-09-08）：CDS/VizieR、HEASARC、
+  IAU 官方星名表、NOAA 磁偏角計算器都是連線被拒，Harvard TDC 回 403。唯一通得過的是
+  `raw.githubusercontent.com`。**不要再花時間試那些網域。** 星表因此走
+  `brettonw/YaleBrightStarCatalog` 鏡像（底層 BSC5 公有領域、鏡像轉換腳本 MIT）。
+  刻意不用 HYG-Database：它是 CC BY-SA 4.0，會讓這個 repo 出現第一份帶分享相同條款的資料。
+- **驗證用「不出貨的 oracle」**：天文算式對 pyerfa（IAU SOFA 的直譯版），星表對 HYG。
+  兩者都在 repo 外的 venv／只在本機串流比對，**一個位元組都不進 repo**。這個模式正好
+  繞開前面「手機版量測」那節列的三條成本（`backend/` 沒有 lockfile、CI 沒有 `npm install`、
+  CI 不該假設執行環境）。實測殘差：GMST 對 `erfa.gmst82` 跨 60 年最大 0.00016 角秒、
+  歲差係數對 `erfa.prec76` 差 0.000000000 角秒、星表位置對 HYG 中位 0.59 角秒。
+- **沒有權威來源可對時，驗的是結構不變量而不是記憶中的數字**：最亮五顆的順序、
+  Polaris 距北天極 0.736 度、六個星等分箱的累積數、log N 斜率、HR 不重複。
+  同一組檢查**同時**是 `build-sky-catalog.mjs` 的寫入閘門與 `sky-catalog.test.js` 的斷言，
+  照 `update-tax-params.mjs` 的模式——5,080 個數字壞掉時肉眼看不出來。
+  字串也在閘門裡（不得含 HTML 特殊字元），因為頁面把名稱插進 `innerHTML`。
+- **k-d tree 實測輸給線性掃描，不要「優化」回去。** 5,080 顆、10 度視野：線性 0.0071 ms、
+  k-d 0.0036 ms；但 30 度視野是線性 0.0124 ms vs k-d 0.0176 ms，60 度是 0.0242 vs 0.0543
+  ——遍歷開銷超過省下的比較。線性掃描已經是 5 ms 預算的 1/700。掃描比的是三維點積不是
+  角距：整趟只有乘加、沒有三角函數，而且 0/360 接縫在向量空間裡根本不存在。
+- **`acos` 在引數趨近 1 時是壞掉的量尺。** 量兩個近乎平行的向量夾角要用弦長
+  （`2·asin(|u−v|/2)`）。用 `acos(點積)` 量到的是 2e-6 度的**底噪**，真正的誤差是 9e-14
+  ——驗基底重建時踩過一次，差點誤判成公式有錯。`angles.mjs` 的 `angularSeparation`
+  用 haversine 是同一個理由。
+- **相機的視野角沒有任何標準介面問得到。** MediaStream 沒有這個欄位，也沒有跨瀏覽器的
+  方法問得到焦距。預設 65 度只是起始值，頁面給滑桿讓使用者校正並存進 localStorage。
+- **磁偏角沒有修正**（NOAA 計算器被擋、查不到可引用來源）。`geomag.mjs` 只有介面，
+  查表回 `null`——**不可以用 0 代替未知**，那會讓畫面自信地指錯方向，同 `domesticRatio`
+  那條紅線。畫面上的方位角是磁北的，靜態契約釘住頁面必須說出這件事，
+  也釘住視野角拿不到那條。
+- **天頂的萬向鎖是虛驚，不要改成四元數。** 平滑 (方位角, 仰角, roll) 在天頂的相機軸誤差
+  0.616 度、平滑方向向量 0.578 度；畫面上方的最大轉速天頂 7.2°/s vs 低空 3.4°/s。
+  方位角的誤差會被 cos(仰角) 壓掉。而且那三個角**無損保留完整姿態**
+  （重建基底對旋轉矩陣最大差 9e-14 度，30 萬組隨機姿態）。
+- **`deviceorientation` 的三個角都可能是 null，不是只有 alpha。** 少擋一個，座標轉換就
+  丟例外，而那個例外是在 requestAnimationFrame 的回呼裡丟的——**迴圈停止排程、畫面凍結、
+  相機還亮著、狀態列卻寫著「就緒」**。`readOrientationEvent()` 整筆丟掉缺角度的事件，
+  `frame()` 另外包 try/catch 把錯誤寫上畫面並重新啟用開始鈕。
+- **`DeviceMotionEvent.rotationRate` 的欄位沿用 alpha/beta/gamma 這三個名字，但它們是繞
+  z/x/y 的角速度**，與 `deviceorientation` 的角同名不同軸。照名字對接會把三軸接錯，
+  而且只表現成「轉起來怪怪的」，不會有任何錯誤訊息。
+- **`screen.orientation.angle` 不進方位角的換算**：後鏡頭光軸恆為裝置 −z，螢幕內容怎麼轉
+  都不會改變它。螢幕角度影響的只有 roll（世界的上方落在畫面的哪個方向）。
+- **α 與方位角轉向相反**：α 繞天頂逆時針量、方位角順時針為正，直立時 `az = 360 − α`。
+  直接拿 alpha 當方位角，畫面會左右相反。
+- **互補濾波的權重必須是 `exp(−dt/τ)` 而不是常數**：感測器回呼的間隔本來就不規則，
+  寫死 0.98 會讓平滑程度隨幀率漂移。
+- **真機從未驗過。** 相機、感測器授權、觸控目標、疊加到底對不對得齊都還沒在真手機上跑過，
+  逐項的檢查單在 `sky/DESIGN.md` 末尾。
 
 ## 計劃審查閘門
 

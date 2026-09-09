@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>星空辨識｜BJKW</title>
+<meta name="description" content="用手機的相機、GPS、時間與姿態感測器即時算出鏡頭指向天球的哪裡，把亮星的名字疊在畫面上。星表與運算全在本機，畫面不會離開這台裝置。" />
+<link rel="canonical" href="/sky/" />
+<meta property="og:title" content="星空辨識｜BJKW" />
+<meta property="og:description" content="相機畫面疊加亮星名稱，全部在瀏覽器裡算完，影像不會離開這台裝置。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#05070d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="星空">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#05070d; --panel:#0e131d; --line:#1d2534; --ink:#e8edf6; --muted:#9aa6bb;
+    --accent:#8ab4ff; --ok:#5fd08a; --warn:#f0b95e; --err:#ff8f8f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 system-ui,-apple-system,"Noto Sans TC",sans-serif}
+  a{color:var(--accent)}
+  .skip{position:absolute;left:-9999px}
+  .skip:focus{left:8px;top:8px;z-index:50;background:var(--panel);padding:10px 14px;border-radius:8px}
+
+  .stage{position:relative;width:100%;height:62vh;min-height:320px;background:#000;overflow:hidden}
+  .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%}
+  .stage video{object-fit:cover;background:#000}
+  .stage canvas{touch-action:none}
+  .stage-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:24px;color:var(--muted);font-size:14px}
+
+  main{padding:16px;max-width:760px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .lede{color:var(--muted);font-size:14px;margin:0 0 16px}
+
+  .state{font-size:13px;color:var(--muted);margin:6px 0}
+  .state.ok{color:var(--ok)}
+  .state.error{color:var(--err)}
+  .state.warn{color:var(--warn)}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+    padding:10px 18px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+    color:var(--ink);font:inherit;cursor:pointer}
+  .btn[disabled]{opacity:.45;cursor:default}
+  .btn.primary{background:var(--accent);color:#08101f;border-color:transparent;font-weight:600}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin:14px 0}
+  .fld{display:block;margin:14px 0}
+  .fld > span{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  input[type=range]{width:100%;min-height:44px;background:transparent}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+
+  details{border:1px solid var(--line);border-radius:12px;margin:14px 0;background:var(--panel)}
+  summary{padding:12px 14px;min-height:44px;cursor:pointer;font-weight:600}
+  details > div{padding:0 14px 14px}
+  .note{color:var(--muted);font-size:13px}
+  ul{margin:8px 0;padding-left:20px}
+  li{margin:4px 0}
+</style>
+</head>
+<body>
+<a class="skip" href="#controls">跳到控制項</a>
+
+<div class="stage">
+  <video id="preview" playsinline muted autoplay></video>
+  <canvas id="overlay"></canvas>
+  <div class="stage-hint" id="stageHint">按下方的「開啟相機與感測器」開始。相機影像只在這台裝置上顯示，不會被送出去。</div>
+</div>
+
+<main>
+  <h1>星空辨識</h1>
+  <p class="lede">用相機、GPS、時間與姿態感測器算出鏡頭指向天球的哪裡，把亮星疊回畫面。星表與所有運算都在本機。</p>
+
+  <div id="controls" class="panel">
+    <button class="btn primary" id="startBtn" type="button">開啟相機與感測器</button>
+    <p class="state" id="permState">尚未開始。相機與方位感測器都需要你按一下才能要權限。</p>
+    <p class="state" id="fixState">位置與時間：尚未取得</p>
+    <p class="state" id="pointState">指向：尚未取得</p>
+  </div>
+
+  <div class="panel">
+    <label class="fld" for="fovRange">
+      <span>相機水平視野角 <output id="fovOut">65°</output>　—　拿不到鏡頭參數，要自己校正</span>
+      <input type="range" id="fovRange" min="35" max="100" step="1" value="65">
+    </label>
+    <label class="fld" for="magRange">
+      <span>顯示到幾等星 <output id="magOut">4.5</output></span>
+      <input type="range" id="magRange" min="1" max="6" step="0.5" value="4.5">
+    </label>
+  </div>
+
+  <div class="panel">
+    <h2 style="font-size:15px;margin:0 0 8px">畫面中央附近</h2>
+    <table>
+      <thead><tr><th>名稱</th><th>星座</th><th class="num">星等</th><th class="num">離軸</th></tr></thead>
+      <tbody id="nearbyBody"><tr><td colspan="4" class="note">尚未開始</td></tr></tbody>
+    </table>
+    <p class="state" id="tapState">點畫面上任一處可以問「那裡是什麼」。</p>
+  </div>
+
+  <details>
+    <summary>這頁算得準嗎</summary>
+    <div>
+      <p class="note">準確度的瓶頸是手機的地磁方位角，典型誤差 2 到 10 度，遠大於天文計算本身的殘差（0.01 度以下）。所以疊上去的位置會整體偏移，附近亮星的相對排列則是對的。</p>
+      <ul class="note">
+        <li>相機的視野角<strong>沒有任何標準介面問得到</strong>，預設值只是起始值。用一顆認得出來的亮星把它調到對齊，之後會記在這台裝置上。</li>
+        <li>星表是 Yale BSC5 的 6 等以上共 5080 顆，J2000 座標，畫之前會換算到當日並補上大氣折射。</li>
+        <li>地磁北與真北的差（磁偏角）目前沒有修正，因為查不到可引用的數值來源。畫面上的方位角是磁北的。</li>
+        <li>白天也會照算照畫，只是天上看不到星。</li>
+      </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>資料與隱私</summary>
+    <div>
+      <p class="note">相機影像只進到這個分頁的畫布，不會上傳、不會存檔。位置只用來算地方恆星時，同樣不會離開這台裝置。這一頁除了自己的星表檔以外不向任何地方發出請求。</p>
+    </div>
+  </details>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── 純函式區：不碰 DOM、不碰網路，掛在 SkyApp.helpers 供測試呼叫。────────────
+
+  var MIN_DOT_PX = 1.1;
+  var MAX_DOT_PX = 4.6;
+
+  // 星等每差 1 等亮度差 2.512 倍，但畫面上照亮度畫點會讓暗星消失、亮星糊成一團。
+  // 這裡用線性映射，只是把「亮的畫大一點」做出來，不是輻射度量。
+  function magnitudeToRadiusPx(magnitude, magnitudeLimit) {
+    if (typeof magnitude !== "number" || !isFinite(magnitude)) return MIN_DOT_PX;
+    var brightest = -1.5;
+    var span = Math.max(0.5, magnitudeLimit - brightest);
+    var t = (magnitude - brightest) / span;
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    return MAX_DOT_PX - t * (MAX_DOT_PX - MIN_DOT_PX);
+  }
+
+  // 標籤重疊會讓畫面變成一團字。依亮度排序後貪婪地挑，離已選標籤太近的就跳過。
+  // 回傳的是原陣列的元素，順序是「亮的優先」。
+  function selectLabels(hits, options) {
+    var opts = options || {};
+    var maxLabels = typeof opts.maxLabels === "number" ? opts.maxLabels : 8;
+    var minSeparationPx = typeof opts.minSeparationPx === "number" ? opts.minSeparationPx : 48;
+    var candidates = hits.filter(function (hit) {
+      return hit.visible && hit.hasDesignation;
+    }).slice().sort(function (a, b) { return a.magnitude - b.magnitude; });
+
+    var chosen = [];
+    for (var i = 0; i < candidates.length && chosen.length < maxLabels; i += 1) {
+      var candidate = candidates[i];
+      var clear = true;
+      for (var j = 0; j < chosen.length; j += 1) {
+        var dx = chosen[j].xPx - candidate.xPx;
+        var dy = chosen[j].yPx - candidate.yPx;
+        if (Math.sqrt(dx * dx + dy * dy) < minSeparationPx) { clear = false; break; }
+      }
+      if (clear) chosen.push(candidate);
+    }
+    return chosen;
+  }
+
+  function formatAltAz(azimuthDeg, altitudeDeg) {
+    if (typeof azimuthDeg !== "number" || !isFinite(azimuthDeg)) return "—";
+    if (typeof altitudeDeg !== "number" || !isFinite(altitudeDeg)) return "—";
+    var compass = ["北", "東北", "東", "東南", "南", "西南", "西", "西北"];
+    var index = Math.round(((azimuthDeg % 360) + 360) % 360 / 45) % 8;
+    return "方位 " + azimuthDeg.toFixed(0) + "°（" + compass[index] + "） 仰角 " + altitudeDeg.toFixed(0) + "°";
+  }
+
+  // 開始之前少了什麼，一次講完，不要讓使用者一項一項試。
+  function describeBlockers(state) {
+    var missing = [];
+    if (!state.camera) missing.push("相機");
+    if (!state.orientation) missing.push("方位感測器");
+    if (!state.location) missing.push("位置");
+    if (!state.catalog) missing.push("星表");
+    if (!missing.length) return "";
+    return "還缺：" + missing.join("、");
+  }
+
+  // deviceorientation 的三個角**都**可能是 null：沒有加速度計的裝置、
+  // 或某些瀏覽器狀態下 beta 與 gamma 會缺。少擋一個，後面的座標轉換就會丟例外，
+  // 而那個例外是在 requestAnimationFrame 的回呼裡丟的 —— 迴圈會就此停止排程。
+  function readOrientationEvent(event) {
+    if (!event) return null;
+    var alphaDeg = event.alpha;
+    var betaDeg = event.beta;
+    var gammaDeg = event.gamma;
+    var usable = typeof alphaDeg === "number" && isFinite(alphaDeg) &&
+      typeof betaDeg === "number" && isFinite(betaDeg) &&
+      typeof gammaDeg === "number" && isFinite(gammaDeg);
+    return usable ? { alphaDeg: alphaDeg, betaDeg: betaDeg, gammaDeg: gammaDeg } : null;
+  }
+
+  function clampFovDeg(value) {
+    var n = typeof value === "number" ? value : parseFloat(value);
+    if (!isFinite(n)) return 65;
+    if (n < 35) return 35;
+    if (n > 100) return 100;
+    return n;
+  }
+
+  var helpers = {
+    magnitudeToRadiusPx: magnitudeToRadiusPx,
+    selectLabels: selectLabels,
+    formatAltAz: formatAltAz,
+    describeBlockers: describeBlockers,
+    readOrientationEvent: readOrientationEvent,
+    clampFovDeg: clampFovDeg,
+  };
+
+  // ── 以下需要 DOM / 瀏覽器 API，測試不會執行到。────────────────────────────
+
+  var FOV_STORAGE_KEY = "bjkw-sky-fov";
+  var el = {};
+  var lib = null;
+  var catalog = null;
+  var filter = null;
+  var stream = null;
+  var latest = { orientation: null, rotationRate: null, position: null };
+  var ready = { camera: false, orientation: false, location: false, catalog: false };
+  var fovDeg = 65;
+  var running = false;
+  var magnitudeLimit = 4.5;
+  var lastHits = [];
+
+  function setState(node, message, tone) {
+    if (!node) return;
+    node.textContent = message;
+    node.className = "state" + (tone ? " " + tone : "");
+  }
+
+  function loadLibraries() {
+    return Promise.all([
+      import("/sky/lib/angles.mjs"),
+      import("/sky/lib/time.mjs"),
+      import("/sky/lib/coords.mjs"),
+      import("/sky/lib/orientation.mjs"),
+      import("/sky/lib/catalog.mjs"),
+      import("/sky/lib/project.mjs"),
+    ]).then(function (mods) {
+      lib = { angles: mods[0], time: mods[1], coords: mods[2], orientation: mods[3], catalog: mods[4], project: mods[5] };
+      return lib;
+    });
+  }
+
+  function startCamera() {
+    return navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+      audio: false,
+    }).then(function (media) {
+      stream = media;
+      el.preview.srcObject = media;
+      ready.camera = true;
+      return media;
+    });
+  }
+
+  function requestOrientation() {
+    var needsAsk = typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function";
+    var chain = needsAsk ? DeviceOrientationEvent.requestPermission() : Promise.resolve("granted");
+    return chain.then(function (result) {
+      if (result !== "granted") throw new Error("方位感測器沒有授權");
+      window.addEventListener("deviceorientation", function (event) {
+        var angles = readOrientationEvent(event);
+        if (!angles) return;
+        latest.orientation = angles;
+        ready.orientation = true;
+      });
+      if (typeof DeviceMotionEvent !== "undefined" &&
+          typeof DeviceMotionEvent.requestPermission === "function") {
+        return DeviceMotionEvent.requestPermission().catch(function () { return "denied"; });
+      }
+      return "granted";
+    }).then(function () {
+      window.addEventListener("devicemotion", function (event) {
+        latest.rotationRate = event.rotationRate || null;
+      });
+    });
+  }
+
+  function requestLocation() {
+    return new Promise(function (resolve) {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.watchPosition(function (position) {
+        latest.position = position.coords;
+        ready.location = true;
+        setState(el.fixState, "位置：" + position.coords.latitude.toFixed(3) + "、" +
+          position.coords.longitude.toFixed(3) + "（±" + Math.round(position.coords.accuracy) + " m）", "ok");
+        resolve(position.coords);
+      }, function () {
+        setState(el.fixState, "位置：拿不到，無法算地方恆星時", "error");
+        resolve(null);
+      }, { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 });
+    });
+  }
+
+  function resizeCanvas() {
+    var rect = el.overlay.getBoundingClientRect();
+    var ratio = window.devicePixelRatio || 1;
+    el.overlay.width = Math.max(1, Math.round(rect.width * ratio));
+    el.overlay.height = Math.max(1, Math.round(rect.height * ratio));
+  }
+
+  // rAF 的回呼丟出例外時沒有任何地方會接住它，而且迴圈就此停止排程 ——
+  // 畫面凍結、相機還亮著、狀態列卻還寫著「就緒」。那是最糟的一種失敗，
+  // 所以這裡一定要接住並說出來，並照 /subtitle/ 與 /convert/ 的錯誤路徑
+  // 重新啟用開始鈕讓使用者可以重試。繼續排程沒有意義：同一個例外會每秒發生 60 次。
+  function frame() {
+    try {
+      renderFrame();
+    } catch (error) {
+      running = false;
+      el.startBtn.disabled = false;
+      setState(el.permState, "疊加已中止：" + (error && error.message ? error.message : String(error)), "error");
+      return;
+    }
+    if (running) requestAnimationFrame(frame);
+  }
+
+  // 每一幀的管線。順序在 sky/DESIGN.md 有完整說明，這裡只標關鍵的兩步。
+  function renderFrame() {
+    if (!lib || !catalog || !latest.orientation || !latest.position) return;
+    var now = Date.now();
+    var measured = lib.orientation.orientationToPointing(latest.orientation);
+    var rates = lib.orientation.rotationRateToPointingRates(Object.assign(
+      {}, latest.orientation, lib.orientation.rotationRateFromEvent(latest.rotationRate)));
+    var pointing = filter.update({
+      azimuthDeg: measured.azimuthDeg,
+      altitudeDeg: measured.altitudeDeg,
+      rollDeg: measured.rollDeg,
+      azimuthRateDegPerSec: rates.azimuthRateDegPerSec,
+      altitudeRateDegPerSec: rates.altitudeRateDegPerSec,
+      timestampMs: now,
+    });
+
+    var site = {
+      latitudeDeg: latest.position.latitude,
+      longitudeDeg: latest.position.longitude,
+      unixMs: now,
+    };
+    var projector = lib.project.createProjector({
+      azimuthDeg: pointing.azimuthDeg,
+      altitudeDeg: pointing.altitudeDeg,
+      rollDeg: pointing.rollDeg,
+      horizontalFovDeg: fovDeg,
+      widthPx: el.overlay.width,
+      heightPx: el.overlay.height,
+    });
+
+    // 相機軸的視高度先拆掉折射變成真高度，才能跟星表的幾何位置對上。
+    var axisTrueAltitude = lib.coords.trueAltitudeFromApparentDeg(pointing.altitudeDeg);
+    var axisEquatorial = lib.coords.horizontalToEquatorial(Object.assign(
+      { azimuthDeg: pointing.azimuthDeg, altitudeDeg: axisTrueAltitude }, site));
+
+    var hits = lib.catalog.queryConeForDate(catalog, {
+      raDeg: axisEquatorial.raDeg,
+      decDeg: axisEquatorial.decDeg,
+      unixMs: now,
+      radiusDeg: projector.coneRadiusDeg,
+      magnitudeLimit: magnitudeLimit,
+    });
+
+    var drawn = [];
+    for (var i = 0; i < hits.length; i += 1) {
+      var star = hits[i];
+      var ofDate = lib.coords.precessJ2000ToDate({ raDeg: star.raDeg, decDeg: star.decDeg, unixMs: now });
+      var horizon = lib.coords.equatorialToHorizontal(Object.assign(
+        { raDeg: ofDate.raDeg, decDeg: ofDate.decDeg }, site));
+      // 星表給的是幾何位置，眼睛與鏡頭看到的是被大氣抬高過的視位置。
+      var placed = projector.project({
+        azimuthDeg: horizon.azimuthDeg,
+        altitudeDeg: lib.coords.apparentAltitudeFromTrueDeg(horizon.altitudeDeg),
+      });
+      if (placed.behindCamera) continue;
+      drawn.push(Object.assign({}, star, placed));
+    }
+    lastHits = drawn;
+
+    paint(drawn);
+    setState(el.pointState, "指向：" + formatAltAz(pointing.azimuthDeg, pointing.altitudeDeg) +
+      "　視野內 " + drawn.filter(function (d) { return d.visible; }).length + " 顆", "ok");
+    renderNearby(drawn);
+  }
+
+  function paint(drawn) {
+    var ctx = el.overlay.getContext("2d");
+    ctx.clearRect(0, 0, el.overlay.width, el.overlay.height);
+    var ratio = window.devicePixelRatio || 1;
+
+    ctx.fillStyle = "#dce8ff";
+    for (var i = 0; i < drawn.length; i += 1) {
+      if (!drawn[i].visible) continue;
+      var radius = magnitudeToRadiusPx(drawn[i].magnitude, magnitudeLimit) * ratio;
+      ctx.beginPath();
+      ctx.arc(drawn[i].xPx, drawn[i].yPx, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.font = (13 * ratio) + "px system-ui, sans-serif";
+    ctx.fillStyle = "#8ab4ff";
+    ctx.textBaseline = "middle";
+    var labels = selectLabels(drawn, { maxLabels: 8, minSeparationPx: 52 * ratio });
+    for (var k = 0; k < labels.length; k += 1) {
+      ctx.fillText(labels[k].label, labels[k].xPx + 8 * ratio, labels[k].yPx);
+    }
+
+    // 中央十字，讓使用者知道「離軸」是相對哪裡量的。
+    var cx = el.overlay.width / 2;
+    var cy = el.overlay.height / 2;
+    ctx.strokeStyle = "rgba(232,237,246,.45)";
+    ctx.lineWidth = Math.max(1, ratio);
+    ctx.beginPath();
+    ctx.moveTo(cx - 10 * ratio, cy); ctx.lineTo(cx + 10 * ratio, cy);
+    ctx.moveTo(cx, cy - 10 * ratio); ctx.lineTo(cx, cy + 10 * ratio);
+    ctx.stroke();
+  }
+
+  function renderNearby(drawn) {
+    var rows = drawn.filter(function (d) { return d.visible && d.hasDesignation; })
+      .sort(function (a, b) { return a.offAxisDeg - b.offAxisDeg; })
+      .slice(0, 6);
+    if (!rows.length) {
+      el.nearbyBody.innerHTML = '<tr><td colspan="4" class="note">畫面內沒有名字叫得出來的星</td></tr>';
+      return;
+    }
+    var html = "";
+    for (var i = 0; i < rows.length; i += 1) {
+      html += "<tr><td>" + rows[i].label + "</td><td>" + (rows[i].constellation || "—") +
+        '</td><td class="num">' + rows[i].magnitude.toFixed(2) +
+        '</td><td class="num">' + rows[i].offAxisDeg.toFixed(1) + "°</td></tr>";
+    }
+    el.nearbyBody.innerHTML = html;
+  }
+
+  function onTap(event) {
+    if (!lastHits.length) return;
+    var rect = el.overlay.getBoundingClientRect();
+    var ratio = window.devicePixelRatio || 1;
+    var x = (event.clientX - rect.left) * ratio;
+    var y = (event.clientY - rect.top) * ratio;
+    var best = null;
+    for (var i = 0; i < lastHits.length; i += 1) {
+      if (!lastHits[i].visible) continue;
+      var dx = lastHits[i].xPx - x;
+      var dy = lastHits[i].yPx - y;
+      var distance = Math.sqrt(dx * dx + dy * dy);
+      if (!best || distance < best.distance) best = { star: lastHits[i], distance: distance };
+    }
+    if (best && best.distance < 60 * ratio) {
+      setState(el.tapState, best.star.label + "（" + (best.star.constellation || "無星座") +
+        "，" + best.star.magnitude.toFixed(2) + " 等）", "ok");
+    } else {
+      setState(el.tapState, "那附近沒有這個亮度以上的星。", "");
+    }
+  }
+
+  function start() {
+    el.startBtn.disabled = true;
+    setState(el.permState, "要求權限中…", "");
+    loadLibraries()
+      .then(function () {
+        filter = lib.orientation.createPointingFilter();
+        return lib.catalog.loadCatalog();
+      })
+      .then(function (loaded) {
+        catalog = loaded;
+        ready.catalog = true;
+        return startCamera();
+      })
+      .then(function () { return requestOrientation(); })
+      .then(function () { return requestLocation(); })
+      .then(function () {
+        el.stageHint.hidden = true;
+        resizeCanvas();
+        var blockers = describeBlockers(ready);
+        setState(el.permState, blockers || "相機與感測器就緒。", blockers ? "warn" : "ok");
+        running = true;
+        requestAnimationFrame(frame);
+      })
+      .catch(function (error) {
+        el.startBtn.disabled = false;
+        setState(el.permState, "失敗：" + (error && error.message ? error.message : String(error)), "error");
+      });
+  }
+
+  function init() {
+    el.preview = document.getElementById("preview");
+    el.overlay = document.getElementById("overlay");
+    el.stageHint = document.getElementById("stageHint");
+    el.startBtn = document.getElementById("startBtn");
+    el.permState = document.getElementById("permState");
+    el.fixState = document.getElementById("fixState");
+    el.pointState = document.getElementById("pointState");
+    el.tapState = document.getElementById("tapState");
+    el.nearbyBody = document.getElementById("nearbyBody");
+    el.fovRange = document.getElementById("fovRange");
+    el.fovOut = document.getElementById("fovOut");
+    el.magRange = document.getElementById("magRange");
+    el.magOut = document.getElementById("magOut");
+
+    try {
+      var saved = window.localStorage.getItem(FOV_STORAGE_KEY);
+      if (saved !== null) fovDeg = clampFovDeg(saved);
+    } catch (error) { /* 無痕視窗會丟例外，用預設值就好 */ }
+    el.fovRange.value = String(fovDeg);
+    el.fovOut.textContent = fovDeg + "°";
+
+    el.startBtn.addEventListener("click", start);
+    el.fovRange.addEventListener("input", function () {
+      fovDeg = clampFovDeg(el.fovRange.value);
+      el.fovOut.textContent = fovDeg + "°";
+      try { window.localStorage.setItem(FOV_STORAGE_KEY, String(fovDeg)); } catch (error) { /* 同上 */ }
+    });
+    el.magRange.addEventListener("input", function () {
+      magnitudeLimit = parseFloat(el.magRange.value);
+      el.magOut.textContent = el.magRange.value;
+    });
+    el.overlay.addEventListener("click", onTap);
+    window.addEventListener("resize", resizeCanvas);
+  }
+
+  window.SkyApp = { helpers: helpers, init: init };
+
+  if (!window.__SKY_SKIP_AUTO_INIT__) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+    else init();
+  }
+})();
+</script>
+</body>
+</html>
