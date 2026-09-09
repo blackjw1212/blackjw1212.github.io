@@ -226,6 +226,24 @@ function completeMisClosingQuotes() {
 const EOD_CACHE_KEY = "bjkw-portfolio-console-v2:eod:2330,2317,2382,3231,6669,3017,3324,3661,2356,2376,6239,1519,2308";
 const STATE_KEY = "bjkw-portfolio-console-v2";
 
+// 2026-09-09 實測踩到：新增 /sky/ 時只在 sw.js 加了註解、沒有真的把 "/sky/" 加進
+// PRECACHE，而**沒有任何測試釘 sw.js 的內容**，所以錯誤一路活到合併衝突才現形。
+// 症狀很輕（頁面仍可用，只是第一次離線拿不到），因此更不會有人發現。
+// 首頁連得出去的每一頁都該被預載，這條把那件事變成機器判準。
+test("every primary entry is precached by the service worker", async () => {
+  const html = await readFile(fileURLToPath(new URL("../../index.html", import.meta.url)), "utf8");
+  const serviceWorker = await readFile(fileURLToPath(new URL("../../sw.js", import.meta.url)), "utf8");
+  const precache = serviceWorker.match(/const PRECACHE = \[([\s\S]*?)\];/)?.[1];
+  assert.ok(precache, "sw.js 應該有 PRECACHE 陣列");
+
+  const entries = [...html.matchAll(/<a\b[^>]*data-primary-entry="[^"]+"[^>]*href="([^"]+)"/g)]
+    .map((match) => match[1]);
+  assert.ok(entries.length >= 12, `首頁入口只抓到 ${entries.length} 個`);
+  for (const href of entries) {
+    assert.ok(precache.includes(`"${href}"`), `${href} 沒有進 sw.js 的 PRECACHE`);
+  }
+});
+
 test("root index is an entry console", async () => {
   const htmlPath = fileURLToPath(new URL("../../index.html", import.meta.url));
   const html = await readFile(htmlPath, "utf8");
@@ -251,8 +269,9 @@ test("root index is an entry console", async () => {
   assert.match(html, /href="\/subtitle\/"/);
   assert.match(html, /href="\/convert\/"/);
   assert.match(html, /href="\/bait\/"/);
+  assert.match(html, /href="\/float\/"/);
   assert.match(html, /href="\/sky\/"/);
-  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"], ["esp32", "/esp32/"], ["forscan", "/forscan/"], ["flight", "/flight/"], ["dash", "/dash/"], ["coupon", "/coupon/"], ["subtitle", "/subtitle/"], ["convert", "/convert/"], ["bait", "/bait/"], ["sky", "/sky/"]]);
+  assert.deepEqual(primaryLinks, [["stocks", "/stocks/"], ["weather", "/weather/"], ["esp32", "/esp32/"], ["forscan", "/forscan/"], ["flight", "/flight/"], ["dash", "/dash/"], ["coupon", "/coupon/"], ["subtitle", "/subtitle/"], ["convert", "/convert/"], ["bait", "/bait/"], ["float", "/float/"], ["sky", "/sky/"]]);
   assert.match(html, /股票觀測/);
   assert.doesNotMatch(html, /href="\/ai\/"|data-primary-entry="ai"|AI Feed/);
   assert.match(html, /天氣與海象/);

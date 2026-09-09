@@ -28,9 +28,15 @@ const PRECACHE = [
   "/convert/",
   // 這一頁沒有 vendor，整份就是那一個 HTML；離線在船上或堤防上開得起來才有意義。
   "/bait/",
+  "/float/",
+  // 唯一被預載的 feed。這一頁的用途就是站在消波塊上查「3B 要打幾顆鉛」，
+  // 那個場合多半沒訊號。/data/ 走 network-first，預載只是保證第一次離線也有東西；
+  // 檔案約 12KB，跟其他頁面比可以忽略。頁面刻意不加 ?v= 參數，cache key 才不會每天換。
+  "/data/floats.json",
   // /sky/ 只放入口 HTML。星表（220 KB）與 sky/lib/*.mjs 刻意不進 PRECACHE：
   // 那會讓只想看 /stocks/ 的訪客先吞下整份星表。它們走下面既有的 cache-first
   // 靜態資產分支，真的開這一頁時才進快取。
+  "/sky/",
   "/404.html",
   "/assets/images/site.webmanifest",
   "/assets/images/favicon.svg",

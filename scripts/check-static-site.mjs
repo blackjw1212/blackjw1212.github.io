@@ -132,6 +132,8 @@ for (const rel of [
   "convert/vendor/pdfjs/cmaps/UniCNS-UCS2-H.bcmap",
   "convert/vendor/pdfjs/standard_fonts/LiberationSans-Regular.ttf",
   "bait/index.html",
+  "float/index.html",
+  "data/floats.json",
   // /sky/ 的數學庫與星表都是主 script 用動態 import() / fetch 取的，
   // 掃 href/src 的迴圈一個都看不到 —— 漏檔時 Site check 會綠、Pages deploy 才炸。
   "sky/index.html",
@@ -210,8 +212,8 @@ if (has("index.html")) {
   // 這條擋的是「首頁又長出一個會打網路的區塊」。
   assertNoMatch("index.html", html, /stock-risk-feed\.json|bjkw-weather-proxy[^"]*\/health/, "root runtime fetches");
   assertNoMatch("index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "root body script");
-  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/|bait:/bait/|sky:/sky/") {
-    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/, subtitle:/subtitle/, convert:/convert/, bait:/bait/ and sky:/sky/, got ${primaryLinks.join(", ")}`);
+  if (primaryLinks.join("|") !== "stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/|bait:/bait/|float:/float/|sky:/sky/") {
+    fail(`index.html primary entries should be exactly stocks:/stocks/, weather:/weather/, esp32:/esp32/, forscan:/forscan/, flight:/flight/, dash:/dash/, coupon:/coupon/, subtitle:/subtitle/, convert:/convert/, bait:/bait/, float:/float/ and sky:/sky/, got ${primaryLinks.join(", ")}`);
   }
   // 整張卡片就是連結，沒有獨立的 CTA 按鈕了——右上那排路徑列與每張卡右下的
   //「開啟 /xxx/」講的都是同一件事，兩者一起移除，可點範圍改成整張卡。
@@ -527,6 +529,63 @@ if (has("bait/index.html")) {
   assertMatch("bait/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "bait main script must sit right before </body>");
 }
 
+if (has("float/index.html")) {
+  const html = await read("float/index.html");
+  assertMatch("float/index.html", html, /<html lang="zh-Hant">/, "float document language");
+  assertMatch("float/index.html", html, /<title>浮標配鉛｜BJKW<\/title>/, "float title");
+  assertMatch("float/index.html", html, /<link rel="canonical" href="\/float\/"/, "float canonical");
+  assertMatch("float/index.html", html, /<link rel="manifest" href="\/assets\/images\/site\.webmanifest">/, "float manifest");
+  assertMatch("float/index.html", html, /name="theme-color" content="#101418"/, "float theme color");
+  assertMatch("float/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "float service worker registration");
+  assertMatch("float/index.html", html, /FEED_URL\s*=\s*"\/data\/floats\.json"/, "absolute float feed path");
+
+  // 這一頁最容易變成謊話的四件事，各釘一條揭露。釣具規格是人工抄來的、各廠的同一個
+  // 標記不是同一個重量、而這頁只會換算重量不會判斷魚況。少了任何一句，畫面上那張表
+  // 看起來就像廠商的官方規格書。
+  assertMatch("float/index.html", html, /人工核對的快照/, "float must disclose the data is a manual snapshot");
+  assertMatch("float/index.html", html, /各廠重量不同/, "float must disclose the per-maker weight variance");
+  assertMatch("float/index.html", html, /不是釣況建議/, "float must carry a non-advice disclaimer");
+  // 本次數值是用搜尋結果交叉比對來的，沒有逐頁開啟原始頁面核對。這件事只要從畫面上
+  // 消失，可信度標記就會被讀成「已驗證」。
+  assertMatch("float/index.html", html, /未逐頁開啟原始頁面人工核對/, "float must disclose how the numbers were verified");
+
+  // 資料檔的網址不可以掛日期參數。sw.js 對 /data/ 走 network-first，線上一定拿到最新的；
+  // 加了 ?v=YYYY-MM-DD 等於每天換一個 cache key，隔天在沒訊號的釣場上整頁是空的。
+  assertNoMatch("float/index.html", html, /floats\.json\?/, "float feed must not carry a cache-busting query");
+  // 頁面會把來源網址渲染成連結。那些連結不得夾帶聯盟行銷追蹤參數——資料檔那一側
+  // 由 float-schema.test.js 把關，這裡擋的是頁面自己加上去。
+  assertNoMatch("float/index.html", html, /[?&](utm_[a-z]+|aff(?:iliate)?_?id|ref|tag)=/i, "float affiliate tracking parameters");
+  // ── FLOAT_DEPTH_CALCULATION_INVARIANT ────────────────────────────────────
+  // 不得由「浮標號數／鉛重／名義浮力／通用換算比例」推導或顯示「沉入深度」。
+  //
+  // 這條擋的是一種很好寫、很好看、而且永遠不會有測試變紅的假功能：拿多出來的
+  // 公克數乘一個常數，印出「沉入 3.2 cm」。那個數字算不出來，理由按硬度排序是
+  //   1. 沒有該浮標的實際幾何／浮力曲線資料（本表明講不收各廠型號的實測浮力）
+  //   2. 阿波是非等截面形狀，沒入體積與吃水深度不是固定線性關係
+  //   3. 標、鉛、母線與其他配件共同構成受力系統，浮標不是單獨受力的物體
+  //   4. 水體密度只是讓實際結果再偏移的環境變數
+  // 只有當某個型號真的有可驗證的體積函數或實測吃水校正資料時才談得上計算，
+  // 而那種資料一旦進來，depthPolicy.computable 會跟著改，schema 測試會要求幾何欄位。
+  //
+  // 判法是「下沉語彙 + 數字 + 長度單位」同時出現。純粹講重量的句子不受影響。
+  assertNoMatch("float/index.html", html,
+    /(沉入|沉到|下沉|吃水|沒入)[^。<]{0,16}\d+(?:\.\d+)?\s*(?:mm|cm|公分|公厘|毫米|公尺|米)/,
+    "float must not print a fabricated sink depth");
+  // 超過完全沒入的臨界之後沒有平衡點。這兩句是那條不變式在畫面上的樣子，
+  // 少了它們，使用者會以為「會沉」是指停在某個深度。
+  assertMatch("float/index.html", html, /沒有可計算的平衡吃水深度/, "float must state that no equilibrium depth exists");
+  assertMatch("float/index.html", html, /不是停在某個固定深度/, "float must rule out a fixed sink depth");
+  // 能力邊界要講得出理由，否則「算不出來」讀起來像偷懶。
+  assertMatch("float/index.html", html, /為什麼這裡不給「沉入幾公分」/, "float must explain the boundary");
+  assertMatch("float/index.html", html, /id="depthBlockers"/, "float must render the blockers from data");
+
+  // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
+  // 「浮標號數」與「配鉛試算」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
+  assertMatch("float/index.html", html, /<div class="tabbar"/, "float tab bar class drives the mobile audit walker");
+  // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
+  assertMatch("float/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "float main script must sit right before </body>");
+}
+
 if (has("sky/index.html")) {
   const html = await read("sky/index.html");
   assertMatch("sky/index.html", html, /<html lang="zh-Hant">/, "sky document language");
@@ -557,7 +616,7 @@ if (has("bjkw_weather.html")) {
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bait/index.html", "sky/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bait/index.html", "float/index.html", "sky/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

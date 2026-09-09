@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>浮標配鉛｜BJKW</title>
+<meta name="description" content="磯釣咬鉛與浮標號數的重量對照表，加上一個算「這顆標還差多少鉛才平水」的試算器。每一列都附來源與可信度。" />
+<link rel="canonical" href="/float/" />
+<meta property="og:title" content="浮標配鉛" />
+<meta property="og:description" content="人工核對的咬鉛與浮標號數對照快照，附配鉛試算。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/assets/images/site.webmanifest">
+<meta name="theme-color" content="#101418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="配鉛">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+<style>
+  :root{
+    --bg:#101418;--surface:#151c23;--panel:#19232c;--panel-2:#202b34;--line:#31404b;
+    --ink:#f3f7f4;--soft:#b8c4c0;--faint:#8a97a2;--teal:#42b8a8;--cyan:#67c7e5;
+    --amber:#d9a64c;--green:#77d66e;--red:#ff766e;--violet:#9a7fd1;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
+  a{color:var(--cyan)}
+  .shell{width:min(1100px,calc(100% - 40px));margin:0 auto;padding:24px 0 40px}
+  .skip{position:absolute;left:-9999px;top:0;z-index:9;background:#243340;border:1px solid #405263;border-radius:0 0 8px 0;color:var(--ink);font-weight:900;padding:8px 14px;text-decoration:none}
+  .skip:focus{left:0}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px;flex-wrap:wrap}
+  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  h1{font-size:24px;letter-spacing:0;margin-top:4px}
+  .topnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .topnav a{color:var(--faint);text-decoration:none;padding:4px 0}
+  .topnav a:hover{color:var(--cyan)}
+  .topnav a:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:3px}
+
+  .freshness{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:8px;background:var(--surface);padding:12px 16px;margin-bottom:18px;font-size:13px;color:var(--soft)}
+  .freshness.warn{border-left-color:var(--amber)}
+  .freshness.stale{border-left-color:var(--red)}
+  .freshness.err{border-left-color:var(--red);color:var(--red)}
+  .freshness strong{color:var(--ink)}
+
+  .tabbar{display:flex;gap:8px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
+  .tabbar .tab{font-weight:700;font-size:15px;background:none;border:none;border-bottom:2px solid transparent;color:var(--soft);padding:8px 14px;cursor:pointer;min-height:40px}
+  .tabbar .tab.on{color:var(--amber);border-bottom-color:var(--amber)}
+  .tabbar .tab:hover{color:var(--amber)}
+  .tabbar .tab:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:-3px}
+
+  .card{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:18px}
+  .card+.card{margin-top:18px}
+  .card h2{font-size:16px;margin-bottom:14px}
+  .card h3{font-size:14px;color:var(--soft);margin:18px 0 8px}
+  .lead{font-size:13px;color:var(--soft);margin-bottom:14px}
+
+  .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .filters label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--faint)}
+  .filters select,.filters input[type=text]{min-height:40px;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;padding:0 10px}
+  .filters select:focus-visible,.filters input:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--faint);font-size:12px;font-weight:700;white-space:nowrap}
+  td.num{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:right;white-space:nowrap}
+  td.mark{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;white-space:nowrap;color:var(--ink)}
+  .muted{color:var(--faint)}
+  .tag{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--soft);white-space:nowrap}
+  .tag.ok{border-color:rgba(119,214,110,.5);color:var(--green)}
+  .tag.thin{border-color:rgba(217,166,76,.55);color:var(--amber)}
+  .tag.bad{border-color:rgba(255,118,110,.55);color:var(--red)}
+  .none{color:var(--faint);font-size:14px;padding:10px 0}
+
+  .calc{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:18px;align-items:start}
+  .field{display:block;margin-bottom:14px}
+  .field span{display:block;font-size:12px;color:var(--faint);margin-bottom:5px}
+  .field select{width:100%;min-height:40px;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;padding:0 10px}
+  .field select:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+
+  .shots{display:grid;gap:2px;max-height:330px;overflow-y:auto;padding-right:4px}
+  .shot-row{display:flex;align-items:center;gap:8px;padding:2px 0;font-size:13px}
+  .shot-row .lbl{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;width:44px;flex:0 0 auto}
+  .shot-row .g{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--faint);width:62px;flex:0 0 auto;text-align:right}
+  .shot-row .cnt{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;width:26px;text-align:center;flex:0 0 auto}
+  .step{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;font-weight:700;min-width:34px;min-height:34px;cursor:pointer}
+  .step+.cnt{margin-left:0}
+  .step:last-of-type{margin-left:0}
+  .step:hover{border-color:var(--teal)}
+  .step:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+  .step[disabled]{opacity:.35;cursor:default}
+
+  .result-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 22px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:14px}
+  .big{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:34px;font-weight:800;line-height:1.1;color:var(--teal)}
+  .big.over{color:var(--red)}
+  .big.ok{color:var(--green)}
+  .big-label{font-size:12px;color:var(--faint);display:block;margin-bottom:2px}
+  .sub{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:19px;font-weight:700}
+  .verdict{font-size:14px;color:var(--soft);margin-bottom:12px}
+  .suggest{border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:6px;background:var(--panel);padding:11px 13px;font-size:13px}
+  .suggest b{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber)}
+  .blockers{margin:0 0 0 18px;display:grid;gap:7px;font-size:12px;color:var(--faint)}
+  .blockers li::marker{color:var(--amber)}
+
+  .srclist{display:grid;gap:2px;list-style:none}
+  .srclist a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}
+  .srclist a:hover{text-decoration:underline}
+  .srclist .sid{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint);margin-right:8px}
+
+  .notes{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px}
+  .notes ul{margin:8px 0 0 18px;display:grid;gap:5px}
+  .notes li::marker{color:var(--amber)}
+
+  /* 媒體查詢一律收在 <style> 最後：中段插入會被後面同特異度的規則蓋回去（/flight/ 踩過）。 */
+  @media (max-width:820px){
+    /* minmax(0,1fr) 而不是 1fr——grid item 的 min-width 預設是 auto，
+       單欄時那張橫捲表會把整欄撐到內容寬度，整頁跟著橫向捲動。 */
+    .calc{grid-template-columns:minmax(0,1fr)}
+    .shots{max-height:none}
+  }
+  @media (max-width:640px){
+    .shell{width:min(100% - 24px,1100px)}
+    .big{font-size:29px}
+    .card{padding:14px}
+    .topbar a{min-height:44px;display:inline-flex;align-items:center}
+    .tabbar .tab{min-height:44px}
+    .step{min-width:44px;min-height:44px}
+    /* 要跟 .field select / .filters select 同特異度才蓋得過 min-height:40px。 */
+    .field select,.filters select,.filters input[type=text]{min-height:44px}
+    /* 真手機上 min-height 對 appearance:menulist 的 select 無效——UA 用原生控制項
+       度量，量到 29–38px；桌機模擬會乖乖套用，所以模擬綠、真機紅。appearance:none
+       之後高度才吃得到，代價是原生箭頭消失，用兩道 linear-gradient 補回來
+       （不可用 SVG data URI：它需要的 xmlns 是一個外部網址字串）。 */
+    .field select,.filters select{-webkit-appearance:none;appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,#8a97a2 50%),linear-gradient(135deg,#8a97a2 50%,transparent 50%);background-position:right 16px center,right 11px center;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#panelShots">跳到咬鉛對照表</a>
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <div class="brand-kicker">FLOAT LOAD &amp; SPLIT SHOT</div>
+      <h1>浮標配鉛</h1>
+    </div>
+    <nav class="topnav" aria-label="快速導覽">
+      <a href="/">/</a>
+      <a href="/bait/">/bait/</a>
+      <a href="/weather/">/weather/</a>
+      <a href="/dash/">/dash/</a>
+    </nav>
+  </header>
+
+  <div class="freshness" id="freshness">
+    <span id="freshnessText">讀取浮標資料…</span>
+  </div>
+
+  <div class="tabbar" role="tablist" aria-label="分頁">
+    <button class="tab on" type="button" role="tab" data-tab="shots" id="tabShots" aria-selected="true" aria-controls="panelShots">咬鉛對照</button>
+    <button class="tab" type="button" role="tab" data-tab="floats" id="tabFloats" aria-selected="false" aria-controls="panelFloats">浮標號數</button>
+    <button class="tab" type="button" role="tab" data-tab="calc" id="tabCalc" aria-selected="false" aria-controls="panelCalc">配鉛試算</button>
+  </div>
+
+  <section class="card" id="panelShots" role="tabpanel" aria-labelledby="tabShots">
+    <h2>咬鉛與鉛墜重量</h2>
+    <p class="lead">同一個標記在<b>各廠重量不同</b>，這張表收的是台灣通用（釣研系）的一套刻度。有其他來源給出不同數值時，列在「其他來源值」欄，不會把兩套混成一套。</p>
+    <div class="filters">
+      <label>
+        <span>系列</span>
+        <select id="shotFamily">
+          <option value="">全部</option>
+          <option value="jintan">ジンタン G（微調用）</option>
+          <option value="gandama">ガン玉 B（主力）</option>
+          <option value="go">号数（中通／転環鉛）</option>
+        </select>
+      </label>
+      <label>
+        <span>搜尋標記</span>
+        <input type="text" id="shotQuery" inputmode="search" placeholder="例如 3B、G5、1号" autocomplete="off">
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>標記</th><th class="num">公克</th><th>系列</th><th>可信度</th><th>其他來源值</th><th>備註</th><th>來源</th></tr>
+        </thead>
+        <tbody id="shotBody"></tbody>
+      </table>
+    </div>
+    <div class="none" id="shotEmpty" hidden>沒有符合的標記。</div>
+  </section>
+
+  <section class="card" id="panelFloats" role="tabpanel" aria-labelledby="tabFloats" hidden>
+    <h2>浮標號數與負荷</h2>
+    <p class="lead">浮標標示的號數，講的是它<b>吃得下同名咬鉛</b>。除此之外還留有一段餘浮力，<span id="residualLead">各廠設定不同</span>——所以標示 3B 的浮標，實際浮力接近 3B ＋ 餘浮力。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>標記</th><th class="num">負荷</th><th>浮沉</th><th>典型場景</th><th>可信度</th><th>來源</th></tr>
+        </thead>
+        <tbody id="floatBody"></tbody>
+      </table>
+    </div>
+    <h3>各廠差異（逐條附出處）</h3>
+    <ul id="varianceList"></ul>
+  </section>
+
+  <section class="card" id="panelCalc" role="tabpanel" aria-labelledby="tabCalc" hidden>
+    <h2>配鉛試算</h2>
+    <p class="lead">算的只有一件事：<b>把這顆標壓到平水，還差多少公克</b>。不判斷魚況、不建議該用哪顆標。</p>
+    <p class="lead">配重是兩段的：<b>號數標用相對應號數的鉛墜當主配重穿在母線上，再用子線的咬鉛微調</b>。<span id="mainSinkerLead">5B 以內的阿波本身就是主配重</span>，那個範圍不掛鉛墜，只夾小咬鉛。</p>
+    <div class="calc">
+      <div>
+        <label class="field">
+          <span>浮標號數</span>
+          <select id="floatPick"></select>
+        </label>
+        <label class="field">
+          <span>餘浮力（要一起吃掉才會平水）</span>
+          <select id="residualPick"></select>
+        </label>
+        <label class="field">
+          <span>主鉛（母線上的中通鉛／転環鉛）</span>
+          <select id="mainSinker"></select>
+        </label>
+        <h3>子線上的咬鉛</h3>
+        <div class="shots" id="shotPicker"></div>
+      </div>
+      <div>
+        <div class="result-head">
+          <div>
+            <span class="big-label">還差</span>
+            <span class="big" id="deltaOut">—</span>
+          </div>
+          <div>
+            <span class="big-label">目標總鉛重</span>
+            <span class="sub" id="targetOut">—</span>
+          </div>
+          <div>
+            <span class="big-label">主鉛</span>
+            <span class="sub" id="mainOut">—</span>
+          </div>
+          <div>
+            <span class="big-label">已掛合計</span>
+            <span class="sub" id="currentOut">—</span>
+          </div>
+          <div>
+            <span class="big-label">浮力使用率</span>
+            <span class="sub" id="ratioOut">—</span>
+          </div>
+        </div>
+        <p class="verdict" id="verdictOut">選一顆浮標。</p>
+        <div class="suggest" id="suggestOut"></div>
+        <h3>為什麼這裡不給「沉入幾公分」</h3>
+        <p class="lead" id="depthPolicyLead"></p>
+        <ul class="blockers" id="depthBlockers"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>資料來源</h2>
+    <ul class="srclist" id="sourceList"></ul>
+  </section>
+
+  <footer class="notes">
+    <strong>這一頁在算什麼，不在算什麼</strong>
+    <ul>
+      <li>資料是<b>人工核對的快照</b>，不是即時抓取，也不是任何廠商的官方規格書。每一列都附來源與可信度標記，請以你手上那盒鉛的包裝為準。</li>
+      <li><b>各廠重量不同</b>，而且差距可以大到一個級距（有來源指出第一精工的 6B 與 FUJIWARA 的 5B 同重）。要靠號數湊平衡，浮標與咬鉛盡量統一廠牌。</li>
+      <li>號數不是倍數關係：2B 是 0.75 g，不是 B（0.55 g）的兩倍。想湊 2B 得用 B ＋ G3。</li>
+      <li>餘浮力沒有公定值，本表取一個可調的預設值。空鉤時保留一點殘存浮力是常見做法，實際要調到多少看釣場與釣法。</li>
+      <li>本頁只做重量換算，<b>不是釣況建議</b>：該用哪顆標、打幾顆鉛，取決於當下的流、風、深度與魚況，這頁看不到那些。</li>
+      <li>本次數值以多組搜尋結果交叉比對取得，<b>未逐頁開啟原始頁面人工核對</b>。可信度標記說的就是這件事。</li>
+    </ul>
+  </footer>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const FEED_URL = "/data/floats.json";
+  // 資料是人工維護的，鮮度只能靠核對日宣告。超過這些天數就換一種說法。
+  // 釣具規格不像優惠券會過期，所以門檻比 /coupon/ 寬得多。
+  const WARN_DAYS = 365;
+  const STALE_DAYS = 730;
+  // 湊鉛的容差。咬鉛最小級距是 0.03 g，容差取它的一半以下才不會把
+  // 「差一顆 G10」說成「已經平了」。
+  const TOLERANCE = 0.015;
+  // 建議組合最多幾顆。四顆以上在實務上已經不會有人照做了，而且組合數會爆。
+  const MAX_PIECES = 3;
+
+  const FAMILY_LABEL = {
+    jintan: "ジンタン G",
+    gandama: "ガン玉 B",
+    go: "号数",
+  };
+  const CONFIDENCE_LABEL = {
+    "cross-checked": ["多來源一致", "ok"],
+    "single-source": ["單一來源", "thin"],
+    conflicting: ["來源不一致", "bad"],
+  };
+
+  const state = {
+    feed: null,
+    tab: "shots",
+    shotFamily: "",
+    shotQuery: "",
+    floatLabel: "",
+    residualLabel: "",
+    mainLabel: "",
+    counts: {},
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (value) => String(value == null ? "" : value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function daysBetween(fromISO, toISO) {
+    const a = Date.parse(`${fromISO}T00:00:00Z`);
+    const b = Date.parse(`${toISO}T00:00:00Z`);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    return Math.round((b - a) / 86400000);
+  }
+
+  function fmtGrams(grams) {
+    return grams == null ? "—" : `${grams.toFixed(2)} g`;
+  }
+
+  /* ── 純函式：查表 ─────────────────────────────────────────── */
+
+  function shotOf(feed, label) {
+    return ((feed && feed.shots) || []).find((s) => s.label === label) || null;
+  }
+
+  function shotGrams(feed, label) {
+    const shot = shotOf(feed, label);
+    return shot && shot.grams != null ? shot.grams : null;
+  }
+
+  function floatOf(feed, label) {
+    return ((feed && feed.floats) || []).find((f) => f.label === label) || null;
+  }
+
+  function floatLoad(feed, label) {
+    const row = floatOf(feed, label);
+    return row && row.loadGrams != null ? row.loadGrams : null;
+  }
+
+  function sumShots(feed, counts) {
+    let total = 0;
+    for (const [label, count] of Object.entries(counts || {})) {
+      const grams = shotGrams(feed, label);
+      if (grams == null || !(count > 0)) continue;
+      total += grams * count;
+    }
+    return round2(total);
+  }
+
+  function round2(value) {
+    return Math.round(value * 100) / 100;
+  }
+
+  // 可以拿來打在子線上的咬鉛：有重量、且不是号数（那是中通鉛／転環鉛，不是咬鉛）。
+  function usableShots(feed) {
+    return ((feed && feed.shots) || []).filter((s) => s.grams != null && s.family !== "go");
+  }
+
+  // 主鉛是穿在母線上的中通鉛／転環鉛，用的是号数刻度。它跟子線咬鉛是兩種角色：
+  // 主鉛一顆、負責主配重；咬鉛好幾顆、負責微調。usableShots() 不含号数是對的
+  // ——那是子線咬鉛的清單——但那不代表号数不進試算，先前就是漏了這條管道。
+  function mainSinkerOptions(feed) {
+    const family = (feed && feed.mainSinker && feed.mainSinker.family) || "go";
+    return ((feed && feed.shots) || []).filter((s) => s.family === family && s.grams != null);
+  }
+
+  function mainSinkerGrams(feed, label) {
+    if (!label) return 0;
+    const grams = shotGrams(feed, label);
+    return grams == null ? 0 : grams;
+  }
+
+  function sumRig(feed, mainLabel, counts) {
+    return round2(mainSinkerGrams(feed, mainLabel) + sumShots(feed, counts));
+  }
+
+  // 「該不該掛主鉛」看的是浮標號數的負荷，不是差額——來源那句話講的就是
+  // 「5B 以內的阿波，阿波本身就是主配重，不額外使用鉛垂」。
+  function needsMainSinker(feed, floatLabel) {
+    const threshold = feed && feed.mainSinker ? feed.mainSinker.thresholdGrams : null;
+    const load = floatLoad(feed, floatLabel);
+    if (threshold == null || load == null) return false;
+    return load > threshold;
+  }
+
+  function targetGrams(feed, floatLabel, residualLabel) {
+    const load = floatLoad(feed, floatLabel);
+    if (load == null) return null;
+    const residual = residualLabel ? shotGrams(feed, residualLabel) : 0;
+    return round2(load + (residual == null ? 0 : residual));
+  }
+
+  /* 湊組合：對可用咬鉛做最多 MAX_PIECES 顆的窮舉（可重複），取誤差最小、
+     顆數最少的那組。貪婪法在 2B 這種「不是 B 的兩倍」的刻度上會湊歪，
+     而候選只有十幾種、三顆的組合數以百計，直接窮舉最準也夠快。 */
+  function suggestShots(feed, deficitGrams) {
+    if (!(deficitGrams > TOLERANCE)) return null;
+    const catalog = usableShots(feed).slice().sort((a, b) => b.grams - a.grams);
+    if (!catalog.length) return null;
+    let best = null;
+    const pick = [];
+    const walk = (startIndex, remaining) => {
+      if (pick.length) {
+        const diff = Math.abs(remaining);
+        if (!best || diff < best.diff - 1e-9 || (Math.abs(diff - best.diff) <= 1e-9 && pick.length < best.labels.length)) {
+          best = { diff: round2(diff), labels: pick.slice(), grams: round2(deficitGrams - remaining) };
+        }
+      }
+      if (pick.length >= MAX_PIECES) return;
+      for (let i = startIndex; i < catalog.length; i += 1) {
+        // 只往「不會超過太多」的方向走：超出容差一個最小級距以上就沒意義了。
+        if (catalog[i].grams - remaining > 0.5) continue;
+        pick.push(catalog[i].label);
+        walk(i, round2(remaining - catalog[i].grams));
+        pick.pop();
+      }
+    };
+    walk(0, round2(deficitGrams));
+    return best;
+  }
+
+  // 兩段式建議：先決定主鉛，餘額才交給子線咬鉛的窮舉。
+  // 主鉛取「最大的、不超過差額的號數」——現場就是這樣配，號數對著標的號數走。
+  function suggestRig(feed, floatLabel, deficitGrams, mainChosen) {
+    if (!(deficitGrams > TOLERANCE)) return null;
+    if (mainChosen || !needsMainSinker(feed, floatLabel)) {
+      const shots = suggestShots(feed, deficitGrams);
+      return shots ? { mainSinker: null, labels: shots.labels, grams: shots.grams, diff: shots.diff } : null;
+    }
+    const candidates = mainSinkerOptions(feed).filter((s) => s.grams <= deficitGrams + TOLERANCE);
+    if (!candidates.length) {
+      const shots = suggestShots(feed, deficitGrams);
+      return shots ? { mainSinker: null, labels: shots.labels, grams: shots.grams, diff: shots.diff } : null;
+    }
+    const main = candidates.reduce((best, s) => (s.grams > best.grams ? s : best));
+    const remainder = round2(deficitGrams - main.grams);
+    const shots = suggestShots(feed, remainder);
+    if (!shots) {
+      return { mainSinker: main.label, labels: [], grams: main.grams, diff: round2(Math.abs(remainder)) };
+    }
+    return {
+      mainSinker: main.label,
+      labels: shots.labels,
+      grams: round2(main.grams + shots.grams),
+      diff: shots.diff,
+    };
+  }
+
+  // 浮力使用率：已掛 ÷ 完全沒入的臨界。這是這份資料**算得出來**的那一半——
+  // 它是重量的比例，不是深度。系統可以回答「還差多少重量會完全沒入」，
+  // 不能回答「現在沉入多少公分」，理由見 feed.depthPolicy。
+  function loadRatio(feed, floatLabel, residualLabel, mainLabel, counts) {
+    const target = targetGrams(feed, floatLabel, residualLabel);
+    if (target == null || target <= 0) return null;
+    return Math.round((sumRig(feed, mainLabel, counts) / target) * 100);
+  }
+
+  function balance(feed, floatLabel, residualLabel, mainLabel, counts) {
+    const target = targetGrams(feed, floatLabel, residualLabel);
+    const current = sumRig(feed, mainLabel, counts);
+    if (target == null) return { target: null, current, delta: null, verdict: "unknown" };
+    const delta = round2(target - current);
+    let verdict = "balanced";
+    if (delta > TOLERANCE) verdict = "under";
+    else if (delta < -TOLERANCE) verdict = "over";
+    return { target, current, delta, verdict };
+  }
+
+  /* ── 渲染 ─────────────────────────────────────────────────── */
+
+  function confidenceTag(confidence) {
+    const entry = CONFIDENCE_LABEL[confidence] || [confidence || "未標示", "thin"];
+    return `<span class="tag ${entry[1]}">${esc(entry[0])}</span>`;
+  }
+
+  function sourceCell(ids) {
+    if (!ids || !ids.length) return '<span class="muted">—</span>';
+    return `<span class="muted">${ids.map(esc).join("、")}</span>`;
+  }
+
+  function variantCell(variants) {
+    if (!variants || !variants.length) return '<span class="muted">—</span>';
+    // 來源給的可能是單值，也可能本來就是一個區間。區間照原樣顯示，不折成中點。
+    return variants.map((v) => {
+      const value = v.gramsRange ? `${v.gramsRange[0].toFixed(2)}〜${fmtGrams(v.gramsRange[1])}` : fmtGrams(v.grams);
+      return `${value}<span class="muted">（${esc(v.sourceId)}）</span>`;
+    }).join("<br>");
+  }
+
+  function visibleShots() {
+    const rows = (state.feed && state.feed.shots) || [];
+    const query = state.shotQuery.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (state.shotFamily && row.family !== state.shotFamily) return false;
+      if (query && !row.label.toLowerCase().includes(query)) return false;
+      return true;
+    });
+  }
+
+  function renderShots() {
+    const rows = visibleShots();
+    $("shotEmpty").hidden = rows.length > 0;
+    $("shotBody").innerHTML = rows.map((row) => `<tr>
+      <td class="mark">${esc(row.label)}</td>
+      <td class="num">${row.grams == null ? '<span class="muted">未取值</span>' : fmtGrams(row.grams)}</td>
+      <td>${esc(FAMILY_LABEL[row.family] || row.family)}${row.derivation === "nominal" ? '<br><span class="muted">名目換算</span>' : ""}${row.derivation === "measured" ? '<br><span class="muted">廠商實測</span>' : ""}</td>
+      <td>${confidenceTag(row.confidence)}</td>
+      <td class="num">${variantCell(row.variants)}</td>
+      <td>${row.note ? esc(row.note) : '<span class="muted">—</span>'}</td>
+      <td>${sourceCell(row.sourceIds)}</td>
+    </tr>`).join("");
+  }
+
+  function renderFloats() {
+    const rows = (state.feed && state.feed.floats) || [];
+    $("floatBody").innerHTML = rows.map((row) => `<tr>
+      <td class="mark">${esc(row.label)}</td>
+      <td class="num">${row.loadGrams == null ? '<span class="muted">未公布</span>' : fmtGrams(row.loadGrams)}</td>
+      <td>${row.sinks ? '<span class="tag thin">會沉</span>' : '<span class="tag">浮</span>'}</td>
+      <td>${esc(row.use)}${row.note ? `<br><span class="muted">${esc(row.note)}</span>` : ""}</td>
+      <td>${confidenceTag(row.confidence)}</td>
+      <td>${sourceCell(row.sourceIds)}</td>
+    </tr>`).join("");
+
+    const residual = (state.feed && state.feed.residualBuoyancy) || null;
+    if (residual) {
+      const range = residual.rangeGrams || [];
+      $("residualLead").textContent = `各廠設定不同，約 ${range[0]}〜${range[1]} g`;
+    }
+
+    const variance = (state.feed && state.feed.makerVariance) || [];
+    $("varianceList").innerHTML = variance.length
+      ? variance.map((item) => `<li>${esc(item.claim)}<br><span class="muted">出處：${(item.sourceIds || []).map(esc).join("、")}</span></li>`).join("")
+      : '<li class="muted">—</li>';
+  }
+
+  function renderDepthPolicy() {
+    const policy = (state.feed && state.feed.depthPolicy) || null;
+    if (!policy) {
+      $("depthPolicyLead").textContent = "讀不到資料，這段說明也一起沒了。";
+      $("depthBlockers").innerHTML = "";
+      return;
+    }
+    $("depthPolicyLead").textContent = policy.beyondFullSubmersion;
+    $("depthBlockers").innerHTML = policy.blockers.map((b) => `<li>${esc(b)}</li>`).join("");
+  }
+
+  function renderSources() {
+    const sources = (state.feed && state.feed.sources) || [];
+    $("sourceList").innerHTML = sources.length
+      ? sources.map((s) => `<li><a href="${esc(s.url)}" rel="noopener noreferrer" target="_blank"><span class="sid">${esc(s.id)}</span>${esc(s.title)}</a></li>`).join("")
+      : '<li class="muted">讀不到資料，沒有來源可列。</li>';
+  }
+
+  function renderPickers() {
+    const floats = (state.feed && state.feed.floats) || [];
+    const usable = floats.filter((f) => f.loadGrams != null);
+    $("floatPick").innerHTML = usable
+      .map((f) => `<option value="${esc(f.label)}">${esc(f.label)}｜${fmtGrams(f.loadGrams)}</option>`)
+      .join("");
+    if (!usable.some((f) => f.label === state.floatLabel)) {
+      state.floatLabel = usable.length ? usable[0].label : "";
+    }
+    $("floatPick").value = state.floatLabel;
+
+    const residualDefault = (state.feed && state.feed.residualBuoyancy && state.feed.residualBuoyancy.defaultShot) || "";
+    const residualOptions = usableShots(state.feed).filter((s) => s.grams <= 0.6);
+    $("residualPick").innerHTML = ['<option value="">不扣（只吃號數）</option>']
+      .concat(residualOptions.map((s) => `<option value="${esc(s.label)}">${esc(s.label)}｜${fmtGrams(s.grams)}</option>`))
+      .join("");
+    if (!residualOptions.some((s) => s.label === state.residualLabel)) {
+      state.residualLabel = residualOptions.some((s) => s.label === residualDefault) ? residualDefault : "";
+    }
+    $("residualPick").value = state.residualLabel;
+
+    const mainRule = (state.feed && state.feed.mainSinker) || null;
+    if (mainRule) {
+      $("mainSinkerLead").textContent = `${mainRule.thresholdShot}（${mainRule.thresholdGrams} g）以內的阿波本身就是主配重`;
+    }
+    const mainOptions = mainSinkerOptions(state.feed);
+    const thresholdShot = mainRule ? mainRule.thresholdShot : "5B";
+    $("mainSinker").innerHTML = [`<option value="">無（${esc(thresholdShot)} 以內不掛主鉛）</option>`]
+      .concat(mainOptions.map((s) => `<option value="${esc(s.label)}">${esc(s.label)}｜${fmtGrams(s.grams)}</option>`))
+      .join("");
+    if (!mainOptions.some((s) => s.label === state.mainLabel)) state.mainLabel = "";
+    $("mainSinker").value = state.mainLabel;
+
+    $("shotPicker").innerHTML = usableShots(state.feed).map((s) => {
+      const count = state.counts[s.label] || 0;
+      return `<div class="shot-row">
+        <span class="lbl">${esc(s.label)}</span>
+        <span class="g">${fmtGrams(s.grams)}</span>
+        <button class="step" type="button" data-shot="${esc(s.label)}" data-delta="-1" aria-label="${esc(s.label)} 減一顆"${count ? "" : " disabled"}>−</button>
+        <span class="cnt">${count}</span>
+        <button class="step" type="button" data-shot="${esc(s.label)}" data-delta="1" aria-label="${esc(s.label)} 加一顆">＋</button>
+      </div>`;
+    }).join("");
+  }
+
+  function renderResult() {
+    const result = balance(state.feed, state.floatLabel, state.residualLabel, state.mainLabel, state.counts);
+    const delta = $("deltaOut");
+    delta.className = "big";
+    $("mainOut").textContent = state.mainLabel
+      ? `${state.mainLabel}｜${fmtGrams(mainSinkerGrams(state.feed, state.mainLabel))}`
+      : "無";
+    const ratio = loadRatio(state.feed, state.floatLabel, state.residualLabel, state.mainLabel, state.counts);
+    $("ratioOut").textContent = ratio == null ? "—" : `${ratio}%`;
+    if (result.target == null) {
+      delta.textContent = "—";
+      $("targetOut").textContent = "—";
+      $("currentOut").textContent = "—";
+      $("verdictOut").textContent = "讀不到浮標資料，沒得算。";
+      $("suggestOut").innerHTML = "";
+      return result;
+    }
+    $("targetOut").textContent = fmtGrams(result.target);
+    $("currentOut").textContent = fmtGrams(result.current);
+    delta.textContent = fmtGrams(Math.abs(result.delta));
+
+    if (result.verdict === "balanced") {
+      delta.classList.add("ok");
+      delta.textContent = "0.00 g";
+      $("verdictOut").textContent = "已經到達完全沒入的臨界：再加任何重量，浮標就會開始下沉。";
+      $("suggestOut").innerHTML = "";
+      return result;
+    }
+    if (result.verdict === "over") {
+      delta.classList.add("over");
+      // 超過完全沒入的臨界之後沒有平衡點：浮力已經到頂，多出來的重量沒有東西去平衡它。
+      // 這裡刻意不給任何「沉到 X 公分」——那是這個資料模型算不出來的東西，見 depthPolicy。
+      $("verdictOut").textContent = `已超出浮標最大可支撐重量 ${fmtGrams(Math.abs(result.delta))}，沒有可計算的平衡吃水深度。浮標將持續下沉，不是停在某個固定深度；實際下沉速度取決於浮標形狀、水阻、線組與水流等因素。要浮起來就拿掉一些重量，或換大一號的標。`;
+      $("suggestOut").innerHTML = "";
+      return result;
+    }
+
+    $("verdictOut").textContent = `還差 ${fmtGrams(result.delta)}。標會露出水面，這段就是剩下的浮力——再增加約 ${fmtGrams(result.delta)} 負載後，將接近浮標完全沒入的臨界狀態。`;
+    const suggestion = suggestRig(state.feed, state.floatLabel, result.delta, !!state.mainLabel);
+    if (!suggestion) {
+      $("suggestOut").innerHTML = '<span class="muted">差額太小，現有的咬鉛級距補不上來。</span>';
+    } else {
+      const tail = suggestion.diff <= TOLERANCE
+        ? "剛好補平。"
+        : `補完仍差 ${fmtGrams(suggestion.diff)}——咬鉛是離散級距，湊不到剛好是常態。`;
+      const parts = [];
+      if (suggestion.mainSinker) parts.push(`母線主鉛 <b>${esc(suggestion.mainSinker)}</b>`);
+      if (suggestion.labels.length) parts.push(`子線咬鉛 <b>${suggestion.labels.map(esc).join(" ＋ ")}</b>`);
+      $("suggestOut").innerHTML = `${parts.join("，再加")}（合計 ${fmtGrams(suggestion.grams)}）。${esc(tail)}`;
+    }
+    return result;
+  }
+
+  function renderFreshness() {
+    const box = $("freshness");
+    const text = $("freshnessText");
+    const feed = state.feed;
+    box.className = "freshness";
+    if (!feed) {
+      box.classList.add("err");
+      text.textContent = "讀不到 /data/floats.json，這一頁沒有任何資料可查。";
+      return;
+    }
+    const age = feed.reviewedAt ? daysBetween(feed.reviewedAt, todayISO()) : null;
+    let ageText = "核對日不明";
+    if (age !== null) {
+      ageText = age <= 0 ? "今天核對過" : `${age} 天前核對`;
+      if (age >= STALE_DAYS) box.classList.add("stale");
+      else if (age >= WARN_DAYS) box.classList.add("warn");
+    } else {
+      box.classList.add("warn");
+    }
+    const shots = (feed.shots || []).length;
+    const floats = (feed.floats || []).length;
+    text.innerHTML = `<strong>${esc(ageText)}</strong>：咬鉛 ${shots} 級、浮標 ${floats} 級。${esc(feed.verificationMethod || "")}`;
+  }
+
+  function renderTabs() {
+    for (const button of document.querySelectorAll(".tabbar .tab")) {
+      const on = button.dataset.tab === state.tab;
+      button.classList.toggle("on", on);
+      button.setAttribute("aria-selected", on ? "true" : "false");
+    }
+    $("panelShots").hidden = state.tab !== "shots";
+    $("panelFloats").hidden = state.tab !== "floats";
+    $("panelCalc").hidden = state.tab !== "calc";
+  }
+
+  function bindInputs() {
+    for (const button of document.querySelectorAll(".tabbar .tab")) {
+      button.addEventListener("click", () => {
+        state.tab = button.dataset.tab;
+        renderTabs();
+      });
+    }
+    $("shotFamily").addEventListener("change", (event) => {
+      state.shotFamily = event.target.value;
+      renderShots();
+    });
+    $("shotQuery").addEventListener("input", (event) => {
+      state.shotQuery = event.target.value;
+      renderShots();
+    });
+    $("floatPick").addEventListener("change", (event) => {
+      state.floatLabel = event.target.value;
+      renderResult();
+    });
+    $("residualPick").addEventListener("change", (event) => {
+      state.residualLabel = event.target.value;
+      renderResult();
+    });
+    $("mainSinker").addEventListener("change", (event) => {
+      state.mainLabel = event.target.value;
+      renderResult();
+    });
+    $("shotPicker").addEventListener("click", (event) => {
+      const button = event.target.closest ? event.target.closest(".step") : null;
+      if (!button) return;
+      const label = button.dataset.shot;
+      const delta = Number(button.dataset.delta);
+      const next = Math.max(0, (state.counts[label] || 0) + delta);
+      if (next) state.counts[label] = next;
+      else delete state.counts[label];
+      renderPickers();
+      renderResult();
+    });
+  }
+
+  async function init() {
+    try {
+      // 刻意不加 ?v= 快取破壞字串：sw.js 對 /data/ 走 network-first，線上一定拿到
+      // 最新的；而固定網址才能讓離線時的快取命中。加了日期參數等於每天換一個
+      // cache key，隔天在沒訊號的堤防上就變成整頁空的。
+      const response = await fetch(FEED_URL);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      state.feed = await response.json();
+    } catch (error) {
+      state.feed = null;
+    }
+    renderFreshness();
+    renderShots();
+    renderFloats();
+    renderDepthPolicy();
+    renderSources();
+    renderPickers();
+    bindInputs();
+    renderTabs();
+    return renderResult();
+  }
+
+  window.FloatApp = {
+    init,
+    getState: () => state,
+    setFeedForTest(feed) {
+      state.feed = feed;
+      return state;
+    },
+    helpers: {
+      shotOf,
+      shotGrams,
+      floatOf,
+      floatLoad,
+      sumShots,
+      usableShots,
+      mainSinkerOptions,
+      mainSinkerGrams,
+      needsMainSinker,
+      sumRig,
+      loadRatio,
+      targetGrams,
+      suggestShots,
+      suggestRig,
+      balance,
+      round2,
+      daysBetween,
+      todayISO,
+      TOLERANCE,
+      MAX_PIECES,
+    },
+  };
+
+  if (!window.__FLOAT_SKIP_AUTO_INIT__) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => { init(); });
+    } else {
+      init();
+    }
+  }
+})();
+</script>
+</body>
+</html>

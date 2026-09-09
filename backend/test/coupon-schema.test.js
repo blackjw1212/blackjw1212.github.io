@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-// data/coupons.json 是這個 repo 裡**唯一一份人工維護的 feed**——其他 data/*.json 都由
-// Actions 寫入，壞掉時 schema 測試擋得住上游的變化；這一份壞掉的原因會是人手滑。
+// data/coupons.json 是這個 repo 裡**兩份人工維護的 feed 之一**（另一份是 data/floats.json）
+// ——其他 data/*.json 都由 Actions 寫入，壞掉時 schema 測試擋得住上游的變化；
+// 這一份壞掉的原因會是人手滑。
 // 所以這裡的重點不是「欄位型別對不對」，而是「有沒有人在沒有出處的情況下填了一個數字」。
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const STACK_GROUPS = new Set(["platform-coupon", "platform-shipping", "card", "pay"]);

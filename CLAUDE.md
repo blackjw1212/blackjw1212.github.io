@@ -81,8 +81,9 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 ## 補觸控目標的作法（44px）
 
 2026-09-03 全站 13 頁在 375 與 320 都已歸零。要再補時照下面幾條，不要每頁自己發明。
-（`/sky/` 是之後才加的第 14 頁，**從未量過**。它只有 range 與 button、刻意沒有 `<select>`
-——那是真機上唯一冒出 18 個違規的元素——但那不能取代實測。）
+（`/float/` 與 `/sky/` 都是那次之後才加的頁，不在那 13 頁裡。`/sky/` **從未量過**：
+它只有 range 與 button、刻意沒有 `<select>`——那是真機上唯一冒出 18 個違規的元素——
+但那不能取代實測。）
 最多的一頁是 `/market/`（一次 21 個），下面每條都有它的實例。
 
 - **撐 `<label>`，不要撐方塊。** 勾選框／單選鈕包在 label 裡時，命中區是 label
@@ -136,7 +137,7 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 比一般 lint 嚴格很多，改頁面前先知道它管什麼，否則 CI 會紅：
 
 - **首頁主要入口被釘死**為
-  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/|bait:/bait/|sky:/sky/`，
+  `stocks:/stocks/|weather:/weather/|esp32:/esp32/|forscan:/forscan/|flight:/flight/|dash:/dash/|coupon:/coupon/|subtitle:/subtitle/|convert:/convert/|bait:/bait/|float:/float/|sky:/sky/`，
   順序與 href 都要一致（**字面值在條件與錯誤訊息各出現一次，兩處都要改**）。
   卡片數量不是硬編碼，是 `cards.length !== primaryLinks.length`。
   `data-primary-entry` 必須寫在 `href` 之前，否則抓取的正則對不上。
@@ -166,7 +167,7 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 ## 部署：`pages-deploy.yml` 的 allowlist
 
 ```
-cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle convert bait sky data assets dist/
+cp -R index.html bjkw_weather.html 404.html sw.js esp32 forscan stocks market weather flight dash coupon subtitle convert bait float sky data assets dist/
 ```
 
 **新增頂層頁面目錄一定要加進這行**，並同步加進 `sw.js` 的 `PRECACHE`（順手 bump `VERSION`，
@@ -289,10 +290,10 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
 - 累進差額最容易抄錯且肉眼看不出來 → schema 測試用「在每個級距交界處兩式必須相等」
   的定義性檢查擋住。
 
-## /coupon/：data/ 裡唯一人工維護的 feed
+## /coupon/：人工維護的 feed 之一
 
-`data/coupons.json` **不由 CI 寫入**，是這個 repo 唯一一份人工維護的 feed。
-沒有 workflow 碰它，改它就是改 repo 內容。
+`data/coupons.json` **不由 CI 寫入**，是這個 repo 兩份人工維護的 feed 之一
+（另一份是 `data/floats.json`，見下一節）。沒有 workflow 碰它，改它就是改 repo 內容。
 
 **為什麼是人工的**（查證於 2026-09-03，不要再研究一次）：
 
@@ -325,6 +326,144 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
 **複查節奏**：信用卡回饋每季，且 6/30 與 12/31 前後強制複查（銀行權益換檔集中在這兩點）；
 支付加碼每月 1 日；平台優惠碼週為單位、基本上維護不起所以不收。
 `reviewedAt` 超過 21 天頁面轉警示色、60 天轉紅。
+
+## 不要為了 UI 完整性製造不可驗證的連續數值
+
+**這條是全站規則，不只 `/float/`。** 一個欄位空著很難看，於是拿手上有的數字乘一個
+係數把它填滿——那種數字不會讓任何測試變紅，也不會有人在畫面上看出破綻，只會在
+真正要用它的場合是錯的。**系統不知道就要說不知道，不是產生一個看起來精準的錯數字。**
+
+`/float/` 的「沉入深度」是最典型的例子，判準寫在 `data/floats.json` 的 `depthPolicy`：
+
+```
+資料知道：                    資料不知道：
+✓ 浮標標記制度                 ✗ 浮標實際外形
+✓ 名義適配鉛重                 ✗ 各高度截面積
+✓ 當前總負載                   ✗ 浸沒體積函數
+✓ 餘浮力                       ✗ 個別型號實測吃水曲線
+
+所以可以回答「還差多少重量會完全沒入」，不能回答「現在沉入多少公分」。
+```
+
+阻擋按硬度排序（順序有意義，schema 測試釘住第一條與最後一條）：
+1. 沒有該浮標的實際幾何／浮力曲線資料
+2. 阿波是非等截面形狀，沒入體積與吃水深度不是固定線性關係
+3. 標、鉛、母線與其他配件共同構成受力系統，浮標不是單獨受力的物體
+4. 水體密度只是讓實際結果再偏移的環境變數——**不是**主要阻擋，別把它排前面
+
+**超過完全沒入的臨界之後沒有平衡深度**：浮力已經到頂，多出來的重量沒有東西平衡它，
+浮標會持續下沉；隨速度增加流體阻力增加，最終可能趨近終端速度——但那是速度不是深度，
+而且一樣算不出來。「會沉」與「立刻等速」是兩件事，措辭不要混。
+
+三道防線，缺一不可：
+- `check-static-site.mjs` 的 **`FLOAT_DEPTH_CALCULATION_INVARIANT`**：用
+  「下沉語彙 ＋ 數字 ＋ 長度單位」的正則擋住印在畫面上的假深度。
+  改那條之前先跑一次反向測試（故意塞一個「沉入 3.2 cm」進去，它必須紅）。
+- `float-page.test.js`：`helpers` 的名稱不得出現 `depth`／`submersion`／`draft`。
+  靜態契約只擋得到字串，擋不到函式。
+- `float-schema.test.js`：`depthPolicy.computable` 一旦被翻成 `true`，
+  **每一列浮標都必須有可驗證的幾何資料**。要加深度就得先補資料，不能只加公式。
+
+畫面上可以給的是重量那一側：餘浮力、距離完全沒入還差多少重量、浮力使用率（百分比）。
+那些都是資料真的知道的東西。
+
+## /float/：第二份人工維護的 feed
+
+`data/floats.json` **不由 CI 寫入**（磯釣咬鉛與浮標號數的重量對照）。頁面是 `/float/`，
+骨架照 `/coupon/`：fetch 一份 `data/` 底下的人工 feed、行內 script 緊貼 `</body>`、
+純函式掛 `window.FloatApp.helpers`、`__FLOAT_SKIP_AUTO_INIT__` 擋自動初始化。
+下面只記這一頁**額外**的規則。
+
+- **`loadFromShot` 是這份資料的定義性檢查**（對應稅務那邊的「累進差額在級距交界處必須相等」）。
+  浮標號數的意義就是「吃得下同名咬鉛」，所以 `floats[].loadGrams` 必須等於同名
+  `shots[].grams`。兩張表分叉時肉眼完全看不出來，但配鉛試算給出的**每一個**數字都會是錯的。
+  `float-schema.test.js` 逐列比對。只有負浮力標（`000`／`00`）與 `0` 號可以 `loadFromShot: null`。
+- **feed 的網址不加 `?v=` 日期參數，而且 `/data/floats.json` 進了 `sw.js` 的 `PRECACHE`。**
+  這跟 `/coupon/` 的做法不一樣，**不要「順手統一」**。`sw.js` 對 `/data/` 走 network-first，
+  線上一定拿到最新的；加日期參數等於每天換一個 cache key，隔天在沒訊號的堤防上就整頁是空的。
+  釣具規格一年動不了幾次，網址固定＋預載才是對的取捨。靜態契約用
+  `assertNoMatch(/floats\.json\?/)` 釘住這件事。
+- **`confidence` 只有三個值，而且與 `variants[]` 正交。** `cross-checked`（≥2 個來源給同一個
+  數字，測試會檢查 `sourceIds.length >= 2`）／`single-source`／`conflicting`（來源分歧，
+  **值留 `null`**、把看到的數字記進 `variants`）。廠牌差異走 `variants[]`，不塞進 confidence——
+  「這個數字有多可信」與「別家給的是多少」是兩件事。
+- **7B／8B 刻意留 `null`，而且已經找過三次了，不要再「補上」。** 目前有三組互不重疊的
+  數字，沒有一組拿得到獨立佐證：2.70／3.20〜3.40（商品頁）、3.30／4.00（釣具教學頁）、
+  4.50／5.00（部落格）。判法是**看級距接不接得上本表**——本表 B 到 6B 是
+  +0.20／+0.20／+0.25／+0.65／+0.80，所以 2.70 接在 6B（2.65）之後只差 0.05 g，
+  那個來源的 6B 顯然不是 2.65，兩套不能混用；3.30／4.00 那組（+0.65／+0.70）倒是接得上，
+  但只有單一來源。三組都記進 `variants[]`，主值維持 `null`。
+  `float-schema.test.js` 有一條專門釘住這件事。
+- **來源給的是區間就記成區間**（`variants[].gramsRange`），不要折成中點。8B 的商品頁那組
+  本來就是「3.20〜3.40」，折成 3.30 會憑空生出一個沒人講過的數字，而且剛好撞上另一個
+  來源的 3.30——看起來像兩個來源互相佐證，實際上正好相反。`grams` 與 `gramsRange`
+  二擇一，測試會擋同時寫兩個。
+- **`seenVia` 記的是「這個來源是怎麼被讀到的」**，三個值代表三種可信程度：
+  `search-summary`（從搜尋摘要讀到，沒開過原始頁）／`user-supplied`（使用者提供，
+  本專案沒有自己確認過）／`opened`（人開過那一頁、在上面看到那些數字）。
+  改成 `opened` 的判準就是最後那句——**HTTP 200 不算，字串比對命中也不算**。
+  目前 18 筆：15 筆 `search-summary`（建表時的環境沒有對外連線）＋ 3 筆 `user-supplied`，
+  `opened` 0 筆。這件事同時寫在 `verificationMethod`、渲染在頁面的鮮度列上、
+  並由靜態契約釘住那句揭露。
+- **`sources[].url` 可以是 `null`，但條件收得很緊。** 現場經驗沒有網址，它仍然是出處
+  ——「沒出處的數字不准進表」這條不變式不該因此被繞過。`url` 為 `null` 時 `kind` 必須是
+  `field-knowledge` 且 `seenVia` 必須是 `user-supplied`，畫面與複查報告上才看得出
+  那是經驗而非文件。`float-source-audit.mjs` 的 `--fetch` 會跳過這種來源
+  （對 `null` 發請求會直接丟例外），報告也不印空白網址。
+- **配鉛是兩段的，不要只做咬鉛那一半。** 號數標用**相對應號數的鉛墜當主配重穿在母線上**
+  （中通鉛／転環鉛），再用**子線的咬鉛微調**。門檻有出處：「5B 以內的阿波，阿波本身
+  就是主配重，不額外使用鉛垂，僅在子線上夾上小咬鉛」——所以 `mainSinker.thresholdShot`
+  是 `5B`，而且 `needsMainSinker()` 比的是**浮標號數的負荷**，不是差額。
+  第一版漏了這條管道：`usableShots()` 不含 `go` **是對的**（那是子線咬鉛的清單），
+  但當時除了它沒有第二個配重來源，結果 2 号標的 7.75 g 目標被湊成三顆 6B。
+  門檻寫在資料裡而不是 JS 常數，才附得上出處；`float-schema.test.js` 有第二條定義性
+  檢查釘住 `thresholdGrams === shots["5B"].grams`。
+- **配鉛建議用窮舉而不是貪婪。** 這條刻度不是線性的（2B ＝ 0.75 g，不是 B 的兩倍），
+  貪婪法會湊歪；候選只有十幾種、最多三顆，窮舉最準也夠快。主鉛那一段例外——
+  它是「取最大的、不超過差額的號數」，因為現場就是照標的號數配。
+
+### 來源複查 `scripts/float-source-audit.mjs`
+
+人工執行，把每個來源反查成「它撐著哪幾列、那幾列宣稱的數值是什麼」。
+`--fetch` 會實際拓頁面、在純文字裡比對那些數字；`--only <id>` 只跑一個來源。
+**它不寫任何檔案**，`seenVia` 一律人工改。
+
+```
+node scripts/float-source-audit.mjs                  離線清單（無網路也能跑）
+node scripts/float-source-audit.mjs --fetch          實際拓頁面並比對數值
+node scripts/float-source-audit.mjs --only tw-neio   只處理一個來源
+```
+
+**它刻意不進 `verify.sh` 與 CI**，理由同 `mobile-audit.html` 那條界線：
+
+1. 它要打十幾個外站。CI 不該把別人的部落格當成自己綠燈的條件——那些站掛一天，
+   這個 repo 就紅一天，而那跟本站的程式碼對不對無關。
+2. 那些站對 GitHub runner IP 的行為跟家用網路不同（TWSE 就對 runner 回過 HTML 錯誤頁）。
+   在 CI 量到的「被擋」是假訊號，會訓練人忽略紅燈。
+3. 產出是「人接下來要去看哪幾頁」，不是布林值。自動化只能縮小範圍，不能替代閱讀。
+
+但它的**純函式被 `backend/test/float-source-audit.test.js` 蓋著**（那支不碰網路），
+所以邏輯仍有 CI 迴歸保護。也因此那支工具**必須有 isMain guard**——照
+`seed-market-52w.mjs` 省略 guard 的話，`npm test` 的那行 import 會真的去打十幾個外站。
+
+只有 `dead`（404／410）會 exit 1：連結真的沒了，該列從此沒有出處。`blocked`（403／429）
+與 `unreachable`（5xx／網路錯誤）都不算失敗——部落格擋機器人是常態，人開得起來。
+**注意**：如果你在有出口代理的環境跑，代理擋掉的網域也會回 403，工具會報成 `blocked`，
+分不出是站方擋的還是代理擋的，也不該去分。
+
+### 真機 smoke test（每次動這頁的版面都要跑）
+
+`mobile-audit.html` 在 `pointer:coarse` 下綠燈**不等於**真機綠燈——CLAUDE.md 上面那節
+已經記過一次：模擬給不出原生表單控制項的度量。這一頁有**四個 `<select>`**，正是踩過的那類。
+
+1. 起 `.claude/launch.json` 的 `static-site`，手機開 `http://<區網 IP>:4173/float/`。
+2. **四個 select 逐一量**：`#shotFamily`（咬鉛對照的系列篩選）、`#floatPick`、
+   `#residualPick`、`#mainSinker`（配鉛試算）。要看三件事：高度真的 ≥44px；
+   `appearance:none` 之後自己用兩道 `linear-gradient` 畫的箭頭有畫出來、而且沒壓到文字；
+   點下去的命中區對得上。
+3. `.step` 步進鈕（−／＋）的命中區、分頁列三顆 tab、來源清單那十幾條連結。
+4. **320 與 375 兩個寬度都要看。** 橫捲只該發生在 `.table-wrap` 內，body 不可橫捲。
+5. 走訪**三個分頁**都要量——切過去之前那些控制項是 `display:none`，整批會被當成不可見跳過。
 
 ## data/ 是 CI 寫的
 

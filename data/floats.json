@@ -1,0 +1,113 @@
+{
+  "reviewedAt": "2026-09-08",
+  "scope": "日式磯釣（フカセ）通用的咬鉛重量表，以及浮標號數所對應的鉛負荷。只收「跨廠通用的標記制度」，不收各廠自訂型號的實測浮力。",
+  "verificationMethod": "本表數值多數以多組獨立搜尋結果交叉比對而來，另有部分由使用者提供，未逐頁開啟原始頁面人工核對。每一列的 sources[].seenVia 標明該來源是怎麼被讀到的。",
+  "sources": [
+    { "id": "tw-neio", "title": "咬鉛重量對照表｜Neio's fishing notes", "url": "https://neiofishing.pixnet.net/blog/post/40759941", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "tw-hiko06", "title": "咬鉛．轉環鉛重量表｜魚彩釣具", "url": "https://hiko06.pixnet.net/blog/post/109002980", "kind": "shop", "seenVia": "search-summary" },
+    { "id": "tw-shoretw", "title": "咬鉛的重量如何換算？｜灣岸釣研會", "url": "https://shoretw.wordpress.com/2014/12/25/%E5%92%AC%E9%89%9B%E7%9A%84%E9%87%8D%E9%87%8F%E5%A6%82%E4%BD%95%E6%8F%9B%E7%AE%97%EF%BC%9F/", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "jp-fishingfishing", "title": "オモリ号数換算表：ガン玉B／ジンタンG／割りビシの重さ早見", "url": "https://fishing-fishing.com/2020/08/27/gundama01/", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "jp-tsuripo", "title": "フカセ釣りで使われるガン玉・オモリ 重さや換算表", "url": "https://tsuripo.com/archives/13036", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "jp-deraturi", "title": "ガン玉の重さ一覧表 8BやG10は何グラムなのか", "url": "https://deraturiblog.com/beginner/ganndama-weight/", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "jp-kawauma", "title": "ガン玉・割りビシの重さ解説：メーカー別重量一覧表", "url": "https://kawauma.com/gandama-waribishi/", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "jp-yamawa", "title": "ヤマワ ラウンドタイプシンカーサイズ一覧", "url": "https://www.yamawa.net/yamawa/img/yamawa-size.pdf", "kind": "maker", "seenVia": "search-summary" },
+    { "id": "jp-tsuriken", "title": "ウキ釣り超入門：性能によるウキの選び方｜釣研", "url": "https://tsuriken.co.jp/ukitsuri/", "kind": "maker", "seenVia": "search-summary" },
+    { "id": "jp-gandama-uki", "title": "円錐ウキの浮力表示の意味｜ガン玉の重さとの関係は？", "url": "https://gandama-fishing.com/fukase-uki-furyokuhyouji/", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "jp-tsuttarou", "title": "円錐ウキの浮力「000・00・0・G2・B・2B・3B」を初心者向けに解説", "url": "https://tsuttarou.net/archives/273056", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "tw-arq", "title": "磯釣阿波入門：阿波號數、浮力、導管一篇就懂", "url": "https://www.arq-inc.com/blogs/news/abo-guide-1", "kind": "shop", "seenVia": "search-summary" },
+    { "id": "tw-laogui", "title": "《磯釣入門》實戰篇：浮標的調校｜老鬼の磯釣筆記", "url": "https://el1a41.pixnet.net/blog/posts/15322190558", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "cn-taobao-item", "title": "包膠咬鉛商品規格（通用標準刻度）", "url": "https://world.taobao.com/item/Ym5vK0RFeDAyc2N2WnYwYk5rK0hOQT09.htm", "kind": "shop", "seenVia": "user-supplied" },
+    { "id": "tw-dinball", "title": "磯釣入門 Q&A｜釣魚人 dinball", "url": "https://fishing.dinball.com/guide/beginning/iso/iso-qa.html", "kind": "shop", "seenVia": "user-supplied" },
+    { "id": "jp-tsuriken-gandama", "title": "ウキ釣り超入門：ガン玉使いが釣果アップの決め手！｜釣研", "url": "https://tsuriken.co.jp/ukitsuri/?p=117", "kind": "maker", "seenVia": "search-summary" },
+    { "id": "tw-kknews-abo", "title": "阿波的號數與自重、以及阿波與咬鉛使用要領", "url": "https://kknews.cc/zh-tw/other/8v5lmeg.html", "kind": "blog", "seenVia": "search-summary" },
+    { "id": "field-blackjw", "title": "使用者現場經驗（磯釣實務）", "url": null, "kind": "field-knowledge", "seenVia": "user-supplied" }
+  ],
+  "shots": [
+    { "label": "G10", "grams": 0.03, "family": "jintan", "derivation": "listed", "confidence": "single-source", "sourceIds": ["jp-deraturi"], "verifiedAt": "2026-09-07", "variants": [], "note": "只有一個來源列出，且該來源整條刻度與台灣通用表不同級。" },
+    { "label": "G8", "grams": 0.07, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-fishingfishing"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.06, "sourceId": "jp-deraturi" }], "note": null },
+    { "label": "G7", "grams": 0.09, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-deraturi"], "verifiedAt": "2026-09-07", "variants": [], "note": null },
+    { "label": "G6", "grams": 0.12, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-deraturi"], "verifiedAt": "2026-09-07", "variants": [], "note": null },
+    { "label": "G5", "grams": 0.16, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.14, "sourceId": "jp-deraturi" }], "note": null },
+    { "label": "G4", "grams": 0.20, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.18, "sourceId": "jp-deraturi" }], "note": null },
+    { "label": "G3", "grams": 0.25, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-gandama-uki"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.24, "sourceId": "jp-deraturi" }], "note": "キザクラ 把浮標的餘浮力設定成這一級。" },
+    { "label": "G2", "grams": 0.31, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.28, "sourceId": "jp-deraturi" }], "note": null },
+    { "label": "G1", "grams": 0.40, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-fishingfishing"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.36, "sourceId": "jp-deraturi" }], "note": null },
+    { "label": "B", "grams": 0.55, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-fishingfishing", "jp-tsuripo"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.64, "sourceId": "jp-deraturi" }], "note": null },
+    { "label": "2B", "grams": 0.75, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-fishingfishing", "jp-tsuripo"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.70, "sourceId": "jp-deraturi" }], "note": "2B 不是 B 的兩倍（0.55×2＝1.10 ≠ 0.75）。想湊 2B 得用 B＋G3。" },
+    { "label": "3B", "grams": 0.95, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-fishingfishing"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.96, "sourceId": "jp-deraturi" }], "note": null },
+    { "label": "4B", "grams": 1.20, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 1.50, "sourceId": "jp-deraturi" }], "note": null },
+    { "label": "5B", "grams": 1.85, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 2.00, "sourceId": "jp-deraturi" }], "note": "與 0.5 号（1.87 g）幾乎同重，實務上當成同一級。" },
+    { "label": "6B", "grams": 2.65, "family": "gandama", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 2.50, "sourceId": "jp-deraturi" }], "note": "有來源指出第一精工的 6B 與 FUJIWARA 的 5B 同重——這一級開始廠牌差異已大於一個級距。" },
+    { "label": "7B", "grams": null, "family": "gandama", "derivation": "listed", "confidence": "conflicting", "sourceIds": ["cn-taobao-item", "tw-dinball", "jp-deraturi", "jp-kawauma"], "verifiedAt": "2026-09-08", "variants": [{ "grams": 2.70, "sourceId": "cn-taobao-item" }, { "grams": 3.30, "sourceId": "tw-dinball" }, { "grams": 4.50, "sourceId": "jp-deraturi" }], "note": "三個來源給三個不同的數字，沒有一組拿得到獨立佐證，因此不取值。2.70 接在本表 6B（2.65）之後只差 0.05 g——本表前面每一級是 +0.20〜+0.80，所以那個來源的 6B 應該不是 2.65，兩套不能混用。3.30／4.00 那組的級距（+0.65／+0.70）倒是接得上本表，但只有單一來源。" },
+    { "label": "8B", "grams": null, "family": "gandama", "derivation": "listed", "confidence": "conflicting", "sourceIds": ["cn-taobao-item", "tw-dinball", "jp-deraturi", "jp-kawauma"], "verifiedAt": "2026-09-08", "variants": [{ "gramsRange": [3.20, 3.40], "sourceId": "cn-taobao-item" }, { "grams": 4.00, "sourceId": "tw-dinball" }, { "grams": 5.00, "sourceId": "jp-deraturi" }], "note": "同 7B，三組分歧且互不重疊，未取值。第一組來源給的本來就是一個區間（3.20〜3.40），照原樣記成 gramsRange——取中點等於捏造一個來源沒給過的數字。" },
+    { "label": "0.3号", "grams": 1.30, "family": "go", "derivation": "measured", "confidence": "single-source", "sourceIds": ["jp-yamawa"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 1.125, "sourceId": "tw-neio" }], "note": "廠商規格表的實測重量。用 1 号＝3.75 g 名目換算會得到 1.125 g——号数在小號段並不是線性的。" },
+    { "label": "0.5号", "grams": 1.87, "family": "go", "derivation": "measured", "confidence": "single-source", "sourceIds": ["jp-yamawa"], "verifiedAt": "2026-09-07", "variants": [], "note": "廠商規格表的實測重量，與名目換算 1.875 g 相符。" },
+    { "label": "0.8号", "grams": 3.00, "family": "go", "derivation": "nominal", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-shoretw"], "verifiedAt": "2026-09-07", "variants": [], "note": "由 1 号＝3.75 g 名目換算。" },
+    { "label": "1号", "grams": 3.75, "family": "go", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-shoretw", "jp-fishingfishing"], "verifiedAt": "2026-09-07", "variants": [], "note": "1 号＝1 錢＝3.75 g，是整個号数制的基準。" },
+    { "label": "1.5号", "grams": 5.63, "family": "go", "derivation": "nominal", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-shoretw"], "verifiedAt": "2026-09-07", "variants": [], "note": "由 1 号＝3.75 g 名目換算（5.625 取兩位）。" },
+    { "label": "2号", "grams": 7.50, "family": "go", "derivation": "nominal", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-shoretw"], "verifiedAt": "2026-09-07", "variants": [], "note": "由 1 号＝3.75 g 名目換算。" },
+    { "label": "3号", "grams": 11.25, "family": "go", "derivation": "nominal", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-shoretw"], "verifiedAt": "2026-09-07", "variants": [], "note": "由 1 号＝3.75 g 名目換算。" },
+    { "label": "4号", "grams": 15.00, "family": "go", "derivation": "nominal", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-shoretw"], "verifiedAt": "2026-09-07", "variants": [], "note": "由 1 号＝3.75 g 名目換算。" },
+    { "label": "5号", "grams": 18.75, "family": "go", "derivation": "nominal", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-shoretw"], "verifiedAt": "2026-09-07", "variants": [], "note": "由 1 号＝3.75 g 名目換算。" }
+  ],
+  "floats": [
+    { "label": "000", "loadFromShot": null, "loadGrams": null, "sinks": true, "use": "風強或上潮走時把仕掛送穿表層，沉降最快，主攻中深層與底層。", "confidence": "cross-checked", "sourceIds": ["tw-arq", "jp-tsuttarou"], "verifiedAt": "2026-09-07", "note": "負浮力標，各廠沒有公布克數，沉降速度依產品而異。" },
+    { "label": "00", "loadFromShot": null, "loadGrams": null, "sinks": true, "use": "有風有浪、0 號馴染不良時；不掛鉛也會緩沉，全遊動常用。", "confidence": "cross-checked", "sourceIds": ["tw-arq", "jp-tsuttarou"], "verifiedAt": "2026-09-07", "note": "負浮力標，沒有公布克數。需要張線流放，仕掛才不會鬆。" },
+    { "label": "0", "loadFromShot": null, "loadGrams": 0.00, "sinks": false, "use": "平穩、緩流的基準號數。配好鉛後標身幾乎與水面齊平，感度最高。", "confidence": "cross-checked", "sourceIds": ["tw-arq", "jp-tsuttarou", "jp-tsuriken"], "verifiedAt": "2026-09-07", "note": "殘浮力趨近 0，本身不吃鉛；要微調只加 G7／G8 這種級距。" },
+    { "label": "G5", "loadFromShot": "G5", "loadGrams": 0.16, "sinks": false, "use": "極淺場、極低活性的微負荷。", "confidence": "single-source", "sourceIds": ["jp-gandama-uki"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "G2", "loadFromShot": "G2", "loadGrams": 0.31, "sinks": false, "use": "0 號站不住、但又不想壓太深時的第一級。", "confidence": "cross-checked", "sourceIds": ["jp-gandama-uki", "jp-tsuttarou"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "B", "loadFromShot": "B", "loadGrams": 0.55, "sinks": false, "use": "水深 0〜3 m 的堤防與淺磯，最常用的起手號數。", "confidence": "cross-checked", "sourceIds": ["jp-gandama-uki", "jp-tsuttarou", "tw-arq"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "2B", "loadFromShot": "2B", "loadGrams": 0.75, "sinks": false, "use": "略有風浪或需要壓過表層流時。", "confidence": "cross-checked", "sourceIds": ["jp-gandama-uki", "jp-tsuttarou"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "3B", "loadFromShot": "3B", "loadGrams": 0.95, "sinks": false, "use": "水深約 3〜4.5 m；也是搭配 −3B 水中標最常見的一級。", "confidence": "cross-checked", "sourceIds": ["jp-gandama-uki", "jp-tsuttarou", "tw-arq"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "4B", "loadFromShot": "4B", "loadGrams": 1.20, "sinks": false, "use": "風浪再大一級，或要更快帶到釣棚時。", "confidence": "single-source", "sourceIds": ["jp-gandama-uki"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "5B", "loadFromShot": "5B", "loadGrams": 1.85, "sinks": false, "use": "台灣阿波常用的上限附近；再上去魚訊反應會明顯變鈍。", "confidence": "cross-checked", "sourceIds": ["jp-gandama-uki", "tw-arq"], "verifiedAt": "2026-09-07", "note": "5B 以內的阿波應調到平水，空鉤時保留 G6〜G7 的殘存浮力為佳。" },
+    { "label": "0.5号", "loadFromShot": "0.5号", "loadGrams": 1.87, "sinks": false, "use": "與 5B 幾乎同級，深場或強流的入口號數。", "confidence": "single-source", "sourceIds": ["jp-fishingfishing"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "0.8号", "loadFromShot": "0.8号", "loadGrams": 3.00, "sinks": false, "use": "深場、強流，或需要遠投時。", "confidence": "single-source", "sourceIds": ["jp-fishingfishing"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "1号", "loadFromShot": "1号", "loadGrams": 3.75, "sinks": false, "use": "深場與大風浪的通用號數。", "confidence": "cross-checked", "sourceIds": ["jp-fishingfishing", "tw-arq"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "1.5号", "loadFromShot": "1.5号", "loadGrams": 5.63, "sinks": false, "use": "深場強流。", "confidence": "single-source", "sourceIds": ["jp-fishingfishing"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "2号", "loadFromShot": "2号", "loadGrams": 7.50, "sinks": false, "use": "台灣阿波的常用上限；再上去多半是特定深場。", "confidence": "cross-checked", "sourceIds": ["jp-fishingfishing", "tw-arq"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "3号", "loadFromShot": "3号", "loadGrams": 11.25, "sinks": false, "use": "極深場（例如東引）才會用到。", "confidence": "single-source", "sourceIds": ["tw-arq"], "verifiedAt": "2026-09-07", "note": null },
+    { "label": "4号", "loadFromShot": "4号", "loadGrams": 15.00, "sinks": false, "use": "極深場、強流的遠投釣組。", "confidence": "single-source", "sourceIds": ["field-blackjw", "tw-arq"], "verifiedAt": "2026-09-08", "note": "文件來源多半只寫到「3 号以上」，這一級的存在是依現場經驗補的。" },
+    { "label": "5号", "loadFromShot": "5号", "loadGrams": 18.75, "sinks": false, "use": "實務上的上限，極深場、強流、需要大幅遠投時。", "confidence": "single-source", "sourceIds": ["field-blackjw", "tw-arq"], "verifiedAt": "2026-09-08", "note": "同 4 号，依現場經驗補的。" }
+  ],
+  "mainSinker": {
+    "thresholdShot": "5B",
+    "thresholdGrams": 1.85,
+    "family": "go",
+    "sourceIds": ["tw-arq", "tw-laogui", "jp-tsuriken-gandama", "tw-kknews-abo"],
+    "verifiedAt": "2026-09-08",
+    "note": "5B 以內的阿波，阿波本身就是主配重，不另外掛鉛墜，只在子線上夾小咬鉛調整鉤餌的下沉狀態。號數以上才用中通鉛／転環鉛當主鉛穿在母線上，子線的 G 系咬鉛只做微調。所以「該用幾號的鉛墜」看的是浮標號數的負荷，不是差額。"
+  },
+  "depthPolicy": {
+    "computable": false,
+    "blockers": [
+      "沒有該浮標的實際幾何／浮力曲線資料——同樣是 3 号標，各廠的直徑與長度差很多，而這份資料的 scope 明講不收各廠自訂型號的實測浮力。",
+      "阿波等非等截面形狀，沒入體積與吃水深度不是固定線性關係——就算量到某一點的直徑，也不能用一個常數往下推。",
+      "標、鉛、母線與其他配件共同構成實際受力系統，浮標不是單獨受力的物體。",
+      "水體密度（鹽度、水溫、雨後淡水注入）只是會讓實際結果進一步偏移的環境變數，不是主要阻擋。"
+    ],
+    "allowedWhen": [
+      "該浮標型號有可驗證的幾何尺寸與體積函數",
+      "或有廠商／使用者對該型號的實測吃水校正資料"
+    ],
+    "beyondFullSubmersion": "超過完全沒入的臨界浮力之後不存在平衡深度。浮標會持續下沉；隨速度增加流體阻力增加，最終可能趨近於終端速度，但那是速度不是深度，而且同樣算不出來。",
+    "verifiedAt": "2026-09-08",
+    "sourceIds": ["field-blackjw", "jp-gandama-uki"],
+    "note": "這是一條能力邊界，不是待辦事項。系統可以回答「還差多少重量會完全沒入」，不能回答「現在沉入多少公分」。"
+  },
+  "residualBuoyancy": {
+    "defaultShot": "G3",
+    "rangeGrams": [0.2, 0.3],
+    "varies": true,
+    "emptyHookTarget": "G6〜G7",
+    "sourceIds": ["jp-gandama-uki", "tw-laogui", "jp-tsuriken"],
+    "verifiedAt": "2026-09-07",
+    "note": "浮標標示的號數之外還留有一段「餘浮力／殘浮力」，各廠設定不同，約 0.2〜0.3 g；有來源指出キザクラ 設為 G3（0.25 g）。台灣的調標說法是空鉤時保留 G6〜G7 的殘存浮力。所以標示 3B 的浮標，實際浮力接近 3B＋G3。"
+  },
+  "makerVariance": [
+    { "claim": "同一個 B／G 標記在不同廠牌不是同一個重量。要靠號數湊平衡，浮標與咬鉛盡量統一廠牌。", "sourceIds": ["jp-kawauma", "jp-tsuriken"], "verifiedAt": "2026-09-07" },
+    { "claim": "有來源指出第一精工的 6B 與 FUJIWARA 的 5B 同重——差異已達一個級距。", "sourceIds": ["jp-kawauma"], "verifiedAt": "2026-09-07" },
+    { "claim": "本表的 B 系採台灣通用表（B 0.55／2B 0.75／3B 0.95／4B 1.20／5B 1.85／6B 2.65）。另有一套整條較重的刻度（B 0.64／2B 0.70／4B 1.50／5B 2.00），本表以 variants 逐列記錄。", "sourceIds": ["tw-neio", "jp-deraturi"], "verifiedAt": "2026-09-07" },
+    { "claim": "号数制在小號段不是線性的：名目換算 0.3 号＝1.125 g，而廠商規格表的實測值是 1.30 g。", "sourceIds": ["jp-yamawa"], "verifiedAt": "2026-09-07" }
+  ]
+}
