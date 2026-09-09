@@ -34,7 +34,7 @@ const star = (overrides) => Object.assign(
 
 test("the page exposes its pure helpers without running the browser code", async () => {
   const helpers = await loadHelpers();
-  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg"]) {
+  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent"]) {
     assert.equal(typeof helpers[name], "function", `${name} 應該可以被測到`);
   }
 });
@@ -88,6 +88,30 @@ test("labels honour the maximum count", async () => {
   const hits = [];
   for (let i = 0; i < 40; i += 1) hits.push(star({ label: "s" + i, magnitude: i / 10, xPx: i * 200, yPx: 0 }));
   assert.equal(selectLabels(hits, { maxLabels: 3, minSeparationPx: 10 }).length, 3);
+});
+
+// 實測過的缺陷：頁面原本只擋 event.alpha === null，但 beta 與 gamma 在沒有
+// 加速度計的裝置上同樣會是 null。那時 orientationToPointing 會丟
+// 「betaDeg 必須是有限的數字」，而那個例外是在 rAF 回呼裡丟的 ——
+// 疊加層無聲凍結、相機還亮著、狀態列卻寫著「就緒」。
+test("an orientation event missing any of its three angles is rejected whole", async () => {
+  const { readOrientationEvent } = await loadHelpers();
+  assert.deepEqual(readOrientationEvent({ alpha: 10, beta: 20, gamma: 30 }),
+    { alphaDeg: 10, betaDeg: 20, gammaDeg: 30 });
+  for (const missing of [
+    { alpha: null, beta: 20, gamma: 30 },
+    { alpha: 10, beta: null, gamma: 30 },
+    { alpha: 10, beta: 20, gamma: null },
+    { alpha: 10, beta: 20, gamma: undefined },
+    { alpha: NaN, beta: 20, gamma: 30 },
+  ]) {
+    assert.strictEqual(readOrientationEvent(missing), null,
+      `缺角度的事件必須整筆丟掉：${JSON.stringify(missing)}`);
+  }
+  assert.strictEqual(readOrientationEvent(null), null);
+  // 0 是合法的角度，不可以被當成缺值。
+  assert.deepEqual(readOrientationEvent({ alpha: 0, beta: 0, gamma: 0 }),
+    { alphaDeg: 0, betaDeg: 0, gammaDeg: 0 });
 });
 
 test("the pointing readout names a compass direction and wraps at north", async () => {

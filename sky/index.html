@@ -201,6 +201,20 @@
     return "還缺：" + missing.join("、");
   }
 
+  // deviceorientation 的三個角**都**可能是 null：沒有加速度計的裝置、
+  // 或某些瀏覽器狀態下 beta 與 gamma 會缺。少擋一個，後面的座標轉換就會丟例外，
+  // 而那個例外是在 requestAnimationFrame 的回呼裡丟的 —— 迴圈會就此停止排程。
+  function readOrientationEvent(event) {
+    if (!event) return null;
+    var alphaDeg = event.alpha;
+    var betaDeg = event.beta;
+    var gammaDeg = event.gamma;
+    var usable = typeof alphaDeg === "number" && isFinite(alphaDeg) &&
+      typeof betaDeg === "number" && isFinite(betaDeg) &&
+      typeof gammaDeg === "number" && isFinite(gammaDeg);
+    return usable ? { alphaDeg: alphaDeg, betaDeg: betaDeg, gammaDeg: gammaDeg } : null;
+  }
+
   function clampFovDeg(value) {
     var n = typeof value === "number" ? value : parseFloat(value);
     if (!isFinite(n)) return 65;
@@ -214,6 +228,7 @@
     selectLabels: selectLabels,
     formatAltAz: formatAltAz,
     describeBlockers: describeBlockers,
+    readOrientationEvent: readOrientationEvent,
     clampFovDeg: clampFovDeg,
   };
 
@@ -228,6 +243,7 @@
   var latest = { orientation: null, rotationRate: null, position: null };
   var ready = { camera: false, orientation: false, location: false, catalog: false };
   var fovDeg = 65;
+  var running = false;
   var magnitudeLimit = 4.5;
   var lastHits = [];
 
@@ -270,8 +286,9 @@
     return chain.then(function (result) {
       if (result !== "granted") throw new Error("方位感測器沒有授權");
       window.addEventListener("deviceorientation", function (event) {
-        if (event.alpha === null) return;
-        latest.orientation = { alphaDeg: event.alpha, betaDeg: event.beta, gammaDeg: event.gamma };
+        var angles = readOrientationEvent(event);
+        if (!angles) return;
+        latest.orientation = angles;
         ready.orientation = true;
       });
       if (typeof DeviceMotionEvent !== "undefined" &&
@@ -309,12 +326,25 @@
     el.overlay.height = Math.max(1, Math.round(rect.height * ratio));
   }
 
-  // 每一幀的管線。順序在 sky/DESIGN.md 有完整說明，這裡只標關鍵的兩步。
+  // rAF 的回呼丟出例外時沒有任何地方會接住它，而且迴圈就此停止排程 ——
+  // 畫面凍結、相機還亮著、狀態列卻還寫著「就緒」。那是最糟的一種失敗，
+  // 所以這裡一定要接住並說出來，並照 /subtitle/ 與 /convert/ 的錯誤路徑
+  // 重新啟用開始鈕讓使用者可以重試。繼續排程沒有意義：同一個例外會每秒發生 60 次。
   function frame() {
-    if (!lib || !catalog || !latest.orientation || !latest.position) {
-      requestAnimationFrame(frame);
+    try {
+      renderFrame();
+    } catch (error) {
+      running = false;
+      el.startBtn.disabled = false;
+      setState(el.permState, "疊加已中止：" + (error && error.message ? error.message : String(error)), "error");
       return;
     }
+    if (running) requestAnimationFrame(frame);
+  }
+
+  // 每一幀的管線。順序在 sky/DESIGN.md 有完整說明，這裡只標關鍵的兩步。
+  function renderFrame() {
+    if (!lib || !catalog || !latest.orientation || !latest.position) return;
     var now = Date.now();
     var measured = lib.orientation.orientationToPointing(latest.orientation);
     var rates = lib.orientation.rotationRateToPointingRates(Object.assign(
@@ -375,7 +405,6 @@
     setState(el.pointState, "指向：" + formatAltAz(pointing.azimuthDeg, pointing.altitudeDeg) +
       "　視野內 " + drawn.filter(function (d) { return d.visible; }).length + " 顆", "ok");
     renderNearby(drawn);
-    requestAnimationFrame(frame);
   }
 
   function paint(drawn) {
@@ -470,6 +499,7 @@
         resizeCanvas();
         var blockers = describeBlockers(ready);
         setState(el.permState, blockers || "相機與感測器就緒。", blockers ? "warn" : "ok");
+        running = true;
         requestAnimationFrame(frame);
       })
       .catch(function (error) {

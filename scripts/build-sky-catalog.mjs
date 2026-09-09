@@ -141,6 +141,15 @@ function validate(rows) {
     }
   }
 
+  // 這些字串會被頁面插進 innerHTML（sky/index.html 的 renderNearby），
+  // 而這份資料是從網路重新產生的。目前 BSC5 的名稱只有希臘字母與上標，
+  // 但那是這批資料碰巧的性質，不是來源給的保證。
+  const unsafe = rows.filter((row) => [row.common, row.bayer, row.flamsteed, row.constellation]
+    .some((value) => typeof value === "string" && /[<>&"']/.test(value)));
+  if (unsafe.length) {
+    fail(`${unsafe.length} 顆星的名稱含 HTML 特殊字元，例如 HR ${unsafe[0].hr}`);
+  }
+
   const unlabelled = rows.filter((row) => !labelOf(row)).length;
   if (unlabelled > 0) fail(`${unlabelled} 顆星組不出標籤`);
 

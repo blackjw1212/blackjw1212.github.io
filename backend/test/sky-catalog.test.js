@@ -82,6 +82,23 @@ test("the catalog still satisfies the structural invariants it was gated on", ()
   }
 });
 
+// 頁面把 label 與 constellation 插進 innerHTML（那是本 repo 的既有慣例，
+// /market/ 用了 38 次）。資料是從網路重新產生的，所以這條同時釘在
+// scripts/build-sky-catalog.mjs 的寫入閘門與這裡。
+test("no catalogue string can break out of the markup it gets interpolated into", () => {
+  const dangerous = /[<>&"']/;
+  for (const [index, designation] of Object.entries(raw.designations)) {
+    for (const [key, value] of Object.entries(designation)) {
+      assert.ok(!dangerous.test(value),
+        `第 ${index} 筆的 ${key} 含 HTML 特殊字元：${JSON.stringify(value)}`);
+    }
+  }
+  for (let i = 0; i < catalog.count; i += 1) {
+    const star = describeStar(catalog, i);
+    assert.ok(!dangerous.test(star.label), `第 ${i} 筆的標籤含 HTML 特殊字元：${star.label}`);
+  }
+});
+
 // ─────────────────────────────── 查詢正確性 ───────────────────────────────
 
 test("the dot product scan agrees with a brute force angular search everywhere", () => {
