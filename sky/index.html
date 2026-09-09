@@ -30,6 +30,11 @@
     --accent:#8ab4ff; --ok:#5fd08a; --warn:#f0b95e; --err:#ff8f8f;
   }
   *{box-sizing:border-box}
+  /* hidden 屬性靠 UA 樣式表的 display:none 生效，任何帶 class 的 display 宣告
+     （.btn 是 inline-flex、.stage-dock 是 flex）特異度都比它高，會把它蓋掉——
+     元素照樣顯示，而且完全沒有徵兆。實測「清除校正」在沒有校正時仍然出現，
+     就是這個。統一在這裡擋掉，不要每個元素各補一條。 */
+  [hidden]{display:none !important}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
     font:15px/1.6 system-ui,-apple-system,"Noto Sans TC",sans-serif}
   a{color:var(--accent)}
@@ -58,7 +63,6 @@
     display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
     gap:12px;text-align:center;
     padding:24px 24px calc(env(safe-area-inset-bottom,0px) + 32px)}
-  .stage-dock[hidden]{display:none}
   .stage-dock .btn{pointer-events:auto}
   .stage-hint{color:var(--muted);font-size:14px;margin:0;max-width:34ch;
     text-shadow:0 1px 2px rgba(0,0,0,.7)}
@@ -89,6 +93,9 @@
   .hud-body{padding:0 14px 12px}
   .hud .state{margin:4px 0}
   .hud .fld{margin:10px 0}
+  .moon-cal{margin-top:12px;border-top:1px solid rgba(232,237,246,.14);padding-top:10px}
+  .moon-btn{width:100%;min-height:44px;font-size:13px;padding:8px 10px}
+  .moon-btn.subtle{margin-top:6px;background:transparent;color:var(--muted)}
 
   main{padding:16px;max-width:760px;margin:0 auto}
   h1{font-size:20px;margin:0 0 4px}
@@ -165,6 +172,11 @@
         <span>顯示到幾等星 <output id="magOut">4.5</output></span>
         <input type="range" id="magRange" min="1" max="6" step="0.5" value="4.5">
       </label>
+      <div class="moon-cal">
+        <button class="btn moon-btn" id="moonBtn" type="button" disabled>用月亮校正方位</button>
+        <button class="btn moon-btn subtle" id="moonClear" type="button" hidden>清除校正</button>
+        <p class="state" id="moonState">還沒拿到位置與時間，算不出月亮。</p>
+      </div>
     </div>
   </details>
 </div>
@@ -189,7 +201,8 @@
       <ul class="note">
         <li>相機的視野角<strong>沒有任何標準介面問得到</strong>，預設值只是起始值。用一顆認得出來的亮星把它調到對齊，之後會記在這台裝置上。</li>
         <li>星表是 Yale BSC5 的 6 等以上共 5080 顆，J2000 座標，畫之前會換算到當日並補上大氣折射。</li>
-        <li>地磁北與真北的差（磁偏角）目前沒有修正，因為查不到可引用的數值來源。畫面上的方位角是磁北的。</li>
+        <li>地磁北與真北的差（磁偏角）目前沒有修正，因為查不到可引用的數值來源。未校正時畫面上的方位角就是感測器給的磁北值。</li>
+        <li>可以用月亮把方位校準：月亮的位置算得準（對 ELP/MPP02 的最差誤差 18 角秒），把它當基準點一次量出偏差。<strong>但量到的是整條管線的觀測偏差</strong>——磁偏角、手機磁力計的硬鐵軟鐵誤差、感測器融合的殘差全混在裡面，所以它不等於磁偏角，本站也不會這樣宣稱。校正只在你當下的位置與時間有效。</li>
         <li>白天也會照算照畫，只是天上看不到星。</li>
       </ul>
     </div>
@@ -255,6 +268,53 @@
     return chosen;
   }
 
+  // 月亮適不適合現在拿來校正。純函式，掛進 helpers 讓測試釘住每一條判準。
+  //
+  // 「不能校正」要說出**為什麼**，不要只給一個灰掉的按鈕：新月看不到、地平線下看不到、
+  // 太低則大氣折射與地物遮蔽都會讓人對不準。弦月可以校但要提醒——肉眼判不出月面中心
+  // （亮的是邊緣，中心在暗面裡），那個誤差可以到半個月面。
+  var MOON_MIN_ALTITUDE_DEG = 10;
+  var MOON_MIN_ILLUMINATION = 0.05;
+  var MOON_CRESCENT_ILLUMINATION = 0.25;
+
+  function describeMoonCalibration(moon) {
+    if (!moon) return { usable: false, level: "", text: "還沒拿到位置與時間，算不出月亮。" };
+    var lit = Math.round(moon.illuminatedFraction * 100);
+    var alt = moon.altitudeDeg;
+    if (alt < 0) {
+      return { usable: false, level: "", text: "月亮在地平線下（仰角 " + alt.toFixed(0) + "°），現在校正不了。" };
+    }
+    if (moon.illuminatedFraction < MOON_MIN_ILLUMINATION) {
+      return { usable: false, level: "", text: "接近新月（照亮 " + lit + "%），肉眼幾乎看不到，校不準。" };
+    }
+    if (alt < MOON_MIN_ALTITUDE_DEG) {
+      return { usable: false, level: "warn", text: "月亮太低（仰角 " + alt.toFixed(0) + "°），折射與地物遮蔽會讓校正失準，等它升高一點。" };
+    }
+    if (moon.illuminatedFraction < MOON_CRESCENT_ILLUMINATION) {
+      return { usable: true, level: "warn", text: "可以校，但現在是弦月（照亮 " + lit + "%）——亮的是邊緣，月面中心要自己抓，會有誤差。" };
+    }
+    return { usable: true, level: "ok", text: "可以校正。照亮 " + lit + "%，仰角 " + alt.toFixed(0) + "°。" };
+  }
+
+  /**
+   * 由「使用者指出的方位」與「推算的方位」算出新的 heading 偏移。
+   *
+   * **這個值不是磁偏角。** 它是整條 heading 管線的觀測偏差 —— 地磁偏角、
+   * 手機磁力計的硬鐵／軟鐵誤差、感測器融合的殘差全部混在裡面，分不開也不該假裝分得開。
+   * geomag.mjs 那條「不可以用 0 代替未知」的紅線在這裡的對應寫法就是：命名照實叫
+   * headingOffset，不叫 declination。
+   *
+   * 推導：畫面的方位刻度是 rawAz + O。使用者說真正的月亮在我們稱為 tapAz 的方向，
+   * 而月亮實際上在 moonAz，所以我們的刻度整體差了 (moonAz − tapAz)，
+   * 新的偏移 O' = O + (moonAz − tapAz)。
+   */
+  function nextHeadingOffsetDeg(currentOffsetDeg, observedAzimuthDeg, predictedAzimuthDeg) {
+    var delta = predictedAzimuthDeg - observedAzimuthDeg;
+    delta = ((delta % 360) + 540) % 360 - 180;
+    var next = currentOffsetDeg + delta;
+    return ((next % 360) + 540) % 360 - 180;
+  }
+
   // 星名同時要能中英並列（表格與點擊查詢用）。疊加層只寫 label（中文優先），
   // 這裡把英文專名補在後面；沒有中文名時 label 本來就是英文，不要重複寫兩次。
   function formatStarName(star) {
@@ -312,6 +372,8 @@
     readOrientationEvent: readOrientationEvent,
     clampFovDeg: clampFovDeg,
     formatStarName: formatStarName,
+    describeMoonCalibration: describeMoonCalibration,
+    nextHeadingOffsetDeg: nextHeadingOffsetDeg,
   };
 
   // ── 以下需要 DOM / 瀏覽器 API，測試不會執行到。────────────────────────────
@@ -329,6 +391,14 @@
   var latest = { orientation: null, rotationRate: null, position: null };
   var ready = { camera: false, orientation: false, location: false, catalog: false };
   var fovDeg = 65;
+  // 這個鍵刻意不叫 declination：拖月亮量到的是整條 heading 管線的觀測偏差，
+  // 不是純粹的磁偏角。geomag.mjs 仍然回 null，兩者在資料模型上是分開的東西。
+  var HEADING_OFFSET_STORAGE_KEY = "bjkw-sky-heading-offset";
+  var headingOffsetDeg = 0;
+  var headingOffsetAt = null;
+  var calibrating = false;
+  var lastMoon = null;
+  var lastProjector = null;
   var running = false;
   var magnitudeLimit = 4.5;
   var lastHits = [];
@@ -347,8 +417,9 @@
       import("/sky/lib/orientation.mjs"),
       import("/sky/lib/catalog.mjs"),
       import("/sky/lib/project.mjs"),
+      import("/sky/lib/moon.mjs"),
     ]).then(function (mods) {
-      lib = { angles: mods[0], time: mods[1], coords: mods[2], orientation: mods[3], catalog: mods[4], project: mods[5] };
+      lib = { angles: mods[0], time: mods[1], coords: mods[2], orientation: mods[3], catalog: mods[4], project: mods[5], moon: mods[6] };
       return lib;
     });
   }
@@ -457,8 +528,11 @@
     var measured = lib.orientation.orientationToPointing(latest.orientation);
     var rates = lib.orientation.rotationRateToPointingRates(Object.assign(
       {}, latest.orientation, lib.orientation.rotationRateFromEvent(latest.rotationRate)));
+    // heading 偏移套在濾波之前，整個畫面（恆星與月亮）才會一起移動。
+    // 偏移是常數，不影響角速度那一項。
+    var correctedAzimuth = lib.angles.normalizeDeg(measured.azimuthDeg + headingOffsetDeg);
     var pointing = filter.update({
-      azimuthDeg: measured.azimuthDeg,
+      azimuthDeg: correctedAzimuth,
       altitudeDeg: measured.altitudeDeg,
       rollDeg: measured.rollDeg,
       azimuthRateDegPerSec: rates.azimuthRateDegPerSec,
@@ -479,6 +553,21 @@
       widthPx: el.overlay.width,
       heightPx: el.overlay.height,
     });
+
+    // 月亮走自己的路徑（站心視差、當日座標），不經過星表那條歲差流程——
+    // 星表是 J2000 要 precess，月球星曆給的本來就是當日座標，再 precess 一次就錯了。
+    lastMoon = null;
+    if (lib.moon) {
+      var moon = lib.moon.moonPosition({
+        latitudeDeg: site.latitudeDeg, longitudeDeg: site.longitudeDeg, unixMs: now,
+      });
+      var moonPlaced = projector.project({
+        azimuthDeg: moon.azimuthDeg,
+        // 與恆星一致：幾何高度先加折射變成視高度再投影。
+        altitudeDeg: lib.coords.apparentAltitudeFromTrueDeg(moon.altitudeDeg),
+      });
+      lastMoon = Object.assign({}, moon, moonPlaced);
+    }
 
     // 相機軸的視高度先拆掉折射變成真高度，才能跟星表的幾何位置對上。
     var axisTrueAltitude = lib.coords.trueAltitudeFromApparentDeg(pointing.altitudeDeg);
@@ -508,11 +597,13 @@
       drawn.push(Object.assign({}, star, placed));
     }
     lastHits = drawn;
+    lastProjector = projector;
 
-    paint(drawn);
+    paint(drawn, projector);
     setState(el.pointState, "指向：" + formatAltAz(pointing.azimuthDeg, pointing.altitudeDeg) +
       "　視野內 " + drawn.filter(function (d) { return d.visible; }).length + " 顆", "ok");
     renderNearby(drawn);
+    renderMoonStatus();
   }
 
   // 控制面板在畫布座標系裡的矩形（畫布是 devicePixelRatio 放大過的，CSS px 要乘回去）。
@@ -532,7 +623,7 @@
     };
   }
 
-  function paint(drawn) {
+  function paint(drawn, projector) {
     var ctx = el.overlay.getContext("2d");
     ctx.clearRect(0, 0, el.overlay.width, el.overlay.height);
     var ratio = window.devicePixelRatio || 1;
@@ -557,6 +648,25 @@
     });
     for (var k = 0; k < labels.length; k += 1) {
       ctx.fillText(labels[k].label, labels[k].xPx + 8 * ratio, labels[k].yPx);
+    }
+
+    // 月亮標記。畫的是**視直徑的真實大小**（約 0.5 度），但太小會看不見，所以設下限。
+    // 這樣使用者一眼看得出「圈比真月亮大／小」不是校正沒對準，只是下限撐開的。
+    if (lastMoon && lastMoon.visible) {
+      var moonRadiusPx = Math.max(
+        10 * ratio,
+        lastMoon.semiDiameterDeg * projector.focalLengthPx * Math.PI / 180);
+      ctx.save();
+      ctx.strokeStyle = calibrating ? "#f0b95e" : "rgba(240,185,94,.75)";
+      ctx.lineWidth = Math.max(2, 2 * ratio);
+      ctx.beginPath();
+      ctx.arc(lastMoon.xPx, lastMoon.yPx, moonRadiusPx, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#f0b95e";
+      ctx.font = (13 * ratio) + 'px system-ui, -apple-system, "Noto Sans TC", sans-serif';
+      ctx.textBaseline = "middle";
+      ctx.fillText("月亮", lastMoon.xPx + moonRadiusPx + 6 * ratio, lastMoon.yPx);
+      ctx.restore();
     }
 
     // 中央十字，讓使用者知道「離軸」是相對哪裡量的。
@@ -587,12 +697,59 @@
     el.nearbyBody.innerHTML = html;
   }
 
+  // 使用者點下「真正的月亮在畫面上的哪裡」。把那個螢幕座標 unproject 回方位角，
+  // 與推算的月亮方位相減，就得到整條 heading 管線的觀測偏差。
+  function applyMoonCalibration(xPx, yPx) {
+    if (!lastProjector || !lastMoon) return;
+    var verdict = describeMoonCalibration(lastMoon);
+    if (!verdict.usable) {
+      setState(el.moonState, verdict.text, "warn");
+      return;
+    }
+    var observed = lastProjector.unproject(xPx, yPx);
+    headingOffsetDeg = nextHeadingOffsetDeg(headingOffsetDeg, observed.azimuthDeg, lastMoon.azimuthDeg);
+    headingOffsetAt = Date.now();
+    try {
+      window.localStorage.setItem(HEADING_OFFSET_STORAGE_KEY, String(headingOffsetDeg));
+    } catch (error) { /* 無痕視窗會丟例外，這一次校正就只存在記憶體裡 */ }
+    calibrating = false;
+    renderMoonStatus();
+  }
+
+  function clearMoonCalibration() {
+    headingOffsetDeg = 0;
+    headingOffsetAt = null;
+    calibrating = false;
+    try { window.localStorage.removeItem(HEADING_OFFSET_STORAGE_KEY); } catch (error) { /* 同上 */ }
+    renderMoonStatus();
+  }
+
+  function renderMoonStatus() {
+    if (!el.moonState) return;
+    var applied = headingOffsetDeg === 0
+      ? "尚未校正，方位角是感測器原始值（磁北）。"
+      : "已套用 " + (headingOffsetDeg > 0 ? "+" : "") + headingOffsetDeg.toFixed(1) + "° 偏移。";
+    el.moonClear.hidden = headingOffsetDeg === 0;
+
+    var verdict = describeMoonCalibration(lastMoon);
+    el.moonBtn.disabled = !verdict.usable;
+    el.moonBtn.textContent = calibrating ? "點畫面上真正的月亮" : "用月亮校正方位";
+    setState(el.moonState, applied + " " + verdict.text, calibrating ? "warn" : verdict.level);
+  }
+
   function onTap(event) {
-    if (!lastHits.length) return;
     var rect = el.overlay.getBoundingClientRect();
     var ratio = window.devicePixelRatio || 1;
     var x = (event.clientX - rect.left) * ratio;
     var y = (event.clientY - rect.top) * ratio;
+
+    // 校正模式：點的是「真正的月亮在哪」，不是查詢星星。
+    if (calibrating) {
+      applyMoonCalibration(x, y);
+      return;
+    }
+
+    if (!lastHits.length) return;
     var best = null;
     for (var i = 0; i < lastHits.length; i += 1) {
       if (!lastHits[i].visible) continue;
@@ -669,6 +826,9 @@
     el.fovOut = document.getElementById("fovOut");
     el.magRange = document.getElementById("magRange");
     el.magOut = document.getElementById("magOut");
+    el.moonBtn = document.getElementById("moonBtn");
+    el.moonClear = document.getElementById("moonClear");
+    el.moonState = document.getElementById("moonState");
 
     try {
       var saved = window.localStorage.getItem(FOV_STORAGE_KEY);
@@ -687,6 +847,20 @@
       magnitudeLimit = parseFloat(el.magRange.value);
       el.magOut.textContent = el.magRange.value;
     });
+    try {
+      var savedOffset = window.localStorage.getItem(HEADING_OFFSET_STORAGE_KEY);
+      if (savedOffset !== null && isFinite(parseFloat(savedOffset))) {
+        headingOffsetDeg = nextHeadingOffsetDeg(0, 0, parseFloat(savedOffset));
+      }
+    } catch (error) { /* 無痕視窗會丟例外，用預設值就好 */ }
+
+    el.moonBtn.addEventListener("click", function () {
+      calibrating = !calibrating;
+      renderMoonStatus();
+    });
+    el.moonClear.addEventListener("click", clearMoonCalibration);
+    renderMoonStatus();
+
     el.overlay.addEventListener("click", onTap);
     window.addEventListener("resize", resizeCanvas);
   }
