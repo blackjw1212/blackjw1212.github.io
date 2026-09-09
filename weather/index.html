@@ -1472,17 +1472,53 @@ function radarPoint(weatherInfo, coastCfg) {
   return null;
 }
 
+// 上一次的定位。iOS 的位置權限若是「僅允許一次」，每次重新整理都會再問一遍；
+// 而這一頁要位置只是為了挑最近的觀測站，公里級就夠。存一份跨頁面載入的快取，
+// 重整時直接用它，不必再問也不必等 GPS。
+// 12 小時後就丟掉：再舊可能已經是另一趟行程，那會挑錯站。
+const FIX_STORAGE_KEY = "bjkw-weather-last-fix";
+const FIX_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+function readStoredFix() {
+  let raw = null;
+  try { raw = localStorage.getItem(FIX_STORAGE_KEY); } catch (err) { return null; }
+  if (!raw) return null;
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (err) { return null; }
+  if (!parsed || typeof parsed !== "object") return null;
+  const { lat, lon, at } = parsed;
+  if (typeof lat !== "number" || !isFinite(lat) || lat < -90 || lat > 90) return null;
+  if (typeof lon !== "number" || !isFinite(lon) || lon < -180 || lon > 180) return null;
+  if (typeof at !== "number" || !isFinite(at) || at > Date.now()) return null;
+  if (Date.now() - at > FIX_MAX_AGE_MS) return null;
+  return { lat, lon };
+}
+
+function rememberFix(lat, lon) {
+  try {
+    localStorage.setItem(FIX_STORAGE_KEY, JSON.stringify({ lat, lon, at: Date.now() }));
+  } catch (err) { /* 無痕視窗會丟例外，這次就只用記憶體裡的 */ }
+}
+
 function getGpsPosition() {
   return new Promise(resolve => {
     if (!navigator.geolocation) {
       resolve(null);
       return;
     }
+    const cached = readStoredFix();
+    if (cached) {
+      resolve(cached);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
-      pos => resolve({
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude,
-      }),
+      pos => {
+        rememberFix(pos.coords.latitude, pos.coords.longitude);
+        resolve({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+        });
+      },
       err => {
         console.warn("GPS 定位失敗，改用東區", err);
         resolve(null);
@@ -2421,7 +2457,11 @@ document.getElementById("coastSelect")?.addEventListener("change", e => {
   loadAll();
 });
 
-loadAll();
+// 位置快取的純函式掛出來給測試用，並讓測試擋掉自動初始化——其他互動頁
+// （/sky/、/float/、/subtitle/、/convert/、/bait/）都是這個慣例，這頁先前漏了。
+window.WeatherApp = { helpers: { readStoredFix, rememberFix } };
+
+if (!window.__WEATHER_SKIP_AUTO_INIT__) loadAll();
 </script>
 </body>
 </html>

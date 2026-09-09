@@ -34,7 +34,7 @@ const star = (overrides) => Object.assign(
 
 test("the page exposes its pure helpers without running the browser code", async () => {
   const helpers = await loadHelpers();
-  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent", "formatStarName", "describeMoonCalibration", "nextHeadingOffsetDeg"]) {
+  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent", "formatStarName", "describeMoonCalibration", "nextHeadingOffsetDeg", "parseStoredFix", "describeFixAge"]) {
     assert.equal(typeof helpers[name], "function", `${name} 應該可以被測到`);
   }
 });
@@ -250,4 +250,56 @@ test("the accumulated offset stays in [-180, 180]", async () => {
   const big = helpers.nextHeadingOffsetDeg(170, 0, 30);
   assert.ok(big >= -180 && big <= 180, `實得 ${big}`);
   assert.equal(big, -160, "170 + 30 = 200 應該回繞成 -160");
+});
+
+// ── 上一次的定位（重整後直接可用，少一個權限提示）────────────────────────
+
+const NOW = Date.UTC(2026, 8, 10, 12, 0, 0);
+const DAY = 24 * 60 * 60 * 1000;
+const fix = (o) => JSON.stringify(Object.assign({ latitude: 23.469, longitude: 120.455, accuracy: 9, at: NOW - 60000 }, o));
+
+test("a fresh stored fix comes back usable", async () => {
+  const helpers = await loadHelpers();
+  const parsed = helpers.parseStoredFix(fix(), NOW, DAY);
+  assert.equal(parsed.latitude, 23.469);
+  assert.equal(parsed.longitude, 120.455);
+  assert.equal(parsed.at, NOW - 60000);
+});
+
+test("a stale fix is discarded rather than used", async () => {
+  const helpers = await loadHelpers();
+  // 舊座標可能是兩百公里外的另一趟行程。過期就老實重新定位。
+  assert.equal(helpers.parseStoredFix(fix({ at: NOW - DAY - 1 }), NOW, DAY), null);
+});
+
+test("a fix timestamped in the future is discarded", async () => {
+  const helpers = await loadHelpers();
+  // 時鐘被調過或資料被動過手腳，兩種都不可信，而且「未來」永遠不會過期。
+  assert.equal(helpers.parseStoredFix(fix({ at: NOW + 60000 }), NOW, DAY), null);
+});
+
+test("malformed or out-of-range storage never reaches the astronomy code", async () => {
+  const helpers = await loadHelpers();
+  for (const raw of [null, "", "not json", "[]", '"x"', "{}"]) {
+    assert.equal(helpers.parseStoredFix(raw, NOW, DAY), null, `raw=${raw}`);
+  }
+  for (const bad of [{ latitude: 91 }, { latitude: -91 }, { longitude: 181 }, { longitude: -181 },
+    { latitude: "23" }, { longitude: null }, { at: "yesterday" }]) {
+    assert.equal(helpers.parseStoredFix(fix(bad), NOW, DAY), null, JSON.stringify(bad));
+  }
+});
+
+test("NaN and Infinity are rejected like any other bad number", async () => {
+  const helpers = await loadHelpers();
+  // JSON 沒有 NaN／Infinity，但 null 會被 JSON.stringify 產生出來，而 Number(null) 是 0
+  // ——那會變成「幾內亞灣」那個經典的假座標。
+  assert.equal(helpers.parseStoredFix('{"latitude":null,"longitude":null,"at":1}', NOW, DAY), null);
+});
+
+test("the age reads in units a person can act on", async () => {
+  const helpers = await loadHelpers();
+  assert.equal(helpers.describeFixAge(0), "剛剛");
+  assert.equal(helpers.describeFixAge(5 * 60000), "5 分鐘前");
+  assert.equal(helpers.describeFixAge(3 * 60 * 60000), "3 小時前");
+  assert.equal(helpers.describeFixAge(-1), "");
 });
