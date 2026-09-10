@@ -34,7 +34,7 @@ const star = (overrides) => Object.assign(
 
 test("the page exposes its pure helpers without running the browser code", async () => {
   const helpers = await loadHelpers();
-  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent", "formatStarName", "describeMoonCalibration", "nextHeadingOffsetDeg", "parseStoredFix", "describeFixAge"]) {
+  for (const name of ["magnitudeToRadiusPx", "selectLabels", "formatAltAz", "describeBlockers", "clampFovDeg", "readOrientationEvent", "formatStarName", "describeMoonCalibration", "nextHeadingOffsetDeg", "parseStoredFix", "describeFixAge", "shouldTryAutoResume"]) {
     assert.equal(typeof helpers[name], "function", `${name} 應該可以被測到`);
   }
 });
@@ -302,4 +302,26 @@ test("the age reads in units a person can act on", async () => {
   assert.equal(helpers.describeFixAge(5 * 60000), "5 分鐘前");
   assert.equal(helpers.describeFixAge(3 * 60 * 60000), "3 小時前");
   assert.equal(helpers.describeFixAge(-1), "");
+});
+
+// ── 回訪自動接續的旗標 ─────────────────────────────────────────────────
+
+test("only a device that has successfully started before resumes automatically", async () => {
+  const helpers = await loadHelpers();
+  assert.equal(helpers.shouldTryAutoResume("1"), true);
+});
+
+test("a first-time visitor never has permissions requested behind their back", async () => {
+  const helpers = await loadHelpers();
+  // 這是紅線：沒有旗標就一定顯示按鈕，不可以在使用者沒動作時去碰相機。
+  assert.equal(helpers.shouldTryAutoResume(null), false);
+  assert.equal(helpers.shouldTryAutoResume(""), false);
+});
+
+test("junk in the flag is treated as absent, not as consent", async () => {
+  const helpers = await loadHelpers();
+  // localStorage 是使用者改得到的字串，任何非預期值都要退回「要按按鈕」那一側。
+  for (const junk of ["0", "true", "yes", " 1", "1 ", "null", "undefined", "[object Object]"]) {
+    assert.equal(helpers.shouldTryAutoResume(junk), false, `「${junk}」不該被當成同意`);
+  }
 });

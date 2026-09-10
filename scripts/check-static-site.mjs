@@ -684,6 +684,22 @@ if (has("sky/index.html")) {
     }
   }
 
+  // 回訪自動接續**不可以**呼叫 requestMotionPermissions()。那個函式在使用者手勢
+  // 之外呼叫會丟 NotAllowedError，而且是安靜地壞掉——自動路徑會整條失效，
+  // 使用者只看到「又要按一次」，沒有任何錯誤訊息指向真正的原因。
+  // 自動路徑合法的探測方式只有一種：掛監聽、看事件有沒有來（掛監聽不會跳提示）。
+  const skyAuto = html.match(/\n  function tryAutoResume\(\) \{[\s\S]*?\n  \}\n/)?.[0];
+  if (!skyAuto) {
+    fail("sky/index.html: 找不到 tryAutoResume()，無法檢查自動接續的授權用法");
+  } else {
+    // 同 start() 那條：先去掉行註解再比對，否則抓到的會是解釋這條規則的註解本身。
+    const skyAutoCode = skyAuto.replace(/\/\/[^\n]*/g, "");
+    if (skyAutoCode.includes("requestMotionPermissions(")) {
+      fail("sky/index.html: tryAutoResume() 不得呼叫 requestMotionPermissions()（使用者手勢之外會被拒）");
+    }
+  }
+
+
   // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
   assertMatch("sky/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "sky main script must sit right before </body>");
 

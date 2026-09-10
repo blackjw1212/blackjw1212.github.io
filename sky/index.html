@@ -74,15 +74,20 @@
      完全看不出來。 */
   /* 收合時只剩一顆 44px 的齒輪，展開才長成面板。寬度與背景都掛在 [open] 上，
      所以收合態不會有一條空的橫條佔著畫面。 */
+  /* 收合態只有一顆齒輪，**沒有外框**。
+     底色與邊框要**明確歸零**，不能只是「不寫」——這一頁有一條泛用的 details 規則
+     （0,0,1）帶著底色與邊框，.hud 一旦不宣告，那條就贏回去，收合態照樣有框。
+     實測就是這樣量到「面板背景 rgb(14,19,29)、邊框 1px」。同這個 repo 記過的
+     特異度坑：先找同名的既有規則，不要假設「沒寫＝沒有」。 */
   .hud{position:absolute;z-index:2;
     top:calc(env(safe-area-inset-top,0px) + 10px);
     right:calc(env(safe-area-inset-right,0px) + 10px);
-    margin:0;border-radius:22px;
+    margin:0;background:none;border:0;border-radius:0;
+    text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  .hud[open]{width:min(248px,66vw);border-radius:12px;
     background:rgba(14,19,29,.55);
     -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
     border:1px solid rgba(232,237,246,.14);
-    text-shadow:0 1px 2px rgba(0,0,0,.6)}
-  .hud[open]{width:min(248px,66vw);border-radius:12px;
     /* 橫向或矮螢幕時面板不可以吃掉整個畫面，超過就自己捲。 */
     max-height:calc(100% - 20px);overflow:auto}
   /* 不要改 summary 的 display（那會連預設箭頭一起弄丟）；這裡是刻意收掉預設
@@ -94,12 +99,17 @@
   /* 齒輪用文字字元畫，**不可以用 SVG data URI** —— SVG 需要 xmlns，那個網址會撞到
      這一頁「body 內不得出現外部網址」的靜態契約。variant 設成 text 是為了讓
      iOS 不要把它渲染成彩色 emoji。 */
-  .hud > summary::before{content:"\2699";font-size:19px;line-height:1;
-    font-variant-emoji:text}
+  /* 沒有外框之後，那圈底色原本兼任的對比也沒了——白天對著亮天空時齒輪會看不見。
+     所以收合態把顏色提到 --ink，並用兩道相反方向的陰影描邊，深淺背景都讀得到。 */
+  .hud > summary::before{content:"\2699";font-size:26px;line-height:1;
+    font-variant-emoji:text;color:var(--ink);
+    text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 8px rgba(0,0,0,.55)}
+  .hud[open] > summary::before{font-size:15px;color:inherit;
+    text-shadow:0 1px 2px rgba(0,0,0,.6)}
   .hud-title{display:none}
   .hud[open] > summary{min-width:0;padding:11px 14px;justify-content:space-between}
   .hud[open] .hud-title{display:block}
-  .hud[open] > summary::before{order:2;font-size:15px;opacity:.75}
+  .hud[open] > summary::before{order:2;opacity:.75}
   .hud-body{padding:0 14px 12px}
   .hud .state{margin:4px 0}
   .hud .fld{margin:10px 0}
@@ -319,6 +329,12 @@
     return Math.round(minutes / 60) + " 小時前";
   }
 
+  // 只有「成功開過一次」的裝置才自動接續。旗標是字串，來源是 localStorage，
+  // 所以可能是 null、空字串、或使用者手動塞的任何東西——只認一個值。
+  function shouldTryAutoResume(storedFlag) {
+    return storedFlag === "1";
+  }
+
   // 月亮適不適合現在拿來校正。純函式，掛進 helpers 讓測試釘住每一條判準。
   //
   // 「不能校正」要說出**為什麼**，不要只給一個灰掉的按鈕：新月看不到、地平線下看不到、
@@ -427,6 +443,7 @@
     nextHeadingOffsetDeg: nextHeadingOffsetDeg,
     parseStoredFix: parseStoredFix,
     describeFixAge: describeFixAge,
+    shouldTryAutoResume: shouldTryAutoResume,
   };
 
   // ── 以下需要 DOM / 瀏覽器 API，測試不會執行到。────────────────────────────
@@ -446,6 +463,11 @@
   var fovDeg = 65;
   // 這個鍵刻意不叫 declination：拖月亮量到的是整條 heading 管線的觀測偏差，
   // 不是純粹的磁偏角。geomag.mjs 仍然回 null，兩者在資料模型上是分開的東西。
+  // 成功開過一次才寫入。有它才會嘗試回訪自動接續——不能對初次訪客偷跑權限。
+  var AUTOSTART_STORAGE_KEY = "bjkw-sky-autostart";
+  // 方向事件的探測窗。iOS 授權還在時第一筆事件幾乎立刻就到；沒有的話等再久也沒有。
+  var AUTO_RESUME_PROBE_MS = 600;
+  var starting = false;
   var HEADING_OFFSET_STORAGE_KEY = "bjkw-sky-heading-offset";
   var headingOffsetDeg = 0;
   var headingOffsetAt = null;
@@ -511,21 +533,40 @@
     return Promise.all(asks);
   }
 
+  /**
+   * 只掛監聽，不檢查授權結果。
+   *
+   * **掛監聽本身不會跳任何權限提示**，這一點是回訪自動接續的整個基礎：
+   * 掛上去之後有沒有收到事件，就是「權限還在不在」的答案，而且探測過程對使用者
+   * 完全無感。自動路徑因此可以完全不碰 requestPermission()——那個在使用者手勢
+   * 之外呼叫會丟 NotAllowedError，而且是安靜地壞掉。
+   *
+   * 重複呼叫是安全的：兩個 handler 都是具名的，addEventListener 對同一個函式
+   * 參考不會重複註冊。
+   */
+  function bindSensorListeners() {
+    window.addEventListener("deviceorientation", onOrientationEvent);
+    window.addEventListener("devicemotion", onMotionEvent);
+  }
+
+  function onOrientationEvent(event) {
+    var angles = readOrientationEvent(event);
+    if (!angles) return;
+    latest.orientation = angles;
+    ready.orientation = true;
+  }
+
+  function onMotionEvent(event) {
+    latest.rotationRate = event.rotationRate || null;
+  }
+
   function attachSensorListeners(results) {
     // 方向是必要的，動作（陀螺儀）不是——沒有它濾波會退化成純低通，仍然可用。
     if (results[0] !== "granted") {
       throw new Error("方位感測器沒有授權。iOS 拒絕過一次就不會再問，" +
         "要到「設定 → Safari → 動作與方向存取權」重新開啟。");
     }
-    window.addEventListener("deviceorientation", function (event) {
-      var angles = readOrientationEvent(event);
-      if (!angles) return;
-      latest.orientation = angles;
-      ready.orientation = true;
-    });
-    window.addEventListener("devicemotion", function (event) {
-      latest.rotationRate = event.rotationRate || null;
-    });
+    bindSensorListeners();
   }
 
   function stopCamera() {
@@ -867,17 +908,10 @@
     }
   }
 
-  function start() {
-    el.startBtn.disabled = true;
-    setState(el.permState, "要求權限中…", "");
-
-    // 這一行必須是 start() 做的第一件事，而且不可以排在任何 .then 後面。
-    // 理由見 requestMotionPermissions() 的註解；靜態契約會檢查這個順序。
-    var permissions = requestMotionPermissions();
-
-    permissions
-      .then(function (results) { attachSensorListeners(results); })
-      .then(function () { return loadLibraries(); })
+  // 感測器授權之後的共用流程。start()（使用者按按鈕）與 tryAutoResume()（回訪自動）
+  // 都走這一段，差別只在前面怎麼拿到方向權限。
+  function runStartupChain() {
+    return loadLibraries()
       .then(function () {
         filter = lib.orientation.createPointingFilter();
         return lib.catalog.loadCatalog();
@@ -898,17 +932,102 @@
         el.startBtn.hidden = true;
         el.stageDock.hidden = !blockers;
         running = true;
+        starting = false;
+        // 只有完全成功才記旗標——有 blocker 就代表這台裝置上還缺東西，
+        // 下次自動接續也會卡在同一個地方，不如老實顯示按鈕。
+        if (!blockers) rememberAutostart();
         requestAnimationFrame(frame);
-      })
-      .catch(function (error) {
-        // 相機開著但覆蓋層沒作用時，錄影指示燈還亮著、預覽還在跑，
-        // 看起來像成功了。錯誤路徑一定要把它關掉，狀態才誠實。
-        stopCamera();
-        el.stageDock.hidden = false;
-        el.startBtn.hidden = false;
-        el.startBtn.disabled = false;
-        setState(el.permState, "失敗：" + (error && error.message ? error.message : String(error)), "error");
       });
+  }
+
+  function failStartup(error) {
+    // 相機開著但覆蓋層沒作用時，錄影指示燈還亮著、預覽還在跑，
+    // 看起來像成功了。錯誤路徑一定要把它關掉，狀態才誠實。
+    stopCamera();
+    starting = false;
+    el.stageDock.hidden = false;
+    el.startBtn.hidden = false;
+    el.startBtn.disabled = false;
+    setState(el.permState, "失敗：" + (error && error.message ? error.message : String(error)), "error");
+  }
+
+  function start() {
+    if (starting || running) return;
+    starting = true;
+    el.startBtn.disabled = true;
+    setState(el.permState, "要求權限中…", "");
+
+    // 這一行必須是 start() 做的第一件事，而且不可以排在任何 .then 後面。
+    // 理由見 requestMotionPermissions() 的註解；靜態契約會檢查這個順序。
+    var permissions = requestMotionPermissions();
+
+    permissions
+      .then(function (results) { attachSensorListeners(results); })
+      .then(function () { return runStartupChain(); })
+      .catch(failStartup);
+  }
+
+  /**
+   * 回訪時自動接續。
+   *
+   * **這裡絕對不可以呼叫 requestMotionPermissions()。** 那個函式在使用者手勢之外
+   * 呼叫會丟 NotAllowedError，而且是安靜地壞掉——靜態契約釘住這件事。
+   * 探測方式是「掛監聽、看事件有沒有來」：掛監聽本身不會跳任何提示，
+   * 收得到事件就代表方向權限還在。真機實測（2026-09-10）iOS 的方向權限跨重整
+   * 仍然有效，這條路才成立。
+   *
+   * 相機那一段是個實驗：getUserMedia 能不能在沒有手勢的情況下成功，
+   * 這個開發環境驗證不了。成功就省掉一次點擊，失敗就回退成按鈕，不會比原本差。
+   */
+  function tryAutoResume() {
+    if (!shouldTryAutoResume(readStoredAutostart()) || starting || running) return;
+    starting = true;
+    el.startBtn.hidden = true;
+    setState(el.permState, "接續上次的授權…", "");
+
+    bindSensorListeners();
+
+    waitForOrientation(AUTO_RESUME_PROBE_MS)
+      .then(function (gotOrientation) {
+        if (!gotOrientation) {
+          // 權限大概被收回了，或這台裝置根本沒有方向感測器。回到按鈕，不要假裝。
+          starting = false;
+          el.startBtn.hidden = false;
+          el.stageDock.hidden = false;
+          setState(el.permState, "要重新授權一次。按下面的按鈕開始。", "");
+          return null;
+        }
+        return runStartupChain();
+      })
+      .catch(failStartup);
+  }
+
+  // 等方向事件。純被動探測，逾時就回 false。
+  function waitForOrientation(timeoutMs) {
+    return new Promise(function (resolve) {
+      if (ready.orientation) return resolve(true);
+      var timer = window.setTimeout(function () {
+        window.removeEventListener("deviceorientation", probe);
+        resolve(Boolean(ready.orientation));
+      }, timeoutMs);
+      function probe() {
+        if (!ready.orientation) return;
+        window.clearTimeout(timer);
+        window.removeEventListener("deviceorientation", probe);
+        resolve(true);
+      }
+      window.addEventListener("deviceorientation", probe);
+    });
+  }
+
+  function readStoredAutostart() {
+    try { return window.localStorage.getItem(AUTOSTART_STORAGE_KEY); }
+    catch (error) { return null; }
+  }
+
+  function rememberAutostart() {
+    try { window.localStorage.setItem(AUTOSTART_STORAGE_KEY, "1"); }
+    catch (error) { /* 無痕視窗會丟例外，那就每次都按一下 */ }
   }
 
   function init() {
@@ -963,6 +1082,7 @@
     renderMoonStatus();
 
     el.overlay.addEventListener("click", onTap);
+    tryAutoResume();
     window.addEventListener("resize", resizeCanvas);
   }
 
