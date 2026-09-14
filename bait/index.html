@@ -137,8 +137,15 @@
   .row-conv{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--teal);font-weight:700;white-space:nowrap}
   /* 品項備註要看得完，不要 ellipsis：現場翻紀錄就是為了看當初寫了什麼。 */
   .row-note{font-size:12px;color:var(--soft);line-height:1.45;margin-top:2px}
-  /* 成分表是包裝上抄的，用比備註更淡的字，跟自己寫的東西分得開。 */
-  .ingr{font-size:11px;color:var(--faint);line-height:1.4}
+  /* 成分表是包裝上抄的，用比備註更淡的字，跟自己寫的東西分得開。
+     預設收起來、點圖片才展開——紀錄頁一列七行被撐爆過。備註預設只留兩行，
+     展開時一起放完整。 */
+  .ingr{font-size:11px;color:var(--faint);line-height:1.4;display:none}
+  .row.open .ingr,.item-card.open .ingr{display:block}
+  .row-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
+  .row.open .row-note{display:block;-webkit-line-clamp:unset;line-clamp:unset;overflow:visible}
+  [data-toggle]{cursor:pointer}
+  [data-toggle]:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
   /* 配方備註同理。textarea 預設固定高度會把長段落截在框裡（要捲才看得到），
      所以渲染後把高度撐到 scrollHeight。 */
   .log-body textarea{overflow:hidden;resize:none}
@@ -842,9 +849,37 @@
 
   /* 開餌與紀錄共用同一顆大圖。沒有照片時給同尺寸的佔位框而不是空字串——
      少了它右邊的內容會往左跳，一排列高高低低對不齊。 */
-  function shotTag(item) {
-    if (!item || !item.imageUrl) return '<div class="row-shot noimg">沒有<br>照片</div>';
-    return '<img class="row-shot" src="' + esc(item.imageUrl) + '" alt="">';
+  /* toggle=true 時圖片變成開關：點一下展開成分與完整備註。加 role/tabindex 是給
+     鍵盤與螢幕閱讀器用的；圖片本身 72px，觸控目標不用另外撐。 */
+  function shotTag(item, toggle) {
+    var extra = toggle ? ' data-toggle="1" role="button" tabindex="0" aria-expanded="false" aria-label="展開成分與備註"' : "";
+    if (!item || !item.imageUrl) return '<div class="row-shot noimg"' + extra + ">沒有<br>照片</div>";
+    return '<img class="row-shot" src="' + esc(item.imageUrl) + '" alt=""' + extra + ">";
+  }
+
+  /* 展開／收合：把開關所在的 .row 或 .item-card 加上 .open。用委派綁在容器上，
+     每次重繪不必重綁。 */
+  function bindToggles(node) {
+    if (!node || node.__toggleBound) return;
+    node.__toggleBound = true;
+    var flip = function (target) {
+      var host = target.closest(".row, .item-card");
+      if (!host) return;
+      var open = !host.classList.contains("open");
+      host.classList.toggle("open", open);
+      target.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+    node.addEventListener("click", function (event) {
+      var target = event.target.closest("[data-toggle]");
+      if (target) flip(target);
+    });
+    node.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      var target = event.target.closest("[data-toggle]");
+      if (!target) return;
+      event.preventDefault();
+      flip(target);
+    });
   }
 
   function itemsById() {
@@ -1420,8 +1455,8 @@
       if (per100 !== null) spec.push("每 100g $" + money(per100));
       html += '<div class="item-card">'
         + (item.imageUrl
-          ? '<img class="shot" src="' + esc(item.imageUrl) + '" alt="">'
-          : '<div class="shot noimg">沒有照片</div>')
+          ? '<img class="shot" src="' + esc(item.imageUrl) + '" alt="" data-toggle="1" role="button" tabindex="0" aria-expanded="false" aria-label="展開成分">'
+          : '<div class="shot noimg" data-toggle="1" role="button" tabindex="0" aria-expanded="false" aria-label="展開成分">沒有照片</div>')
         + '<div class="body">'
         + '<div class="nm">' + esc(item.name) + "</div>"
         + '<div class="spec">' + (spec.length ? esc(spec.join("　")) : "重量與價格未填") + "</div>"
@@ -1434,6 +1469,7 @@
         + "</div></div>";
     }
     node.innerHTML = html;
+    bindToggles(node);
     var buttons = node.querySelectorAll("button");
     for (var j = 0; j < buttons.length; j += 1) {
       buttons[j].addEventListener("click", function (event) {
@@ -1577,7 +1613,7 @@
         var grams = part.unit === "克" ? null : usedGrams(part, part);
         var amountText = formatAmount(part.amount, part.unit)
           + (part.unit === "克" ? "" : "　＝ " + (grams === null ? "換不成克" : money(grams) + " g"));
-        partsHtml += '<li class="row with-media">' + shotTag(part)
+        partsHtml += '<li class="row with-media">' + shotTag(part, true)
           + '<div class="row-main"><div class="row-name">' + esc(part.name) + "</div>"
           + '<div class="row-amt">' + esc(amountText) + "</div>"
           + '<div class="row-spec">' + (spec.length ? esc(spec.join("　")) : "重量與價格未填") + "</div>"
@@ -1672,6 +1708,7 @@
   }
 
   function bindLogControls(node) {
+    bindToggles(node);
     var areas = node.querySelectorAll("textarea");
     for (var j = 0; j < areas.length; j += 1) {
       autoGrow(areas[j]);
