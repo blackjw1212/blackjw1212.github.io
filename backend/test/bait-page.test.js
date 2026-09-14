@@ -87,7 +87,7 @@ test("沒有任何試算或審查的殘留", async () => {
     name: "殘留測試", gramsPerCup: 250, category: "ADDITIVE",
     viscosity: 5, foggingRate: 1, sinkingSpeed: "FAST", recommendedWaterRatio: 0.5,
   }));
-  assert.deepEqual(Object.keys(item).sort(), ["flavorProfile", "id", "imageUrl", "name", "notes", "packWeightG", "targetSpecies", "unitPrice", "waterTypes"]);
+  assert.deepEqual(Object.keys(item).sort(), ["flavorProfile", "id", "imageUrl", "ingredients", "name", "notes", "packWeightG", "targetSpecies", "unitPrice", "waterTypes"]);
 });
 
 test("每個目標都要有棲息水域，而且只能是淡水或海水", async () => {
@@ -599,6 +599,34 @@ test("匯入放寬到同版或更舊，比本頁新的才拒絕", async () => {
   assert.equal(newer.ok, false, "比本頁新的要拒絕，收下來會安靜地丟掉看不懂的欄位");
   assert.match(newer.reason, /比本頁的/);
   assert.equal(app.helpers.importPayload(JSON.stringify({ kind: "bjkw-bait" })).ok, false);
+});
+
+// 成分表照包裝抄，跟備註分開；既有品項的成分表一律是空的，所以自動補齊會把它填上——
+// 這是讓已存過的人拿到成分表的唯一管道（notes 已經有字，不會被動到）。
+test("成分表：獨立欄位，上限 300，空的會被預設資料補上", async () => {
+  const { app, html } = await loadPage();
+  assert.equal(plain(app.helpers.sanitizeItem({ name: "x" })).ingredients, "", "沒填是空字串");
+  assert.equal(plain(app.helpers.sanitizeItem({ name: "x", ingredients: "a".repeat(400) })).ingredients.length, 300);
+  assert.match(html, /id="itemIngredients"/, "表單要有成分表欄位");
+  assert.match(html, /class="ingr"/, "卡片與紀錄列要顯示成分");
+
+  const seed = plain(app.helpers.seed());
+  const red = seed.items.find((row) => row.id === "item-fushou-red");
+  const kd2 = seed.items.find((row) => row.id === "item-kuangdian-2");
+  assert.match(red.ingredients, /南極蝦粉末/, "紅餌成分表要照包裝");
+  assert.match(red.ingredients, /香虎/, "紅餌內容物含香虎——先前說品項裡沒有香虎，錯了");
+  assert.match(kd2.ingredients, /^肝肉粉/, "狂電 2 號主原料第一項是肝肉粉——先前說它不是實體肝，錯了");
+
+  // 舊資料：同 id、notes 有字、ingredients 空 → 只補 ingredients，notes 不動
+  const target = plain(app.helpers.sanitizeState({
+    items: [Object.assign({}, red, { ingredients: "", notes: "我自己寫的備註" })],
+    recipes: [],
+  }));
+  const report = plain(app.helpers.mergeSeed(target, seed));
+  const after = target.items.find((row) => row.id === red.id);
+  assert.equal(after.ingredients, red.ingredients, "空的成分表要被補上");
+  assert.equal(after.notes, "我自己寫的備註", "填過的備註不准動");
+  assert.ok(report.filledItems.includes(red.name));
 });
 
 test("頁面結構的硬性前提", async () => {
