@@ -140,11 +140,15 @@
      三份配方就會印三次，列高被文字撐爆過一次。列只留數字，完整內容進彈出卡。 */
   [data-sheet]{cursor:pointer}
   [data-sheet]:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
-  /* 右下角一顆 ⓘ 讓人知道圖能點。用字元不用 SVG——SVG 的 xmlns 帶 http://，撞契約。 */
+  /* 讓人知道能點，但不搶眼。紀錄列用列表慣例：右緣一個淡色 ›（disclosure）；
+     品項卡用照片慣例：右上角一顆半透明毛玻璃的小 i。都用字元不用 SVG——
+     SVG 的 xmlns 帶 http://，撞契約。 */
   .shot-wrap{position:relative;flex:0 0 auto;display:block}
-  .shot-wrap::after{content:"\2139";position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;background:var(--teal);color:#0d1417;font-size:12px;font-weight:900;line-height:18px;text-align:center;pointer-events:none}
+  /* 右內距只留 16px：28px 會讓 375px 上的規格行換行，實測過。 */
+  .log-parts .row{position:relative;padding-right:16px}
+  .log-parts .row::after{content:"\203A";position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:20px;line-height:1;color:var(--faint);pointer-events:none}
   .item-card .shot-wrap{width:100%}
-  .item-card .shot-wrap::after{right:6px;bottom:6px}
+  .item-card .shot-wrap::after{content:"i";position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.4);color:#fff;font:italic 700 13px/20px Georgia,"Times New Roman",serif;text-align:center;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);pointer-events:none}
 
   /* 彈出卡：手機從底部滑上來、桌機置中。backdrop 是 flex，所以 hidden 屬性一定要用
      !important 壓回去——/sky/ 踩過帶 class 的 display 宣告蓋掉 hidden。 */

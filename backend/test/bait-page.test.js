@@ -615,8 +615,10 @@ test("成分表：獨立欄位，上限 300，空的會被預設資料補上", a
   assert.doesNotMatch(html, /class="ingr"|row-note|data-toggle|bindToggles/, "原地展開那套不該殘留");
   // backdrop 是 flex，帶 class 的 display 會蓋掉 hidden 屬性——/sky/ 踩過
   assert.match(html, /\[hidden\]\{display:none !important\}/);
-  // 讓人知道圖能點：用字元 ⓘ，不用 SVG（xmlns 帶 http:// 會撞契約）
-  assert.match(html, /\.shot-wrap::after\{content:"\\2139"/);
+  // 讓人知道能點：紀錄列右緣 ›、品項卡右上角小 i。用字元不用 SVG（xmlns 帶 http:// 會撞契約）
+  assert.match(html, /\.log-parts \.row::after\{content:"\\203A"/);
+  assert.match(html, /\.item-card \.shot-wrap::after\{content:"i"/);
+  assert.doesNotMatch(html, /\\2139/, "那顆 teal 的 ⓘ 已經被退貨，不該再出現");
 
   const seed = plain(app.helpers.seed());
   const red = seed.items.find((row) => row.id === "item-fushou-red");
