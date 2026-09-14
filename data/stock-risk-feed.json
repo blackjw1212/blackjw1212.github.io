@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-09-14T07:59:22.787Z",
-  "eodUpdatedAt": "2026-09-14T07:59:22.787Z",
+  "updatedAt": "2026-09-14T14:47:33.492Z",
+  "eodUpdatedAt": "2026-09-14T14:47:33.492Z",
   "eodTradingDate": "2026-09-14",
   "holdings": [
     "2330",
@@ -199,11 +199,11 @@
   "errors": [
     {
       "source": "TPEX OpenAPI daily close quotes",
-      "message": "fetch failed"
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes returned HTTP 520"
     },
     {
       "source": "TPEX OpenAPI peratio analysis",
-      "message": "fetch failed"
+      "message": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis returned HTTP 520"
     },
     {
       "source": "feed-preservation",
