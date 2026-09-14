@@ -136,16 +136,33 @@
   .row-spec{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
   .row-conv{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--teal);font-weight:700;white-space:nowrap}
   /* 品項備註要看得完，不要 ellipsis：現場翻紀錄就是為了看當初寫了什麼。 */
-  .row-note{font-size:12px;color:var(--soft);line-height:1.45;margin-top:2px}
-  /* 成分表是包裝上抄的，用比備註更淡的字，跟自己寫的東西分得開。
-     預設收起來、點圖片才展開——紀錄頁一列七行被撐爆過。備註預設只留兩行，
-     展開時一起放完整。 */
-  .ingr{font-size:11px;color:var(--faint);line-height:1.4;display:none}
-  .row.open .ingr,.item-card.open .ingr{display:block}
-  .row-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
-  .row.open .row-note{display:block;-webkit-line-clamp:unset;line-clamp:unset;overflow:visible}
-  [data-toggle]{cursor:pointer}
-  [data-toggle]:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+  /* 品項層的東西（整包重量、價格、成分、備註）不印在紀錄列上——同一包紅餌出現在
+     三份配方就會印三次，列高被文字撐爆過一次。列只留數字，完整內容進彈出卡。 */
+  [data-sheet]{cursor:pointer}
+  [data-sheet]:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
+  /* 右下角一顆 ⓘ 讓人知道圖能點。用字元不用 SVG——SVG 的 xmlns 帶 http://，撞契約。 */
+  .shot-wrap{position:relative;flex:0 0 auto;display:block}
+  .shot-wrap::after{content:"\2139";position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;background:var(--teal);color:#0d1417;font-size:12px;font-weight:900;line-height:18px;text-align:center;pointer-events:none}
+  .item-card .shot-wrap{width:100%}
+  .item-card .shot-wrap::after{right:6px;bottom:6px}
+
+  /* 彈出卡：手機從底部滑上來、桌機置中。backdrop 是 flex，所以 hidden 屬性一定要用
+     !important 壓回去——/sky/ 踩過帶 class 的 display 宣告蓋掉 hidden。 */
+  [hidden]{display:none !important}
+  .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+  .sheet{width:100%;max-height:85dvh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px 12px 0 0;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .sheet-shot{width:100%;max-width:200px;aspect-ratio:1/1;object-fit:cover;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);align-self:center}
+  .sheet-shot.noimg{display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:13px}
+  .sheet h3{font-size:16px;margin:0}
+  .sheet .spec{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--faint)}
+  .sheet-body{display:flex;flex-direction:column;gap:8px}
+  .sheet-block{font-size:13px;color:var(--soft);line-height:1.5}
+  .sheet-block b{color:var(--faint);font-weight:700;font-size:12px;display:block;margin-bottom:2px}
+  .sheet .btn{align-self:flex-end}
+  @media (min-width:641px){
+    .sheet-backdrop{align-items:center}
+    .sheet{width:min(480px,calc(100% - 32px));border-radius:12px}
+  }
   /* 配方備註同理。textarea 預設固定高度會把長段落截在框裡（要捲才看得到），
      所以渲染後把高度撐到 scrollHeight。 */
   .log-body textarea{overflow:hidden;resize:none}
@@ -323,6 +340,20 @@
       <li>整頁在瀏覽器裡運算，不上傳任何東西，也沒有帳號。</li>
     </ul>
   </footer>
+
+  <div class="sheet-backdrop" id="itemSheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <img class="sheet-shot" id="sheetShot" alt="" hidden>
+      <div class="sheet-shot noimg" id="sheetShotNone" hidden>沒有照片</div>
+      <div class="sheet-body">
+        <h3 id="sheetTitle"></h3>
+        <div class="spec" id="sheetSpec"></div>
+        <div class="sheet-block" id="sheetIngr" hidden></div>
+        <div class="sheet-block" id="sheetNote" hidden></div>
+      </div>
+      <button class="btn" id="sheetClose" type="button">關閉</button>
+    </div>
+  </div>
 </main>
 <script>
 (function () {
@@ -849,36 +880,84 @@
 
   /* 開餌與紀錄共用同一顆大圖。沒有照片時給同尺寸的佔位框而不是空字串——
      少了它右邊的內容會往左跳，一排列高高低低對不齊。 */
-  /* toggle=true 時圖片變成開關：點一下展開成分與完整備註。加 role/tabindex 是給
-     鍵盤與螢幕閱讀器用的；圖片本身 72px，觸控目標不用另外撐。 */
-  function shotTag(item, toggle) {
-    var extra = toggle ? ' data-toggle="1" role="button" tabindex="0" aria-expanded="false" aria-label="展開成分與備註"' : "";
-    if (!item || !item.imageUrl) return '<div class="row-shot noimg"' + extra + ">沒有<br>照片</div>";
-    return '<img class="row-shot" src="' + esc(item.imageUrl) + '" alt=""' + extra + ">";
+  function shotTag(item) {
+    if (!item || !item.imageUrl) return '<div class="row-shot noimg">沒有<br>照片</div>';
+    return '<img class="row-shot" src="' + esc(item.imageUrl) + '" alt="">';
   }
 
-  /* 展開／收合：把開關所在的 .row 或 .item-card 加上 .open。用委派綁在容器上，
-     每次重繪不必重綁。 */
-  function bindToggles(node) {
-    if (!node || node.__toggleBound) return;
-    node.__toggleBound = true;
-    var flip = function (target) {
-      var host = target.closest(".row, .item-card");
-      if (!host) return;
-      var open = !host.classList.contains("open");
-      host.classList.toggle("open", open);
-      target.setAttribute("aria-expanded", open ? "true" : "false");
-    };
+  /* 包一層可點的容器，點了開品項彈出卡。圖片本身 72px 以上，觸控目標不用另外撐。 */
+  function sheetShot(item, cls) {
+    /* 品項卡傳的是品項（id），紀錄列傳的是 recipeParts 的列（itemId）——第一版只讀 id，
+       紀錄列的 data-sheet 全是 "undefined"，點了沒反應而且沒有任何錯誤。 */
+    var id = item.itemId || item.id;
+    var inner = item && item.imageUrl
+      ? '<img class="' + cls + '" src="' + esc(item.imageUrl) + '" alt="">'
+      : '<div class="' + cls + ' noimg">沒有<br>照片</div>';
+    return '<span class="shot-wrap" data-sheet="' + esc(id) + '" role="button" tabindex="0" aria-label="看「' + esc(item.name) + '」的成分與備註">' + inner + "</span>";
+  }
+
+  /* 委派綁在容器上，重繪不必重綁。點圖或名稱都開卡。 */
+  function bindSheetTriggers(node) {
+    if (!node || node.__sheetBound) return;
+    node.__sheetBound = true;
     node.addEventListener("click", function (event) {
-      var target = event.target.closest("[data-toggle]");
-      if (target) flip(target);
+      var target = event.target.closest("[data-sheet]");
+      if (target) openSheet(target.getAttribute("data-sheet"), target);
     });
     node.addEventListener("keydown", function (event) {
       if (event.key !== "Enter" && event.key !== " ") return;
-      var target = event.target.closest("[data-toggle]");
+      var target = event.target.closest("[data-sheet]");
       if (!target) return;
       event.preventDefault();
-      flip(target);
+      openSheet(target.getAttribute("data-sheet"), target);
+    });
+  }
+
+  var sheetReturnFocus = null;
+
+  function openSheet(itemId, trigger) {
+    var item = itemsById()[itemId];
+    var backdrop = $("itemSheet");
+    if (!item || !backdrop) return;
+    sheetReturnFocus = trigger || null;
+    var shot = $("sheetShot");
+    var holder = $("sheetShotNone");
+    if (item.imageUrl) { shot.src = item.imageUrl; shot.hidden = false; holder.hidden = true; }
+    else { shot.removeAttribute("src"); shot.hidden = true; holder.hidden = false; }
+    $("sheetTitle").textContent = item.name;
+    var spec = [];
+    if (item.packWeightG !== null) spec.push("整包 " + item.packWeightG + " g");
+    if (item.unitPrice !== null) spec.push("$" + item.unitPrice);
+    var per100 = pricePer100g(item);
+    if (per100 !== null) spec.push("每 100g $" + money(per100));
+    $("sheetSpec").textContent = spec.length ? spec.join("　") : "重量與價格未填";
+    var ingr = $("sheetIngr");
+    ingr.hidden = !item.ingredients;
+    ingr.innerHTML = item.ingredients ? "<b>成分</b>" + esc(item.ingredients) : "";
+    var note = $("sheetNote");
+    note.hidden = !item.notes;
+    note.innerHTML = item.notes ? "<b>備註</b>" + esc(item.notes) : "";
+    backdrop.hidden = false;
+    $("sheetClose").focus();
+  }
+
+  function closeSheet() {
+    var backdrop = $("itemSheet");
+    if (!backdrop || backdrop.hidden) return;
+    backdrop.hidden = true;
+    if (sheetReturnFocus && typeof sheetReturnFocus.focus === "function") sheetReturnFocus.focus();
+    sheetReturnFocus = null;
+  }
+
+  function bindSheet() {
+    var backdrop = $("itemSheet");
+    if (!backdrop) return;
+    $("sheetClose").addEventListener("click", closeSheet);
+    backdrop.addEventListener("click", function (event) {
+      if (event.target === backdrop) closeSheet();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeSheet();
     });
   }
 
@@ -1454,13 +1533,10 @@
       var per100 = pricePer100g(item);
       if (per100 !== null) spec.push("每 100g $" + money(per100));
       html += '<div class="item-card">'
-        + (item.imageUrl
-          ? '<img class="shot" src="' + esc(item.imageUrl) + '" alt="" data-toggle="1" role="button" tabindex="0" aria-expanded="false" aria-label="展開成分">'
-          : '<div class="shot noimg" data-toggle="1" role="button" tabindex="0" aria-expanded="false" aria-label="展開成分">沒有照片</div>')
+        + sheetShot(item, "shot")
         + '<div class="body">'
-        + '<div class="nm">' + esc(item.name) + "</div>"
+        + '<div class="nm" data-sheet="' + esc(item.id) + '">' + esc(item.name) + "</div>"
         + '<div class="spec">' + (spec.length ? esc(spec.join("　")) : "重量與價格未填") + "</div>"
-        + (item.ingredients ? '<div class="ingr">成分：' + esc(item.ingredients) + "</div>" : "")
         + "<div>" + (item.flavorProfile.length ? item.flavorProfile.map(function (flavor) {
           return '<span class="tag">' + esc(flavor) + "</span>";
         }).join(" ") : "") + "</div>"
@@ -1469,7 +1545,7 @@
         + "</div></div>";
     }
     node.innerHTML = html;
-    bindToggles(node);
+    bindSheetTriggers(node);
     var buttons = node.querySelectorAll("button");
     for (var j = 0; j < buttons.length; j += 1) {
       buttons[j].addEventListener("click", function (event) {
@@ -1613,12 +1689,10 @@
         var grams = part.unit === "克" ? null : usedGrams(part, part);
         var amountText = formatAmount(part.amount, part.unit)
           + (part.unit === "克" ? "" : "　＝ " + (grams === null ? "換不成克" : money(grams) + " g"));
-        partsHtml += '<li class="row with-media">' + shotTag(part, true)
-          + '<div class="row-main"><div class="row-name">' + esc(part.name) + "</div>"
+        partsHtml += '<li class="row with-media">' + sheetShot(part, "row-shot")
+          + '<div class="row-main"><div class="row-name" data-sheet="' + esc(part.itemId) + '">' + esc(part.name) + "</div>"
           + '<div class="row-amt">' + esc(amountText) + "</div>"
           + '<div class="row-spec">' + (spec.length ? esc(spec.join("　")) : "重量與價格未填") + "</div>"
-          + (part.ingredients ? '<div class="ingr">成分：' + esc(part.ingredients) + "</div>" : "")
-          + (part.notes ? '<div class="row-note">' + esc(part.notes) + "</div>" : "")
           + "</div></li>";
       }
       if (parts.missing.length) {
@@ -1708,7 +1782,7 @@
   }
 
   function bindLogControls(node) {
-    bindToggles(node);
+    bindSheetTriggers(node);
     var areas = node.querySelectorAll("textarea");
     for (var j = 0; j < areas.length; j += 1) {
       autoGrow(areas[j]);
@@ -1882,6 +1956,7 @@
     bindMix();
     bindItems();
     bindIo();
+    bindSheet();
     for (var pair of [["tabMix", "mix"], ["tabItems", "items"], ["tabLog", "log"]]) {
       (function (id, name) {
         var node = $(id);

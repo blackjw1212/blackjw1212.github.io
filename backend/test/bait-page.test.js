@@ -354,7 +354,8 @@ test("紀錄的組成在寬螢幕要能一列放多項，備註要完整顯示",
   assert.match(html, /lc-sub/, "總重與每 100g 是註腳");
   assert.doesNotMatch(html, /mix-total/, "不該再有獨立的合計列");
   assert.match(html, /cost-note/, "少算了哪幾列要說出來");
-  assert.match(html, /row-note/, "組成列要顯示品項備註");
+  // 品項備註不再印在組成列上（列高被撐爆過），改進彈出卡
+  assert.match(html, /id="sheetNote"/, "品項備註要在彈出卡裡");
 });
 
 test("每 100 克單價：兩欄都填了才算得出來", async () => {
@@ -493,8 +494,8 @@ test("開餌列要看得到包裝重量與換算後的克數", async () => {
   const { html } = await loadPage();
   assert.match(html, /row-conv/, "開餌列要顯示換算後的克數");
   // 決定加幾包時要看得到這包多重、單價多少，否則只能憑印象
-  assert.equal((html.match(/整包 " \+ (?:item|part)\.packWeightG/g) || []).length, 2,
-    "開餌與紀錄兩處都要顯示整包重量");
+  assert.equal((html.match(/整包 " \+ (?:item|part)\.packWeightG/g) || []).length, 3,
+    "開餌列、紀錄列、彈出卡三處都要顯示整包重量");
 });
 
 // 使用者實際回報的問題：加了新品項就得按「重新載入預設資料」，而那會把自己存的
@@ -608,7 +609,14 @@ test("成分表：獨立欄位，上限 300，空的會被預設資料補上", a
   assert.equal(plain(app.helpers.sanitizeItem({ name: "x" })).ingredients, "", "沒填是空字串");
   assert.equal(plain(app.helpers.sanitizeItem({ name: "x", ingredients: "a".repeat(400) })).ingredients.length, 300);
   assert.match(html, /id="itemIngredients"/, "表單要有成分表欄位");
-  assert.match(html, /class="ingr"/, "卡片與紀錄列要顯示成分");
+  // 品項層的 prose 不印在紀錄列與品項卡上——列高被文字撐爆過。完整內容走彈出卡。
+  assert.match(html, /id="sheetIngr"/, "成分要在彈出卡裡");
+  assert.match(html, /function openSheet\(/);
+  assert.doesNotMatch(html, /class="ingr"|row-note|data-toggle|bindToggles/, "原地展開那套不該殘留");
+  // backdrop 是 flex，帶 class 的 display 會蓋掉 hidden 屬性——/sky/ 踩過
+  assert.match(html, /\[hidden\]\{display:none !important\}/);
+  // 讓人知道圖能點：用字元 ⓘ，不用 SVG（xmlns 帶 http:// 會撞契約）
+  assert.match(html, /\.shot-wrap::after\{content:"\\2139"/);
 
   const seed = plain(app.helpers.seed());
   const red = seed.items.find((row) => row.id === "item-fushou-red");
