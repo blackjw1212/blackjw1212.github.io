@@ -643,11 +643,13 @@ vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外
   要可選取的 PDF 只能走 DOCX→HTML 再讓使用者自己列印。
 - **CSV 沒有自述編碼**，台灣的 Big5 檔用 UTF-8 讀會整片亂碼。頁面給編碼選單
   （`TextDecoder('big5')` 瀏覽器原生支援），輸出的 CSV 一律補 UTF-8 BOM。
-- **丟入即轉、轉完即下載（2026-09-14 改版）。** `addFiles()` 尾端
-  `if (!runBtn.disabled) { run(); }` 就是「丟入就轉」的全部實作；`run()` 成功後 `deliver()`
-  ——一個結果直接 `<a download>` click，**多個結果走一個 zip**（瀏覽器對一次觸發多個
-  下載會擋，使用者也不想按十次允許）。清單裡每列的「下載」是被擋掉時的退路。
-  `convert-page.test.js` 用 regex 釘住這三段，別「順手」重構成別的形狀。
+- **丟入 → 先選格式 → 點了才轉、轉完即下載（2026-09-14 改版，同日改過一次）。**
+  第一版是丟入就自動轉並下載，使用者當天退回：「應該要先讓我選格式後再下載」。
+  所以 `addFiles()` **只判斷格式、列出 chips，不呼叫 `run()`**（測試用 `doesNotMatch` 釘住）；
+  建議的那顆只掛「建議」小標，沒有任何一顆是亮的——亮著會讓人以為已經在轉了。
+  點 chip → `run()` → 成功後 `deliver()`：一個結果直接 `<a download>` click，
+  **多個結果走一個 zip**（瀏覽器對一次觸發多個下載會擋，使用者也不想按十次允許）。
+  清單裡每列的「下載」是被擋掉時的退路。
 - **輸出格式的 chips 只是 `#targetSelect` 的視覺**：state 仍在那個（`.sr-only`）`<select>`，
   `run()`/`renderLimits()`/`syncOptions()` 全讀它，chip 點下去只是改值、dispatch change、跑。
   `#runBtn` 也還在（隱藏），因為 `run()` 的 finally 用它的 `disabled` 當「可不可以跑」的旗標。

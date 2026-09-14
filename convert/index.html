@@ -83,6 +83,7 @@
   .chip{min-height:44px;border:1px solid rgba(103,199,229,.35);border-radius:8px;background:var(--surface);color:var(--soft);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;padding:10px 16px;cursor:pointer}
   .chip:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
   .chip.on{border-color:var(--teal);color:var(--teal);background:#16221f}
+  .chip small{margin-left:8px;font-size:10px;color:var(--amber);font-weight:800}
   .chip:disabled{opacity:.45;cursor:not-allowed}
   .chips-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
   .chips-head h2{font-size:15px;letter-spacing:0}
@@ -167,7 +168,7 @@
   <section class="hero">
     <div class="eyebrow">UNIVERSAL CONVERTER</div>
     <h1>丟檔案進來，它自己知道要轉成什麼</h1>
-    <p class="lead">全部運算都在瀏覽器完成，檔案不會離開這台裝置。丟入就轉、轉完就下載；想換格式再點下面的按鈕。</p>
+    <p class="lead">全部運算都在瀏覽器完成，檔案不會離開這台裝置。丟入後選一個輸出格式，轉完直接下載。</p>
   </section>
 
   <section class="group" aria-label="轉檔">
@@ -881,14 +882,22 @@
 
     /* chips 只是 targetSelect 的視覺：真正的 state 仍在 <select> 裡，
        run()/renderLimits()/syncOptions() 全部讀它，chip 點下去只是改它的值再跑。 */
-    function renderChips() {
+    /* chosen：使用者已經點過（或正在跑）的那顆才亮；剛丟入時只有「建議」標籤，
+       沒有任何一顆是亮的——亮著會讓人以為已經在轉了。 */
+    function renderChips(chosen) {
       targetChips.innerHTML = "";
+      var suggested = targetSelect.getAttribute("data-suggested") || "";
       Array.prototype.forEach.call(targetSelect.options, function (opt) {
         if (!opt.value) { return; }
         var chip = document.createElement("button");
         chip.type = "button";
-        chip.className = "chip" + (opt.value === targetSelect.value ? " on" : "");
+        chip.className = "chip" + (chosen && opt.value === targetSelect.value ? " on" : "");
         chip.textContent = opt.textContent;
+        if (opt.value === suggested) {
+          var tag = document.createElement("small");
+          tag.textContent = "建議";
+          chip.appendChild(tag);
+        }
         chip.setAttribute("data-target", opt.value);
         chip.disabled = busy;
         chip.addEventListener("click", function () {
@@ -953,19 +962,20 @@
       var preset = defaultTargetFor(kind, entries.length);
       if (targets.indexOf(preset) < 0) { preset = targets[0]; }
       targetSelect.value = preset;
+      targetSelect.setAttribute("data-suggested", preset);
       targetSelect.disabled = false;
       runBtn.disabled = false;
-      targetState.textContent = "自動選了「" + targetLabel(preset) + "」";
-      renderChips();
+      targetState.textContent = "建議「" + targetLabel(preset) + "」，點一顆格式開始";
+      renderChips(false);
       renderLimits(kind, preset);
       syncOptions(kind, preset);
-      setState(runState, "準備就緒", "");
+      setState(runState, "點一個格式，轉完直接下載", "");
     }
 
     /* replace=true 用在 <input type=file> 的 change：那個 FileList 就是使用者這次
        的完整選擇，再選一次是「改選」不是「加選」。拖放才是加選。
-       丟入即轉：refreshTargets 決定得出預設輸出（同格式、有目標）就直接跑；
-       混合格式或不支援時 runBtn 會是 disabled，停在原本那句錯誤提示。 */
+       丟入之後**不會自動轉**：只判斷格式、列出可選的輸出，等使用者點一顆格式
+       才轉並下載（2026-09-14 使用者明確要求先選格式再下載）。 */
     async function addFiles(list, replace) {
       var incoming = Array.prototype.slice.call(list || []);
       if (!incoming.length) { return; }
@@ -979,7 +989,6 @@
       clearBtn.disabled = entries.length === 0;
       renderFiles();
       refreshTargets();
-      if (!runBtn.disabled) { run(); }
     }
 
     function clearAll() {
@@ -1653,7 +1662,7 @@
       renderLimits(summary.uniform, targetSelect.value);
       syncOptions(summary.uniform, targetSelect.value);
       targetState.textContent = "輸出：" + targetLabel(targetSelect.value);
-      renderChips();
+      renderChips(true);
     });
 
     /* 拖放綁在整個 document：丟到頁面任何地方都算。
