@@ -235,6 +235,21 @@ test("這一頁不對外連線：沒有任何跨來源網址、也沒有自己�
   assert.doesNotMatch(html, /<form\b/);
 });
 
+test("丟入即轉：拖放區整塊可點，選檔後不必再按任何鈕", async () => {
+  const html = await readPage();
+  // 拖放區是 <label for="fileInput">，整塊都是命中區；input 藏起來但仍可由鍵盤觸達。
+  assert.match(html, /<label class="drop" id="dropZone" for="fileInput">\s*<input type="file" id="fileInput" class="sr-only"/);
+  // addFiles 決定得出預設輸出就直接 run()——這是「丟入就轉」的全部實作，別被拿掉。
+  assert.match(html, /refreshTargets\(\);\s*if \(!runBtn\.disabled\) \{ run\(\); \}/);
+  // 轉完直接送下載；多個輸出走一個 zip。
+  assert.match(html, /if \(delivered\) \{ deliver\(\); \}/);
+  assert.match(html, /if \(results\.length === 1\) \{ triggerDownload\(results\[0\]\.blob, results\[0\]\.name\); return; \}\s*downloadZip\(\);/);
+  // 拖放綁在 document，不是只有那個框。
+  assert.match(html, /document\.addEventListener\("drop"/);
+  // 說明收在最底下的 <details>，五個揭露字串仍在（上一條測試釘住）。
+  assert.match(html, /<details class="about" id="about">/);
+});
+
 test("vendor 走同源相對路徑，不是 CDN", async () => {
   const html = await readPage();
   assert.match(html, /var VENDOR = "\/convert\/vendor\/";/);

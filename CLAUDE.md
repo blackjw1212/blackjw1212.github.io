@@ -643,8 +643,21 @@ vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外
   要可選取的 PDF 只能走 DOCX→HTML 再讓使用者自己列印。
 - **CSV 沒有自述編碼**，台灣的 Big5 檔用 UTF-8 讀會整片亂碼。頁面給編碼選單
   （`TextDecoder('big5')` 瀏覽器原生支援），輸出的 CSV 一律補 UTF-8 BOM。
-- **`<input type=file>` 的 change 是「改選」不是「加選」**，拖放才是加選。
-  兩者共用 `addFiles(list, replace)`。
+- **丟入即轉、轉完即下載（2026-09-14 改版）。** `addFiles()` 尾端
+  `if (!runBtn.disabled) { run(); }` 就是「丟入就轉」的全部實作；`run()` 成功後 `deliver()`
+  ——一個結果直接 `<a download>` click，**多個結果走一個 zip**（瀏覽器對一次觸發多個
+  下載會擋，使用者也不想按十次允許）。清單裡每列的「下載」是被擋掉時的退路。
+  `convert-page.test.js` 用 regex 釘住這三段，別「順手」重構成別的形狀。
+- **輸出格式的 chips 只是 `#targetSelect` 的視覺**：state 仍在那個（`.sr-only`）`<select>`，
+  `run()`/`renderLimits()`/`syncOptions()` 全讀它，chip 點下去只是改值、dispatch change、跑。
+  `#runBtn` 也還在（隱藏），因為 `run()` 的 finally 用它的 `disabled` 當「可不可以跑」的旗標。
+- **拖放綁在 `document`，不是那個框**：丟到頁面任何地方都算，用 `dragDepth` 計數處理
+  dragenter/dragleave 的巢狀觸發。**已經有一批轉完再丟＝換一批**（`replace = results.length > 0`），
+  跟 `<input type=file>` 的 change 語意對齊；還沒轉過就丟第二次才是加選。
+  拖放區是 `<label for="fileInput">`，整塊可點；丟入後加 `.filled` 縮起來，拖曳中再以 `.hot` 暫時露出。
+- **說明收在頁尾的 `<details class="about">`**。五個被靜態契約釘住的揭露字串在裡面，
+  逐字搬移不改；hero 的 lead 另外再講一次「全部運算都在瀏覽器完成，檔案不會離開這台裝置」
+  讓首屏也看得到。
 - **一批只處理同一種來源格式**：混合時直接停下來說「無法決定輸出」，不猜。
 - **不做影音**：`@ffmpeg/core` 單執行緒版 unpacked 61.69 MB，而 GitHub Pages 送不出
   COOP/COEP，多執行緒在這裡開不起來。UI 上沒有假裝支援。

@@ -65,8 +65,39 @@
   .state.ok{color:var(--green)}
   .hint{margin-top:10px;color:var(--faint);font-size:12px}
   input[type=file]{color:var(--soft);font-size:13px;max-width:100%}
-  .drop{border:1px dashed var(--line);border-radius:8px;background:var(--surface);padding:18px;text-align:center;color:var(--faint);font-size:13px}
-  .drop.hot{border-color:var(--teal);color:var(--teal)}
+  .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  /* 拖放區就是整個主面板：label 包住隱藏的 file input，整塊可點也可丟。
+     丟入之後加 .filled 縮成一列檔名，讓輸出列升到首屏。 */
+  .drop{display:grid;place-items:center;min-height:min(46vh,360px);border:2px dashed var(--line);border-radius:10px;background:var(--surface);padding:24px;text-align:center;color:var(--soft);cursor:pointer;transition:border-color .15s,background-color .15s}
+  .drop:hover,.drop:focus-within{border-color:rgba(66,184,168,.6)}
+  .drop.hot{border-color:var(--teal);background:#16221f;color:var(--teal)}
+  .drop-title{display:block;font-size:clamp(18px,2.6vw,24px);font-weight:800;color:var(--ink)}
+  .drop-sub{display:block;max-width:560px;margin:8px auto 0;color:var(--faint);font-size:13px}
+  .drop.hot .drop-title{color:var(--teal)}
+  .drop.filled{display:none}
+  .drop.filled.hot{display:grid;min-height:120px;margin-bottom:14px}
+  .picked{display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .picked.on{display:flex}
+  .picked .files{flex:1 1 320px;margin-top:0}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{min-height:44px;border:1px solid rgba(103,199,229,.35);border-radius:8px;background:var(--surface);color:var(--soft);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;padding:10px 16px;cursor:pointer}
+  .chip:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+  .chip.on{border-color:var(--teal);color:var(--teal);background:#16221f}
+  .chip:disabled{opacity:.45;cursor:not-allowed}
+  .chips-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .chips-head h2{font-size:15px;letter-spacing:0}
+  .fold{margin-top:14px;border-top:1px solid var(--line)}
+  .fold summary{min-height:44px;display:flex;align-items:center;padding:10px 0;cursor:pointer;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;list-style:none}
+  .fold summary::before{content:"▸";margin-right:8px;font-size:11px}
+  .fold[open] summary::before{content:"▾"}
+  .fold summary::-webkit-details-marker{display:none}
+  .about{margin-top:26px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:0 16px}
+  .about summary{min-height:44px;display:flex;align-items:center;padding:12px 0;cursor:pointer;font-weight:700;font-size:14px;list-style:none}
+  .about summary::before{content:"▸";margin-right:8px;color:var(--amber);font-size:11px}
+  .about[open] summary::before{content:"▾"}
+  .about summary::-webkit-details-marker{display:none}
+  .about .lead{margin-top:0}
+  .about .notes{padding-bottom:16px}
   .picker{display:flex;align-items:center;gap:8px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
   .picker select,.picker input{border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:12px;padding:8px 10px}
   .picker input[type=number]{width:96px}
@@ -136,6 +167,106 @@
   <section class="hero">
     <div class="eyebrow">UNIVERSAL CONVERTER</div>
     <h1>丟檔案進來，它自己知道要轉成什麼</h1>
+    <p class="lead">全部運算都在瀏覽器完成，檔案不會離開這台裝置。丟入就轉、轉完就下載；想換格式再點下面的按鈕。</p>
+  </section>
+
+  <section class="group" aria-label="轉檔">
+    <div class="panel">
+      <label class="drop" id="dropZone" for="fileInput">
+        <input type="file" id="fileInput" class="sr-only" multiple aria-label="選擇要轉換的檔案">
+        <span>
+          <span class="drop-title">把檔案丟進來，或點這裡選檔</span>
+          <span class="drop-sub" id="fileHint">JPG／PNG／WebP／GIF／BMP／AVIF／HEIC／TIFF／SVG、PDF、DOCX、XLSX／CSV。一次可以丟多個同類型的檔案。</span>
+        </span>
+      </label>
+      <div class="picked" id="picked">
+        <div class="files" id="fileList"></div>
+        <button type="button" class="btn small" id="clearBtn" disabled>清除，換別的檔</button>
+      </div>
+
+      <div class="fold-body" id="convertBody" hidden>
+        <div class="chips-head" style="margin-top:16px">
+          <h2 id="kindState">尚未選檔</h2>
+          <span class="state" id="runState">尚未開始</span>
+        </div>
+        <div class="chips" id="targetChips" aria-label="輸出格式"></div>
+        <label class="picker sr-only" for="targetSelect">輸出
+          <select id="targetSelect" disabled aria-label="輸出格式"><option value="">先選檔案</option></select>
+        </label>
+        <button type="button" class="btn primary sr-only" id="runBtn" disabled tabindex="-1" aria-hidden="true">開始轉檔</button>
+        <span class="sr-only" id="targetState">等待檔案</span>
+
+        <div class="limits" id="limitList"></div>
+        <div class="bars" id="progressBars"></div>
+
+        <div class="row" style="margin-top:14px">
+          <span class="state" id="resultState">尚無結果</span>
+          <button type="button" class="btn small" id="zipBtn" disabled hidden>打包成 ZIP 再下載一次</button>
+          <span class="state" id="zipState"></span>
+        </div>
+        <div class="results" id="resultList"><p class="empty">還沒有輸出檔案。</p></div>
+
+        <details class="fold" id="advanced">
+          <summary>進階選項（改完再點一次上面的格式）</summary>
+          <div class="opts" id="optionRow">
+            <label class="picker opt" id="optQuality" for="qualityInput">品質
+              <input type="number" id="qualityInput" min="10" max="100" step="1" value="92" aria-label="輸出品質百分比">
+            </label>
+            <label class="picker opt" id="optResize" for="maxEdgeInput">最長邊上限 px
+              <input type="number" id="maxEdgeInput" min="0" max="20000" step="1" value="0" aria-label="最長邊像素上限，0 表示不縮放">
+            </label>
+            <label class="picker opt" id="optBackground" for="bgInput">透明區填色
+              <input type="text" id="bgInput" value="#ffffff" aria-label="透明區域要填的顏色">
+            </label>
+            <label class="picker opt" id="optPdfPage" for="pdfPageSelect">頁面尺寸
+              <select id="pdfPageSelect" aria-label="輸出 PDF 的頁面尺寸">
+                <option value="a4" selected>A4 直向／橫向自動</option>
+                <option value="image">跟著原圖尺寸</option>
+              </select>
+            </label>
+            <label class="picker opt" id="optPdfImage" for="pdfImageSelect">內嵌方式
+              <select id="pdfImageSelect" aria-label="圖片內嵌 PDF 的方式">
+                <option value="jpeg" selected>JPEG（檔案小，透明填色）</option>
+                <option value="png">PNG（保留透明，檔案大）</option>
+              </select>
+            </label>
+            <label class="picker opt" id="optDpi" for="dpiSelect">解析度
+              <select id="dpiSelect" aria-label="PDF 轉圖片的解析度">
+                <option value="96">96 dpi（螢幕）</option>
+                <option value="150" selected>150 dpi</option>
+                <option value="300">300 dpi（列印）</option>
+              </select>
+            </label>
+            <label class="picker opt" id="optPages" for="pageSpecInput">頁碼
+              <input type="text" id="pageSpecInput" value="" placeholder="例 1-3,5,8-" aria-label="頁碼範圍，留空表示全部">
+            </label>
+            <label class="picker opt" id="optPageAction" for="pageActionSelect">頁碼處理
+              <select id="pageActionSelect" aria-label="對指定頁碼的處理方式">
+                <option value="keep" selected>只保留這些頁</option>
+                <option value="drop">刪掉這些頁</option>
+              </select>
+            </label>
+            <label class="picker opt" id="optRotate" for="rotateSelect">旋轉
+              <select id="rotateSelect" aria-label="順時針旋轉角度">
+                <option value="90" selected>順時針 90°</option>
+                <option value="180">180°</option>
+                <option value="270">逆時針 90°</option>
+              </select>
+            </label>
+            <label class="picker opt" id="optEncoding" for="encodingSelect">CSV 編碼
+              <select id="encodingSelect" aria-label="讀取 CSV 時使用的編碼">
+                <option value="utf-8" selected>UTF-8</option>
+                <option value="big5">Big5</option>
+              </select>
+            </label>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <details class="about" id="about">
+    <summary>這一頁怎麼運作、會失去什麼</summary>
     <p class="lead">圖片互轉、PDF 進出、Word 與試算表。選好檔案後會先讀檔頭判斷真正的格式，再挑一個常用的輸出當預設；不同意就自己改。全部運算都在瀏覽器完成。</p>
     <div class="notes">
       <p class="note privacy"><b>PRIVACY</b><span>檔案不會離開這台裝置。沒有上傳、沒有後端、沒有任何伺服器看得到你的檔案；這一頁對外唯一會抓的東西是它自己的函式庫，而且是從本站抓的。</span></p>
@@ -145,100 +276,7 @@
       <p class="note"><b>FORMAT</b><span>可以讀 AVIF，但<b>不能輸出 AVIF</b>：瀏覽器的 canvas 至今無法編碼 AVIF。輸出只有 PNG、JPG、WebP 三種，而 WebP 在少數舊瀏覽器上會失敗，失敗時這裡會直說而不是默默給你一個 PNG。</span></p>
       <p class="note"><b>SIZE</b><span>各種格式的函式庫合計 11 MB（其中 HEIC 解碼器 2.9 MB、pdf.js 含中文 CMap 3.9 MB），<b>只有真的用到才會下載</b>——只轉圖片就不會去抓 PDF 引擎。下載過一次之後由瀏覽器快取。</span></p>
     </div>
-  </section>
-
-  <section class="group" aria-label="選擇檔案">
-    <div class="group-head"><h2>選擇檔案</h2><span id="kindState">尚未選檔</span></div>
-    <div class="panel">
-      <div class="row">
-        <input type="file" id="fileInput" multiple aria-label="選擇要轉換的檔案">
-        <button type="button" class="btn small" id="clearBtn" disabled>清除</button>
-      </div>
-      <div class="drop" id="dropZone">也可以把檔案拖進這個框</div>
-      <div class="files" id="fileList"></div>
-      <p class="hint" id="fileHint">支援：JPG／PNG／WebP／GIF／BMP／AVIF／HEIC／TIFF／SVG、PDF、DOCX、XLSX／CSV。一次可以丟多個同類型的檔案。</p>
-    </div>
-  </section>
-
-  <section class="group" aria-label="轉檔設定">
-    <div class="group-head"><h2>轉檔設定</h2><span id="targetState">等待檔案</span></div>
-    <div class="panel">
-      <div class="row">
-        <label class="picker" for="targetSelect">輸出
-          <select id="targetSelect" disabled aria-label="輸出格式"><option value="">先選檔案</option></select>
-        </label>
-        <button type="button" class="btn primary" id="runBtn" disabled>開始轉檔</button>
-        <span class="state" id="runState">尚未開始</span>
-      </div>
-
-      <div class="opts" id="optionRow">
-        <label class="picker opt" id="optQuality" for="qualityInput">品質
-          <input type="number" id="qualityInput" min="10" max="100" step="1" value="92" aria-label="輸出品質百分比">
-        </label>
-        <label class="picker opt" id="optResize" for="maxEdgeInput">最長邊上限 px
-          <input type="number" id="maxEdgeInput" min="0" max="20000" step="1" value="0" aria-label="最長邊像素上限，0 表示不縮放">
-        </label>
-        <label class="picker opt" id="optBackground" for="bgInput">透明區填色
-          <input type="text" id="bgInput" value="#ffffff" aria-label="透明區域要填的顏色">
-        </label>
-        <label class="picker opt" id="optPdfPage" for="pdfPageSelect">頁面尺寸
-          <select id="pdfPageSelect" aria-label="輸出 PDF 的頁面尺寸">
-            <option value="a4" selected>A4 直向／橫向自動</option>
-            <option value="image">跟著原圖尺寸</option>
-          </select>
-        </label>
-        <label class="picker opt" id="optPdfImage" for="pdfImageSelect">內嵌方式
-          <select id="pdfImageSelect" aria-label="圖片內嵌 PDF 的方式">
-            <option value="jpeg" selected>JPEG（檔案小，透明填色）</option>
-            <option value="png">PNG（保留透明，檔案大）</option>
-          </select>
-        </label>
-        <label class="picker opt" id="optDpi" for="dpiSelect">解析度
-          <select id="dpiSelect" aria-label="PDF 轉圖片的解析度">
-            <option value="96">96 dpi（螢幕）</option>
-            <option value="150" selected>150 dpi</option>
-            <option value="300">300 dpi（列印）</option>
-          </select>
-        </label>
-        <label class="picker opt" id="optPages" for="pageSpecInput">頁碼
-          <input type="text" id="pageSpecInput" value="" placeholder="例 1-3,5,8-" aria-label="頁碼範圍，留空表示全部">
-        </label>
-        <label class="picker opt" id="optPageAction" for="pageActionSelect">頁碼處理
-          <select id="pageActionSelect" aria-label="對指定頁碼的處理方式">
-            <option value="keep" selected>只保留這些頁</option>
-            <option value="drop">刪掉這些頁</option>
-          </select>
-        </label>
-        <label class="picker opt" id="optRotate" for="rotateSelect">旋轉
-          <select id="rotateSelect" aria-label="順時針旋轉角度">
-            <option value="90" selected>順時針 90°</option>
-            <option value="180">180°</option>
-            <option value="270">逆時針 90°</option>
-          </select>
-        </label>
-        <label class="picker opt" id="optEncoding" for="encodingSelect">CSV 編碼
-          <select id="encodingSelect" aria-label="讀取 CSV 時使用的編碼">
-            <option value="utf-8" selected>UTF-8</option>
-            <option value="big5">Big5</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="limits" id="limitList"></div>
-      <div class="bars" id="progressBars"></div>
-    </div>
-  </section>
-
-  <section class="group" aria-label="轉檔結果">
-    <div class="group-head"><h2>轉檔結果</h2><span id="resultState">尚無結果</span></div>
-    <div class="panel">
-      <div class="row">
-        <button type="button" class="btn" id="zipBtn" disabled>打包成 ZIP 下載</button>
-        <span class="state" id="zipState"></span>
-      </div>
-      <div class="results" id="resultList"><p class="empty">還沒有輸出檔案。</p></div>
-    </div>
-  </section>
+  </details>
 
   <p class="footnote">全部轉檔在瀏覽器內完成，沒有伺服器參與。轉出來的檔案請自己開起來確認過再拿去用。</p>
 </main>
@@ -766,6 +804,9 @@
     var zipBtn = document.getElementById("zipBtn");
     var zipState = document.getElementById("zipState");
     var docxStage = document.getElementById("docxStage");
+    var picked = document.getElementById("picked");
+    var convertBody = document.getElementById("convertBody");
+    var targetChips = document.getElementById("targetChips");
 
     var optionEls = {
       quality: document.getElementById("optQuality"),
@@ -838,11 +879,45 @@
       });
     }
 
+    /* chips 只是 targetSelect 的視覺：真正的 state 仍在 <select> 裡，
+       run()/renderLimits()/syncOptions() 全部讀它，chip 點下去只是改它的值再跑。 */
+    function renderChips() {
+      targetChips.innerHTML = "";
+      Array.prototype.forEach.call(targetSelect.options, function (opt) {
+        if (!opt.value) { return; }
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip" + (opt.value === targetSelect.value ? " on" : "");
+        chip.textContent = opt.textContent;
+        chip.setAttribute("data-target", opt.value);
+        chip.disabled = busy;
+        chip.addEventListener("click", function () {
+          if (busy) { return; }
+          targetSelect.value = opt.value;
+          targetSelect.dispatchEvent(new Event("change"));
+          run();
+        });
+        targetChips.appendChild(chip);
+      });
+    }
+
+    function showStage(hasFiles) {
+      dropZone.classList.toggle("filled", hasFiles);
+      picked.classList.toggle("on", hasFiles);
+      convertBody.hidden = !hasFiles;
+    }
+
+    function setChipsBusy(on) {
+      Array.prototype.forEach.call(targetChips.children, function (chip) { chip.disabled = on; });
+    }
+
     function refreshTargets() {
       var summary = summarizeKinds(entries);
       targetSelect.innerHTML = "";
+      targetChips.innerHTML = "";
       limitList.innerHTML = "";
       syncOptions("", "");
+      showStage(entries.length > 0);
 
       if (!entries.length) {
         kindState.textContent = "尚未選檔";
@@ -881,16 +956,20 @@
       targetSelect.disabled = false;
       runBtn.disabled = false;
       targetState.textContent = "自動選了「" + targetLabel(preset) + "」";
+      renderChips();
       renderLimits(kind, preset);
       syncOptions(kind, preset);
       setState(runState, "準備就緒", "");
     }
 
     /* replace=true 用在 <input type=file> 的 change：那個 FileList 就是使用者這次
-       的完整選擇，再選一次是「改選」不是「加選」。拖放才是加選。 */
+       的完整選擇，再選一次是「改選」不是「加選」。拖放才是加選。
+       丟入即轉：refreshTargets 決定得出預設輸出（同格式、有目標）就直接跑；
+       混合格式或不支援時 runBtn 會是 disabled，停在原本那句錯誤提示。 */
     async function addFiles(list, replace) {
       var incoming = Array.prototype.slice.call(list || []);
-      if (replace) { entries = []; }
+      if (!incoming.length) { return; }
+      if (replace) { entries = []; clearResults(); }
       for (var i = 0; i < incoming.length; i += 1) {
         var file = incoming[i];
         var head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
@@ -900,6 +979,7 @@
       clearBtn.disabled = entries.length === 0;
       renderFiles();
       refreshTargets();
+      if (!runBtn.disabled) { run(); }
     }
 
     function clearAll() {
@@ -917,6 +997,7 @@
       resultList.innerHTML = "<p class=\"empty\">還沒有輸出檔案。</p>";
       resultState.textContent = "尚無結果";
       zipBtn.disabled = true;
+      zipBtn.hidden = true;
       zipState.textContent = "";
     }
 
@@ -948,6 +1029,7 @@
       resultList.appendChild(row);
       resultState.textContent = results.length + " 個檔案";
       zipBtn.disabled = results.length < 2;
+      zipBtn.hidden = results.length < 2;
     }
 
     function progress(done, total, label) {
@@ -1508,19 +1590,42 @@
       }
       busy = true;
       runBtn.disabled = true;
+      setChipsBusy(true);
       clearResults();
       var started = Date.now();
       setState(runState, "轉檔中…", "");
+      var delivered = false;
       try {
         await dispatch(kind, target, readOptions());
-        setState(runState, "完成，耗時 " + describeElapsed(Date.now() - started), "ok");
+        setState(runState, "完成，耗時 " + describeElapsed(Date.now() - started) + "，已送出下載", "ok");
+        delivered = true;
       } catch (err) {
         progressBars.innerHTML = "";
         setState(runState, "失敗：" + (err && err.message ? err.message : String(err)), "error");
       } finally {
         busy = false;
         runBtn.disabled = entries.length === 0;
+        setChipsBusy(false);
       }
+      if (delivered) { deliver(); }
+    }
+
+    /* 同一個「a → click → 延遲 revoke」範式：同步 revoke 會安靜地取消剛觸發的下載。 */
+    function triggerDownload(blob, name) {
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    /* 轉完直接送下載。多個輸出走一個 zip——瀏覽器對一次觸發多個下載會擋，
+       而且使用者也不想按十次「允許」。清單裡每列的「下載」是被擋掉時的退路。 */
+    function deliver() {
+      if (!results.length) { return; }
+      if (results.length === 1) { triggerDownload(results[0].blob, results[0].name); return; }
+      downloadZip();
     }
 
     async function downloadZip() {
@@ -1531,13 +1636,8 @@
         var zip = new JSZip();
         results.forEach(function (item) { zip.file(item.name, item.blob); });
         var blob = await zip.generateAsync({ type: "blob" });
-        var url = URL.createObjectURL(blob);
-        var link = document.createElement("a");
-        link.href = url;
-        link.download = "converted.zip";
-        link.click();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-        zipState.textContent = formatBytes(blob.size);
+        triggerDownload(blob, "converted.zip");
+        zipState.textContent = "converted.zip · " + formatBytes(blob.size);
       } catch (err) {
         zipState.textContent = "打包失敗：" + (err && err.message ? err.message : String(err));
       }
@@ -1553,22 +1653,30 @@
       renderLimits(summary.uniform, targetSelect.value);
       syncOptions(summary.uniform, targetSelect.value);
       targetState.textContent = "輸出：" + targetLabel(targetSelect.value);
+      renderChips();
     });
 
-    ["dragenter", "dragover"].forEach(function (type) {
-      dropZone.addEventListener(type, function (event) {
-        event.preventDefault();
-        dropZone.className = "drop hot";
-      });
+    /* 拖放綁在整個 document：丟到頁面任何地方都算。
+       已經有一批轉完時再丟＝換一批（replace），跟 <input type=file> 的語意對齊；
+       還沒轉過就丟第二次才是加選。 */
+    var dragDepth = 0;
+    document.addEventListener("dragenter", function (event) {
+      event.preventDefault();
+      dragDepth += 1;
+      dropZone.classList.add("hot");
     });
-    ["dragleave", "drop"].forEach(function (type) {
-      dropZone.addEventListener(type, function (event) {
-        event.preventDefault();
-        dropZone.className = "drop";
-      });
+    document.addEventListener("dragover", function (event) { event.preventDefault(); });
+    document.addEventListener("dragleave", function () {
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) { dropZone.classList.remove("hot"); }
     });
-    dropZone.addEventListener("drop", function (event) {
-      if (event.dataTransfer && event.dataTransfer.files) { addFiles(event.dataTransfer.files); }
+    document.addEventListener("drop", function (event) {
+      event.preventDefault();
+      dragDepth = 0;
+      dropZone.classList.remove("hot");
+      if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+        addFiles(event.dataTransfer.files, results.length > 0);
+      }
     });
 
     refreshTargets();
