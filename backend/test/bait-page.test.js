@@ -450,7 +450,8 @@ test("一列都換不成克時，總重與每 100g 都是 null 而不是 0", asy
   assert.deepEqual(cost.unknown.map((row) => row.reason), ["「杯」換不成克", "「匙」換不成克"]);
 });
 
-// 種子裡的主餌是驗收基準：376 + 70 + 460 + 1800 + 20 + 200 = 2926 g，$369
+// 種子裡的主餌是驗收基準：376 + 70 + 75 + 460 + 1800 + 20 + 200 = 3001 g，
+// $70 + 30 + 17.5 + 50 + 150 + 30 + 39 = $386.5
 test("預設配方的總重與成本要算得出來且全部有價格", async () => {
   const { app } = await loadPage();
   const seed = plain(app.helpers.seed());
@@ -459,10 +460,10 @@ test("預設配方的總重與成本要算得出來且全部有價格", async ()
   const main = seed.recipes.find((row) => row.id === "recipe-main-allpowder");
   assert.ok(main, "應該有「主餌 全乾粉版」");
   const cost = plain(app.helpers.recipeCost(main, byId));
-  assert.equal(cost.totalGrams, 2926);
-  assert.equal(Math.round(cost.total), 369);
+  assert.equal(cost.totalGrams, 3001);
+  assert.ok(Math.abs(cost.total - 386.5) < 1e-9, `總價得到 ${cost.total}`);
   assert.equal(cost.pricedGrams, cost.totalGrams, "每一項都要有價格，否則每 100g 的分母會小於總重");
-  assert.equal(Math.round(cost.per100 * 10) / 10, 12.6);
+  assert.equal(Math.round(cost.per100 * 10) / 10, 12.9);
   assert.deepEqual(cost.unknown, []);
   // 每一份預設配方都必須算得出完整成本——種子帶進來的東西不該一開就掛警示
   for (const recipe of seed.recipes) {
