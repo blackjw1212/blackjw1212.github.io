@@ -668,7 +668,9 @@ if (has("sky/index.html")) {
   // 星表或 getUserMedia，DeviceOrientationEvent.requestPermission() 就會拿到
   // 「requires a user gesture to prompt」——實測 2026-09-09 在真機上踩過，
   // 相機拿得到、方位權限當場失敗。所以這個順序是契約，不是風格。
-  const skyStart = html.match(/\n  function start\(\) \{[\s\S]*?\n  \}\n/)?.[0];
+  // 行尾用 \r?\n：本機 core.autocrlf=true，sky/index.html 檢出來是 CRLF，寫死 \n 會在
+  // 這台機器上找不到 start()（CI 在 Linux 上是 LF，所以 CI 綠、本機 Stop 閘門紅）。
+  const skyStart = html.match(/\r?\n  function start\(\) \{[\s\S]*?\r?\n  \}\r?\n/)?.[0];
   if (!skyStart) {
     fail("sky/index.html: 找不到 start()，無法檢查授權順序");
   } else {
@@ -688,7 +690,7 @@ if (has("sky/index.html")) {
   // 之外呼叫會丟 NotAllowedError，而且是安靜地壞掉——自動路徑會整條失效，
   // 使用者只看到「又要按一次」，沒有任何錯誤訊息指向真正的原因。
   // 自動路徑合法的探測方式只有一種：掛監聽、看事件有沒有來（掛監聽不會跳提示）。
-  const skyAuto = html.match(/\n  function tryAutoResume\(\) \{[\s\S]*?\n  \}\n/)?.[0];
+  const skyAuto = html.match(/\r?\n  function tryAutoResume\(\) \{[\s\S]*?\r?\n  \}\r?\n/)?.[0];
   if (!skyAuto) {
     fail("sky/index.html: 找不到 tryAutoResume()，無法檢查自動接續的授權用法");
   } else {
