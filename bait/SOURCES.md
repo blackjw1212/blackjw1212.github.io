@@ -14,11 +14,11 @@
 | S1 | 徐小明《怎麼釣台灣鯛、大吳郭魚、福壽魚》 | https://tilapia.pixnet.net/blog/posts/15325680696 | 開過 | |
 | S2 | 台北市釣魚協會 福壽之家《分享自製肉餌》 | http://www.taipeifishing.com/bbs2/dispbbs.asp?boardid=63&Id=22059 | 搜尋摘要 | 站台連線被關閉，開不了 |
 | S3 | 農業知識入口網 吳郭魚主題館《吳郭魚釣餌要怎麼準備？》 | https://kmweb.moa.gov.tw/subject/subject.php?id=16599 | 開過 | |
-| S4 | 誠誠 福壽餌季節味型 | （先前對話中開過，網址未留存） | 開過 | 春酸／夏腥／秋腥酸＋脂／冬腥香 |
+| S4 | 誠誠《一年四季的味道偏向……福壽魚》 | https://n67666.pixnet.net/blog/post/25533067 | 開過 | 春酸（鳳梨精、檸檬精）／夏腥（肝味蝦味冷凍餌＋肉身餌）／秋腥酸（肉身餌調高、加胺基酸）／冬腥香（冷凍餌＋香虎酒）。2026-09-15 審查時補回網址並重開一次 |
 | S5 | 釣魚密技《秋釣福壽的疑惑》 | https://angling.sport.blog/2018/07/01/秋釣福壽的疑惑/ | 開過 | |
 | S6 | juchun65《自製特調福壽餌》 | https://juchun65.pixnet.net/blog/posts/5019519058 | 開過 | |
 | S7 | 溪釣戰斧《吳郭魚手竿釣組及餌料》 | https://cyrill66.pixnet.net/blog/posts/9276592940 | 開過 | |
-| S8 | 漁庫 中國羅非魚配方 | （先前對話中開過，網址未留存） | 開過 | |
+| S8 | （已撤）漁庫 中國羅非魚配方 | 網址未留存 | — | 2026-09-15 審查：無法覆核它到底講了什麼，從頁面資料移除，編號保留不重用 |
 | S9 | 池釣狂熱 商品清單 | https://gofish.qdm.tw/ | 開過 | 粒子、清水福冷凍純肝 |
 | S10 | 頭城東區釣具 釣卡多 141 肝粒 | https://mall.iopenmall.tw/044538/index.php?action=product_detail&prod_no=P4453806699791 | 搜尋摘要 | 只看到搜尋結果標題 |
 | S11 | Yahoo 知識＋／天闊釣魚網 | https://tw.answers.yahoo.com/question/index?qid=20111013000010KK08520 ／ https://www.fishingtw.com/tqyuxing/yuxing/2012-08-26/13214.html | 搜尋摘要 | 多篇混在同一段摘要，無法分辨各句出自哪一篇 |
@@ -27,6 +27,7 @@
 | S14 | 誠誠《福壽淺談（下）釣技剖析》 | https://n67666.pixnet.net/blog/posts/10025532917 | 開過 | 粒子＝飼料成分＋添加劑；玉米釣法 |
 | S15 | 池釣狂熱《釣福壽香精香料添加物》 | https://gofish.qdm.tw/釣福壽香精香料添加物 | 開過 | 產品頁；鯛瘋「夏季一瓶蓋、冬季減量」 |
 | S16 | 福壽之家《冬天來到…吃腥還是吃香？》／tw.bbs.sports.fishing《福壽魚釣法》 | http://www.taipeifishing.com/bbs2/TopicOther.asp?t=5&BoardID=63&id=35107 ／ https://groups.google.com/g/tw.bbs.sports.fishing/c/Zyftb-bFsuE | 搜尋摘要 | 前者連線被關閉、後者 429；冷凍餌＝小魚或秋刀魚＋雞肝＋南極蝦或蝦殼＋鰻粉，冬季肝味搭淡肉味 |
+| S17 | 農業知識入口網《吳郭魚該怎麼養》 | https://kmweb.moa.gov.tw/knowledge_view.php?id=854 | 開過 | 「豆粕、麵粉、麩皮、米糠等均為牠們喜食之飼料」 |
 
 開不了的：徐小明《八種粒子餌評測》文字版沒有成分（內容在影片）；釣魚密技《釣福壽魚的基本功》沒有餌料內容；
 udn《羅非雜談》403；Mobile01 403；Google Groups 429；cch1940planet.blogspot DNS 失敗。
