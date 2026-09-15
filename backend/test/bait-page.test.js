@@ -646,11 +646,52 @@ test("頁面結構的硬性前提", async () => {
   assert.doesNotMatch(html, /\bfetch\s*\(|XMLHttpRequest|sendBeacon/, "這一頁不打網路");
   // 分頁鈕的 class 是 mobile-audit.html 走訪非預設分頁的依據，改名等於那兩個分頁量不到
   assert.match(html, /<div class="tabbar"/);
-  assert.equal((html.match(/class="tab(?: on)?"/g) || []).length, 3);
+  assert.equal((html.match(/class="tab(?: on)?"/g) || []).length, 4);
+  assert.match(html, /id="tabFish"/);
+  assert.match(html, /id="fishPanel"/);
   assert.match(html, /id="mixWaterTypes"/);
   assert.match(html, /id="itemWaterTypes"/);
   assert.match(html, /id="recipePurpose"/);
   assert.match(html, /id="itemPack"/);
   assert.match(html, /id="itemPrice"/);
   assert.doesNotMatch(html, /id="itemCategory"/, "分類選單不該還在品項表單裡");
+});
+
+test("魚種對照：每格都有來源、來源都存在、魚種都在 SPECIES 裡、網址不進頁面", async () => {
+  const { app, html } = await loadPage();
+  const ref = app.helpers.FISH_REF;
+  assert.ok(Array.isArray(ref) && ref.length >= 4);
+  // 陣列來自 vm 的另一個 realm，deepEqual 會因原型不同而紅，比字串
+  assert.equal(ref.map((f) => f.species).join("、"), "福壽魚、黑鯛、黑毛、白毛");
+  const SEEN = ["opened", "search-summary", "user-supplied"];
+  for (const fish of ref) {
+    assert.ok(app.helpers.SPECIES_NAMES.includes(fish.species), fish.species + " 不在 SPECIES 裡，水域標籤會是空的");
+    assert.ok(fish.diet, fish.species + " 缺食性");
+    const ids = new Set(fish.sources.map((s) => s.id));
+    assert.equal(ids.size, fish.sources.length, fish.species + " 來源編號重複");
+    for (const src of fish.sources) {
+      assert.ok(src.title, fish.species + " " + src.id + " 缺篇名");
+      assert.ok(SEEN.includes(src.seenVia), fish.species + " " + src.id + " seenVia 不合法：" + src.seenVia);
+    }
+    assert.ok(fish.baits.length >= 3, fish.species + " 餌料類別太少");
+    for (const bait of fish.baits) {
+      assert.ok(bait.group && bait.role && bait.note, fish.species + " 餌料列缺欄位");
+      assert.ok(bait.sources.length >= 1, fish.species + "／" + bait.group + " 沒有來源——沒出處的格子不准進表");
+      for (const id of bait.sources) assert.ok(ids.has(id), fish.species + "／" + bait.group + " 引用了不存在的來源 " + id);
+    }
+    assert.deepEqual(Object.keys(fish.seasons).sort(), ["autumn", "spring", "summer", "winter"]);
+    for (const [key, season] of Object.entries(fish.seasons)) {
+      // 有字就要有來源；沒來源就留空、畫面印「來源沒講」，不補想像
+      assert.equal(Boolean(season.text), season.sources.length > 0, fish.species + " " + key + " 文字與來源要同時有或同時沒有");
+      for (const id of season.sources) assert.ok(ids.has(id), fish.species + " " + key + " 引用了不存在的來源 " + id);
+    }
+  }
+  // 黑鯛與白毛的夏季沒有來源講，必須留空
+  assert.equal(ref.find((f) => f.species === "黑鯛").seasons.summer.text, "");
+  assert.equal(ref.find((f) => f.species === "白毛").seasons.summer.text, "");
+  assert.doesNotMatch(JSON.stringify(ref), /http/, "網址不進頁面，放 bait/SOURCES.md");
+  assert.match(html, /來源數是共識強度，不是釣獲率/);
+  assert.match(html, /不是本站的建議/);
+  assert.match(html, /function renderFish\(/);
+  assert.match(html, /來源沒講/);
 });

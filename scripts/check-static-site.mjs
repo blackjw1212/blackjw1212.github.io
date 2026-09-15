@@ -166,6 +166,8 @@ for (const rel of [
   "convert/vendor/pdfjs/cmaps/UniCNS-UCS2-H.bcmap",
   "convert/vendor/pdfjs/standard_fonts/LiberationSans-Regular.ttf",
   "bait/index.html",
+  // 魚種對照分頁上的來源只印篇名（那一頁 body 之後不得出現外部網址），完整網址在這裡
+  "bait/SOURCES.md",
   "float/index.html",
   "data/floats.json",
   // /sky/ 的數學庫與星表都是主 script 用動態 import() / fetch 取的，
@@ -571,6 +573,8 @@ if (has("bait/index.html")) {
   // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
   // 「品項庫」與「紀錄」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
   assertMatch("bait/index.html", html, /<div class="tabbar"/, "bait tab bar class drives the mobile audit walker");
+  // 魚種對照是來源整理不是建議，這句是它與「不給任何開餌建議」不衝突的理由
+  assertMatch("bait/index.html", html, /來源數是共識強度，不是釣獲率/, "bait fish reference must disclose that source count is consensus, not catch rate");
   // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
   assertMatch("bait/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "bait main script must sit right before </body>");
 }
