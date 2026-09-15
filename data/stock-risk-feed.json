@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-09-15T02:23:40.377Z",
-  "eodUpdatedAt": "2026-09-15T00:37:35.474Z",
-  "eodTradingDate": "2026-09-14",
+  "updatedAt": "2026-09-15T07:54:33.873Z",
+  "eodUpdatedAt": "2026-09-15T07:54:33.873Z",
+  "eodTradingDate": "2026-09-15",
   "holdings": [
     "2330",
     "2317",
@@ -21,93 +21,93 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 697,
-      "change": -15,
-      "date": "2026-09-14"
+      "close": 694,
+      "change": -3,
+      "date": "2026-09-15"
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1620,
-      "change": 0,
-      "date": "2026-09-14"
+      "close": 1670,
+      "change": 50,
+      "date": "2026-09-15"
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 248.5,
-      "change": 0.5,
-      "date": "2026-09-14"
+      "close": 246.5,
+      "change": -2,
+      "date": "2026-09-15"
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2380,
-      "change": -30,
-      "date": "2026-09-14"
+      "close": 2385,
+      "change": 5,
+      "date": "2026-09-15"
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 61.7,
-      "change": -0.3,
-      "date": "2026-09-14"
+      "close": 60.5,
+      "change": -1.2,
+      "date": "2026-09-15"
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 344,
-      "change": -5,
-      "date": "2026-09-14"
+      "close": 343,
+      "change": -1,
+      "date": "2026-09-15"
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 332.5,
-      "change": -4,
-      "date": "2026-09-14"
+      "close": 333,
+      "change": 0.5,
+      "date": "2026-09-15"
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 3310,
-      "change": -60,
-      "date": "2026-09-14"
+      "close": 3115,
+      "change": -195,
+      "date": "2026-09-15"
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 181,
-      "change": -4.5,
-      "date": "2026-09-14"
+      "close": 182.5,
+      "change": 1.5,
+      "date": "2026-09-15"
     },
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 1305,
-      "change": -55,
-      "date": "2026-09-14"
+      "close": 1260,
+      "change": -45,
+      "date": "2026-09-15"
     },
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3590,
-      "change": -60,
-      "date": "2026-09-14"
+      "close": 3355,
+      "change": -235,
+      "date": "2026-09-15"
     },
     {
       "code": "6239",
       "name": "力成",
-      "close": 271.5,
-      "change": -1.5,
-      "date": "2026-09-14"
+      "close": 268,
+      "change": -3.5,
+      "date": "2026-09-15"
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 2270,
-      "change": -40,
-      "date": "2026-09-14"
+      "close": 2315,
+      "change": 45,
+      "date": "2026-09-15"
     }
   ],
   "valuation": {
@@ -196,14 +196,5 @@
     "updatedAt": "2026-09-11T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
