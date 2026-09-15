@@ -24,6 +24,9 @@
 | S11 | Yahoo 知識＋／天闊釣魚網 | https://tw.answers.yahoo.com/question/index?qid=20111013000010KK08520 ／ https://www.fishingtw.com/tqyuxing/yuxing/2012-08-26/13214.html | 搜尋摘要 | 多篇混在同一段摘要，無法分辨各句出自哪一篇 |
 | S12 | 老百王 福壽紅餌 包裝成分表 | — | 使用者提供 | |
 | S13 | 狂電 2 號 包裝成分表 | — | 使用者提供 | |
+| S14 | 誠誠《福壽淺談（下）釣技剖析》 | https://n67666.pixnet.net/blog/posts/10025532917 | 開過 | 粒子＝飼料成分＋添加劑；玉米釣法 |
+| S15 | 池釣狂熱《釣福壽香精香料添加物》 | https://gofish.qdm.tw/釣福壽香精香料添加物 | 開過 | 產品頁；鯛瘋「夏季一瓶蓋、冬季減量」 |
+| S16 | 福壽之家《冬天來到…吃腥還是吃香？》／tw.bbs.sports.fishing《福壽魚釣法》 | http://www.taipeifishing.com/bbs2/TopicOther.asp?t=5&BoardID=63&id=35107 ／ https://groups.google.com/g/tw.bbs.sports.fishing/c/Zyftb-bFsuE | 搜尋摘要 | 前者連線被關閉、後者 429；冷凍餌＝小魚或秋刀魚＋雞肝＋南極蝦或蝦殼＋鰻粉，冬季肝味搭淡肉味 |
 
 開不了的：徐小明《八種粒子餌評測》文字版沒有成分（內容在影片）；釣魚密技《釣福壽魚的基本功》沒有餌料內容；
 udn《羅非雜談》403；Mobile01 403；Google Groups 429；cch1940planet.blogspot DNS 失敗。
@@ -40,6 +43,9 @@ udn《羅非雜談》403；Mobile01 403；Google Groups 429；cch1940planet.blog
 | B6 | MARUKYU 黑鯛浮游釣用餌 產品頁 | https://www.marukyu-global.com/marukyu_ch_tr/chinu_descfs.html | 開過 | 只列素材類別，沒有逐品成分 |
 | B7 | 《自製海釣魚餌》 | https://blog.xuite.net/akinarlf/wretch/102243921 ／ http://seafishing.idv.tw/index.php/2021-03-26-07-49-20/2021-04-02-08-18-30 | 搜尋摘要 | 兩個站都連不上（DNS 失敗／連線被拒） |
 | B8 | 細說黑鯛／天闊釣魚網 黑鯛活沙蝦 | http://www.tp101.org/iso/?p=133 ／ https://www.fishingtw.com/tqyuxing/yuxing/2013-05-24/41061.html | 搜尋摘要 | tp101 回 403 |
+| B9 | 尬馬劉《磯釣黑鯛要領 經驗談》 | https://gamaliu0584.pixnet.net/blog/posts/9284670980 | 開過 | 季節：春至秋旺季、夏往河口、冬往外海；東北季風期南極蝦、秋初福壽螺 |
+| B10 | 堤防行走人《螃蟹釣餌垂釣黑鯛的最佳揚竿時機》 | https://mau208.pixnet.net/blog/post/2840743 | 開過 | 青蚶（台灣厚蟹）、瘋馬仔（角眼沙蟹）、婆仔（萬歲大眼蟹） |
+| B11 | 銀之羽翼《不想推廣的釣法……前打》 | https://skc6464.pixnet.net/blog/posts/9235099115 | 開過 | 岩蟹、白蝦；作者不建議推廣 |
 
 B1–B3 是同一作者，頁面上的來源數把它們算成一票。
 
@@ -56,5 +62,10 @@ B1–B3 是同一作者，頁面上的來源數把它們算成一票。
 | W7 | 天闊釣魚網《白毛魚的釣點分佈與適合釣的月份季節》 | https://www.fishingtw.com/dyzhishi/chanshi/2018-11-21/47332.html | 搜尋摘要 | 同上 |
 | W8 | 搜狐／每日頭條 黑毛文章（中國站） | https://www.sohu.com/a/721736786_100185873 ／ https://kknews.cc/n/56k4rgl.html | 搜尋摘要 | 其中一則 6:1:1:2:1 配方與 W1「重蝦不重粉」矛盾，未採 |
 | W9 | 《自製海釣魚餌》 | 同 B7 | 搜尋摘要 | |
+| W10 | 漁庫《如何釣黑毛 手把手教你啦》 | https://ufishing.com.tw/2019/10/28/如何釣-黑毛-手把手教你啦/ | 開過 | 第一次 socket hang up，第二次開成 |
+| W11 | 漁庫《降服白毛的技巧》 | https://ufishing.com.tw/2019/08/03/降服白毛的技巧/ | 開過 | 腳白菜最愛；大葉青剁碎當誘餌 |
+| W12 | 摸魚老師《白毛》 | https://sites.google.com/view/joe-bk/首頁/認識澎湖海鮮/白毛 | 開過 | 草食偏雜食；「冬季藻餌磯釣三大主角之一」 |
+| W13 | 洄遊吧《低鰭舵魚 白毛》 | https://www.fishbar.com.tw/news1/nc/101/124 | 開過 | 海藻＋小型甲殼；冬到春 |
 
-一投入魂磯研會《白毛 蘭勃舵魚》（xuite）DNS 失敗，未讀到。
+一投入魂磯研會《白毛 蘭勃舵魚》（xuite）DNS 失敗，未讀到；漁拓釣具《磯釣初學者入門》開過但沒有分魚種的餌料內容；
+davidluo23《福壽釣史》DNS 失敗。

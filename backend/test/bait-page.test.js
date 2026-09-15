@@ -686,12 +686,19 @@ test("魚種對照：每格都有來源、來源都存在、魚種都在 SPECIES
       for (const id of season.sources) assert.ok(ids.has(id), fish.species + " " + key + " 引用了不存在的來源 " + id);
     }
   }
-  // 黑鯛與白毛的夏季沒有來源講，必須留空
-  assert.equal(ref.find((f) => f.species === "黑鯛").seasons.summer.text, "");
+  // 白毛的夏季沒有任何來源講，必須留空（黑鯛的夏季在補來源後有尬馬劉撐著）
   assert.equal(ref.find((f) => f.species === "白毛").seasons.summer.text, "");
   assert.doesNotMatch(JSON.stringify(ref), /http/, "網址不進頁面，放 bait/SOURCES.md");
   assert.match(html, /來源數是共識強度，不是釣獲率/);
   assert.match(html, /不是本站的建議/);
   assert.match(html, /function renderFish\(/);
   assert.match(html, /來源沒講/);
+  // 來源清單收進 details，收合時那一行要說清楚幾筆是真的開過
+  assert.match(html, /<details class="src-fold"><summary>/);
+  assert.equal(app.helpers.sourceSummary([{ seenVia: "opened" }, { seenVia: "opened" }, { seenVia: "search-summary" }]), "來源 3 筆（開過 2、搜尋摘要 1）");
+  // 每個魚種至少三個「開過」的來源，否則那張卡撐不起來
+  for (const fish of ref) {
+    const opened = fish.sources.filter((s) => s.seenVia === "opened").length;
+    assert.ok(opened >= 3, fish.species + " 只有 " + opened + " 個開過的來源");
+  }
 });
