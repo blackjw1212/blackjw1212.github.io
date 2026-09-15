@@ -660,9 +660,9 @@ test("頁面結構的硬性前提", async () => {
 test("魚種對照：每格都有來源、來源都存在、魚種都在 SPECIES 裡、網址不進頁面", async () => {
   const { app, html } = await loadPage();
   const ref = app.helpers.FISH_REF;
-  assert.ok(Array.isArray(ref) && ref.length >= 4);
+  assert.ok(Array.isArray(ref) && ref.length >= 5);
   // 陣列來自 vm 的另一個 realm，deepEqual 會因原型不同而紅，比字串
-  assert.equal(ref.map((f) => f.species).join("、"), "福壽魚、黑鯛、黑毛、白毛");
+  assert.equal(ref.map((f) => f.species).join("、"), "福壽魚、黑鯛、黑毛、白毛、臭肚");
   const SEEN = ["opened", "search-summary", "user-supplied"];
   for (const fish of ref) {
     assert.ok(app.helpers.SPECIES_NAMES.includes(fish.species), fish.species + " 不在 SPECIES 裡，水域標籤會是空的");
