@@ -128,6 +128,37 @@ test("loading the feed populates rows, stamp and 52w footnote", async () => {
   assert.match(body, /觀測中/, "watchlist codes should be badged");
 });
 
+// 上市未滿一年時 feed 不發布 hi52，改帶 w52Months。畫面必須說「累積中」而不是「—」——
+// 「—」跟「上游掛了」長得一模一樣，使用者分不出是沒有資料還是壞了。
+// 這是 ETF 殖利率欄那條規則（yieldCell 的三態）的個股版。
+test("a stock listed under a year shows 累積中, not a dash and not a number", async () => {
+  const { app } = await loadMarket(async () => okResponse(marketFeed()));
+  const cell = app.helpers.fromHiCell;
+
+  assert.equal(cell({ fromHi: -12.3, w52Months: null }), "-12.3%", "有數字就照印");
+  const thin = cell({ fromHi: null, w52Months: 3 });
+  assert.match(thin, /累積中/, "覆蓋不足要說累積中");
+  assert.match(thin, /class="stale"/, "要沿用既有的 stale 樣式，不要跟實績混在一起");
+  assert.match(thin, /只累積了 3 個月/, "tooltip 要講出累到幾個月，不然使用者無從判斷");
+  assert.equal(cell({ fromHi: null, w52Months: null }), "—",
+    "真的沒有資料時才是破折號——那跟「累積中」是兩件事");
+});
+
+// hiSince 是「開始累積的日子」，hiFrom 是**窗口**的起點（剪枝界線）。
+// 剪枝上線之後兩者不再相同：存檔從 2025-07 就開始收，但窗口只留 13 個桶。
+// 畫面上那句話講的是窗口，所以要顯示 hiFrom。
+test("the footnote shows the window start, falling back to the accumulation start", async () => {
+  const withFrom = marketFeed();
+  withFrom.hiFrom = "2025-09";
+  const a = await loadMarket(async () => okResponse(withFrom));
+  await a.app.init();
+  assert.equal(a.elements.get("hiSince").textContent, "2025-09", "有 hiFrom 就用 hiFrom");
+
+  const b = await loadMarket(async () => okResponse(marketFeed()));
+  await b.app.init();
+  assert.equal(b.elements.get("hiSince").textContent, "2026-07-01", "舊 feed 沒有 hiFrom 時退回 hiSince");
+});
+
 test("the stamp separates real preservation from ordinary missing fields", async () => {
   const { app } = await loadMarket(async () => okResponse(marketFeed()));
   const { feedStamp } = app.helpers;

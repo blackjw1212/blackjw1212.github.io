@@ -20,6 +20,11 @@ jobs:
           node-version: "24"
       - name: Generate stock risk feed
         run: node scripts/update-stock-risk-feed.mjs
+      # 驗證是 commit 的前置條件，不是事後報告——比照 update-market-feed.yml 的
+      # 同一段。這一步原本不存在：這支 workflow 直接 git add → commit → push，
+      # 劣化的 feed 會靜靜上線。失敗時什麼都不推，保留上一次的好資料，這班紅燈。
+      - name: Validate feed schema
+        run: node --test backend/test/stock-risk-schema.test.js
       - name: Commit feed update
         run: |
           if git diff --quiet -- data/stock-risk-feed.json; then

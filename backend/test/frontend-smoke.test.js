@@ -613,6 +613,22 @@ test("a user-added stock gets every metric from the market feed", async () => {
   assert.equal(m.turnover, 69.75, "1395 × 5,000,000 / 1e8 = 69.75 億");
 });
 
+// 上市未滿一年時 market-feed 不發布 hi52，改帶 w52Months。少了這一欄，
+// 這一頁只能印出含糊的「—」，看起來跟「上游掛了」沒有分別。
+test("a stock listed under a year carries its coverage instead of a silent dash", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const h = context.window.PortfolioConsoleApp.helpers;
+  h.setMarketRowsForTest({ "7825": {
+    code: "7825", name: "和亞智慧", market: "tpex", close: 81, change: -11.4,
+    pe: 40.3, pbRatio: 4.47, dividendYield: 1.73, volume: 1_148_254, w52Months: 1,
+  } });
+  const stock = h.setWatchlistForTest([{ code: "7825" }])[0];
+  const m = h.stockMetrics(stock, { close: 81 });
+  assert.equal(m.fromHi, null, "沒有 hi52 就算不出距高，不可以生一個數字出來");
+  assert.equal(m.w52Months, 1, "累積了幾個月要帶下去，畫面才說得出「累積中」");
+  assert.equal(m.pe, 40.3, "距高算不出來不影響其他欄位");
+});
+
 // PB／殖利率整張表都取自 market-feed，而估值來源比收盤晚一步發佈。
 // 這件事以前完全沒被講出來，使用者無從分辨那兩欄是哪一天的股價算的。
 test("the source line discloses when market-feed valuation lags the close", async () => {

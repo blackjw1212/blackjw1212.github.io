@@ -106,8 +106,11 @@ jobs:
       # 驗證兩份 feed（含逐市場筆數下限）。原本 commit 步驟掛 if: always()，
       # 驗證失敗仍會把劣化資料推上去；改為驗證是 commit 的前置條件——
       # 失敗時什麼都不推，保留上一次的好資料，並讓這班 CI 紅燈。
+      # data-artifact-schema.test.js 蓋的是 etf-schema 沒蓋到的那四份：
+      # market-52w（hi52/lo52 的定義性檢查與保留界線）、etf-returns、
+      # industry-map、risk-free。它們同樣是這一班寫出來、直接上線的。
       - name: Validate feed schemas
-        run: node --test backend/test/etf-schema.test.js
+        run: node --test backend/test/etf-schema.test.js backend/test/data-artifact-schema.test.js
       - name: Commit feed updates
         run: |
           # 只納入實際存在的檔案：holdings 首次執行前不存在，git diff 會報錯

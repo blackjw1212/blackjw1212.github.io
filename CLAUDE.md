@@ -258,6 +258,33 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
 
 工具在 `scripts/`，由 `update-market-feed.yml`（每日四班）與 `update-stock-risk-feed.yml` 驅動。
 
+- **「距一年高」的窗口是 13 個月桶，不是 52 週，而且以前是 14 個。** `accumulate52w`
+  用月桶存高低（day 級資料量太大），剪枝界線是 `retentionFloor()` ＝ 當月回推
+  `WINDOW_MONTHS`（12）個月，**那一個月會被保留**，所以留下 12 個完整月 ＋ 當月 = 13 桶。
+  舊版回推 13 個月，於是留下 14 個整桶——最舊那桶整個月都落在 52 週外。
+  實測 2026-09-15：1,979 檔裡 **343 檔的 `hi52` 取自那種月份**，`fromHi` 中位偏差 4.9pp、
+  最糟的 4585 達明是 −64.1% 對真值 −35.4%。而 `/market/` 的「距高 ≤ −25%」低基期鈕
+  就是靠這個欄位，等於選股器的主判準被推向「看起來比實際便宜」。
+  **不可以再往內收成 11**——那會刪掉窗口內的日子，是反方向的錯。月桶做不出剛好 52 週
+  （最舊那桶含到月初），所以**畫面上的字是「距一年高」不是「距52週高」**，
+  揭露句要把「以月為單位、可能略多於 52 週」講出來。
+- **`hiSince` 不等於窗口起點，畫面要顯示 `hiFrom`。** 前者是開始累積的日子
+  （2025-07-01，永遠不變），後者是剪枝界線。剪枝上線後兩者分叉，講窗口就得用 `hiFrom`。
+- **累積未滿 12 個月不得發布高低點**（`MIN_WINDOW_MONTHS`）。新上市股只有 1 個月的資料
+  卻印出「距一年高 −30.7%」是假數字。改帶 `w52Months`，畫面顯示「累積中」＋ tooltip
+  說出月數——**「—」不行**，那跟「上游掛了」長得一樣。這條規則 ETF 那側早就有了
+  （`deriveDividend` 的 coverage 閘門，測試名就叫 *a newly listed fund cannot claim a
+  full year*），個股側是後來才補的。`w52Months` **只在不足 12 時輸出**，1,900 多列
+  都相同的值不該進 minified feed。
+- **剪枝要掃全 store，不可以寫在逐列迴圈裡。** 寫在迴圈裡的話「當班沒抓到的個股永遠
+  不會被剪」——實測 3 檔停牌股揹著 15 個月的桶，只要在 60 天下市清除前復牌就會上畫面。
+- **`0` 是「當天沒成交」不是價格，月桶要擋。** 實測存檔裡 9110 的 2026-07 桶低點是 0，
+  那會讓它的一年低點變成 0。ETF 那側早就這樣判了（*a zero close is rejected as
+  no-trade*），個股側漏了。修不回來的舊桶**直接刪掉**，不要留一個 0 在那裡。
+- **改了窗口規則就要跑 `scripts/migrate-52w-window.mjs --write`。** 已經 commit 的存檔
+  還揹著舊界線的桶，新斷言落地當下就會紅。它重剪存檔、由存檔重算
+  `hi52`/`lo52`/`fromHi`/`w52Months`/`hiFrom`，離線就做得完，跑第二次是 no-op。
+  **刻意不進 CI**：它會改寫 CI 自己在寫的檔案，排進自動化只會跟排程班次互相覆蓋。
 - **上市收盤用 `MI_INDEX`，不要用 `openapi` 的 `STOCK_DAY_ALL`。**
   後者當日不發佈（實測收盤後 8 小時仍是前一日），會讓頁面價比券商帳面舊一天。
   `STOCK_DAY_ALL` 保留為 fallback，因為 TWSE 曾對 GitHub runner IP 回 HTML 錯誤頁。
@@ -509,6 +536,29 @@ node scripts/float-source-audit.mjs --only tw-neio   只處理一個來源
 5. 走訪**三個分頁**都要量——切過去之前那些控制項是 `display:none`，整批會被當成不可見跳過。
 
 ## data/ 是 CI 寫的
+
+**每一份會上線的 CI 產出都要有一支讀它的測試，而且要掛在該 workflow 的 commit 閘門上。**
+這兩件事是分開的，少任何一邊都等於沒守：
+
+| feed | artefact 測試 | commit 閘門 |
+|---|---|---|
+| `market-feed` / `etf-feed` / `etf-div-history` / `etf-holdings` / `etf-static` / `tax-params` | `etf-schema.test.js` | `update-market-feed.yml` |
+| `market-52w` / `etf-returns` / `industry-map` / `risk-free` | `data-artifact-schema.test.js` | 同上 |
+| `stock-risk-feed` | `stock-risk-schema.test.js` | `update-stock-risk-feed.yml` |
+
+後兩列是 2026-09-17 才補的。在那之前那五份**沒有任何測試讀過**，而
+`update-stock-risk-feed.yml` 根本沒有驗證步驟、直接 `git add` → `commit` → `push`。
+容易誤判的兩點：`etf-returns.test.js`／`risk-free.test.js`／`industry-map.test.js` 測的是
+**解析器**不是產出的檔案；`frontend-smoke.test.js` 雖然出現 `stock-risk-feed.json`
+這個字串，餵給頁面的是**合成 fixture**。
+
+斷言優先寫**定義性檢查**而不是形狀檢查——形狀對但數字錯的檔案照樣會上線。
+這個 feed 的定義性檢查是「`hi52`/`lo52` 必須等於該代碼所有月桶的極值」
+（同稅務那條「累進差額在級距交界處必須相等」）。
+門檻值要**從產生腳本 import**，不要在測試裡另外編一個數字：實測我寫死 360 天
+擋掉了合法的 009809（349 天），而管線自己的規則是 `MIN_SPAN_DAYS = 330`。
+
+
 
 `data/*.json` 由 Actions 自動 commit。本機重跑工具後要 push 之前先 `git pull --rebase`，
 CI 的 commit 只動 `data/`，通常不衝突。feed 是 minified（`market-52w.json` 640KB），

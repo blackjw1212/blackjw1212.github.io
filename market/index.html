@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>全市場個股清單｜BJKW</title>
-<meta name="description" content="台股全市場（上市＋上櫃）個股每日收盤與估值清單，可搜尋、排序並以本益比、股價淨值比、殖利率、距 52 週高自動篩選低基期候選。" />
+<meta name="description" content="台股全市場（上市＋上櫃）個股每日收盤與估值清單，可搜尋、排序並以本益比、股價淨值比、殖利率、距一年高自動篩選低基期候選。" />
 <link rel="canonical" href="/market/">
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -314,7 +314,7 @@
         <span class="fld">PE ≤ <input id="fPe" type="number" step="1" inputmode="decimal" aria-label="本益比上限" /></span>
         <span class="fld">PB ≤ <input id="fPb" type="number" step="0.5" inputmode="decimal" aria-label="股價淨值比上限" /></span>
         <span class="fld">殖利率 ≥ <input id="fYld" type="number" step="0.5" inputmode="decimal" aria-label="殖利率下限" /></span>
-        <span class="fld">距高 ≤ <input id="fHi" type="number" step="5" inputmode="decimal" aria-label="距 52 週高上限百分比" />%</span>
+        <span class="fld">距高 ≤ <input id="fHi" type="number" step="5" inputmode="decimal" aria-label="距一年高上限百分比" />%</span>
         <span class="fld">成交額 ≥ <input id="fTo" type="number" step="0.5" inputmode="decimal" aria-label="當日成交金額下限（億元）" />億</span>
       </div>
     </div>
@@ -333,7 +333,7 @@
           <th data-sort="pe">PE</th>
           <th data-sort="pbRatio">PB</th>
           <th data-sort="dividendYield">殖利率%</th>
-          <th data-sort="fromHi">距52週高</th>
+          <th data-sort="fromHi">距一年高</th>
           <th data-sort="turnover">成交額(億)</th>
         </tr></thead>
         <tbody id="mktBody"></tbody>
@@ -651,7 +651,9 @@
 
   <footer>
     資料來源：<b>TWSE OpenAPI</b>（上市收盤／本益比）與 <b>TPEx OpenAPI</b>（上櫃收盤／本益比），每交易日收盤後自動更新。
-    52 週高低由本站每日快照滾動累積，<span id="hiSince"></span>起算；上游延遲或暫時中斷時會保留前一份資料並標示。
+    一年高低由本站每日快照<b>以月為單位</b>滾動累積，窗口是當月回推 12 個完整月（<span id="hiSince"></span>起），
+    因此可能略多於 52 週——月桶做不出剛好一年，最舊那個月會含到月初。
+    累積未滿 12 個月的個股不發布高低點，該欄顯示「累積中」。上游延遲或暫時中斷時會保留前一份資料並標示。
 ETF 殖利率為<b>滾動 12 個月已除息配息 ÷ 當日收盤</b>，與他站常用的「年度殖利率（年度配息 ÷ 年均價）」定義不同，數字不可直接互比；配息歷史逐檔保留近 13 個月。
     成交額為<b>當日</b>收盤價 × 成交股數，只是流動性的粗略代理，單日可能因事件而失真。
     低估值也可能是獲利一次性、產業衰退或流動性不足所致，<b>低本益比不等於便宜</b>。
@@ -877,6 +879,7 @@ function normalizeFeed(payload){
       dividendYield:parseNumber(row.dividendYield),
       fromHi:parseNumber(row.fromHi),
       hi52:parseNumber(row.hi52),
+      w52Months:parseNumber(row.w52Months),
       volume:parseNumber(row.volume),
     };
     clean.dayPct = dayPct(clean);
@@ -951,7 +954,7 @@ function rowHtml(row){
     + '<td class="num">' + (row.pe == null ? "—" : fmt(row.pe, 2)) + '</td>'
     + '<td class="num">' + (row.pbRatio == null ? "—" : fmt(row.pbRatio, 2)) + '</td>'
     + '<td class="num">' + (row.dividendYield == null ? "—" : fmt(row.dividendYield, 2)) + '</td>'
-    + '<td class="num ' + toneClass(row.fromHi) + '">' + (row.fromHi == null ? "—" : fmt(row.fromHi, 1) + "%") + '</td>'
+    + '<td class="num ' + toneClass(row.fromHi) + '">' + fromHiCell(row) + '</td>'
     + '<td class="num">' + (row.turnover == null ? "—" : fmt(row.turnover, 2)) + '</td>'
     + '</tr>';
 }
@@ -1148,6 +1151,18 @@ function yieldCell(row){
     return '<span class="stale" title="' + escapeHtml(note) + '">推估 ' + fmt(row.yieldEstimated, 2) + '</span>';
   }
   return '<span class="stale">累積中</span>';
+}
+
+// 距高顯示兩態：窗口累積滿一年才給數字，不足就說「累積中」並講出累到幾個月。
+// 新上市股只有 1 個月的資料卻標出「距一年高 −30.7%」是假數字——ETF 的殖利率欄
+// 早就是這樣處理的（yieldCell 上面那一段），這裡是同一條規則的個股版。
+function fromHiCell(row){
+  if (row.fromHi != null) return fmt(row.fromHi, 1) + "%";
+  if (row.w52Months != null) {
+    const note = "上市未滿一年，快照只累積了 " + row.w52Months + " 個月，不足以算出一年高低";
+    return '<span class="stale" title="' + escapeHtml(note) + '">累積中</span>';
+  }
+  return "—";
 }
 
 function etfRowHtml(row){
@@ -3906,8 +3921,10 @@ async function load(){
     allStocks = normalizeFeed(payload);
     recompute();
     if (stamp) stamp.textContent = feedStamp("全市場", allStocks.length, payload);
+    // hiFrom 是**窗口**的起點（剪枝界線）；hiSince 是開始累積的日子，剪枝上線後
+    // 兩者不再相同，畫面要講的是窗口。舊 feed 沒有 hiFrom 時退回 hiSince。
     const since = $("hiSince");
-    if (since && payload.hiSince) since.textContent = payload.hiSince;
+    if (since && (payload.hiFrom || payload.hiSince)) since.textContent = payload.hiFrom || payload.hiSince;
     return "market feed ok";
   } catch (error) {
     if (stamp) stamp.textContent = "清單載入失敗：" + error.message;
@@ -4234,6 +4251,7 @@ const marketApp = {
   helpers:{
     normalizeFeed:normalizeFeed,
     applyFilters:applyFilters,
+    fromHiCell:fromHiCell,
     sortRows:sortRows,
     isLowBase:isLowBase,
     dayPct:dayPct,
