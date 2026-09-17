@@ -144,6 +144,74 @@ test("a stock listed under a year shows 累積中, not a dash and not a number",
     "真的沒有資料時才是破折號——那跟「累積中」是兩件事");
 });
 
+// 殖利率與 PE 說的是同一家公司的同一年，兩者隱含的配發率大得離譜時代表兩欄對不起來。
+// 實測 5314 世紀* 是 102.66% 殖利率配 PE 6.65（配發率 683%），原本原樣印在畫面上，
+// 旁邊沒有任何東西說這個數字不尋常。**標示不是拿掉**——上游給的數字照印。
+test("an implausible payout ratio is flagged without altering the number", async () => {
+  const { app } = await loadMarket(async () => okResponse(marketFeed()));
+  const { payoutFlag, yieldFlagCell } = app.helpers;
+
+  // 5314 世紀*：實測值
+  const outlier = { pe: 6.65, dividendYield: 102.66 };
+  assert.ok(payoutFlag(outlier), "683% 的配發率必須被標");
+  assert.equal(Math.round(payoutFlag(outlier).ratio * 100), 683);
+  const cell = yieldFlagCell(outlier);
+  assert.match(cell, /102\.66/, "數字必須照印，標示不是拿掉");
+  assert.match(cell, /class="stale"/, "要用既有的 stale 樣式");
+  assert.match(cell, /683%/, "說明要講出隱含配發率是多少");
+  assert.match(cell, /減資|資本公積|上游資料異常/, "說明要給得出常見成因");
+  assert.doesNotMatch(cell, /投資建議|買進|賣出|保證/, "說明不可以變成建議");
+
+  // 500% 以下不標——標太多會讓人學會忽略這個記號
+  assert.equal(payoutFlag({ pe: 20, dividendYield: 10 }), null, "配發率 200% 是合法且常見的");
+  assert.equal(payoutFlag({ pe: 25, dividendYield: 4 }), null, "一般標的完全不受影響");
+  // fmt 的 minimumFractionDigits 是 0，所以 4 印成 "4" 而不是 "4.00"
+  assert.equal(yieldFlagCell({ pe: 25, dividendYield: 4 }), "4", "沒被標的列輸出乾淨的數字");
+  assert.equal(yieldFlagCell({ pe: 25, dividendYield: 4.73 }), "4.73");
+
+  // 缺料不可以被當成離群
+  assert.equal(payoutFlag({ pe: null, dividendYield: 8 }), null, "沒有 PE 就算不出配發率");
+  assert.equal(payoutFlag({ pe: -3, dividendYield: 8 }), null, "虧損股的 PE 不拿來算配發率");
+  assert.equal(yieldFlagCell({ pe: 6, dividendYield: null }), "—", "沒有殖利率就是破折號");
+});
+
+// **純函式測過不等於畫面走那條路。** 反向測試時我把渲染點改回直接印數字，
+// 上面那兩條測試一條都沒紅——因為它們只呼叫純函式，沒有檢查那一列真的走過去。
+// 這一條測的是整合面：feed 裡放一列離群值，看它有沒有出現在 #mktBody 裡。
+test("the rendered row actually routes through the yield flag", async () => {
+  const feed = marketFeed();
+  // 5314 世紀*：實測的離群列
+  feed.stocks.push({
+    code: "5314", name: "世紀", market: "tpex", close: 34.2, change: -3.75,
+    pe: 6.65, pbRatio: 5.53, dividendYield: 102.66, hi52: 148, lo52: 16.2, fromHi: -76.9, volume: 6990407,
+  });
+  feed.count = feed.stocks.length;
+  const { app, elements } = await loadMarket(async () => okResponse(feed));
+  await app.init();
+  const body = elements.get("mktBody").innerHTML;
+  assert.match(body, /102\.66/, "上游的數字必須照印");
+  assert.match(body, /隱含配發率約 683%/, "那一列必須帶著說明");
+  // 其他列不可以被波及
+  assert.match(body, /台積電/);
+  const tsmcRow = body.split("<tr>").find((row) => row.includes("台積電"));
+  assert.doesNotMatch(tsmcRow, /隱含配發率/, "正常列不該被標");
+});
+
+// feed 的 aum 是兩位小數（億），這一欄本來只印一位，於是 5 檔小型外幣計價 ETF
+// 全部顯示「0.0」。aum 只在 units 與 nav 都拿得到時才寫，所以 0 是「真的很小」
+// 不是「不知道」——但印成 0 讀起來像「沒有規模」，那仍然是錯的。
+test("a fund too small for one decimal place is not displayed as zero", async () => {
+  const { app } = await loadMarket(async () => okResponse(marketFeed()));
+  const { aumCell } = app.helpers;
+
+  assert.equal(aumCell({ aum: 0 }), "<0.01", "00657K／00668K：不到 50 萬，不是沒有規模");
+  assert.equal(aumCell({ aum: 0.01 }), "0.01", "00636K：一位小數會把它吃成 0.0");
+  assert.equal(aumCell({ aum: 0.03 }), "0.03", "00625K");
+  assert.equal(aumCell({ aum: 37.27 }), "37.3", "一般標的維持一位小數");
+  assert.equal(aumCell({ aum: 23390.11 }), "23,390.1", "最大的那檔也不變（fmt 帶千分位）");
+  assert.equal(aumCell({ aum: null }), "—", "真的沒有資料才是破折號");
+});
+
 // hiSince 是「開始累積的日子」，hiFrom 是**窗口**的起點（剪枝界線）。
 // 剪枝上線之後兩者不再相同：存檔從 2025-07 就開始收，但窗口只留 13 個桶。
 // 畫面上那句話講的是窗口，所以要顯示 hiFrom。

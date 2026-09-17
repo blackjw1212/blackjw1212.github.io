@@ -953,7 +953,7 @@ function rowHtml(row){
     + '<td class="num ' + toneClass(pct) + '">' + (pct == null ? "—" : signed(pct, 1) + "%") + '</td>'
     + '<td class="num">' + (row.pe == null ? "—" : fmt(row.pe, 2)) + '</td>'
     + '<td class="num">' + (row.pbRatio == null ? "—" : fmt(row.pbRatio, 2)) + '</td>'
-    + '<td class="num">' + (row.dividendYield == null ? "—" : fmt(row.dividendYield, 2)) + '</td>'
+    + '<td class="num">' + yieldFlagCell(row) + '</td>'
     + '<td class="num ' + toneClass(row.fromHi) + '">' + fromHiCell(row) + '</td>'
     + '<td class="num">' + (row.turnover == null ? "—" : fmt(row.turnover, 2)) + '</td>'
     + '</tr>';
@@ -1153,6 +1153,50 @@ function yieldCell(row){
   return '<span class="stale">累積中</span>';
 }
 
+// 殖利率與 PE 說的是同一家公司的同一年：yield × PE ÷ 100 就是隱含的配發率
+// （配息 ÷ 每股盈餘）。兩欄對不起來時這個數字會大得離譜——實測 5314 世紀* 的
+// 殖利率是 102.66%、PE 6.65，隱含配發率 683%；2534 宏盛更高到 3000%。
+//
+// **門檻不是憑空訂的帶，是從資料自己算出來的定義性檢查。** 放在 500% 是因為
+// 「動用資本公積配發」讓 100–300% 合法而且常見，再高就幾乎只剩減資或上游異常。
+// 訂在 300% 會標到 26 列，其中不少是正常的——標太多會讓人學會忽略這個記號，
+// 那是這個 repo 已經寫過兩次的失敗模式。
+//
+// **只標示，不拿掉。** 上游給的數字照印：拿掉等於憑空製造「沒有資料」。
+var PAYOUT_FLAG_RATIO = 5;
+function payoutFlag(row){
+  if (!(row.pe > 0) || !(row.dividendYield > 0)) return null;
+  var ratio = row.dividendYield * row.pe / 100;
+  if (!(ratio > PAYOUT_FLAG_RATIO)) return null;
+  return {
+    ratio: ratio,
+    note: "這一列的殖利率與 PE 隱含配發率約 " + Math.round(ratio * 100) + "%，"
+      + "也就是配息遠超過當期每股盈餘。常見成因是減資、以資本公積配發，或上游資料異常。"
+      + "數字照上游原樣顯示，使用前請對照官方公告。",
+  };
+}
+
+// 殖利率欄兩態：一般數字照印；隱含配發率過高的那幾列數字照印但標起來並說明原因。
+function yieldFlagCell(row){
+  if (row.dividendYield == null) return "—";
+  var text = fmt(row.dividendYield, 2);
+  var flag = payoutFlag(row);
+  if (!flag) return text;
+  return '<span class="stale" title="' + escapeHtml(flag.note) + '">' + text + ' ⚠</span>';
+}
+
+// ETF 規模：feed 寫進來的是兩位小數（億），但這一欄本來只印一位，於是 5 檔小型
+// 外幣計價 ETF 全部顯示「0.0」——00657K 與 00668K 真的是 0（不到 50 萬），
+// 00625K／00636K／00643K 是 0.01–0.03 被一位小數吃掉。
+// aum 只在 units 與 nav 都拿得到時才寫，所以 0 是「真的很小」不是「不知道」；
+// 顯示成 0 仍然是錯的，因為讀起來像「沒有規模」。
+function aumCell(row){
+  if (row.aum == null) return "—";
+  if (row.aum === 0) return "<0.01";
+  if (row.aum < 0.1) return fmt(row.aum, 2);
+  return fmt(row.aum, 1);
+}
+
 // 距高顯示兩態：窗口累積滿一年才給數字，不足就說「累積中」並講出累到幾個月。
 // 新上市股只有 1 個月的資料卻標出「距一年高 −30.7%」是假數字——ETF 的殖利率欄
 // 早就是這樣處理的（yieldCell 上面那一段），這裡是同一條規則的個股版。
@@ -1176,7 +1220,7 @@ function etfRowHtml(row){
     + '<td class="px">' + fmt(row.close, 2) + '</td>'
     + '<td class="num">' + (row.nav == null ? "—" : fmt(row.nav, 2)) + '</td>'
     + '<td class="num ' + toneClass(row.discountPremium) + '">' + (row.discountPremium == null ? "—" : signed(row.discountPremium, 2) + "%") + '</td>'
-    + '<td class="num">' + (row.aum == null ? "—" : fmt(row.aum, 1)) + '</td>'
+    + '<td class="num">' + aumCell(row) + '</td>'
     + '<td class="num">' + yieldCell(row) + '</td>'
     // 報酬與風險：資料層早就算好了，先前只出現在配置產生器的結果表。
     // 殖利率旁邊沒有總報酬，等於讓人只看得到「配得多」而看不到「賺得多」。
@@ -4252,6 +4296,9 @@ const marketApp = {
     normalizeFeed:normalizeFeed,
     applyFilters:applyFilters,
     fromHiCell:fromHiCell,
+    payoutFlag:payoutFlag,
+    yieldFlagCell:yieldFlagCell,
+    aumCell:aumCell,
     sortRows:sortRows,
     isLowBase:isLowBase,
     dayPct:dayPct,
