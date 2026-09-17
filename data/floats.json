@@ -23,7 +23,7 @@
     { "id": "field-blackjw", "title": "使用者現場經驗（磯釣實務）", "url": null, "kind": "field-knowledge", "seenVia": "user-supplied" }
   ],
   "shots": [
-    { "label": "G10", "grams": 0.03, "family": "jintan", "derivation": "listed", "confidence": "single-source", "sourceIds": ["jp-deraturi"], "verifiedAt": "2026-09-07", "variants": [], "note": "只有一個來源列出，且該來源整條刻度與台灣通用表不同級。" },
+    { "label": "G10", "grams": null, "family": "jintan", "derivation": "listed", "confidence": "off-scale", "sourceIds": ["jp-deraturi"], "verifiedAt": "2026-09-17", "variants": [{ "grams": 0.03, "sourceId": "jp-deraturi" }], "note": "唯一給值的來源，其 G 系在本表已有六級（G8／G5／G4／G3／G2／G1）被降級成分歧值，而且系統性偏輕（比值 0.857〜0.960）。同一個理由在 7B／8B 被用來拒絕取值，這裡不該例外。級距也指向同一件事：G 系其他相鄰級距是 ×1.24〜1.33，而 G10→G8 是 ×2.33——要嘛這個值落在別的刻度上，要嘛中間還缺一級。未取值。" },
     { "label": "G8", "grams": 0.07, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-fishingfishing"], "verifiedAt": "2026-09-07", "variants": [{ "grams": 0.06, "sourceId": "jp-deraturi" }], "note": null },
     { "label": "G7", "grams": 0.09, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-deraturi"], "verifiedAt": "2026-09-07", "variants": [], "note": null },
     { "label": "G6", "grams": 0.12, "family": "jintan", "derivation": "listed", "confidence": "cross-checked", "sourceIds": ["tw-neio", "tw-hiko06", "jp-deraturi"], "verifiedAt": "2026-09-07", "variants": [], "note": null },
@@ -88,7 +88,7 @@
     ],
     "allowedWhen": [
       "該浮標型號有可驗證的幾何尺寸與體積函數",
-      "或有廠商／使用者對該型號的實測吃水校正資料"
+      "有廠商／使用者對該型號的實測吃水校正資料"
     ],
     "beyondFullSubmersion": "超過完全沒入的臨界浮力之後不存在平衡深度。浮標會持續下沉；隨速度增加流體阻力增加，最終可能趨近於終端速度，但那是速度不是深度，而且同樣算不出來。",
     "verifiedAt": "2026-09-08",

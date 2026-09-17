@@ -111,7 +111,8 @@
   .blockers li::marker{color:var(--amber)}
 
   .srclist{display:grid;gap:2px;list-style:none}
-  .srclist a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}
+  .srclist a,.srclist .noUrl{display:inline-flex;align-items:center;min-height:44px;text-decoration:none;gap:6px;flex-wrap:wrap}
+  .srclist .noUrl{color:var(--soft)}
   .srclist a:hover{text-decoration:underline}
   .srclist .sid{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint);margin-right:8px}
 
@@ -172,6 +173,7 @@
   <section class="card" id="panelShots" role="tabpanel" aria-labelledby="tabShots">
     <h2>咬鉛與鉛墜重量</h2>
     <p class="lead">同一個標記在<b>各廠重量不同</b>，這張表收的是台灣通用（釣研系）的一套刻度。有其他來源給出不同數值時，列在「其他來源值」欄，不會把兩套混成一套。</p>
+    <p class="lead muted" id="scopeLead"></p>
     <div class="filters">
       <label>
         <span>系列</span>
@@ -209,6 +211,8 @@
         <tbody id="floatBody"></tbody>
       </table>
     </div>
+    <h3>餘浮力怎麼看</h3>
+    <p class="lead" id="residualNote"></p>
     <h3>各廠差異（逐條附出處）</h3>
     <ul id="varianceList"></ul>
   </section>
@@ -231,6 +235,7 @@
           <span>主鉛（母線上的中通鉛／転環鉛）</span>
           <select id="mainSinker"></select>
         </label>
+        <p class="lead muted" id="mainSinkerNote"></p>
         <h3>子線上的咬鉛</h3>
         <div class="shots" id="shotPicker"></div>
       </div>
@@ -262,6 +267,8 @@
         <h3>為什麼這裡不給「沉入幾公分」</h3>
         <p class="lead" id="depthPolicyLead"></p>
         <ul class="blockers" id="depthBlockers"></ul>
+        <p class="lead muted" id="depthAllowed"></p>
+        <p class="lead muted" id="depthNote"></p>
       </div>
     </div>
   </section>
@@ -308,6 +315,9 @@
     "cross-checked": ["多來源一致", "ok"],
     "single-source": ["單一來源", "thin"],
     conflicting: ["來源不一致", "bad"],
+    // 唯一給值的來源，其同系列的其他級距已被本表逐一判定為不同刻度。
+    // 這跟 conflicting（多個來源互相矛盾）不同，值得自己一個名字。
+    "off-scale": ["來源不同刻度", "bad"],
   };
 
   const state = {
@@ -521,6 +531,7 @@
   }
 
   function renderShots() {
+    $("scopeLead").textContent = (state.feed && state.feed.scope) || "";
     const rows = visibleShots();
     $("shotEmpty").hidden = rows.length > 0;
     $("shotBody").innerHTML = rows.map((row) => `<tr>
@@ -549,6 +560,11 @@
     if (residual) {
       const range = residual.rangeGrams || [];
       $("residualLead").textContent = `各廠設定不同，約 ${range[0]}〜${range[1]} g`;
+      // emptyHookTarget 是實用的調標建議，先前只寫在資料裡沒人看得到。
+      const target = residual.emptyHookTarget
+        ? `空鉤時保留 ${residual.emptyHookTarget} 的殘存浮力是常見做法。`
+        : "";
+      $("residualNote").textContent = `${residual.note || ""}${target ? " " + target : ""}`;
     }
 
     const variance = (state.feed && state.feed.makerVariance) || [];
@@ -562,16 +578,29 @@
     if (!policy) {
       $("depthPolicyLead").textContent = "讀不到資料，這段說明也一起沒了。";
       $("depthBlockers").innerHTML = "";
+      $("depthAllowed").textContent = "";
+      $("depthNote").textContent = "";
       return;
     }
     $("depthPolicyLead").textContent = policy.beyondFullSubmersion;
     $("depthBlockers").innerHTML = policy.blockers.map((b) => `<li>${esc(b)}</li>`).join("");
+    // 「什麼條件下才談得上計算」要講出來，否則「算不出來」讀起來像永遠不會做。
+    $("depthAllowed").textContent = (policy.allowedWhen || []).length
+      ? `要談得上計算，得先有：${policy.allowedWhen.join("；或")}。`
+      : "";
+    $("depthNote").textContent = policy.note || "";
   }
 
   function renderSources() {
     const sources = (state.feed && state.feed.sources) || [];
     $("sourceList").innerHTML = sources.length
-      ? sources.map((s) => `<li><a href="${esc(s.url)}" rel="noopener noreferrer" target="_blank"><span class="sid">${esc(s.id)}</span>${esc(s.title)}</a></li>`).join("")
+      ? sources.map((s) => {
+        const label = `<span class="sid">${esc(s.id)}</span><span class="tag">${esc(s.kind)}</span> ${esc(s.title)}`;
+        // url 為 null 的是現場經驗，沒有頁面可開——不可以渲染成點得下去的連結。
+        return s.url
+          ? `<li><a href="${esc(s.url)}" rel="noopener noreferrer" target="_blank">${label}</a></li>`
+          : `<li><span class="noUrl">${label}<span class="muted">（現場經驗，無頁面可核對）</span></span></li>`;
+      }).join("")
       : '<li class="muted">讀不到資料，沒有來源可列。</li>';
   }
 
@@ -599,6 +628,7 @@
     const mainRule = (state.feed && state.feed.mainSinker) || null;
     if (mainRule) {
       $("mainSinkerLead").textContent = `${mainRule.thresholdShot}（${mainRule.thresholdGrams} g）以內的阿波本身就是主配重`;
+      $("mainSinkerNote").textContent = mainRule.note || "";
     }
     const mainOptions = mainSinkerOptions(state.feed);
     const thresholdShot = mainRule ? mainRule.thresholdShot : "5B";
