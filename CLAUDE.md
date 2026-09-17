@@ -669,7 +669,8 @@ CI 的 commit 只動 `data/`，通常不衝突。feed 是 minified（`market-52w
 `</body>`、純函式掛 `window.ConvertApp.helpers`、`__CONVERT_SKIP_AUTO_INIT__` 擋自動初始化、
 vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外**踩到的坑。
 
-- **`convert/vendor/` 是 11 MB，且全部按需 `import()`／`<script src>`**，所以
+- **`convert/vendor/` 是 10.45 MB（逐檔加總；`du -sh` 會報 11 MB，那是區塊配置量），
+  且全部按需 `import()`／`<script src>`**，所以
   `check-static-site.mjs` 掃 href/src 的迴圈一個都看不到——已在 `mustExist` 逐檔點名。
   加新函式庫要同步加，否則 pages-deploy 漏檔時 Site check 仍會綠。
 - **pdf.js 的 `page.render()` 預設用 requestAnimationFrame 分批畫。使用者一切到別的
@@ -711,6 +712,17 @@ vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外
   逐字搬移不改；hero 的 lead 另外再講一次「全部運算都在瀏覽器完成，檔案不會離開這台裝置」
   讓首屏也看得到。
 - **一批只處理同一種來源格式**：混合時直接停下來說「無法決定輸出」，不猜。
+- **SVG 的尺寸要自己讀，不能信 `<img>` 的 `naturalWidth`**（2026-09-15 審查抓到）：
+  沒寫 width/height 的 SVG，Chrome 給的是 300×150（CSS 替換元素預設），不是 0，
+  所以 `naturalWidth || 1024` 永遠走不到 1024——頁面上「以 1024px 寬繪製」那句當時是假的。
+  現在 `svgIntrinsicSize()` 用 DOMParser 讀 width/height，沒有就照 viewBox 比例配 1024 寬。
+  另外拖進來的 `.svg` 檔 `File.type` 可能是空字串（看作業系統），`<img>` 對沒有
+  `image/svg+xml` 型別的 blob 直接 onerror——餵 `<img>` 前一律重新包一層型別。
+- **審查驅動**：`scripts/` 不留檔，但 2026-09-15 那份 66 條的矩陣（每種來源 × 每種輸出，
+  驗魔術位元組、尺寸、頁數、旋轉角、文字內容、BOM、Big5、邊界錯誤訊息）的結果記在
+  `convert/AUDIT.md`。改任何轉檔器都照那張表重跑一次。
+- **heic-to 是 LGPL-3.0**（內含 libheif wasm），全 repo 唯一的 LGPL 相依。以獨立檔案、
+  不修改、附授權聲明分發是合規的；**不要對那個檔動手**（連刪 sourcemap 註解都不要）。
 - **不做影音**：`@ffmpeg/core` 單執行緒版 unpacked 61.69 MB，而 GitHub Pages 送不出
   COOP/COEP，多執行緒在這裡開不起來。UI 上沒有假裝支援。
 - vendor 的版本與來源網址記在 `convert/vendor/SOURCES.md`。

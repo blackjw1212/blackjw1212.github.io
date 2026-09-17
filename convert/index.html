@@ -275,7 +275,7 @@
       <p class="note"><b>FIDELITY</b><span>DOCX 轉 PDF 是由瀏覽器重新排版後轉成圖片頁：<b>文字不可選取、不可搜尋</b>，頁首頁尾與複雜排版會位移。要拿到文字可選取的 PDF，請先轉成 HTML，再用瀏覽器自己列印成 PDF。</span></p>
       <p class="note"><b>LIMIT</b><span>PDF 轉 DOCX 只還原文字段落，版面、分欄、表格、圖片都不會保留。掃描檔（整頁是一張圖的 PDF）沒有文字圖層，一個字也抽不出來——<b>這一頁沒有 OCR</b>。</span></p>
       <p class="note"><b>FORMAT</b><span>可以讀 AVIF，但<b>不能輸出 AVIF</b>：瀏覽器的 canvas 至今無法編碼 AVIF。輸出只有 PNG、JPG、WebP 三種，而 WebP 在少數舊瀏覽器上會失敗，失敗時這裡會直說而不是默默給你一個 PNG。</span></p>
-      <p class="note"><b>SIZE</b><span>各種格式的函式庫合計 11 MB（其中 HEIC 解碼器 2.9 MB、pdf.js 含中文 CMap 3.9 MB），<b>只有真的用到才會下載</b>——只轉圖片就不會去抓 PDF 引擎。下載過一次之後由瀏覽器快取。</span></p>
+      <p class="note"><b>SIZE</b><span>各種格式的函式庫合計 10.5 MB（其中 HEIC 解碼器 3.0 MB、pdf.js 含中文 CMap 3.7 MB），<b>只有真的用到才會下載</b>——只轉圖片就不會去抓 PDF 引擎。下載過一次之後由瀏覽器快取。</span></p>
     </div>
   </details>
 
@@ -1105,13 +1105,42 @@
         return canvas;
       }
       if (kind === "svg") {
-        return await drawSvg(file);
+        return await drawSvg(file, await svgIntrinsicSize(file));
       }
       try {
         return drawSource(await createImageBitmap(file));
       } catch (err) {
-        return await drawSvg(file);
+        return await drawSvg(file, null);
       }
+    }
+
+    /* 審查（2026-09-15）抓到的兩個 SVG 坑：
+       (1) 沒寫 width/height 的 SVG，Chrome 給的 naturalWidth 是 300×150（CSS 的
+           預設替換元素尺寸），不是 0——原本 `naturalWidth || 1024` 那條永遠走不到
+           1024，頁面上「以 1024px 寬繪製」的主張是假的。所以尺寸改成自己讀 SVG：
+           有 width/height 就用，否則照 viewBox 比例、1024 寬。
+       (2) 拖進來的 .svg 檔 File.type 可能是空字串（看作業系統），<img> 對沒有
+           image/svg+xml 型別的 blob 直接 onerror。餵給 <img> 前重新包一層型別。 */
+    async function svgIntrinsicSize(file) {
+      var text = await file.text();
+      var doc = new DOMParser().parseFromString(text, "image/svg+xml");
+      var root = doc.documentElement;
+      if (!root || root.nodeName.toLowerCase() !== "svg") { return null; }
+      var w = parseFloat(root.getAttribute("width"));
+      var h = parseFloat(root.getAttribute("height"));
+      var unitless = function (v) { return v && /^[\d.]+(px)?$/.test(String(v).trim()); };
+      if (unitless(root.getAttribute("width")) && unitless(root.getAttribute("height")) && w > 0 && h > 0) {
+        return { width: Math.round(w), height: Math.round(h) };
+      }
+      var vb = (root.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+      if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) {
+        return { width: 1024, height: Math.max(1, Math.round(1024 * vb[3] / vb[2])) };
+      }
+      return { width: 1024, height: 768 };
+    }
+
+    function svgTyped(file) {
+      return file.type === "image/svg+xml" ? file : new Blob([file], { type: "image/svg+xml" });
     }
 
     function drawSource(source) {
@@ -1124,14 +1153,14 @@
     }
 
     /* <img> 這條路對 SVG 與 createImageBitmap 不吃的格式都適用。
-       沒有寫尺寸的 SVG 在多數瀏覽器會被當成 0×0，所以補一個預設寬度。 */
-    function drawSvg(file) {
+       size 有給就照它畫（SVG 走這條，見 svgIntrinsicSize），沒給才信 naturalWidth。 */
+    function drawSvg(file, size) {
       return new Promise(function (resolve, reject) {
-        var url = URL.createObjectURL(file);
+        var url = URL.createObjectURL(size ? svgTyped(file) : file);
         var img = new Image();
         img.onload = function () {
-          var width = img.naturalWidth || img.width || 1024;
-          var height = img.naturalHeight || img.height || Math.round(width * 0.75);
+          var width = size ? size.width : (img.naturalWidth || img.width || 1024);
+          var height = size ? size.height : (img.naturalHeight || img.height || Math.round(width * 0.75));
           var canvas = document.createElement("canvas");
           canvas.width = width;
           canvas.height = height;
