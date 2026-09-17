@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 // 所以這裡的重點不是型別，而是「有沒有人在沒有出處的情況下填了一個數字」——
 // 一個編得很像的咬鉛重量不會讓任何程式壞掉，只會讓人在釣場上配錯鉛。
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const CONFIDENCE = new Set(["cross-checked", "single-source", "conflicting"]);
+const CONFIDENCE = new Set(["cross-checked", "single-source", "conflicting", "off-scale"]);
 const FAMILIES = new Set(["jintan", "gandama", "go"]);
 const DERIVATIONS = new Set(["listed", "nominal", "measured"]);
 // 頁面自稱不收推廣報酬，來源連結就不能夾帶聯盟行銷追蹤參數。
@@ -106,12 +106,13 @@ test("可信度標記說得出它憑什麼", async () => {
       assert.ok(row.sourceIds.length >= 2,
         `${row.label} 標成 cross-checked 但只有 ${row.sourceIds.length} 個來源`);
     }
-    if (row.confidence === "conflicting") {
-      // 來源分歧時不准挑一個當真理：值留 null，把看到的數字記進 variants。
+    if (row.confidence === "conflicting" || row.confidence === "off-scale") {
+      // 兩者都代表「不採用任何一個數字」：值留 null，把看到的數字記進 variants。
       const value = "grams" in row ? row.grams : row.loadGrams;
-      assert.equal(value, null, `${row.label} 標成 conflicting 卻仍寫了一個數值`);
+      assert.equal(value, null, `${row.label} 標成 ${row.confidence} 卻仍寫了一個數值`);
       assert.ok((row.variants || []).length,
-        `${row.label} 標成 conflicting 卻沒有記下分歧的數值`);
+        `${row.label} 標成 ${row.confidence} 卻沒有記下看到的數值`);
+      assert.ok(row.note, `${row.label} 標成 ${row.confidence} 必須說明理由`);
     }
   }
 });
@@ -196,6 +197,70 @@ test("7B／8B 的三組分歧都要留著，而且區間不可以被折成中點
   assert.equal(range.grams, undefined, "區間型的 variant 不可以同時寫一個單值");
 });
 
+// off-scale 的意思是「唯一給值的來源，其同系列的其他級距已被本表逐一判定為不同刻度」。
+// 這個標籤必須自己賺到：那個來源真的要在同系列的其他列被降級過，而且不只一兩列。
+// 否則它會退化成「我不喜歡這個來源」的萬用藉口，而那正是這份資料最該避免的東西。
+test("off-scale 必須拿得出「這個來源在別的級距也被降級」的紀錄", async () => {
+  const feed = await loadFeed();
+  for (const row of feed.shots.filter((s) => s.confidence === "off-scale")) {
+    assert.equal(row.sourceIds.length, 1,
+      `${row.label} 標成 off-scale，但它不只一個來源——那是 conflicting 或別的情況`);
+    const source = row.sourceIds[0];
+    // 只數「其他列」，這一列自己的 variant 不算。
+    const demoted = feed.shots.filter((s) =>
+      s.label !== row.label && s.family === row.family
+      && (s.variants || []).some((v) => v.sourceId === source));
+    assert.ok(demoted.length >= 3,
+      `${row.label}: ${source} 在 ${row.family} 系只有 ${demoted.length} 列被降級（需要 ≥3）`);
+  }
+});
+
+// 級距比值。G10 就是被這條抓出來的：G 系其他相鄰級距是 ×1.24〜1.33，
+// 而當時 G10→G8 是 ×2.33——那個值落在別的刻度上。
+// 帶寬取 1.15〜1.60：下限擋「兩級幾乎一樣重」，上限要容得下 B 系 4B→5B 的 ×1.54。
+test("相鄰級距的比值要落在合理帶寬內", async () => {
+  const feed = await loadFeed();
+  const grams = (label) => feed.shots.find((s) => s.label === label)?.grams ?? null;
+  const check = (labels, name) => {
+    let previous = null;
+    for (const label of labels) {
+      const value = grams(label);
+      if (value === null) continue;
+      if (previous !== null) {
+        const ratio = value / previous.value;
+        assert.ok(ratio >= 1.15 && ratio <= 1.60,
+          `${name}：${previous.label}(${previous.value}) → ${label}(${value}) 的比值 ${ratio.toFixed(3)} 落在 1.15〜1.60 之外`);
+      }
+      previous = { label, value };
+    }
+  };
+  check(["G10", "G8", "G7", "G6", "G5", "G4", "G3", "G2", "G1"], "ジンタン G");
+  check(["B", "2B", "3B", "4B", "5B", "6B", "7B", "8B"], "ガン玉 B");
+});
+
+// 標 nominal 就是「由 1 号＝3.75 g 換算來的」。填了實測值卻還標 nominal，
+// 會讓人以為那個數字有獨立觀測撐著——那是 derivation 這個欄位存在的唯一理由。
+test("標成 nominal 的号数必須真的等於名目換算", async () => {
+  const feed = await loadFeed();
+  for (const shot of feed.shots.filter((s) => s.derivation === "nominal")) {
+    assert.equal(shot.family, "go", `${shot.label} 標 nominal 但不是号数系`);
+    const nominal = parseFloat(shot.label) * 3.75;
+    assert.ok(Math.abs(shot.grams - nominal) <= 0.01,
+      `${shot.label} 標 nominal，但 ${shot.grams} 與名目換算 ${nominal.toFixed(3)} 差太多`);
+  }
+});
+
+// 防滑坡的粗閘門，不是精確門檻：單一來源的列越多，這張表越接近「一個部落格說了算」。
+// 現況 8/44（18%）。上限 30% 留了成長空間，但不會讓它無聲地滑到一半。
+test("只靠單一來源的列不得超過三成", async () => {
+  const feed = await loadFeed();
+  const rows = [...feed.shots, ...feed.floats];
+  const single = rows.filter((r) => r.sourceIds.length === 1);
+  const ratio = single.length / rows.length;
+  assert.ok(ratio <= 0.30,
+    `單一來源的列佔 ${(ratio * 100).toFixed(0)}%（${single.length}/${rows.length}），超過三成：${single.map((r) => r.label).join("、")}`);
+});
+
 test("同一系列內的重量必須單調遞增", async () => {
   const feed = await loadFeed();
   const grams = (label) => feed.shots.find((s) => s.label === label)?.grams ?? null;
@@ -275,6 +340,56 @@ test("餘浮力設定指得到一顆真的咬鉛", async () => {
     "rangeGrams 必須是遞增的兩個數字");
   assert.ok(shot.grams >= range[0] && shot.grams <= range[1],
     `預設的 ${shot.label}(${shot.grams}) 落在宣稱的區間 ${range.join("〜")} 之外`);
+});
+
+// 資料裡給人看的文字，如果頁面沒有任何地方讀它，那段文字就是死的——而維護的人
+// 會以為自己在改畫面上的東西。這次審查一口氣找到六段這種文字（scope、
+// emptyHookTarget、三段 note、allowedWhen）。
+//
+// 這條刻意做成**自動抓新欄位**，不是維護一張清單：走訪整份資料，凡是「值為字串、
+// 而且長得像寫給人看的」欄位，其欄位名都必須出現在頁面的行內 script 裡。
+// 新增一個給人看的欄位而忘了渲染 → 當場紅。
+const INTERNAL_FIELDS = new Set([
+  // 識別與連結用，不是給人讀的散文
+  "id", "label", "url", "loadFromShot", "sourceId", "thresholdShot",
+  // 分類代碼，頁面另有對照字典把它們翻成中文
+  "family", "kind", "confidence", "derivation", "seenVia",
+  // 逐列出處與日期，刻意不逐列印在表上（來源清單與鮮度列已經涵蓋）
+  "verifiedAt", "reviewedAt",
+  // 使用者宣稱式的短語，已由 residualNote 併在一起顯示
+  "defaultShot",
+]);
+
+function collectTextFields(value, path, found) {
+  if (Array.isArray(value)) {
+    value.forEach((v) => collectTextFields(v, path, found));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  for (const [key, v] of Object.entries(value)) {
+    if (typeof v === "string" && v.length >= 12 && !INTERNAL_FIELDS.has(key)) {
+      found.set(key, `${path}${path ? "." : ""}${key}`);
+    } else {
+      collectTextFields(v, `${path}${path ? "." : ""}${key}`, found);
+    }
+  }
+}
+
+test("資料裡給人看的文字，每一個欄位都要被頁面讀到", async () => {
+  const feed = await loadFeed();
+  const html = await loadPage();
+  const script = html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)?.[1] || "";
+
+  const found = new Map();
+  collectTextFields(feed, "", found);
+  assert.ok(found.size >= 6, `應該找得到好幾個文字欄位，只找到 ${found.size}`);
+
+  const dead = [];
+  for (const [key, where] of found) {
+    if (!new RegExp(`\\b${key}\\b`).test(script)) dead.push(`${where}（欄位名 ${key}）`);
+  }
+  assert.deepEqual(dead, [],
+    `這些文字寫在資料裡卻沒有任何地方顯示——要嘛渲染它，要嘛把欄位名加進 INTERNAL_FIELDS 並說明理由：\n  ${dead.join("\n  ")}`);
 });
 
 // 頁面把 family 與 confidence 翻成中文再顯示。資料檔加了新值而頁面沒跟上時，
