@@ -253,6 +253,34 @@ test("建議組合湊得出差額，而且只用真的存在的咬鉛", async ()
     `建議顆數 ${odd.labels.length} 超過上限 ${app.helpers.MAX_PIECES}`);
 });
 
+test("差額小到連最小咬鉛都會補過頭時，不可以建議掛任何東西", async () => {
+  const { app } = await loadPage();
+  const feed = await loadFeed();
+  const { suggestShots, usableShots, TOLERANCE } = app.helpers;
+
+  // 2026-09-19 審查抓到：第一版的窮舉只比較「有掛」的組合，「什麼都不掛」從未參賽。
+  // 用現有資料，差額 0.02 g 會建議 G8（0.07 g），補完誤差 0.05 g——比不掛（0.02 g）更遠，
+  // 而且方向從「還差」翻成「超過」。這種建議照做只會把配重弄錯。
+  const smallest = plain(usableShots(feed)).reduce((a, b) => (a.grams < b.grams ? a : b));
+  assert.ok(smallest.grams > 0.04, `這條測試假設最小咬鉛大於 0.04 g，實得 ${smallest.label} ${smallest.grams}`);
+
+  for (const deficit of [0.02, 0.03]) {
+    assert.ok(deficit > TOLERANCE, "差額要大於容差，否則本來就不會建議");
+    assert.equal(suggestShots(feed, deficit), null,
+      `差 ${deficit} g 時掛最小咬鉛 ${smallest.label} 反而更遠，應該回 null 走「補不上來」那句`);
+  }
+
+  // 界線的另一邊：掛上去真的比較近，就要建議。
+  const worth = plain(suggestShots(feed, 0.05));
+  assert.ok(worth && worth.labels.length, "差 0.05 g 掛 G8 後只差 0.02 g，這才值得建議");
+  assert.ok(worth.diff < 0.05, `建議後的誤差 ${worth.diff} 必須小於不掛的 0.05`);
+
+  // 一般情況不受影響
+  const normal = plain(suggestShots(feed, 0.65));
+  assert.ok(normal && normal.labels.length);
+  assert.equal(normal.diff, 0);
+});
+
 test("2B 不是 B 的兩倍——這條刻度不是線性的", async () => {
   const { app } = await loadPage();
   const feed = await loadFeed();

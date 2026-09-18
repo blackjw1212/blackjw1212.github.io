@@ -430,7 +430,12 @@
     if (!(deficitGrams > TOLERANCE)) return null;
     const catalog = usableShots(feed).slice().sort((a, b) => b.grams - a.grams);
     if (!catalog.length) return null;
-    let best = null;
+    // 「什麼都不掛」也要參賽。第一版只比較有掛的組合，結果差額落在 (容差, 最小咬鉛/2)
+    // 之間時——用現有資料就是 0.02 g——會建議掛 G8（0.07 g），補完誤差反而變成 0.05 g，
+    // 比不掛還遠，而且方向從「還差」翻成「超過」。差額本身就是不掛的誤差，拿它當起點；
+    // 沒有任何組合贏過它就回 null，渲染端那句「差額太小，現有的咬鉛級距補不上來」
+    // 講的正是這件事。
+    let best = { diff: round2(deficitGrams), labels: [], grams: 0 };
     const pick = [];
     const walk = (startIndex, remaining) => {
       if (pick.length) {
@@ -449,7 +454,7 @@
       }
     };
     walk(0, round2(deficitGrams));
-    return best;
+    return best.labels.length ? best : null;
   }
 
   // 兩段式建議：先決定主鉛，餘額才交給子線咬鉛的窮舉。

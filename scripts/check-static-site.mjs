@@ -707,6 +707,25 @@ if (has("sky/index.html")) {
     }
   }
 
+  // 執行期的例外路徑必須關相機。frame() 是 rAF 回呼，它接住 renderFrame() 的例外後
+  // 放回開始鈕；第一版只停了迴圈、沒關相機——使用者重試時 startCamera() 拿新串流
+  // 覆蓋掉舊變數，舊串流就再也沒有引用能 stop()，鏡頭一直開著、定位也一直跑。
+  // 2026-09-19 審查抓到。同 start() 那條，先去掉行註解再比對，否則命中的會是
+  // 解釋這條規則的註解本身。
+  const skyFrame = html.match(/\r?\n  function frame\(\) \{[\s\S]*?\r?\n  \}\r?\n/)?.[0];
+  if (!skyFrame) {
+    fail("sky/index.html: 找不到 frame()，無法檢查例外路徑是否關相機");
+  } else {
+    const skyFrameCode = skyFrame.replace(/\/\/[^\n]*/g, "");
+    const catchAt = skyFrameCode.indexOf("catch");
+    const stopAt = skyFrameCode.indexOf("stopCamera(");
+    if (catchAt < 0) {
+      fail("sky/index.html: frame() 必須接住 renderFrame() 的例外");
+    } else if (stopAt < 0 || stopAt < catchAt) {
+      fail("sky/index.html: frame() 的 catch 必須呼叫 stopCamera()（否則相機在錯誤後持續開著）");
+    }
+  }
+
   // 回訪自動接續**不可以**呼叫 requestMotionPermissions()。那個函式在使用者手勢
   // 之外呼叫會丟 NotAllowedError，而且是安靜地壞掉——自動路徑會整條失效，
   // 使用者只看到「又要按一次」，沒有任何錯誤訊息指向真正的原因。

@@ -521,6 +521,11 @@
       video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
       audio: false,
     }).then(function (media) {
+      // 任何路徑漏了關相機，這裡是最後一道：拿到新串流前先把舊的停掉，
+      // 否則舊串流被覆蓋後就再也沒有引用能 stop() 它。
+      if (stream && stream !== media) {
+        stream.getTracks().forEach(function (track) { track.stop(); });
+      }
       stream = media;
       el.preview.srcObject = media;
       ready.camera = true;
@@ -669,6 +674,11 @@
       renderFrame();
     } catch (error) {
       running = false;
+      // 上面那段註解說「相機還亮著」是最糟的失敗，但第一版這裡真的沒關相機——
+      // 只停了迴圈、放回開始鈕。使用者再按一次，startCamera() 會拿一路新串流覆蓋
+      // 掉舊的變數，舊串流從此沒有任何引用能 stop()，鏡頭硬體就一直開著。
+      // stopCamera() 順帶會 clearWatch，定位也在這裡一起收掉。2026-09-19 審查抓到。
+      stopCamera();
       el.stageDock.hidden = false;
       el.startBtn.hidden = false;
       el.startBtn.disabled = false;
