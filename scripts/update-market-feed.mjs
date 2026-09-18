@@ -205,19 +205,37 @@ export function monthKey(isoDate) {
   return String(isoDate || "").slice(0, 7);
 }
 
-// 月 bucket 滾動累積：只動當月，>13 個月剪枝；lastSeen 記 ISO 日，>60 天未見剪整檔（下市）。
+// 月桶做不出剛好 52 週：最舊那桶會含到月初，最多多算約 30 天。12 是月桶能做到的
+// 最緊界線，**不可以再往內收成 11**——那會把窗口內的日子刪掉，是反方向的錯。
+export const WINDOW_MONTHS = 12;
+
+// 保留界線：當月回推 WINDOW_MONTHS 個月的月鍵。這個月**會被保留**，
+// 所以留下的是 WINDOW_MONTHS + 1 個桶（12 個完整月 ＋ 當月）。
+export function retentionFloor(tradeDate) {
+  const cutoff = new Date(tradeDate + "T00:00:00Z");
+  if (Number.isNaN(cutoff.getTime())) return "";
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - WINDOW_MONTHS);
+  return cutoff.toISOString().slice(0, 7);
+}
+
+// 月 bucket 滾動累積：只動當月；lastSeen 記 ISO 日，>60 天未見剪整檔（下市）。
+// **剪枝界線是「當月回推 12 個完整月」**，保留 13 個桶（12 個完整月 ＋ 當月）。
+// 早期版本回推 13 個月且保留界線那一個月，結果留下 14 個整桶——最舊那桶整個月
+// 都落在 52 週之外。實測 2026-09-15：1,979 檔裡 343 檔的 hi52 取自那種月份，
+// fromHi 中位偏差 4.9pp、最糟的 4585 達明是 −64.1% vs 真值 −35.4%。
 export function accumulate52w(accumulator, stocks, tradeDate) {
   const acc = accumulator && typeof accumulator === "object" ? accumulator : {};
   const store = acc.stocks && typeof acc.stocks === "object" ? acc.stocks : {};
   if (!monthKey(tradeDate)) return { start: acc.start || tradeDate, stocks: store };
-  const cutoff = new Date(tradeDate + "T00:00:00Z");
-  cutoff.setUTCMonth(cutoff.getUTCMonth() - 13);
-  const minMonth = cutoff.toISOString().slice(0, 7);
+  const minMonth = retentionFloor(tradeDate);
 
   for (const row of stocks) {
     const hi = row.high != null ? row.high : row.close;
     const lo = row.low != null ? row.low : row.close;
-    if (hi == null || lo == null) continue;
+    // **0 是「當天沒成交」，不是價格。** ETF 那一側早就這樣判了
+    // （etf-feed.test.js「a zero close is rejected as no-trade」），個股這側漏了：
+    // 實測存檔裡 9110 的 2026-07 桶低點是 0，那會讓它的一年低點變成 0。
+    if (!(hi > 0) || !(lo > 0)) continue;
     // 按行內自己的資料日歸桶（TWSE 常落後 TPEX 一日）；max/min 冪等，重複灌同一天無害
     const rowDate = row.date || tradeDate;
     const month = monthKey(rowDate);
@@ -230,29 +248,50 @@ export function accumulate52w(accumulator, stocks, tradeDate) {
       if (lo < bucket[1]) bucket[1] = lo;
     }
     if (!entry.lastSeen || rowDate > entry.lastSeen) entry.lastSeen = rowDate;
-    for (const key of Object.keys(entry.m)) if (key < minMonth) delete entry.m[key];
   }
 
   const staleCutoff = new Date(tradeDate + "T00:00:00Z");
   staleCutoff.setUTCDate(staleCutoff.getUTCDate() - 60);
   const staleIso = staleCutoff.toISOString().slice(0, 10);
+  // 剪枝掃全 store，**不是只掃當班抓到的那些列**。早期版本把它寫在逐列迴圈裡，
+  // 於是當班沒出現的個股永遠不會被剪：實測 2026-09-15 有 3 檔（2867／5371／6228，
+  // lastSeen 停在 8 月中）還揹著 15 個月的桶，只要在 60 天下市清除之前復牌就會上畫面。
   for (const code of Object.keys(store)) {
-    if ((store[code].lastSeen || "") < staleIso) delete store[code];
+    if ((store[code].lastSeen || "") < staleIso) {
+      delete store[code];
+      continue;
+    }
+    const months = store[code].m || {};
+    for (const key of Object.keys(months)) {
+      const bucket = months[key];
+      // 超界的剪掉；非正數的桶也剪掉——那是舊 seeding 留下的「沒成交」殘渣，
+      // 修不回來（不知道那個月真正的低點），所以說不知道，不要留一個 0 在那裡。
+      if (key < minMonth || !Array.isArray(bucket) || !(bucket[0] > 0) || !(bucket[1] > 0)) delete months[key];
+    }
   }
   return { start: acc.start || tradeDate, stocks: store };
 }
 
+// 覆蓋不足時**不得發布高低點**。新上市股只有 1 個月的資料卻標成「一年高低」是
+// 假數字：實測 2026-09-15 有 43 檔不足 12 個月，3718 中光電投控與 7825 和亞智慧
+// 只有 1 個月，畫面照樣寫著距高 −30.7%／−32.2%。
+// ETF 那一側早就有同一條規則（deriveDividend 的 divMonthsCovered／coverageStart，
+// 測試名字就叫「a newly listed fund cannot claim a full year」），這裡照抄。
+// months 一律回傳，讓呼叫端決定要不要發布——判斷留在一個地方。
+export const MIN_WINDOW_MONTHS = 12;
 export function derive52w(accEntry) {
   if (!accEntry || !accEntry.m) return null;
   let hi = null;
   let lo = null;
+  let months = 0;
   for (const bucket of Object.values(accEntry.m)) {
     if (!Array.isArray(bucket)) continue;
+    months += 1;
     if (bucket[0] != null && (hi == null || bucket[0] > hi)) hi = bucket[0];
     if (bucket[1] != null && (lo == null || bucket[1] < lo)) lo = bucket[1];
   }
   if (hi == null || lo == null) return null;
-  return { hi52: roundNumber(hi, 2), lo52: roundNumber(lo, 2) };
+  return { hi52: roundNumber(hi, 2), lo52: roundNumber(lo, 2), months };
 }
 
 async function readJsonOr(fileUrl, fallback) {
@@ -374,10 +413,15 @@ async function main() {
   const { preserved: valuationPreserved } = applyValuation(stocks, valuation, prevValByCode);
   for (const row of stocks) {
     const w = derive52w(accumulator.stocks[row.code]);
-    if (w) {
+    if (w && w.months >= MIN_WINDOW_MONTHS) {
       row.hi52 = w.hi52;
       row.lo52 = w.lo52;
       if (row.close != null && w.hi52 > 0) row.fromHi = roundNumber((row.close - w.hi52) / w.hi52 * 100, 1);
+    } else if (w) {
+      // 累積中：高低點留白，但把已經累到幾個月講出來，畫面才說得出「還在累積」
+      // 而不是含糊的「—」。滿 12 個月的列不帶這個欄位——1,948 列的 minified feed
+      // 不該為了 1,900 多列都相同的值變大。
+      row.w52Months = w.months;
     }
     delete row.date; // tradeDate 已提升到頂層，行內不重複
   }
@@ -405,7 +449,13 @@ async function main() {
     });
   }
 
-  const feed = { updatedAt: now, tradeDate, marketDates, valuationDate, valuationDates, hiSince: accumulator.start, count: stocks.length, stocks, errors };
+  // hiSince 是「開始累積的日子」，剪枝上線之後它不再等於窗口的起點——
+  // 存檔從 2025-07 就開始收，但窗口只保留 13 個桶。畫面要講的是**窗口**，
+  // 所以另外輸出 hiFrom：存檔還年輕時是 hiSince，滿了之後是剪枝界線。
+  const floorMonth = retentionFloor(tradeDate);
+  const startMonth = monthKey(accumulator.start || tradeDate);
+  const hiFrom = floorMonth && startMonth && startMonth > floorMonth ? startMonth : floorMonth;
+  const feed = { updatedAt: now, tradeDate, marketDates, valuationDate, valuationDates, hiSince: accumulator.start, hiFrom, count: stocks.length, stocks, errors };
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   // minified：全市場 ~2,200 列，縮排會讓體積翻倍
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");

@@ -2,7 +2,7 @@
   "rocYear": 115,
   "appliesTo": "115 年度（2026 年）所得，於 116 年 5 月申報",
   "publishedAt": "2025-11-27",
-  "note": "數字一律人工填寫並附出處。scripts/update-tax-params.mjs 只偵測是否過期，永不改寫這裡的稅率。",
+  "note": "課稅級距（brackets／rocYear）由 scripts/update-tax-params.mjs 自動維護：來源是台北國稅局「適用稅率」頁，且必須通過 validateBrackets 的定義性驗證（每個級距交界處 qd[i] === qd[i-1] + upTo[i-1] × (rate[i] − rate[i-1]) 必須成立）才寫得進來，寫入時會蓋上 bracketsSource。其餘欄位仍為人工填寫並附出處：dividend（抵減率、上限、分開計稅率）、deductions（免稅額／扣除額）、nhi（二代健保）、amt（最低稅負）——那張表裡沒有這些數字。",
   "brackets": [
     {
       "upTo": 610000,

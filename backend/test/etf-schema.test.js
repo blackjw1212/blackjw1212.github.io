@@ -468,6 +468,15 @@ test("tax params carry their source and stay internally consistent", async () =>
   assert.equal(Math.round(quick(610000)), 30500, "對照財政部速算表");
   assert.equal(Math.round(quick(5190000)), 1126900);
 
+  // note 是下一個要動稅務數字的人唯一會讀到的「哪些欄位歸誰管」。它一度寫著
+  // 「只偵測是否過期，永不改寫這裡的稅率」，而腳本其實會在通過 validateBrackets
+  // 之後直接覆寫級距——照那句去理解就會理解反。
+  // 用負面斷言而不是逐字釘住整段散文：以後改字不會紅，但那個假宣稱回不來。
+  assert.doesNotMatch(params.note || "", /永不改寫|只偵測是否過期|數字一律人工/,
+    "note 不可以再宣稱級距是純人工的——update-tax-params.mjs 會自動覆寫它");
+  assert.match(params.note || "", /update-tax-params\.mjs/,
+    "note 要指出哪一支腳本在維護這份檔案");
+
   assert.equal(params.dividend.creditRate, 0.085);
   assert.equal(params.dividend.creditCap, 80000);
   assert.equal(params.dividend.separateRate, 0.28);

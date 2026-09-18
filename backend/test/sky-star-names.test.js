@@ -80,6 +80,28 @@ test("a conflicting entry ships no value, only variants", () => {
   }
 });
 
+// 這份表的誠實性全靠兩個散文欄位撐著：一個講「怎麼查證的」、一個講「授權怎麼處理」。
+// 它們現在會被渲染到 /sky/ 的畫面上（describeStarNames 讀 covered/shipped/withheld，
+// 靜態那句則寫在 HTML 裡）。欄位被刪掉之後其他測試不會有任何反應——78 筆名稱照樣
+// 通過每一條格式檢查，而畫面上那句揭露就變成沒有出處的宣稱。
+test("the honesty fields cannot quietly disappear", () => {
+  assert.ok(typeof names.verificationMethod === "string" && names.verificationMethod.length > 40,
+    "verificationMethod 是這份表唯一說得出「怎麼來的」的地方，不可缺");
+  assert.match(names.verificationMethod, /沒有人開過|沒有開過/,
+    "verificationMethod 必須講明沒有人開過原書——那正是 classical-xingguan 的 seenVia");
+  assert.ok(typeof names.licenceNote === "string" && names.licenceNote.length > 40,
+    "licenceNote 不可缺");
+  assert.match(names.licenceNote, /CC BY-SA/,
+    "licenceNote 必須點名那份核對用資料的授權");
+  assert.match(names.licenceNote, /不進這個 repo|未採用|只當/,
+    "licenceNote 必須講明那份資料沒有被採用，只是拿來核對");
+  // 引用 CC BY-SA 的那筆來源必須明確標成「只核對」，不可以被改成一般來源
+  const stellarium = (names.sources || []).find((source) => source.id === "stellarium-cn");
+  assert.ok(stellarium, "核對用的那筆來源不可以從 sources 消失");
+  assert.equal(stellarium.kind, "cross-check-only",
+    "CC BY-SA 的來源只能是 cross-check-only——改成一般來源等於宣稱採用了它的資料");
+});
+
 test("the declared shipped count matches what is actually shipped", () => {
   assert.equal(names.shipped, entries.filter(([, r]) => r.zh).length);
 });

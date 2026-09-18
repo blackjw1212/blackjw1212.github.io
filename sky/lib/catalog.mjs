@@ -85,7 +85,10 @@ export async function loadCatalog(fetchImpl = globalThis.fetch) {
   const response = await fetchImpl(CATALOG_URL, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`星表載入失敗：HTTP ${response.status}`);
   const catalog = parseCatalog(await response.json());
-  catalog.namesZh = await loadStarNamesZh(fetchImpl);
+  const zh = await loadStarNamesZh(fetchImpl);
+  catalog.namesZh = zh.names;
+  // 載不到就是 null，畫面退回 HTML 裡那句靜態的揭露——星名是加分項，不可以讓整頁掛掉
+  catalog.namesZhMeta = zh.meta;
   return catalog;
 }
 
@@ -96,11 +99,39 @@ export async function loadCatalog(fetchImpl = globalThis.fetch) {
 export async function loadStarNamesZh(fetchImpl = globalThis.fetch) {
   try {
     const response = await fetchImpl(STAR_NAMES_ZH_URL, { headers: { Accept: "application/json" } });
-    if (!response.ok) return {};
-    return parseStarNamesZh(await response.json());
+    if (!response.ok) return { names: {}, meta: null };
+    const json = await response.json();
+    return { names: parseStarNamesZh(json), meta: parseStarNamesMeta(json) };
   } catch (error) {
-    return {};
+    return { names: {}, meta: null };
   }
+}
+
+/**
+ * 這份人工表的出處與授權，給畫面揭露用。
+ *
+ * **為什麼要上畫面**：78 筆上線星名全部標 `cross-checked`，但兩個來源一個是
+ * 作者既有認識（`url: null`，自述沒有開過原書）、一個是 CC BY-SA 4.0 的
+ * Stellarium（僅作核對、未採用其資料）——按這個 repo 自己的詞彙，
+ * `cross-checked` 是「≥2 個來源給同一個數字」，而這裡沒有任何一個是可引用的
+ * 公開文件。資料檔把這些寫得很誠實，但那些字一個都沒有上畫面過。
+ * 同 `/float/` 把 `verificationMethod` 渲染到鮮度列的那條規則。
+ *
+ * 讓畫面從資料讀而不是自己抄一份，頁面才不會跟資料檔分叉。
+ */
+export function parseStarNamesMeta(json) {
+  if (!json || typeof json !== "object") return null;
+  const stars = json.stars || {};
+  const hrs = Object.keys(stars);
+  return {
+    scope: typeof json.scope === "string" ? json.scope : "",
+    shipped: Number.isFinite(json.shipped) ? json.shipped : null,
+    covered: hrs.length,
+    // 值留 null 的是「來源分歧、刻意不出貨」，畫面回退英文——這個數字要講出來
+    withheld: hrs.filter((hr) => !(stars[hr] && typeof stars[hr].zh === "string" && stars[hr].zh)).length,
+    verificationMethod: typeof json.verificationMethod === "string" ? json.verificationMethod : "",
+    licenceNote: typeof json.licenceNote === "string" ? json.licenceNote : "",
+  };
 }
 
 /** 把人工表攤平成 { [hr]: 中文名 }，值為 null 的列直接丟掉（那是「刻意沒有」）。 */

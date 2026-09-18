@@ -96,7 +96,7 @@
      五格刻意不等寬——實測 375px 下可用 321px，五格均分成三欄各 100px 時，
      「成交額 601.12 億」需要 102px 就會換行，而 PE／PB 那種只要 56px 的格子
      卻空著。所以底層開六欄：前三個短標籤各佔 2 欄（≈100px），
-     「距52週高」與「成交額」各佔 3 欄（≈155px）。兩列排完，欄寬按內容給。 */
+     「距一年高」與「成交額」各佔 3 欄（≈155px）。兩列排完，欄寬按內容給。 */
   .stock-meta{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px 10px;margin-top:8px;font-size:12px;font-family:"Roboto Mono",monospace}
   .stock-meta>div{grid-column:span 2;display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0;border-bottom:1px solid var(--line);padding-bottom:2px}
   .stock-meta>div:nth-child(n+4){grid-column:span 3}
@@ -169,7 +169,7 @@
   <section aria-labelledby="scoreHeading">
     <h2 id="scoreHeading">股票觀察清單 <em>WATCHLIST</em></h2>
     <p class="hint">欄位與<a href="/market/">全市場清單</a>一致，點表頭可排序；點代碼開 TradingView。
-      收盤與漲跌%取自當日 13:30 快照或收盤資料，PE／PB／殖利率／距 52 週高／成交額取自全市場 feed。</p>
+      收盤與漲跌%取自當日 13:30 快照或收盤資料，PE／PB／殖利率／距一年高／成交額取自全市場 feed。</p>
     <div class="watch-editor">
       <div class="watch-row">
         <span class="fld">加入代碼 <input id="watchAdd" type="text" inputmode="numeric" maxlength="6" style="width:92px" placeholder="如 2454" aria-label="要加入觀察清單的股票代碼" /></span>
@@ -191,7 +191,7 @@
           <th data-sort="pe">PE</th>
           <th data-sort="pbRatio">PB</th>
           <th data-sort="dividendYield">殖利率%</th>
-          <th data-sort="fromHi">距52週高</th>
+          <th data-sort="fromHi">距一年高</th>
           <th data-sort="turnover">成交額(億)</th>
           <th aria-label="移除"></th>
         </tr></thead>
@@ -218,7 +218,7 @@ const STATIC_STOCK_FEED_URL = "/data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
 
 // 內建的預設清單。唯一的人工欄位是 role（一句話說明），其餘全部來自 feed。
-// 數字一律不寫死——PE／PB／殖利率／距 52 週高都取自 market-feed，
+// 數字一律不寫死——PE／PB／殖利率／距一年高都取自 market-feed，
 // 寫死的靜態值只會過期，而 feed 對全市場 1900+ 檔都有。
 const BUILT_INS = [
   {code:"2330",name:"台積電",role:"先進製程與封裝，AI 供應鏈核心底座；估值合理，但目前位階偏高、回檔最淺。"},
@@ -571,7 +571,7 @@ function fillFromMarketRows(){
 }
 
 // 自行加入的標的不在 Worker 與 stock-risk-feed 的涵蓋範圍，改由全市場 feed 補；
-// PB／殖利率／距 52 週高／成交額則是整份清單都靠它。
+// PB／殖利率／距一年高／成交額則是整份清單都靠它。
 async function loadMarketFeed(){
   try {
     const response = await fetch(MARKET_FEED_URL + "?v=" + encodeURIComponent(new Date().toISOString().slice(0,10)),
@@ -951,7 +951,7 @@ function stockTradingViewLink(stock, card){
 
 // 估值欄位與 /market/ 同源同算法（成交額＝收盤×成交股數／1e8），差別只在
 // 收盤與漲跌%：本頁優先用 13:30 快照／Worker 收盤，比全市場 feed 新一步，
-// 所以距 52 週高改用「本頁的收盤 vs feed 的 hi52」重算，不直接抄 feed 的 fromHi。
+// 所以距一年高改用「本頁的收盤 vs feed 的 hi52」重算，不直接抄 feed 的 fromHi。
 //
 // PE 以前有兩個來源（stock-risk-feed 的 valuation 優先、market-feed 墊底），
 // 兩邊會給出不同的數字而畫面說不出原因。實際上那不是兩個來源——兩者都出自
@@ -989,6 +989,9 @@ function stockMetrics(stock, snapshot){
     dividendYield:dividendYield,
     valuationRescaled:rescaled,
     fromHi:(close != null && hi52) ? roundNumber((close - hi52) / hi52 * 100, 1) : (row ? parseNumber(row.fromHi) : null),
+    // 上市未滿一年時 feed 不發布 hi52，改帶 w52Months。少了這一欄，畫面只能顯示
+    // 含糊的「—」，看起來跟「上游掛了」沒有分別。
+    w52Months:row ? parseNumber(row.w52Months) : null,
     turnover:(close != null && volume != null) ? Math.round(close * volume / 1e6) / 100 : null,
   };
 }
@@ -1166,6 +1169,14 @@ function sortViewRows(rows){
   });
 }
 
+// 距一年高兩態：有數字就印，沒有但知道累積了幾個月就說「累積中」。
+// 同 /market/ 的 fromHiCell，也同該頁殖利率欄的既有做法。
+function fromHiText(metrics){
+  if (metrics.fromHi != null) return null;
+  if (metrics.w52Months == null) return null;
+  return "累積中";
+}
+
 function numCell(value, digits, suffix, tone){
   if (value == null) return '<td class="num' + (tone ? " flat" : "") + '">—</td>';
   return '<td class="num' + (tone ? " " + toneClass(value) : "") + '">' + fmt(value, digits) + (suffix || "") + '</td>';
@@ -1205,7 +1216,8 @@ function renderScore(){
       + numCell(m.pe, 2)
       + numCell(m.pbRatio, 2)
       + numCell(m.dividendYield, 2)
-      + numCell(m.fromHi, 1, "%", true)
+      + (fromHiText(m) ? '<td class="num flat"><span class="stale" title="上市未滿一年，快照只累積了 '
+          + m.w52Months + ' 個月，不足以算出一年高低">累積中</span></td>' : numCell(m.fromHi, 1, "%", true))
       + numCell(m.turnover, 2)
       + '<td>' + removeBtnHtml(stock) + '</td>';
     tbody.appendChild(tr);
@@ -1225,7 +1237,9 @@ function renderScore(){
         + cell("PE", num(m.pe, 2))
         + cell("PB", num(m.pbRatio, 2))
         + cell("殖利率", num(m.dividendYield, 2, "%"))
-        + cell("距52週高", m.fromHi == null ? "—" : '<span class="' + toneClass(m.fromHi) + '">' + fmt(m.fromHi, 1) + "%</span>")
+        + cell("距一年高", m.fromHi != null
+            ? '<span class="' + toneClass(m.fromHi) + '">' + fmt(m.fromHi, 1) + "%</span>"
+            : (fromHiText(m) ? '<span class="stale">累積中</span>' : "—"))
         + cell("成交額", num(m.turnover, 2, " 億"))
       + '</div>'
       + '<div class="data-line">' + escapeHtml(stock.role) + '</div>';

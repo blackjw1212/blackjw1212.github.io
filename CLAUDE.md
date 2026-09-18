@@ -258,6 +258,33 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
 
 工具在 `scripts/`，由 `update-market-feed.yml`（每日四班）與 `update-stock-risk-feed.yml` 驅動。
 
+- **「距一年高」的窗口是 13 個月桶，不是 52 週，而且以前是 14 個。** `accumulate52w`
+  用月桶存高低（day 級資料量太大），剪枝界線是 `retentionFloor()` ＝ 當月回推
+  `WINDOW_MONTHS`（12）個月，**那一個月會被保留**，所以留下 12 個完整月 ＋ 當月 = 13 桶。
+  舊版回推 13 個月，於是留下 14 個整桶——最舊那桶整個月都落在 52 週外。
+  實測 2026-09-15：1,979 檔裡 **343 檔的 `hi52` 取自那種月份**，`fromHi` 中位偏差 4.9pp、
+  最糟的 4585 達明是 −64.1% 對真值 −35.4%。而 `/market/` 的「距高 ≤ −25%」低基期鈕
+  就是靠這個欄位，等於選股器的主判準被推向「看起來比實際便宜」。
+  **不可以再往內收成 11**——那會刪掉窗口內的日子，是反方向的錯。月桶做不出剛好 52 週
+  （最舊那桶含到月初），所以**畫面上的字是「距一年高」不是「距52週高」**，
+  揭露句要把「以月為單位、可能略多於 52 週」講出來。
+- **`hiSince` 不等於窗口起點，畫面要顯示 `hiFrom`。** 前者是開始累積的日子
+  （2025-07-01，永遠不變），後者是剪枝界線。剪枝上線後兩者分叉，講窗口就得用 `hiFrom`。
+- **累積未滿 12 個月不得發布高低點**（`MIN_WINDOW_MONTHS`）。新上市股只有 1 個月的資料
+  卻印出「距一年高 −30.7%」是假數字。改帶 `w52Months`，畫面顯示「累積中」＋ tooltip
+  說出月數——**「—」不行**，那跟「上游掛了」長得一樣。這條規則 ETF 那側早就有了
+  （`deriveDividend` 的 coverage 閘門，測試名就叫 *a newly listed fund cannot claim a
+  full year*），個股側是後來才補的。`w52Months` **只在不足 12 時輸出**，1,900 多列
+  都相同的值不該進 minified feed。
+- **剪枝要掃全 store，不可以寫在逐列迴圈裡。** 寫在迴圈裡的話「當班沒抓到的個股永遠
+  不會被剪」——實測 3 檔停牌股揹著 15 個月的桶，只要在 60 天下市清除前復牌就會上畫面。
+- **`0` 是「當天沒成交」不是價格，月桶要擋。** 實測存檔裡 9110 的 2026-07 桶低點是 0，
+  那會讓它的一年低點變成 0。ETF 那側早就這樣判了（*a zero close is rejected as
+  no-trade*），個股側漏了。修不回來的舊桶**直接刪掉**，不要留一個 0 在那裡。
+- **改了窗口規則就要跑 `scripts/migrate-52w-window.mjs --write`。** 已經 commit 的存檔
+  還揹著舊界線的桶，新斷言落地當下就會紅。它重剪存檔、由存檔重算
+  `hi52`/`lo52`/`fromHi`/`w52Months`/`hiFrom`，離線就做得完，跑第二次是 no-op。
+  **刻意不進 CI**：它會改寫 CI 自己在寫的檔案，排進自動化只會跟排程班次互相覆蓋。
 - **上市收盤用 `MI_INDEX`，不要用 `openapi` 的 `STOCK_DAY_ALL`。**
   後者當日不發佈（實測收盤後 8 小時仍是前一日），會讓頁面價比券商帳面舊一天。
   `STOCK_DAY_ALL` 保留為 fallback，因為 TWSE 曾對 GitHub runner IP 回 HTML 錯誤頁。
@@ -287,6 +314,23 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
   年中對照時本站必然偏高（實測 00888 13.47% vs 11.80%，差距 100% 來自時間窗、
   分母只差 0.1pp）。**兩處表頭都要寫「近12月」** —— 曾因配置產生器結果表只寫
   「殖利率%」而被誤判為算錯。
+- **上游的估值離群值要標示，不是拿掉。** 實測 5314 世紀\* 的殖利率是 102.66%（PE 6.65），
+  原樣印在畫面上而旁邊什麼都沒說。判準是**從資料自己算出來的定義性檢查**：
+  `yield × PE ÷ 100` 就是隱含配發率，兩欄對不起來時它會大得離譜。門檻 500%
+  （`PAYOUT_FLAG_RATIO`）——「動用資本公積配發」讓 100–300% 合法且常見，
+  訂在 300% 會標到 26 列、其中不少正常，**標太多會讓人學會忽略這個記號**。
+  實測 500% 標到 11 列。**數字照上游原樣印**，只加 `.stale` ＋ 說明：拿掉等於憑空
+  製造「沒有資料」。說明不可以變成建議（那兩頁有禁詞清單）。
+- **`aum` 寫進去兩位小數、印出來一位，5 檔小型 ETF 全變「0.0」。** `fmt` 的
+  `minimumFractionDigits` 是 0 而 `maximumFractionDigits` 吃參數，所以 0.01 印成 `0.0`。
+  `aum` 只在 `units` 與 `nav` 都拿得到時才寫，所以 `0` 是「真的很小」不是「不知道」
+  ——但印成 0 讀起來像「沒有規模」，一樣是錯的。`aumCell()`：`0` → `<0.01`，
+  `< 0.1` → 兩位小數，其餘不變。**寫測試前先確認 `fmt` 的實際輸出**：它用
+  `toLocaleString("en-US")`，有千分位而且不補尾隨的零（`fmt(4, 2)` 是 `"4"` 不是 `"4.00"`）。
+- **純函式測過不等於畫面走那條路。** 實測把殖利率欄的渲染點改回直接印數字，
+  兩條剛寫好的純函式測試**一條都沒紅**——它們只呼叫函式，沒有檢查那一列真的走過去。
+  這類「換一個 cell renderer」的改動要另外補一條**整合測試**：把離群列放進 feed fixture，
+  看 `#mktBody` 的 innerHTML 裡有沒有那段說明。
 - **驗資料正確性用 TWSE MIS**（`mis.twse.com.tw/stock/api/getStockInfo.jsp`，
   `z`=今收、`y`=昨收）當獨立來源，它與券商帳面一致。**盤前 `z` 是 `-`，要改讀 `y`。**
 
@@ -306,6 +350,13 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
 - 現存未通過驗證 → **用線上值修好它**（早期版本會「保護」壞存檔並 exit 0，是錯的）
 - 兩份都通過驗證卻不一致 → 不猜，exit 1 交人裁決
 - 修不好 → exit 1 大聲失敗
+
+**`data/tax-params.json` 的 `note` 一度是假的**（修於 2026-09-17）：它寫著
+「只偵測是否過期，永不改寫這裡的稅率」，而腳本其實會在通過 `validateBrackets` 之後
+直接覆寫級距並蓋上 `bracketsSource`。那個欄位是下一個要動稅務數字的人唯一會讀到的
+「哪些欄位歸誰管」，照它去理解會理解反。`etf-schema.test.js` 用**負面斷言**擋住那句
+回來（`doesNotMatch(/永不改寫|只偵測是否過期|數字一律人工/)`）——負面斷言不會把整段
+散文釘死，以後改字不會紅，但假宣稱回不來。
 
 **仍為人工**：股利抵減率與上限、分開計稅率、免稅額／扣除額、二代健保、最低稅負。
 這些不在該表格裡，各自附出處人工維護。
@@ -535,6 +586,29 @@ node scripts/float-source-audit.mjs --only tw-neio   只處理一個來源
 5. 走訪**三個分頁**都要量——切過去之前那些控制項是 `display:none`，整批會被當成不可見跳過。
 
 ## data/ 是 CI 寫的
+
+**每一份會上線的 CI 產出都要有一支讀它的測試，而且要掛在該 workflow 的 commit 閘門上。**
+這兩件事是分開的，少任何一邊都等於沒守：
+
+| feed | artefact 測試 | commit 閘門 |
+|---|---|---|
+| `market-feed` / `etf-feed` / `etf-div-history` / `etf-holdings` / `etf-static` / `tax-params` | `etf-schema.test.js` | `update-market-feed.yml` |
+| `market-52w` / `etf-returns` / `industry-map` / `risk-free` | `data-artifact-schema.test.js` | 同上 |
+| `stock-risk-feed` | `stock-risk-schema.test.js` | `update-stock-risk-feed.yml` |
+
+後兩列是 2026-09-17 才補的。在那之前那五份**沒有任何測試讀過**，而
+`update-stock-risk-feed.yml` 根本沒有驗證步驟、直接 `git add` → `commit` → `push`。
+容易誤判的兩點：`etf-returns.test.js`／`risk-free.test.js`／`industry-map.test.js` 測的是
+**解析器**不是產出的檔案；`frontend-smoke.test.js` 雖然出現 `stock-risk-feed.json`
+這個字串，餵給頁面的是**合成 fixture**。
+
+斷言優先寫**定義性檢查**而不是形狀檢查——形狀對但數字錯的檔案照樣會上線。
+這個 feed 的定義性檢查是「`hi52`/`lo52` 必須等於該代碼所有月桶的極值」
+（同稅務那條「累進差額在級距交界處必須相等」）。
+門檻值要**從產生腳本 import**，不要在測試裡另外編一個數字：實測我寫死 360 天
+擋掉了合法的 009809（349 天），而管線自己的規則是 `MIN_SPAN_DAYS = 330`。
+
+
 
 `data/*.json` 由 Actions 自動 commit。本機重跑工具後要 push 之前先 `git pull --rebase`，
 CI 的 commit 只動 `data/`，通常不衝突。feed 是 minified（`market-52w.json` 640KB），
@@ -794,6 +868,23 @@ vendor 自帶且不進 `sw.js` 的 `PRECACHE`）。下面只記這一頁**額外
   本機核對用的 oracle（`scripts/sky-name-audit.mjs`，不進 CI，理由同
   `float-source-audit.mjs`）。來源分歧的兩筆（侯／候、尾宿七／尾宿六）**值留 `null`**、
   畫面回退英文，照 `/float/` 7B／8B 的慣例。
+- **中文星名的出處必須上畫面，不能只寫在資料檔裡。** 78 筆上線名稱全部標
+  `cross-checked`，但兩個 `sourceIds` 是 `classical-xingguan`（作者既有認識、`url: null`、
+  自述沒開過原書）與 `stellarium-cn`（CC BY-SA、僅核對未採用）——按這個 repo 自己的
+  詞彙那不算兩個可引用的來源。資料檔的 `verificationMethod`／`licenceNote` 寫得很誠實，
+  但那些字一度**一個都沒有上畫面**，而 `/float/` 的同類揭露是被契約釘住必須渲染的。
+  現在的做法是**靜態句寫在 HTML（契約釘得到、JS 沒跑也看得到）＋ 會變動的數字由
+  `catalog.namesZhMeta` 填進 `#starNamesNote`**（`describeStarNames()`）——頁面就不會
+  跟資料檔分叉。`parseStarNamesZh` 的簽名**不要動**（`sky-star-names.test.js` 有 10 條
+  靠它），metadata 走另一支 `parseStarNamesMeta`，而且一樣失敗軟著陸（回 `null` → 空字串）。
+  `sky-star-names.test.js` 另有一條擋住那兩個誠實性欄位被靜靜刪掉，
+  並釘住 `stellarium-cn` 的 `kind` 必須是 `cross-check-only`。
+- **頁面上那句 iOS 權限說明曾經跟 `CLAUDE.md` 打架，DESIGN.md 還自己跟自己打架。**
+  `sky/index.html` 到 2026-09-17 都還寫著「方向與動作的授權綁在單一份文件上，重新載入
+  就是新的一份」——那正是真機推翻的那句。`sky/DESIGN.md` 的 790 節是錯的版本、
+  853 節是更正後的版本。**更正一條斷言時要一起搜過頁面文案與 DESIGN.md**，
+  只改 `CLAUDE.md` 不夠。契約現在用 `assertNoMatch` 擋住那句復活，並用 `assertMatch`
+  釘住「只有相機會再問一次」。
 - **月亮（Phase 5）走自己的路徑，不碰恆星那條。** `sky/lib/moon.mjs` 是 Meeus 47 的
   截斷 ELP，給的是**當日座標**，不可以再 precess（星表才需要，因為它是 J2000）。
   三件會害人重做的事：**(1) 站心視差不可省** —— 約 1 度，接近月亮視直徑的兩倍，

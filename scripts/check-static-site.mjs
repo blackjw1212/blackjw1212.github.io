@@ -655,6 +655,23 @@ if (has("sky/index.html")) {
   assertMatch("sky/index.html", html, /沒有任何標準介面問得到/, "sky must disclose the camera field of view cannot be queried");
   assertMatch("sky/index.html", html, /磁偏角）目前沒有修正/, "sky must disclose that declination is not corrected");
 
+  // 中文星名的出處。78 筆上線名稱全部標 cross-checked，但兩個來源一個是作者既有認識
+  // （沒有開過原書）、一個是 CC BY-SA 的資料（僅核對、未採用）——按這個 repo 自己的
+  // 詞彙那不算兩個可引用的來源。資料檔把這些寫得很誠實，但那些字一度完全沒有上畫面，
+  // 而 /float/ 的同類揭露是被釘住必須渲染的。這裡釘三件事各一條：
+  // 名稱是公有領域、本站沒開過原書、那份授權資料只用來核對沒有採用。
+  assertMatch("sky/index.html", html, /本站沒有開過原書/, "sky must disclose nobody here opened the source books");
+  assertMatch("sky/index.html", html, /只用來核對、沒有採用/, "sky must disclose the CC BY-SA source was never adopted");
+  assertMatch("sky/index.html", html, /id="starNamesNote"/, "sky must render the star-name coverage from the data file");
+
+  // iOS 的權限行為：**只有相機會重問**，方向／動作跨重整仍然有效（真機實測 2026-09-10）。
+  // 頁面一度寫著相反的說法（「方向與動作的授權綁在單一份文件上，重新載入就是新的一份」），
+  // 那是沒有 iOS 環境時推理出來的，真機把它推翻了。這條不是措辭問題——
+  // 回訪自動接續能成立的前提就是方向權限還在，頁面不可以同時說相反的話。
+  assertNoMatch("sky/index.html", html, /方向與動作的授權綁在單一份文件上/,
+    "sky must not resurrect the falsified claim that orientation permission is re-prompted on reload");
+  assertMatch("sky/index.html", html, /只有相機會再問一次/, "sky must state which permission actually re-prompts");
+
   // 月亮校正量到的是**整條 heading 管線的觀測偏差**（磁偏角 + 磁力計硬鐵軟鐵誤差 +
   // 融合殘差），不是磁偏角。把它叫成磁偏角等於宣稱一個沒被分離出來的量，
   // 同 geomag.mjs 那條「不可以用 0 代替未知」的紅線。資料模型上兩者分開命名，

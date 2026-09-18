@@ -9,6 +9,8 @@ import {
   accumulate52w,
   derive52w,
   monthKey,
+  retentionFloor,
+  MIN_WINDOW_MONTHS,
   normalizeMiIndex,
   parseMiChange,
 } from "../../scripts/update-market-feed.mjs";
@@ -229,11 +231,61 @@ test("accumulate52w buckets by row date, is idempotent, and prunes old months", 
   acc = accumulate52w(acc, [{ code: "2330", high: 130, low: 125, close: 128, date: "2026-08-03" }], "2026-08-03");
   assert.deepEqual(acc.stocks["2330"].m["2026-08"], [130, 125]);
 
-  // 超過 13 個月的 bucket 被剪枝
+  // 超出保留界線的 bucket 被剪枝
   acc.stocks["2330"].m["2024-01"] = [999, 1];
   acc = accumulate52w(acc, [{ code: "2330", high: 130, low: 125, close: 128, date: "2026-08-04" }], "2026-08-04");
   assert.equal(acc.stocks["2330"].m["2024-01"], undefined);
-  assert.equal(derive52w(acc.stocks["2330"]).hi52, 130, "pruned month must not leak into the 52w high");
+  assert.equal(derive52w(acc.stocks["2330"]).hi52, 130, "pruned month must not leak into the one-year high");
+});
+
+// 界線本身是這個 feed 最容易錯、錯了又最看不出來的一個數字：多留一個整月，
+// 畫面上的「距一年高」就會拿一年多以前的高點當分母。實測過的迴歸——
+// 舊版回推 13 個月且保留該月，結果留下 14 個整桶。
+test("the retained window is 12 whole months plus the current one, not 13", () => {
+  assert.equal(retentionFloor("2026-09-15"), "2025-09");
+  assert.equal(retentionFloor("2026-01-05"), "2025-01");
+  assert.equal(retentionFloor("junk"), "");
+
+  let acc = { start: "2025-01-01", stocks: {} };
+  const months = [];
+  for (let i = 0; i < 20; i += 1) {
+    const d = new Date(Date.UTC(2025, 1 + i, 10));
+    months.push(d.toISOString().slice(0, 10));
+  }
+  for (const day of months) {
+    acc = accumulate52w(acc, [{ code: "2330", high: 100, low: 90, close: 95, date: day }], day);
+  }
+  const kept = Object.keys(acc.stocks["2330"].m).sort();
+  assert.equal(kept.length, 13, `保留 12 個完整月 ＋ 當月 = 13，實得 ${kept.length}：${kept.join(",")}`);
+  const last = months[months.length - 1];
+  assert.equal(kept[0], retentionFloor(last), "最舊的桶必須剛好落在保留界線上");
+});
+
+// 剪枝原本寫在逐列迴圈裡，於是**當班沒抓到的個股永遠不會被剪**。
+// 實測 2026-09-15 有 3 檔停牌股還揹著 15 個月的桶，只要在 60 天下市清除之前
+// 復牌就會用那個窗口上畫面。
+test("a code missing from this run is still pruned, not frozen with a stale window", () => {
+  let acc = accumulate52w({}, [
+    { code: "2330", high: 100, low: 90, close: 95, date: "2025-06-10" },
+    { code: "9999", high: 500, low: 400, close: 450, date: "2025-06-10" },
+  ], "2025-06-10");
+  assert.deepEqual(acc.stocks["9999"].m["2025-06"], [500, 400]);
+
+  // 9999 從此缺席，但還在 60 天內：2025-07 與 2025-08 各出現一次讓它活著
+  for (const day of ["2025-07-10", "2025-08-08"]) {
+    acc = accumulate52w(acc, [
+      { code: "2330", high: 100, low: 90, close: 95, date: day },
+      { code: "9999", high: 500, low: 400, close: 450, date: day },
+    ], day);
+  }
+  // 之後只有 2330 有資料，一路推到 2026-08——9999 的 2025-06 桶已超界
+  for (let i = 0; i < 12; i += 1) {
+    const day = new Date(Date.UTC(2025, 8 + i, 8)).toISOString().slice(0, 10);
+    acc = accumulate52w(acc, [{ code: "2330", high: 100, low: 90, close: 95, date: day }], day);
+    if (acc.stocks["9999"]) acc.stocks["9999"].lastSeen = day; // 假裝它還有被看到，隔開 60 天那條規則
+  }
+  assert.ok(acc.stocks["9999"], "這條測的是剪枝，不是下市清除——9999 必須還在");
+  assert.equal(acc.stocks["9999"].m["2025-06"], undefined, "缺席的個股一樣要被剪枝");
 });
 
 test("accumulate52w drops stocks unseen for 60 days (delisted)", () => {
@@ -247,10 +299,29 @@ test("accumulate52w drops stocks unseen for 60 days (delisted)", () => {
   assert.ok(acc.stocks["2330"]);
 });
 
-test("derive52w spans months and returns null without data", () => {
+test("derive52w spans months, counts them, and returns null without data", () => {
   assert.equal(derive52w(null), null);
   assert.equal(derive52w({ m: {} }), null);
-  assert.deepEqual(derive52w({ m: { "2026-06": [200, 150], "2026-07": [180, 120] } }), { hi52: 200, lo52: 120 });
+  assert.deepEqual(derive52w({ m: { "2026-06": [200, 150], "2026-07": [180, 120] } }),
+    { hi52: 200, lo52: 120, months: 2 });
+});
+
+// 上市未滿一年的個股不得宣稱一年高低——ETF 那一側早就有同一條規則
+// （deriveDividend 的 coverage 閘門）。實測 2026-09-15 有 43 檔不足 12 個月，
+// 其中兩檔只有 1 個月，畫面照樣印著距高 −30%。
+test("a stock listed under a year cannot claim a one-year high", () => {
+  const thin = { m: {} };
+  for (let i = 0; i < 3; i += 1) thin.m[`2026-0${i + 1}`] = [100 + i, 50 - i];
+  const thinWindow = derive52w(thin);
+  assert.equal(thinWindow.months, 3);
+  assert.ok(thinWindow.months < MIN_WINDOW_MONTHS, "3 個月必須落在閘門之下");
+
+  const full = { m: {} };
+  for (let i = 0; i < MIN_WINDOW_MONTHS; i += 1) {
+    full.m[`2026-${String(i + 1).padStart(2, "0")}`] = [100, 50];
+  }
+  assert.equal(derive52w(full).months, MIN_WINDOW_MONTHS);
+  assert.ok(derive52w(full).months >= MIN_WINDOW_MONTHS, "剛好 12 個月就可以發布");
 });
 
 test("monthKey extracts YYYY-MM", () => {

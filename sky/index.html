@@ -221,10 +221,11 @@
       <ul class="note">
         <li>相機的視野角<strong>沒有任何標準介面問得到</strong>，預設值只是起始值。用一顆認得出來的亮星把它調到對齊，之後會記在這台裝置上。</li>
         <li>星表是 Yale BSC5 的 6 等以上共 5080 顆，J2000 座標，畫之前會換算到當日並補上大氣折射。</li>
+        <li><strong>中文星名是人工整理的小表，不是從哪一份資料庫抽出來的。</strong>名稱本身是儀象考成一系古籍的傳統星官名、屬於公有領域；<strong>本站沒有開過原書</strong>，是憑既有認識逐筆寫出，再拿一份 CC BY-SA 授權的資料逐筆核對——那份資料<strong>只用來核對、沒有採用</strong>，一個位元組都沒有進到這個網站。來源分歧的幾筆不給中文名，直接顯示西方專名。<span id="starNamesNote"></span></li>
         <li>地磁北與真北的差（磁偏角）目前沒有修正，因為查不到可引用的數值來源。未校正時畫面上的方位角就是感測器給的磁北值。</li>
         <li>可以用月亮把方位校準：月亮的位置算得準（對 ELP/MPP02 的最差誤差 18 角秒），把它當基準點一次量出偏差。<strong>但量到的是整條管線的觀測偏差</strong>——磁偏角、手機磁力計的硬鐵軟鐵誤差、感測器融合的殘差全混在裡面，所以它不等於磁偏角，本站也不會這樣宣稱。校正只在你當下的位置與時間有效。</li>
         <li>白天也會照算照畫，只是天上看不到星。</li>
-        <li><strong>重新整理會再問一次權限，那是 iOS 的行為，頁面壓不下來。</strong>方向與動作的授權綁在單一份文件上，重新載入就是新的一份。位置已經改成沿用上一次的座標（只留在這台裝置）：<strong>30 分鐘內重新整理不會再問位置</strong>，因為那種情況下根本不會去呼叫定位；超過 30 分鐘才會重新定位，超過 12 小時的舊座標直接丟掉。相機可以試著在 Safari 網址列的選單裡把這個網站的相機設成允許——<strong>這條我沒有在 iOS 上驗證過</strong>，只是它是唯一可能有效的方向。</li>
+        <li><strong>重新整理之後只有相機會再問一次，方向與動作的授權還在。</strong>這是 iOS 真機量出來的（2026-09-10），不是推論——先前這裡寫的是「方向也會重問」，實測把它推翻了。<strong>正因為方向的授權還在，成功用過一次之後再打開這一頁會自己接續</strong>，不必再按按鈕。位置則是沿用上一次的座標（只留在這台裝置）：<strong>30 分鐘內重新整理不會再問位置</strong>，因為那種情況下根本不會去呼叫定位；超過 30 分鐘才會重新定位，超過 12 小時的舊座標直接丟掉。相機那一個目前沒有辦法省掉；在 Safari 網址列的選單裡把這個網站的相機設成允許之後，<strong>系統對話框還會不會跳仍然沒有確認過</strong>。</li>
       </ul>
     </div>
   </details>
@@ -431,8 +432,22 @@
     return n;
   }
 
+  // 中文星名的出處摘要。HTML 裡已經有一句靜態的揭露（JS 沒跑也看得到、契約釘得住），
+  // 這裡補的是**會隨資料檔變動的那半**：涵蓋幾顆、幾筆因為來源分歧而不出貨。
+  // 讀 meta 而不是在頁面上抄一份數字，頁面才不會跟 star-names-zh.json 分叉——
+  // 同 /float/ 把 feed 的 verificationMethod 渲染到鮮度列的做法。
+  // 載不到人工表時回空字串：靜態那句仍然成立，不能因此讓整頁掛掉。
+  function describeStarNames(meta) {
+    if (!meta || !Number.isFinite(meta.covered) || meta.covered <= 0) return "";
+    var shipped = Number.isFinite(meta.shipped) ? meta.shipped : meta.covered - meta.withheld;
+    var text = "目前收錄 " + meta.covered + " 顆亮星，其中 " + shipped + " 顆給得出中文名";
+    if (meta.withheld > 0) text += "，" + meta.withheld + " 顆因為來源分歧而留空";
+    return text + "。";
+  }
+
   var helpers = {
     magnitudeToRadiusPx: magnitudeToRadiusPx,
+    describeStarNames: describeStarNames,
     selectLabels: selectLabels,
     formatAltAz: formatAltAz,
     describeBlockers: describeBlockers,
@@ -919,6 +934,7 @@
       .then(function (loaded) {
         catalog = loaded;
         ready.catalog = true;
+        if (el.starNamesNote) el.starNamesNote.textContent = describeStarNames(catalog.namesZhMeta);
         return startCamera();
       })
       .then(function () { return requestLocation(); })
@@ -1049,6 +1065,7 @@
     el.moonBtn = document.getElementById("moonBtn");
     el.moonClear = document.getElementById("moonClear");
     el.moonState = document.getElementById("moonState");
+    el.starNamesNote = document.getElementById("starNamesNote");
 
     try {
       var saved = window.localStorage.getItem(FOV_STORAGE_KEY);
