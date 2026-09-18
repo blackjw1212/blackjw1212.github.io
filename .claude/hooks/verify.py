@@ -224,20 +224,42 @@ def check_shell(project):
     return ("Shell", f"shellcheck 不通過\n{out}" if rc not in (0, None) else None)
 
 
+def project_python(project):
+    """專案 venv 的直譯器優先;沒有才退回跑這支 hook 的 Python。
+
+    用全域 pytest 跑有 venv 的專案,會看不到專案自己的套件而噴
+    ModuleNotFoundError —— 那是假陰性、不是真失敗(實測同一專案:
+    全域 8 errors vs venv 105 passed)。
+    """
+    for vdir in (".venv", "venv"):
+        for sub, exe in (("Scripts", "python.exe"), ("bin", "python")):
+            p = project / vdir / sub / exe
+            if p.exists():
+                return str(p)
+    return sys.executable
+
+
 def check_python(project):
     files = globs(project, "*.py")
     if not files:
         return None
+    py = project_python(project)
     fails = []
     for f in files:
-        rc, out = run([sys.executable, "-m", "py_compile", str(f)])
+        rc, out = run([py, "-m", "py_compile", str(f)])
         if rc not in (0, None):
             fails.append(f"Python 語法錯誤:{f.name}\n{out}")
     has_tests = bool(globs(project, "test_*.py", "*_test.py")) or (project / "tests").is_dir()
-    if has_tests and shutil.which("pytest"):
-        rc, out = run(["pytest", "-q"], cwd=str(project))
-        if rc not in (0, None):
-            fails.append(f"pytest 失敗\n{out}")
+    if has_tests:
+        # 用「該直譯器能不能 import pytest」當判準,而不是 PATH 上有沒有 pytest ——
+        # venv 沒裝 pytest 時硬跑會回非 0,變成另一種假擋。
+        rc_probe, _ = run([py, "-c", "import pytest"])
+        if rc_probe == 0:
+            rc, out = run([py, "-m", "pytest", "-q"], cwd=str(project))
+            if rc not in (0, None):
+                fails.append(f"pytest 失敗\n{out}")
+        else:
+            warn(f"{py} 沒有 pytest → 跳過測試檢查(pip install pytest 後才會驗)")
     return ("Python", "\n".join(fails) if fails else None)
 
 
