@@ -35,6 +35,9 @@ function report(title, result) {
     return 0;
   }
   console.log(`❌ ${title}${result.code ? `  [${result.code}]` : ""}`);
+  if (result.rule_status || result.verification_status) {
+    console.log(`   rule_status=${result.rule_status ?? "—"}  verification_status=${result.verification_status ?? "—"}`);
+  }
   for (const e of result.errors ?? result.reasons ?? []) console.log(`   · ${e}`);
   for (const v of result.violations ?? []) {
     console.log(`   · L${v.line} [${v.code}] ${v.excerpt}`);
@@ -66,10 +69,17 @@ export async function run(argv) {
   if (mode === "tax") {
     const [instrumentType, tradeDate, kind] = target.split(":");
     const table = await readJson(TAX_TABLE);
-    const res = resolveTax(table, { instrumentType, tradeDate, dayTrade: kind === "daytrade" });
-    if (!res.ok) return report(`稅率解析 ${target}`, res);
-    console.log(`✅ 稅率解析 ${target}`);
-    console.log(`   rate=${res.rate}  rule=${res.ruleId}  status=${res.status}`);
+    // today 與 tradeDate 是兩個時鐘：前者決定資料新不新鮮，後者決定法規有沒有效。
+    const today = argv.includes("--today") ? argv[argv.indexOf("--today") + 1] : new Date().toISOString().slice(0, 10);
+    const res = resolveTax(table, {
+      instrumentType, tradeDate, today,
+      dayTrade: kind === "daytrade",
+      allowStale: argv.includes("--allow-stale"),
+    });
+    if (!res.ok) return report(`稅率解析 ${target}（today=${today}）`, res);
+    console.log(`✅ 稅率解析 ${target}（today=${today}）`);
+    console.log(`   rate=${res.rate}  rule=${res.ruleId}`);
+    console.log(`   rule_status=${res.rule_status}  verification_status=${res.verification_status}  複查期限=${res.verification_due}`);
     for (const w of res.warnings ?? []) console.log(`   ⚠ ${w}`);
     return 0;
   }
