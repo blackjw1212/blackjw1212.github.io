@@ -32,11 +32,19 @@ function tsValue(v) {
   return Number.isFinite(t) ? t : null;
 }
 
+// trade-log/v1 的 costs 只有這五欄。把「總成本」定義成固定欄位的加總，
+// 就必須同時拒絕欄位外的東西——否則多寫一個 slippage_est: 500 會被靜默吞掉，
+// 總成本一毛都不變，而 pnl_net 留 null 時沒有任何人會發現那 500 不見了。
+// 實測 2026-09-20 就是這樣：{...,slippage_est:500} 與不帶它算出同一個 3346。
+export const COST_FIELDS = Object.freeze(["commission_buy", "commission_sell", "tax", "borrow", "other"]);
+
 export function totalCosts(costs) {
   if (!costs || typeof costs !== "object") return null;
-  const parts = ["commission_buy", "commission_sell", "tax", "borrow", "other"];
+  for (const k of Object.keys(costs)) {
+    if (!COST_FIELDS.includes(k)) return null;     // 認不得的成本欄位 → 整筆不可計算
+  }
   let sum = 0;
-  for (const k of parts) {
+  for (const k of COST_FIELDS) {
     const v = costs[k];
     if (v === undefined || v === null) continue;   // 未填 = 未知，不是 0
     if (!num(v)) return null;
@@ -86,7 +94,10 @@ function validateTrade(trade, index, opts) {
   if (!trade.costs || typeof trade.costs !== "object") {
     errs.push(at("缺 costs——沒有成本的損益不是損益"));
   } else if (totalCosts(trade.costs) === null) {
-    errs.push(at("costs 含非數字欄位"));
+    const unknown = Object.keys(trade.costs).filter((k) => !COST_FIELDS.includes(k));
+    errs.push(at(unknown.length
+      ? `costs 含 trade-log/v1 沒有的欄位：${unknown.join("、")}（合法欄位：${COST_FIELDS.join("、")}）`
+      : "costs 含非數字欄位"));
   }
 
   // 定義性檢查：使用者填的 pnl_net 必須等於重算值。
@@ -182,6 +193,13 @@ export function validateFinancialData(doc) {
 // 「沒有執行就不得聲稱回測結果」要能被機器判定，就得要求結果自帶執行痕跡：
 // 資料來源、期間、列數、程式雜湊、執行時間。缺任一項 → NO_EXECUTION_RESULT。
 // 這擋不了刻意偽造，但擋得住「模型順手把一組漂亮數字寫成回測結果」——那才是實際會發生的事。
+// 與 scripts/lib/fill-model.mjs 的 FILL 常數對應。這兩個狀態代表「日 K 證明不了成交」，
+// 它們永遠不可以進 filled_qty、成交筆數、已實現損益、勝率或獲利因子。
+export const MUST_EXCLUDE_FROM_REALIZED = Object.freeze([
+  "price_reachable_but_execution_unknown",
+  "unknown_insufficient_data",
+]);
+
 export const EXECUTION_PROOF_FIELDS = ["data_source", "period_start", "period_end", "row_count", "code_sha256", "executed_at"];
 
 export function validateBacktestResult(doc) {
@@ -205,6 +223,15 @@ export function validateBacktestResult(doc) {
   if (doc.has_short_trades) required.push("borrow_cost", "forced_buyin");
   const missing = required.filter((k) => !declared.has(k));
   if (missing.length) errors.push(`cost_model_covers 未宣告：${missing.join("、")}`);
+
+  // 成交狀態未定的訊號不得混進已實現績效。這件事只靠提示詞講會被忽略，
+  // 所以要求結果自己宣告排除了哪些 fill 狀態——沒宣告就當作沒排除。
+  const excluded = new Set(doc.fill_accounting?.excluded_from_realized ?? []);
+  for (const state of MUST_EXCLUDE_FROM_REALIZED) {
+    if (!excluded.has(state)) {
+      errors.push(`fill_accounting.excluded_from_realized 未排除 ${state}——把成交未定的訊號算進勝率與損益，就是用未知換來的漂亮數字`);
+    }
+  }
 
   if (errors.length) return { ok: false, code: "NO_EXECUTION_RESULT", errors };
   return { ok: true, executedAt: proof.executed_at };

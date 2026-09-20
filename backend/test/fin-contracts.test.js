@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   validateTradeLog, validateFinancialData, validateBacktestResult,
-  recomputePnl, totalCosts,
+  recomputePnl, totalCosts, COST_FIELDS, MUST_EXCLUDE_FROM_REALIZED,
 } from "../../scripts/lib/fin-contracts.mjs";
 
 // 這兩份 schema 的價值全在兩道定義性檢查上（形狀檢查擋不住「形狀對但數字錯」）：
@@ -52,6 +52,20 @@ test("空方的損益方向相反", () => {
 test("成本欄位未填視為未知，不是 0", () => {
   assert.equal(totalCosts({ commission_buy: 20, tax: null }), 20, "null 跳過");
   assert.equal(totalCosts({ commission_buy: "20" }), null, "非數字整筆判為不可計算");
+});
+
+test("認不得的成本欄位不得被靜默吞掉", () => {
+  // 實測 2026-09-20：修之前 {..., slippage_est: 500} 與不帶它算出同一個總成本，
+  // 那 500 元人間蒸發，而 pnl_net 留 null 時沒有任何人會發現。
+  assert.equal(totalCosts({ commission_buy: 20, tax: 3306, slippage_est: 500 }), null);
+  assert.equal(totalCosts({ commission_buy: 20, tax: 3306 }), 3326, "只有合法欄位時照算");
+});
+
+test("trade-log 會指名是哪個欄位不合法", () => {
+  const res = validateTradeLog(log([trade({ costs: { commission_buy: 20, slippage_est: 500 }, pnl_net: null })]));
+  assert.equal(res.ok, false);
+  assert.ok(res.errors.some((e) => e.includes("slippage_est")), "訊息要說得出是哪一欄，否則沒人修得動");
+  assert.ok(res.errors.some((e) => COST_FIELDS.every((f) => e.includes(f))), "並列出合法欄位");
 });
 
 test("缺 rule_set 會紅——否則 06 會把兩套制度下的交易混在一起", () => {
@@ -122,6 +136,7 @@ const proof = (over = {}) => ({
     "commission", "minimum_commission", "transaction_tax",
     "slippage", "price_limit_fill", "liquidity_cap",
   ],
+  fill_accounting: { excluded_from_realized: [...MUST_EXCLUDE_FROM_REALIZED] },
   ...over,
 });
 
@@ -157,4 +172,21 @@ test("有空方交易時另外要求借券成本與強制回補", () => {
   const res = validateBacktestResult(withShort);
   assert.equal(res.ok, false);
   assert.ok(res.errors.some((e) => e.includes("forced_buyin")), "台股融券在除權息與股東會前會被強制回補");
+});
+
+test("成交未定的訊號不得混進已實現績效——結果必須自己宣告排除了哪些", () => {
+  const noDeclaration = proof({ fill_accounting: undefined });
+  const res = validateBacktestResult(noDeclaration);
+  assert.equal(res.ok, false);
+  assert.equal(res.code, "NO_EXECUTION_RESULT");
+  for (const state of MUST_EXCLUDE_FROM_REALIZED) {
+    assert.ok(res.errors.some((e) => e.includes(state)), `未宣告排除 ${state} 應該要紅`);
+  }
+});
+
+test("只排除一半也不算", () => {
+  const half = proof({ fill_accounting: { excluded_from_realized: ["unknown_insufficient_data"] } });
+  const res = validateBacktestResult(half);
+  assert.equal(res.ok, false);
+  assert.ok(res.errors.some((e) => e.includes("price_reachable_but_execution_unknown")));
 });
