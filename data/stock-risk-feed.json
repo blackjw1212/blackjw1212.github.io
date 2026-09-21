@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-09-21T02:17:12.946Z",
-  "eodUpdatedAt": "2026-09-21T02:17:12.946Z",
-  "eodTradingDate": "2026-09-18",
+  "updatedAt": "2026-09-21T08:04:37.123Z",
+  "eodUpdatedAt": "2026-09-21T08:04:37.123Z",
+  "eodTradingDate": "2026-09-21",
   "holdings": [
     "2330",
     "2317",
@@ -21,93 +21,93 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 721,
-      "change": 16,
-      "date": "2026-09-18"
+      "close": 718,
+      "change": -3,
+      "date": "2026-09-21"
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1735,
-      "change": 50,
-      "date": "2026-09-18"
+      "close": 1875,
+      "change": 140,
+      "date": "2026-09-21"
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 250.5,
-      "change": 0,
-      "date": "2026-09-18"
+      "close": 250,
+      "change": -0.5,
+      "date": "2026-09-21"
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2460,
-      "change": 35,
-      "date": "2026-09-18"
+      "close": 2480,
+      "change": 20,
+      "date": "2026-09-21"
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 61.7,
-      "change": 0.2,
-      "date": "2026-09-18"
+      "close": 61.8,
+      "change": 0.1,
+      "date": "2026-09-21"
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 356,
-      "change": 1,
-      "date": "2026-09-18"
+      "close": 368,
+      "change": 12,
+      "date": "2026-09-21"
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 343,
-      "change": -1,
-      "date": "2026-09-18"
+      "close": 344.5,
+      "change": 1.5,
+      "date": "2026-09-21"
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 3430,
-      "change": 245,
-      "date": "2026-09-18"
+      "close": 3415,
+      "change": -15,
+      "date": "2026-09-21"
     },
     {
       "code": "3231",
       "name": "緯創",
       "close": 186.5,
       "change": 0,
-      "date": "2026-09-18"
+      "date": "2026-09-21"
     },
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 1480,
-      "change": 95,
-      "date": "2026-09-18"
+      "close": 1520,
+      "change": 40,
+      "date": "2026-09-21"
     },
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 3540,
-      "change": 245,
-      "date": "2026-09-18"
+      "close": 3665,
+      "change": 125,
+      "date": "2026-09-21"
     },
     {
       "code": "6239",
       "name": "力成",
-      "close": 284,
-      "change": 9.5,
-      "date": "2026-09-18"
+      "close": 292.5,
+      "change": 8.5,
+      "date": "2026-09-21"
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 2140,
-      "change": 5,
-      "date": "2026-09-18"
+      "close": 2150,
+      "change": 10,
+      "date": "2026-09-21"
     }
   ],
   "valuation": {
