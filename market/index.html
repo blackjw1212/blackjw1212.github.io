@@ -237,6 +237,12 @@
     input[type=search]{min-height:44px}
     #pd1y,#pd3y,#pd5y{min-height:44px}
     .ov-item{min-height:44px}
+    /* 成分股重疊的挑選清單：minmax(190px) 在 375px 下只排得出一欄，實測 208 檔 × 44px
+       ＝ 10,808px，佔 ETF 分頁 59%，真正的資料表才 5,729px。改兩欄（每格約 162px）。
+       名稱在代碼旁邊只剩約 70px，所以讓它放不下時自己換到代碼下一行（flex-wrap），
+       而不是在 70px 裡擠成三行；字級不動，靠排法而不是縮字。 */
+    .ov-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+    .ov-item{flex-wrap:wrap;column-gap:6px;row-gap:0;padding:6px 8px;line-height:1.35}
     /* 寬表在手機上一定得橫捲（ETF 18 欄 1,380px、全股票 9 欄 900px，而容器只有 345px），
        但橫捲到第五欄就不知道自己在看哪一檔了。把第一欄（代碼）黏住。
        td/th 本身是透明的，黏住的格子必須自己上底色否則會透出下面的內容；
