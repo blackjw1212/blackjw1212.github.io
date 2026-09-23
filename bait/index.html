@@ -369,7 +369,7 @@
       <li>每 100 克單價＝購買價格 ÷ 包裝重量，兩欄都填了才算得出來。</li>
       <li>整鍋總重與總價只加得起用「克」或「包」記的那幾列。<strong>杯與匙沒有可靠的換算</strong>——同一個量杯裝紅餌與裝魔粒差很多——那幾列不列入總價，並在卡片上點名少算了哪些。</li>
       <li>整鍋的每 100 克成本＝總價 ÷ <strong>算得出價格的那幾列的重量</strong>，不是除以總重。有重量卻沒填價格的料若算進分母，那個單價會被稀釋成偏低的數字。</li>
-      <li>第一次開啟會帶入一組預設的品項與配方，可以直接改或整批刪掉。之後每次開啟會自動把<strong>新增的</strong>預設項補進來，只補缺的、只填空的欄位——你自己建的品項與存的配方都不會被動到。<strong>刪掉的預設項不會復活</strong>，按「補齊預設資料」也不會，因為刪除是你的決定。要拿回來請匯入之前的備份。</li>
+      <li>第一次開啟會帶入一組預設的品項與配方，可以直接改或整批刪掉。之後每次開啟會自動把<strong>新增的</strong>預設項補進來，只補缺的、只填空的欄位——你自己建的品項與存的配方都不會被動到。預設值本身改過時（例如換成實付價、實際重量），只有你那一欄<strong>還是舊的預設值</strong>才會換成新的；你改過的欄位不動，而且每一筆更正只做一次。<strong>刪掉的預設項不會復活</strong>，按「補齊預設資料」也不會，因為刪除是你的決定。要拿回來請匯入之前的備份。</li>
       <li>整頁在瀏覽器裡運算，不上傳任何東西，也沒有帳號。</li>
     </ul>
   </footer>
@@ -728,11 +728,19 @@
       var id = clampText(rawDismissed[k], 40);
       if (id && seedIds()[id] && dismissed.indexOf(id) < 0) dismissed.push(id);
     }
+    var fixIds = {};
+    for (var q = 0; q < SEED_FIXES.length; q += 1) fixIds[SEED_FIXES[q].id] = true;
+    var applied = [];
+    var rawApplied = Array.isArray(raw.appliedFixes) ? raw.appliedFixes : [];
+    for (var a = 0; a < rawApplied.length; a += 1) {
+      if (fixIds[rawApplied[a]] && applied.indexOf(rawApplied[a]) < 0) applied.push(rawApplied[a]);
+    }
     return {
       version: STATE_VERSION,
       items: items,
       recipes: recipes,
       dismissedSeedIds: dismissed,
+      appliedFixes: applied,
       draft: sanitizeRecipe(raw.draft, known) || emptyDraft()
     };
   }
@@ -781,6 +789,12 @@
 
 var FISH_REF = [{"species":"福壽魚","diet":"雜食；野場吃蚯蚓、魚蟲、青苔，池釣以練餌與粒子為主。收斂出來的是味型：蝦＋肝＋穀物基底。","baits":[{"group":"蝦類","role":"主餌／誘餌","note":"南極蝦粉、赤尾青、蝦粉、蝦漿、蝦殼；每一種非活餌釣法都有","sources":["S1","S2","S4","S6","S11","S12","S16"]},{"group":"肝","role":"主餌","note":"雞肝、肝漿、肝粉、肝肉粉、冷凍純肝、肝粒；秋冬幾乎每個來源都點名，夏天多說淡一點","sources":["S1","S2","S4","S5","S9","S10","S11","S13","S16"]},{"group":"穀物／黏著基底","role":"練餌基底","note":"麵粉、麵包粉、土司、番薯、地瓜粉、拉絲粉、小麥蛋白、鰻粉；掛得住鉤的必要條件，不是誘魚成分","sources":["S1","S2","S6","S11","S12","S16"]},{"group":"粒子／飼料","role":"底餌","note":"福壽粒子、沉水飼料；誠誠：粒子其實與一般飼料成分相同，只是另加福壽偏好的添加劑。農業部：豆粕、麵粉、麩皮、米糠均為牠們喜食之飼料","sources":["S3","S5","S6","S9","S10","S11","S14","S17"]},{"group":"魚","role":"肉餌系","note":"秋刀魚、小魚、魚粉、熟魚肉、肉身餌；出現在肉餌與冷凍餌系而非練餌系","sources":["S2","S4","S11","S12","S16"]},{"group":"香甜添加","role":"輔料","note":"香虎、豬母奶、蛋奶粉、布丁、香草粉、市售集魚液；全是「加一點」，沒有來源當主味，冬季減量","sources":["S2","S3","S4","S11","S12","S15"]},{"group":"果酸","role":"季節輔料","note":"鳳梨、果酸；春夏用，兩個來源強調清淡不宜重","sources":["S3","S4","S5","S11"]},{"group":"活餌／青苔","role":"野場主餌","note":"蚯蚓、紅蟲、魚蟲、青苔；有水流處就地取材","sources":["S3","S7"]}],"seasons":{"spring":{"text":"酸；鳳梨精、檸檬精少許","sources":["S4","S11"]},"summer":{"text":"腥；肝味、蝦味冷凍餌加肉身餌；添加劑用量夏季最多","sources":["S4","S11","S15"]},"autumn":{"text":"腥酸；肝＋少量果酸；肉身餌比例調高、加胺基酸","sources":["S4","S5","S11"]},"winter":{"text":"腥香；肝味或蝦味冷凍餌加香虎酒；添加劑減量；改小顆粒子","sources":["S4","S11","S15","S16"]}},"sources":[{"id":"S1","title":"徐小明《怎麼釣台灣鯛、大吳郭魚、福壽魚》","seenVia":"opened"},{"id":"S2","title":"台北市釣魚協會 福壽之家《分享自製肉餌》","seenVia":"search-summary"},{"id":"S3","title":"農業知識入口網 吳郭魚主題館《吳郭魚釣餌要怎麼準備？》","seenVia":"opened"},{"id":"S4","title":"誠誠《一年四季的味道偏向……福壽魚》","seenVia":"opened"},{"id":"S5","title":"釣魚密技《秋釣福壽的疑惑》","seenVia":"opened"},{"id":"S6","title":"juchun65《自製特調福壽餌》","seenVia":"opened"},{"id":"S7","title":"溪釣戰斧《吳郭魚手竿釣組及餌料》","seenVia":"opened"},{"id":"S9","title":"池釣狂熱 商品清單（粒子、清水福冷凍純肝）","seenVia":"opened"},{"id":"S10","title":"頭城東區釣具 釣卡多 141 肝粒 誘餌粒子","seenVia":"search-summary"},{"id":"S11","title":"Yahoo 知識＋／天闊釣魚網（多篇混在同一段摘要）","seenVia":"search-summary"},{"id":"S12","title":"老百王 福壽紅餌 包裝成分表","seenVia":"user-supplied"},{"id":"S13","title":"狂電 2 號 包裝成分表","seenVia":"user-supplied"},{"id":"S14","title":"誠誠《福壽淺談（下）釣技剖析》","seenVia":"opened"},{"id":"S15","title":"池釣狂熱《釣福壽香精香料添加物》","seenVia":"opened"},{"id":"S16","title":"福壽之家《冬天來到…吃腥還是吃香？》／tw.bbs.sports.fishing《福壽魚釣法》","seenVia":"search-summary"},{"id":"S17","title":"農業知識入口網《吳郭魚該怎麼養》","seenVia":"opened"}]},{"species":"黑鯛","diet":"雜食；老鬼：「跟吳郭魚一樣沒有牠不吃的東西」。親底。收斂出來的不是味型，是三條軸：主體＝南極蝦、誘餌看比重、釣餌換法看水色與雜魚。","baits":[{"group":"南極蝦","role":"主餌＋誘餌主體","note":"生南極蝦 2L；老鬼：「最強的餌料」「磯釣首選、比賽唯一指定」。釣餌與誘餌是同一種東西；尬馬劉：市售黑鯛誘餌摻一半碎南極蝦，量少多次","sources":["B1","B2","B3","B4","B6","B7","B8","B9"]},{"group":"活蝦蟹","role":"前打／落入／沉底","note":"沙蝦、白蝦、鬍鬚蝦、螃蟹、海蟑螂、跳蟲；共識是「當地原生的食物」。蟹：西南部青蚶（台灣厚蟹）、瘋馬仔、婆仔、岩蟹；北部活沙蝦、鬍鬚蝦優先","sources":["B1","B3","B4","B5","B8","B9","B10","B11"]},{"group":"高比重基底","role":"誘餌","note":"玉米、大粒麥片、蚵殼、紅土、炒麵粉；誘餌要沉到底。米糠、麵包粉是輕比重、黑毛那型","sources":["B1","B2","B6","B7"]},{"group":"貝螺","role":"沉底／前打","note":"福壽螺、金寶螺、蚵、貝；水清用，水濁避免（魚看不到殼裡的肉）；秋到晚春硬殼餌；福壽螺要先破殼放氣","sources":["B1","B4","B5","B8","B9"]},{"group":"練餌","role":"水濁時","note":"南極蝦＋麵粉或土司＋蝦精或蚵精＋黏粉；味重質軟","sources":["B1","B3","B7","B9"]},{"group":"玉米／西瓜","role":"雜魚多時","note":"植物性、避小魚。「日本測試黑鯛偏好玉米」找不到原始出處","sources":["B1","B3","B8"]},{"group":"腥添加","role":"輔料","note":"秋刀魚、魚精粉、赤尾青、蚵精","sources":["B4","B7"]},{"group":"香甜添加","role":"輔料","note":"香虎、蛋奶香精；只有一則搜尋摘要提到","sources":["B7"]}],"seasons":{"spring":{"text":"旺季（春至秋）；農曆年後至清明活蝦最好用","sources":["B4","B9"]},"summer":{"text":"旺季，魚往河口","sources":["B9"]},"autumn":{"text":"秋初福壽螺較佳；入秋後改硬殼餌（螃蟹、金寶螺）","sources":["B4","B9"]},"winter":{"text":"東北季風期南極蝦（去頭露肉）；硬殼餌；魚往外海","sources":["B4","B9"]}},"sources":[{"id":"B1","title":"老鬼の磯釣筆記《磯釣實戰 黑鯛》","seenVia":"opened"},{"id":"B2","title":"老鬼の磯釣筆記《誘餌的種類與選擇》","seenVia":"opened"},{"id":"B3","title":"老鬼の磯釣筆記《磯釣常用釣餌介紹》","seenVia":"opened"},{"id":"B4","title":"釣魚密技《黑格類魚種台灣釣點分佈與垂釣季節月份》","seenVia":"opened"},{"id":"B5","title":"堤防行走人《前打訊號抓取與夜間前打》","seenVia":"opened"},{"id":"B6","title":"MARUKYU 黑鯛浮游釣用餌 產品頁","seenVia":"opened"},{"id":"B7","title":"《自製海釣魚餌》（akinarlf／seafishing 轉載）","seenVia":"search-summary"},{"id":"B8","title":"細說黑鯛／天闊釣魚網 黑鯛活沙蝦","seenVia":"search-summary"},{"id":"B9","title":"尬馬劉《磯釣黑鯛要領 經驗談》","seenVia":"opened"},{"id":"B10","title":"堤防行走人《螃蟹釣餌垂釣黑鯛的最佳揚竿時機》","seenVia":"opened"},{"id":"B11","title":"銀之羽翼《不想推廣的釣法……前打》","seenVia":"opened"}]},{"species":"黑毛","diet":"藻類為主、小型無脊椎為輔；門齒三尖可動，刮藻也吃蝦，所以南極蝦通吃。","baits":[{"group":"南極蝦","role":"主餌＋誘餌主體","note":"老鬼：「重蝦不重粉」，誘餌的蝦量比黑鯛至少多一倍；黑毛靠視覺索餌。漁庫：掛 2–3 隻，純南極蝦每 15–20 秒打 3–5 隻的速攻打法","sources":["W1","W2","W8","W10"]},{"group":"輕比重誘餌粉","role":"誘餌","note":"グレ型：細麥、麵包粉、海藻、膨脹粉；在中上層擴散，與黑鯛的高比重相反。漁庫：輕粉、蝦多粉少；中國站：輕麸","sources":["W1","W2","W8","W10"]},{"group":"藻餌","role":"副餌（冬）","note":"海髮絲、紫菜、海苔；冬季藻類大發時的替代釣餌，不是主體（W5 講的是食性不是釣餌）","sources":["W1","W3","W5","W8"]},{"group":"活餌","role":"副餌","note":"鬍鬚蝦、跳蟲、海蟑螂；換成操作型釣組","sources":["W1"]}],"seasons":{"spring":{"text":"梅雨前仍是釣季；腥（搜尋摘要）","sources":["W1","W8"]},"summer":{"text":"大型黑毛北移；腥（搜尋摘要）","sources":["W5","W8"]},"autumn":{"text":"秋末起進入主季；腥（搜尋摘要）","sources":["W1","W8"]},"winter":{"text":"主季，海溫 18–25°C；吃素、藻餌可用","sources":["W1","W5","W8"]}},"sources":[{"id":"W1","title":"老鬼の磯釣筆記《磯釣黑毛》","seenVia":"opened"},{"id":"W2","title":"老鬼の磯釣筆記《誘餌的種類與選擇》","seenVia":"opened"},{"id":"W3","title":"老鬼の磯釣筆記《磯釣常用釣餌介紹》","seenVia":"opened"},{"id":"W5","title":"魚有榮焉《黑毛、白毛 寒冬的嬌客》","seenVia":"opened"},{"id":"W8","title":"搜狐／每日頭條 黑毛文章（中國站）","seenVia":"search-summary"},{"id":"W10","title":"漁庫《如何釣黑毛 手把手教你啦》","seenVia":"opened"}]},{"species":"白毛","diet":"大型藻類為主、小型甲殼為輔；片狀固定齒，切斷海帶類。跟黑毛的交集只有冬季、輕比重、都吃得了藻，主餌相反。","baits":[{"group":"藻餌","role":"主餌","note":"腳白菜（小海帶／舌苔）最愛、大葉青、鹿角菜、紫菜、青苔（蔥管菜）、紅菜；資深釣客就地撿礁岩上的（W5、W12 講的是食性不是釣餌）","sources":["W3","W4","W5","W6","W7","W11","W12","W13"]},{"group":"切碎的藻","role":"誘餌","note":"漁庫：大葉青一簍一簍剁細、拋灑在浪腳下；沒有任何來源給誘餌粉配方","sources":["W9","W11"]},{"group":"南極蝦／魚蝦","role":"次選","note":"開過的來源只有漁庫一句「偶爾也吃魚蝦」；把南極蝦列為白毛釣餌的只有搜尋摘要","sources":["W7","W9","W11"]}],"seasons":{"spring":{"text":"冬到春體型大、脂肪厚；3 月前仍在釣季","sources":["W7","W13"]},"summer":{"text":"","sources":[]},"autumn":{"text":"11 月起","sources":["W7"]},"winter":{"text":"主季；體型大、浪腳泡沫處成群，晨昏夜釣；「冬季藻餌磯釣三大主角之一」","sources":["W4","W5","W7","W12","W13"]}},"sources":[{"id":"W3","title":"老鬼の磯釣筆記《磯釣常用釣餌介紹》","seenVia":"opened"},{"id":"W4","title":"新北市漁業處《嚴冬下頂浪高手與白毛在海岸邊過招》","seenVia":"opened"},{"id":"W5","title":"魚有榮焉《黑毛、白毛 寒冬的嬌客》","seenVia":"opened"},{"id":"W6","title":"天闊釣魚網《藻餌磯釣：海髮絲、腳白菜、鹿角菜》","seenVia":"search-summary"},{"id":"W7","title":"天闊釣魚網《白毛魚的釣點分佈與適合釣的月份季節》","seenVia":"search-summary"},{"id":"W9","title":"《自製海釣魚餌》（akinarlf／seafishing 轉載）","seenVia":"search-summary"},{"id":"W11","title":"漁庫《降服白毛的技巧》","seenVia":"opened"},{"id":"W12","title":"摸魚老師《白毛》","seenVia":"opened"},{"id":"W13","title":"洄遊吧《低鰭舵魚 白毛》","seenVia":"opened"}]},{"species":"臭肚","diet":"藻食為主，能一口吞的小生物也不拒；日行性，太陽越大越咬，水一濁就不吃餌。嘴小，來源一致講「小鉤小餌」。","baits":[{"group":"南極蝦","role":"主餌","note":"去頭尾、餌不超過鉤子；近年東北角釣友以它為主要餌料，早年是麵粉＋魚精粉揉粒","sources":["T1","T2","T3"]},{"group":"練餌／粉餌","role":"主餌","note":"紅色臭肚用練餌（釣具店有兩三種）、班長紅餌、早期烏雞丸、麵粉＋魚精粉；自製雪片＋麵包粉＋赤尾青（搜尋摘要）","sources":["T1","T2","T3","T6"]},{"group":"藻餌","role":"釣餌（冬）","note":"海髮絲最易拾獲；釣魚密技：藻餌釣的體型較優；北海岸冬季藻餌磯釣三大主角之一（T4、T5 講的是食性不是釣餌）","sources":["T1","T2","T3","T4","T5"]},{"group":"活餌／切丁","role":"副餌","note":"鬍鬚蝦、小卷切丁","sources":["T1"]},{"group":"誘餌","role":"誘餌","note":"老鬼：類型不限，索餌泳層＝誘集泳層（淺層型浮、千又型沉就釣近底）；釣魚密技：紅色誘餌搭紅練餌加臭肚用誘餌，少量多餐","sources":["T1","T2"]}],"seasons":{"spring":{"text":"四季皆可釣（月份表 1–12 月全有）；水清、晴天小浪才咬","sources":["T1","T2","T3"]},"summer":{"text":"暑假起 3–5 指幅小魚成群出現在北海岸；7–8 月產卵","sources":["T3","T4"]},"autumn":{"text":"中秋過後移到龍洞一帶、魚體漸大","sources":["T3"]},"winter":{"text":"魚體最大、最肥；冬季藻餌磯釣三大主角之一；喜好海溫 20°C 以上","sources":["T1","T3","T4"]}},"sources":[{"id":"T1","title":"老鬼の磯釣筆記《磯釣象魚（臭肚）》","seenVia":"opened"},{"id":"T2","title":"釣魚密技《台灣臭肚釣點分佈與垂釣月份季節》","seenVia":"opened"},{"id":"T3","title":"seafishing《磯釣臭肚魚》","seenVia":"opened"},{"id":"T4","title":"洄遊吧《褐臭肚魚 臭肚、象魚》","seenVia":"opened"},{"id":"T5","title":"環境資訊中心《又毒又臭的鮮美鄉愁：臭肚魚（下）》","seenVia":"opened"},{"id":"T6","title":"Garden 2.0《簡易搓餌自己做》","seenVia":"search-summary"}]}];
 
+  /* 預設值本身改過（實付價、實際重量、打錯的備註）時，已經在用的裝置不會自動跟上——
+     mergeSeed 只填空欄位。這張表是一次性的更正：from 是歷來的舊預設值（由 git 歷史產生），
+     to 一律是 SEED 裡現在的值。只有當那一欄「還是舊預設值」時才換，表示使用者沒改過；
+     每一筆只檢查一次（記在 appliedFixes），之後使用者改回舊值也不會再被覆寫。 */
+var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix","field":"name","from":["鳳凰 南極蝦粉 1kg"]},{"id":"item-krill-laobaiwang:name:1","itemId":"item-krill-laobaiwang","field":"name","from":["老百王 南極蝦粉末 150g"]},{"id":"item-chick-feed-kuangcheng:notes:1","itemId":"item-chick-feed-kuangcheng","field":"notes","from":["雞用配合飼料，廣成產業（彰化員林）。包裝可讀到的成分：粗蛋白 18%、粗脂肪 2.5%、粗纖維 9%、水分 13%；主原料玉米與黃豆粉；標示適用 2～6 週齡小雞。粉狀。味型與魚種留空——它不是魚餌產品，怎麼用是配方層的事。"]},{"id":"item-fushou-red:notes:2","itemId":"item-fushou-red","field":"notes","from":["主基底，提供基礎肝味與質地。","主基底，提供基礎肝味與質地。包裝使用說明：加水混合，建議 1:1（以重量為準），手指攪拌均勻，等 3～5 分鐘收水後使用；要更黏就多攪幾次，切勿搓揉。與老百王冷凍餌或濕赤尾青混用效果更佳。"]},{"id":"item-kuangdian-2:notes:1","itemId":"item-kuangdian-2","field":"notes","from":["強效誘集，肝香為主。包裝標示淡、海水福壽魚均可。"]},{"id":"item-fushou-nile-1:packWeightG:1","itemId":"item-fushou-nile-1","field":"packWeightG","from":[30000]},{"id":"item-fushou-nile-1:unitPrice:1","itemId":"item-fushou-nile-1","field":"unitPrice","from":[920]},{"id":"item-fushou-nile-1:notes:1","itemId":"item-fushou-nile-1","field":"notes","from":["尼羅魚用配合飼料，福壽實業。沉水性。包裝標示 30KG。味型未標——包裝上只有粗蛋白等成分表，沒有可據以歸類的味型敘述。"]},{"id":"item-fushou-red:unitPrice:1","itemId":"item-fushou-red","field":"unitPrice","from":[35]},{"id":"item-krill-laobaiwang:unitPrice:1","itemId":"item-krill-laobaiwang","field":"unitPrice","from":[35]},{"id":"item-krill-laobaiwang:notes:1","itemId":"item-krill-laobaiwang","field":"notes","from":["釣餌添加物，產品編號 E-14。包裝印建議售價 50 元，這裡記的 35 是實付價。"]}];
+
   var seedIdCache = null;
 
   function seedIds() {
@@ -811,7 +825,7 @@ var FISH_REF = [{"species":"福壽魚","diet":"雜食；野場吃蚯蚓、魚蟲
      - 使用者自己建的品項與配方完全不碰
      回傳做了什麼，讓畫面說得出來。 */
   function mergeSeed(target, seed) {
-    var report = { addedItems: [], addedRecipes: [], filledItems: [] };
+    var report = { addedItems: [], addedRecipes: [], filledItems: [], fixedItems: [] };
     if (!target || !seed) return report;
     var clean = sanitizeState(seed);
     if (!clean) return report;
@@ -845,6 +859,21 @@ var FISH_REF = [{"species":"福壽魚","diet":"雜食；野場吃蚯蚓、魚蟲
       if (filled) report.filledItems.push(existing.name);
     }
 
+    if (!Array.isArray(target.appliedFixes)) target.appliedFixes = [];
+    var seedById = {};
+    for (var n = 0; n < clean.items.length; n += 1) seedById[clean.items[n].id] = clean.items[n];
+    for (var x = 0; x < SEED_FIXES.length; x += 1) {
+      var fix = SEED_FIXES[x];
+      if (target.appliedFixes.indexOf(fix.id) >= 0) continue;
+      target.appliedFixes.push(fix.id);
+      var mine = byId[fix.itemId];
+      var fresh = seedById[fix.itemId];
+      if (!mine || !fresh || dismissed[fix.itemId]) continue;
+      if (fix.from.indexOf(mine[fix.field]) < 0) continue;
+      mine[fix.field] = fresh[fix.field];
+      if (report.fixedItems.indexOf(mine.name) < 0) report.fixedItems.push(mine.name);
+    }
+
     var haveRecipe = {};
     for (var r = 0; r < target.recipes.length; r += 1) haveRecipe[target.recipes[r].id] = true;
     for (var k = 0; k < clean.recipes.length; k += 1) {
@@ -867,6 +896,7 @@ var FISH_REF = [{"species":"福壽魚","diet":"雜食；野場吃蚯蚓、魚蟲
     if (report.addedItems.length) bits.push("新增 " + report.addedItems.length + " 個品項（" + report.addedItems.join("、") + "）");
     if (report.addedRecipes.length) bits.push("新增 " + report.addedRecipes.length + " 份配方（" + report.addedRecipes.join("、") + "）");
     if (report.filledItems.length) bits.push("補上 " + report.filledItems.length + " 個品項的空欄位（" + report.filledItems.join("、") + "）");
+    if (report.fixedItems && report.fixedItems.length) bits.push("更正 " + report.fixedItems.length + " 個品項的預設值（" + report.fixedItems.join("、") + "；只換你沒改過的欄位）");
     return bits.join("；");
   }
 
@@ -898,6 +928,7 @@ var FISH_REF = [{"species":"福壽魚","diet":"雜食；野場吃蚯蚓、魚蟲
     seedIds: seedIds,
     seed: function () { return SEED; },
     FISH_REF: FISH_REF,
+    SEED_FIXES: SEED_FIXES,
     sourceSummary: sourceSummary
   };
 
@@ -1121,7 +1152,7 @@ var FISH_REF = [{"species":"福壽魚","diet":"雜食；野場吃蚯蚓、魚蟲
     if (bootDone) dirtySinceLoad = true;
     var payload;
     try {
-      payload = JSON.stringify({ version: STATE_VERSION, items: state.items, recipes: state.recipes, dismissedSeedIds: state.dismissedSeedIds, draft: state.draft });
+      payload = JSON.stringify({ version: STATE_VERSION, items: state.items, recipes: state.recipes, dismissedSeedIds: state.dismissedSeedIds, appliedFixes: state.appliedFixes, draft: state.draft });
     } catch (error) {
       return Promise.resolve({ ok: false, reason: "serialize", chars: 0 });
     }
@@ -1214,8 +1245,9 @@ var FISH_REF = [{"species":"福壽魚","diet":"雜食；野場吃蚯蚓、魚蟲
 
       /* 每次開啟都自動把新的預設資料補進來——不用按任何按鈕，也不會動到
          已經存的東西。這就是「有新資料就要重新載入、但存的會消失」的解法。 */
-      var report = fresh ? { addedItems: [], addedRecipes: [], filledItems: [] } : mergeSeed(state, SEED);
-      var changed = report.addedItems.length || report.addedRecipes.length || report.filledItems.length;
+      var report = fresh ? { addedItems: [], addedRecipes: [], filledItems: [], fixedItems: [] } : mergeSeed(state, SEED);
+      if (fresh) state.appliedFixes = SEED_FIXES.map(function (fix) { return fix.id; });
+      var changed = report.addedItems.length || report.addedRecipes.length || report.filledItems.length || report.fixedItems.length;
 
       if (found.from === DB_KEY && !changed) return false;
 
@@ -2057,7 +2089,7 @@ var FISH_REF = [{"species":"福壽魚","diet":"雜食；野場吃蚯蚓、魚蟲
     showTab("mix");
     bootDone = true;
     if (pendingMergeNote) {
-      setState($("ioState"), "這次開啟自動補上了預設資料：" + pendingMergeNote + "。你自己存的東西一個都沒動。", "ok");
+      setState($("ioState"), "這次開啟自動補上了預設資料：" + pendingMergeNote + "。你自己建的品項、存的配方、改過的欄位一個都沒動。", "ok");
       pendingMergeNote = "";
     }
   }

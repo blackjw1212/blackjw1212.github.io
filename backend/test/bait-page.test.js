@@ -535,7 +535,7 @@ test("補齊預設資料只補缺的、只填空的，不動使用者的東西",
 
   // 再跑一次應該完全沒有動作——自動補齊每次開啟都會跑，不能每次都改東西
   const again = plain(app.helpers.mergeSeed(target, seed));
-  assert.deepEqual(again, { addedItems: [], addedRecipes: [], filledItems: [] });
+  assert.deepEqual(again, { addedItems: [], addedRecipes: [], filledItems: [], fixedItems: [] });
 });
 
 // 使用者回報：刪掉預設配方之後按「補齊預設資料」，它們又回來了。
@@ -702,3 +702,56 @@ test("魚種對照：每格都有來源、來源都存在、魚種都在 SPECIES
     assert.ok(opened >= 3, fish.species + " 只有 " + opened + " 個開過的來源");
   }
 });
+
+test("預設值更正：只換還是舊預設值的欄位、每筆只做一次、新裝置不套用", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const seed = plain(h.seed());
+  const fixes = plain(h.SEED_FIXES);
+  const seedById = {};
+  for (const item of seed.items) seedById[item.id] = item;
+  assert.ok(fixes.length >= 3);
+  for (const fix of fixes) {
+    assert.ok(seedById[fix.itemId], fix.id + " 指向不存在的預設品項");
+    // from 若等於現在的預設值，這筆更正等於「把正確值換成正確值」，而且會把使用者刻意填的值當成舊值
+    assert.ok(!fix.from.includes(seedById[fix.itemId][fix.field]), fix.id + " 的 from 含有現在的預設值");
+  }
+
+  // 舊裝置：紅餌價格還是 35（舊預設）、南極蝦粉末價格被使用者改成 40
+  const old = plain(h.sanitizeState(seed));
+  old.appliedFixes = [];
+  old.items.find((i) => i.id === "item-fushou-red").unitPrice = 35;
+  old.items.find((i) => i.id === "item-krill-laobaiwang").unitPrice = 40;
+  const nile = old.items.find((i) => i.id === "item-fushou-nile-1");
+  nile.packWeightG = 30000;
+  nile.unitPrice = 920;
+  const report = plain(h.mergeSeed(old, seed));
+  assert.equal(old.items.find((i) => i.id === "item-fushou-red").unitPrice, 34, "還是舊預設值就要換");
+  assert.equal(old.items.find((i) => i.id === "item-krill-laobaiwang").unitPrice, 40, "使用者改過的不能動");
+  assert.equal(nile.packWeightG, 16000);
+  assert.equal(nile.unitPrice, 490);
+  assert.ok(report.fixedItems.includes("老百王 福壽紅餌"));
+  assert.ok(!report.fixedItems.includes("老百王 南極蝦粉末"));
+  assert.equal(old.appliedFixes.length, fixes.length, "每一筆都要記成已檢查");
+  assert.match(h.mergeSummary(report), /更正 \d+ 個品項的預設值/);
+
+  // 之後使用者自己把價格改回 35（例如漲價），再開一次不可以被改回 34
+  old.items.find((i) => i.id === "item-fushou-red").unitPrice = 35;
+  const again = plain(h.mergeSeed(old, seed));
+  assert.equal(old.items.find((i) => i.id === "item-fushou-red").unitPrice, 35);
+  assert.equal(again.fixedItems.length, 0);
+
+  // appliedFixes 要撐過 sanitizeState（存檔再讀回），且認不得的 id 丟掉
+  const round = plain(h.sanitizeState({ ...old, appliedFixes: [...old.appliedFixes, "bogus"] }));
+  assert.equal(round.appliedFixes.length, fixes.length);
+
+  // 被刪掉的預設品項不因更正而復活或被改
+  const gone = plain(h.sanitizeState(seed));
+  gone.appliedFixes = [];
+  gone.items = gone.items.filter((i) => i.id !== "item-fushou-nile-1");
+  gone.recipes = [];
+  gone.dismissedSeedIds = ["item-fushou-nile-1"];
+  h.mergeSeed(gone, seed);
+  assert.ok(!gone.items.some((i) => i.id === "item-fushou-nile-1"));
+});
+
