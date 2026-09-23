@@ -107,6 +107,28 @@ test("weather file proxy uses the file upstream allowlist", async (t) => {
   assert.match(requestedUrl, /format=JSON/);
 });
 
+test("weather proxy forwards the warning datasets the page shows as a safety banner", async (t) => {
+  installCache(t);
+  const requested = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requested.push(String(url));
+    return jsonResponse({ ok: true });
+  });
+
+  for (const id of ["W-C0033-001", "W-C0034-001"]) {
+    const ctx = createCtx();
+    const response = await weatherWorker.fetch(
+      new Request(`https://weather.test/api/${id}`),
+      { CWA_API_KEY: "secret" },
+      ctx
+    );
+    await Promise.all(ctx.waits);
+    assert.equal(response.status, 200, id);
+  }
+  assert.ok(requested[0].includes("/datastore/W-C0033-001?"), requested[0]);
+  assert.ok(requested[1].includes("/datastore/W-C0034-001?"), requested[1]);
+});
+
 test("weather proxy rejects endpoints outside the retained page contract", async () => {
   const response = await weatherWorker.fetch(
     new Request("https://weather.test/api/F-D0047-999"),

@@ -2,6 +2,8 @@ const ALLOWED_DATASTORE_ENDPOINTS = new Set([
   "O-A0001-001",
   "F-A0021-001",
   "A-B0062-001",
+  "W-C0033-001",
+  "W-C0034-001",
   "F-D0047-001",
   "F-D0047-005",
   "F-D0047-009",
