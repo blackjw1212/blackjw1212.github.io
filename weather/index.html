@@ -1088,13 +1088,46 @@ body {
   .row-time      { width: 58px; }
 }
 
-/* ─── Wide Desktop（1400+）：容器封頂置中，避免過度拉伸 ───
-   維持兩欄：海況＋測站直向堆疊的高度與天氣卡相近，
-   拆成第三欄反而會壓縮逐時預報並在下方留大片空白。
+/* ─── Desktop 三欄（1280+）：今日潮汐拉上首屏 ──────────────
+   兩欄時今日潮汐排在天氣卡之下，1366×768 要往下捲 184px 才看得到；
+   釣魚最關鍵的是潮汐，所以桌機改成 天氣｜潮汐｜海況＋測站 三欄。
+   代價是天氣卡變窄、逐時預報要橫捲。明後天兩天改成左右並排。
 ────────────────────────────────────────────────────────── */
+@media (min-width: 1280px) {
+  .two-col {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "weather tide   marine"
+      "weather tide   station"
+      "future  future future"
+      "ext     ext    ext";
+  }
+  /* 大字與副標已經寫了溫度與體感，窄欄不再重複一次（手機版本來就隱藏） */
+  .dash-weather .g2 { display: none; }
+
+  /* 明後天：天數與每天的潮汐事件數都不寫死，有幾個就排幾欄 */
+  .future-days {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    column-gap: var(--grid-gap);
+  }
+  .future-days .future-day { border-top: none; padding-top: 0; margin-top: 0; }
+  .future-days .future-day + .future-day {
+    border-left: 1px solid var(--border);
+    padding-left: var(--grid-gap);
+  }
+  .future-days .tide-grid {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+}
+
+/* ─── Wide Desktop（1400+）：容器封頂置中，避免過度拉伸 ─── */
 @media (min-width: 1400px) {
   :root {
-    --page-max:   1480px;
+    --page-max:   1600px;
     --page-pad-x: 36px;
     --grid-gap:   24px;
   }
@@ -2267,7 +2300,7 @@ async function loadAll() {
               明後天潮汐
               <span class="day-pill">${esc(futureTideDates.join(" / "))}</span>
             </summary>
-            ${futureTideHtml}
+            <div class="future-days">${futureTideHtml}</div>
           </details>`;
         }
       } catch(e) { todayTideHtml = `<div class="info-note">潮汐解析錯誤</div>`; }
