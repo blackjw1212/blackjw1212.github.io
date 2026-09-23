@@ -207,6 +207,43 @@ body {
 }
 .cache-banner .cb-icon { font-size: 16px; flex-shrink: 0; }
 
+/* ─── 警特報橫幅 ─────────────────────────────────────────── */
+.alert-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--err-bg);
+  border: 1px solid var(--err-border);
+  border-radius: var(--radius-lg);
+  color: var(--err-txt);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.alert-banner .cb-icon { font-size: 16px; flex-shrink: 0; }
+.alert-banner a { color: inherit; }
+
+/* ─── 潮況（漲退與潮差）──────────────────────────────────── */
+.tide-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: var(--txt-2);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tide-now-state { font-size: 15px; font-weight: 700; }
+.tide-now-state.hi { color: var(--tide-hi); }
+.tide-now-state.lo { color: var(--tide-lo); }
+
+/* 未來 3 天風浪流沿用逐時預報的橫捲樣式 */
+.fc-item .badge { margin-bottom: 6px; }
+.fc-item .hz-time b { color: var(--txt-2); font-weight: 600; }
+
 /* ─── Spinner ────────────────────────────────────────────── */
 .spinner {
   display: inline-block; width: 14px; height: 14px;
@@ -1705,6 +1742,90 @@ function boatDecisionFromRules(maxWaveHeight, maxBft, hasMissingData) {
     ? { cls: "ok", main: "可出船" }
     : { cls: "caution", main: "暫緩" };
 }
+/* ─── 潮況：只用官方滿乾潮時刻判斷漲退 ──────────────────────
+   官方只給滿潮／乾潮的時刻與潮高，沒有連續潮位。下一個極值是滿潮就是
+   在漲、是乾潮就是在退——這件事資料真的知道；「現在潮位幾公分」資料
+   不知道，所以不推估。清單排完之後的時段回 null，不猜。 */
+function tideNowState(events, now) {
+  const next = events.find(e => e.dt > now);
+  if (!next) return null;
+  return { rising: next.isHi, next, minutes: Math.round((next.dt - now) / 60000) };
+}
+
+/* 潮差：相鄰滿潮與乾潮之間的最大落差（官方只給大／中／小潮的分類） */
+function maxTideRange(events) {
+  let best = null;
+  for (let i = 1; i < events.length; i++) {
+    if (events[i].isHi === events[i - 1].isHi) continue;
+    const r = Math.abs(events[i].h - events[i - 1].h);
+    if (best == null || r > best) best = r;
+  }
+  return best;
+}
+
+function fmtDuration(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h} 小時 ${m} 分` : `${m} 分`;
+}
+
+/* 沿海預報的官方流速（m/s）與流向；「-」是缺值，不是 0 */
+function oceanCurrent(spd, dir) {
+  const n = parseFloat(spd?.OceanCurrentSpeed);
+  const d = String(dir?.OceanCurrentDirection ?? "").trim();
+  return {
+    speed: Number.isFinite(n) && n >= 0 ? n : null,
+    dir: d && d !== "-" ? d : null,
+  };
+}
+
+/* 測站的氣壓與最大陣風。陣風只有少數測站回報，其餘是 -99 */
+function stationExtras(we) {
+  const p = parseFloat(we?.AirPressure);
+  const g = parseFloat(we?.GustInfo?.PeakGustSpeed);
+  return {
+    pressure: Number.isFinite(p) && p > 0 ? p : null,
+    gust: Number.isFinite(g) && g >= 0 ? g : null,
+  };
+}
+
+/* ─── 警特報 ────────────────────────────────────────────── */
+function countyHazards(data, counties) {
+  const out = [];
+  for (const loc of asArray(data?.records?.location)) {
+    if (!counties.includes(loc?.locationName)) continue;
+    for (const hz of asArray(loc?.hazardConditions?.hazards)) {
+      const phenomena = String(hz?.info?.phenomena || "").trim();
+      if (!phenomena) continue;
+      const significance = String(hz?.info?.significance || "").trim();
+      out.push({ county: loc.locationName, phenomena, text: `${phenomena}${significance}` });
+    }
+  }
+  return out;
+}
+
+/* 颱風消息是 CAP 格式；已過期或「解除」的那一則不算生效中 */
+function activeTyphoonAlerts(data, now) {
+  return asArray(data?.records?.info).filter(info => {
+    const headline = String(info?.headline || "");
+    if (!headline || headline.startsWith("解除") || info?.urgency === "Past") return false;
+    const expires = new Date(info?.expires);
+    return !Number.isNaN(expires.getTime()) && expires > now;
+  }).map(info => ({ headline: String(info.headline), web: info.web || "" }));
+}
+
+/* 警報給的是判斷的下限：颱風與強風拉到「危險」，雨與霧拉到「注意」 */
+function warningFloor(hazards, typhoons) {
+  if (typhoons.length) return "danger";
+  if (hazards.some(h => /颱風|強風/.test(h.phenomena))) return "danger";
+  if (hazards.some(h => /雨|霧/.test(h.phenomena))) return "caution";
+  return null;
+}
+
+const DECISION_RANK = { ok: 0, unknown: 1, caution: 2, danger: 3 };
+function applyWarningFloor(decision, floor, mainByCls) {
+  if (!floor || DECISION_RANK[floor] <= DECISION_RANK[decision.cls]) return decision;
+  return { cls: floor, main: mainByCls[floor] };
+}
 function parseBftValue(v) {
   const clean = valid(v);
   if (clean == null) return null;
@@ -1907,14 +2028,18 @@ function coastTimeInfo(data) {
   return `${range}${updated}`;
 }
 
+/* 取時間上最接近的一筆。以前只在同一個日期裡找，深夜時沿海預報已經從隔天
+   00:00 開始，「現在」那列就整列變成「—」。改成跨日期比絕對時間差，但超過
+   3 小時就不取——預報是每 3 小時一筆，再遠就不是「這個時段」的數字了。 */
+const NEAREST_MAX_MS = 3 * 3600000;
 function nearestEntry(data, field, dt) {
-  const d = data[field] || {};
-  const date = twDateKey(dt);
-  const hour = twHour(dt);
-  const cands = Object.entries(d).filter(([k]) => k.startsWith(date));
-  if (!cands.length) return null;
-  cands.sort((a, b) => Math.abs(parseInt(a[0].split("_")[1]) - hour) - Math.abs(parseInt(b[0].split("_")[1]) - hour));
-  return { key: cands[0][0], value: cands[0][1] };
+  let best = null;
+  for (const [key, value] of Object.entries(data[field] || {})) {
+    const [date, hh] = key.split("_");
+    const diff = Math.abs(new Date(`${date}T${String(hh).padStart(2, "0")}:00:00+08:00`) - dt);
+    if (Number.isFinite(diff) && (!best || diff < best.diff)) best = { key, value, diff };
+  }
+  return best && best.diff <= NEAREST_MAX_MS ? { key: best.key, value: best.value } : null;
 }
 
 function nearest(data, field, dt) {
@@ -2058,10 +2183,12 @@ async function loadAll() {
     const tomorrow = twDateKey(addDays(n, 1));
 
     // 海線地區與天氣卡都由 GPS 判定；GPS 失敗時海域退回上次結果、天氣卡 fallback 東區。
-    const [coastRes, obsRes, weatherInfo] = await Promise.all([
+    const [coastRes, obsRes, weatherInfo, warnRes, typhoonRes] = await Promise.all([
       tryFileFetch(COAST_DATA_ID, {}, cacheKey("coast", COAST_DATA_ID)),
       tryFetch("O-A0001-001", {}, "obs"),
       resolveGpsWeatherForecast(),
+      tryFetch("W-C0033-001", {}, "warn-county"),
+      tryFetch("W-C0034-001", {}, "warn-typhoon"),
     ]);
 
     const coastConfigs = buildCoastConfigs(coastRes.data);
@@ -2080,7 +2207,7 @@ async function loadAll() {
     ]);
 
     // 判斷是否有任何暫存資料被使用
-    const usedCache = [coastRes, obsRes, weatherInfo.result, tideRes, astroRes]
+    const usedCache = [coastRes, obsRes, weatherInfo.result, tideRes, astroRes, warnRes, typhoonRes]
       .filter(r => r.cached);
     const cacheTs = usedCache.length
       ? Math.min(...usedCache.map(r => r.ts))
@@ -2117,7 +2244,7 @@ async function loadAll() {
            <span class="radar-link-cta">雷達 →</span>
          </a>`
       : `<div class="current-region-label">${esc(currentRegionLabel)}</div>`;
-    const coastTitle = `${selectedCoast.label}風浪（6 小時）`;
+    const coastTitle = `${selectedCoast.label}風浪流`;
     const waveTimeInfo = coastTimeInfo(coastRes.data);
 
     let maxObsBft = null, maxFcstBft = null, maxWaveHeight = null;
@@ -2139,11 +2266,16 @@ async function loadAll() {
         const b    = bft(wspd);
         if (b != null && (maxObsBft == null || b > maxObsBft)) maxObsBft = b;
         const dirStr = windDirText(wdir);
+        const { pressure, gust } = stationExtras(we);
+        const extraMeta = [
+          pressure != null ? `氣壓 ${pressure.toFixed(1)} hPa` : "",
+          gust != null ? `陣風 ${gust} m/s` : "",
+        ].filter(Boolean).map(s => ` · ${s}`).join("");
         obsRows += `<div class="row row-observation">
           <span class="row-name">${esc(name)}</span>
           <span class="row-detail">
             <span class="row-main">${wxIcon(wx)} ${esc(wx)} · ${esc(dirStr)}風 ${show(wspd, "m/s")}</span>
-            <span class="row-meta">${show(temp, "°C")} · 雨量 ${showRain(rain)}</span>
+            <span class="row-meta">${show(temp, "°C")} · 雨量 ${showRain(rain)}${extraMeta}</span>
           </span>
           ${bftBadge(b)}
         </div>`;
@@ -2208,6 +2340,7 @@ async function loadAll() {
       const wave = waveHit?.value;
       const waveDir = nearest(sea, "浪向", t);
       const wavePeriod = nearest(sea, "浪週期", t);
+      const cur = oceanCurrent(nearest(sea, "流速", t), nearest(sea, "流向", t));
       const bftN = parseBftValue(spd?.BeaufortScale);
       if (bftN != null && (maxFcstBft == null || bftN > maxFcstBft)) maxFcstBft = bftN;
       const waveH = valid(wave?.WaveHeight);
@@ -2218,12 +2351,13 @@ async function loadAll() {
         waveHit ? `浪高時段 ${waveKeyLabel(waveHit.key)}` : "浪高 —",
         valid(waveDir?.WaveDirection) ? `浪向 ${esc(waveDir.WaveDirection)}` : "",
         valid(wavePeriod?.WavePeriod) ? `週期 ${esc(wavePeriod.WavePeriod)}s` : "",
+        cur.dir ? `流向 ${esc(cur.dir)}` : "",
       ].filter(Boolean).join(" · ");
       if (i === 0 || i === 2 || i === 4 || i === 6) {
         windRows += `<div class="row row-wave">
           <span class="row-time">${timeLabel}</span>
           <span class="row-detail">
-            <span class="row-main">${show(wdir?.WindDirection)} · ${show(spd?.WindSpeed, "m/s")} · 浪 ${showMeters(wave?.WaveHeight)}</span>
+            <span class="row-main">${show(wdir?.WindDirection)} · ${show(spd?.WindSpeed, "m/s")} · 浪 ${showMeters(wave?.WaveHeight)} · 流 ${cur.speed == null ? "—" : `${cur.speed}m/s`}</span>
             <span class="row-meta">${waveMeta}</span>
           </span>
           ${bftBadge(bftN)}
@@ -2231,8 +2365,43 @@ async function loadAll() {
       }
     }
 
+    /* ── 未來 3 天風浪流：沿海預報原生就是每 3 小時一筆，照原樣排 ── */
+    const slotStart = new Date(baseHour.getTime() - (twHour(baseHour) % 3) * 3600000);
+    const stripEnd = slotStart.getTime() + 72 * 3600000;
+    const fcSlots = Object.keys(sea["風速"] || {})
+      .map(k => {
+        const [d, hh] = k.split("_");
+        return { k, d, dt: new Date(`${d}T${String(hh).padStart(2, "0")}:00:00+08:00`) };
+      })
+      .filter(({ dt }) => dt >= slotStart && dt.getTime() < stripEnd)
+      .sort((a, b) => a.dt - b.dt);
+    let fcItems = "";
+    let fcLastDay = "";
+    for (const { k, d, dt } of fcSlots) {
+      const spd = sea["風速"]?.[k];
+      const wdir = sea["風向"]?.[k];
+      const wave = sea["浪高"]?.[k];
+      const cur = oceanCurrent(sea["流速"]?.[k], sea["流向"]?.[k]);
+      const dayLabel = d !== fcLastDay ? `${fmtDate(d)} 週${WEEKDAYS[new Date(d + "T00:00:00").getDay()]}` : "";
+      fcLastDay = d;
+      fcItems += `<div class="hz-item fc-item">
+        <span class="hz-time">${dayLabel ? `<b>${esc(dayLabel)}</b><br>` : ""}${String(twHour(dt)).padStart(2, "0")}:00</span>
+        ${bftBadge(parseBftValue(spd?.BeaufortScale))}
+        <span class="hz-sub">${show(valid(wdir?.WindDirection))}</span>
+        <span class="hz-sub">浪 ${showMeters(valid(wave?.WaveHeight))}</span>
+        <span class="hz-sub">流 ${cur.speed == null ? "—" : `${cur.speed}m/s`}</span>
+      </div>`;
+    }
+    const fcStripHtml = fcItems
+      ? `<div class="today-window-inline">
+           <div class="inline-lbl">未來 3 天（每 3 小時）</div>
+           <div class="hz-scroll fc-strip" role="group" aria-label="未來 3 天風浪流" tabindex="0">${fcItems}</div>
+         </div>`
+      : "";
+
     /* ── 潮汐 ─────────────────────────────────────────────── */
     let todayTideHtml = "";
+    let tideNowHtml = "";
     let futureTideSectionHtml = "";
     let dryTides = [];
     if (tide) {
@@ -2243,7 +2412,12 @@ async function loadAll() {
                               .slice(0, 3);
         let futureTideHtml = "";
         let futureTideDates = [];
+        const allTideEvents = [];
+        let todayRangeEvents = [];
         for (const [dayIndex, day] of upcoming.entries()) {
+          for (const ev of day.Time || []) {
+            allTideEvents.push({ dt: new Date(ev.DateTime), isHi: ev.Tide === "滿潮", h: parseInt(ev.TideHeights?.AboveTWVD || 0) });
+          }
           const date   = day.Date;
           const lunar  = day.LunarDate || "";
           const lunarStr = lunar
@@ -2282,6 +2456,7 @@ async function loadAll() {
             <span class="day-pill">${esc(lunarStr)}</span>
             <span class="day-pill">${show(trange, "潮")}</span>`;
           if (isToday) {
+            todayRangeEvents = displayEvents.map(({ ev }) => ({ isHi: ev.Tide === "滿潮", h: parseInt(ev.TideHeights?.AboveTWVD || 0) }));
             todayTideHtml += `<details class="day-detail today-mode-detail day-today" data-mobile-open="true" open>
               <summary class="day-hdr">${dayHeader}</summary>
               ${tideGridHtml(dayCells, tideCurveEvents)}
@@ -2293,6 +2468,16 @@ async function loadAll() {
               ${dayCells ? tideGridHtml(dayCells, tideCurveEvents) : '<div class="info-note">潮汐資料無法取得</div>'}
             </div>`;
           }
+        }
+        allTideEvents.sort((a, b) => a.dt - b.dt);
+        const tideState = tideNowState(allTideEvents, n);
+        const tideRange = maxTideRange(todayRangeEvents);
+        if (tideState || tideRange != null) {
+          tideNowHtml = `<div class="tide-now">
+            ${tideState ? `<span class="tide-now-state ${tideState.rising ? "hi" : "lo"}">${tideState.rising ? "▲ 漲潮中" : "▽ 退潮中"}</span>
+            <span>距${tideState.next.isHi ? "滿潮" : "乾潮"} ${fmtTime(tideState.next.dt)} 還有 ${fmtDuration(tideState.minutes)}</span>` : ""}
+            ${tideRange != null ? `<span>今日最大潮差 ${tideRange} cm</span>` : ""}
+          </div>`;
         }
         if (futureTideHtml) {
           futureTideSectionHtml = `<details class="future-tide-group today-mode-detail" data-mobile-open="false">
@@ -2328,7 +2513,7 @@ async function loadAll() {
          </div>`
       : "";
     const todayTideCardHtml = todayTideHtml
-      ? `${todayTideHtml}${todayWindowInlineHtml}`
+      ? `${tideNowHtml}${todayTideHtml}${todayWindowInlineHtml}`
       : '<div class="info-note">潮汐資料無法取得</div>';
 
     /* ── 首屏快速判斷 ─────────────────────────────────────── */
@@ -2362,15 +2547,29 @@ async function loadAll() {
           ? { cls: "caution", main: "看場況" }
           : { cls: "ok", main: "可岸釣" };
     }
-    const boatDecision = boatDecisionFromRules(maxWaveHeight, maxBft, missingSafetyData.length > 0);
+    /* 警特報是判斷的下限：只會把初判往嚴格調，不會放寬 */
+    const warnCounties = [...new Set([selectedCoast.county, weatherInfo.county].filter(Boolean))];
+    const hazards = countyHazards(warnRes.data, warnCounties);
+    const typhoons = activeTyphoonAlerts(typhoonRes.data, n);
+    const warnFloor = warningFloor(hazards, typhoons);
+    const warnTexts = [...typhoons.map(t => t.headline), ...hazards.map(h => `${h.county}${h.text}`)];
+    shoreDecision = applyWarningFloor(shoreDecision, warnFloor, { caution: "看場況", danger: "先暫緩" });
+    const boatDecision = applyWarningFloor(
+      boatDecisionFromRules(maxWaveHeight, maxBft, missingSafetyData.length > 0),
+      warnFloor,
+      { caution: "暫緩", danger: "暫緩" }
+    );
+    const warnNote = warnFloor
+      ? `目前有${warnTexts.join("、")}，初判已調降。`
+      : (!warnRes.data || !typhoonRes.data) ? "警特報無法取得，初判未納入警報。" : "";
 
     const decisionLine = (label, d) => `<div class="decision-line ${d.cls}">
       <div class="decision-label">${label}</div>
       <div class="decision-main">${d.main}</div>
     </div>`;
-    const quickNoteHtml = missingSafetyData.length
+    const quickNoteHtml = esc(warnNote) + (missingSafetyData.length
       ? `缺少 ${missingSafetyData.join("、")}，出船顯示資料不足。`
-      : "出船看未來6小時：浪≤0.5m、風≤3級；岸釣另看潮窗。";
+      : "出船看未來6小時：浪≤0.5m、風≤3級；岸釣另看潮窗。");
     const quickSummaryHtml = `<div class="quick-summary">
       <div class="quick-kicker">今日初判</div>
       <div class="quick-title">岸釣與出船</div>
@@ -2385,6 +2584,16 @@ async function loadAll() {
       </div>
       <div class="quick-note">${quickNoteHtml}</div>
     </div>`;
+
+    /* ── 警特報橫幅 ───────────────────────────────────────── */
+    const typhoonWeb = typhoons.map(t => t.web).find(u => /^https:\/\/www\.cwa\.gov\.tw\//.test(u)) || "";
+    const alertBannerHtml = warnTexts.length
+      ? `<div class="alert-banner" role="alert">
+           <span class="cb-icon">⚠</span>
+           <span>${warnTexts.map(esc).join("　")}${typhoonWeb
+             ? ` <a href="${esc(typhoonWeb)}" target="_blank" rel="noopener noreferrer">氣象署說明 →</a>` : ""}</span>
+         </div>`
+      : "";
 
     /* ── 暫存橫幅 ─────────────────────────────────────────── */
     const cacheBannerHtml = usedCache.length
@@ -2405,6 +2614,7 @@ async function loadAll() {
 
     /* ── 組裝 HTML ──────────────────────────────────────────── */
     content.innerHTML = `
+      ${alertBannerHtml}
       ${cacheBannerHtml}
       ${errorBannerHtml}
 
@@ -2450,13 +2660,16 @@ async function loadAll() {
             <summary class="collapse-summary">${esc(coastTitle)}</summary>
             <div class="card">
               ${windRows || '<div class="info-note">海線風浪資料無法取得</div>'}
+              ${fcStripHtml}
               <div class="info-note">浪高為逐 3 小時示性波高；最大波高可能約為 2 倍。${waveTimeInfo}</div>
             </div>
           </details>
 
           <details class="support-detail dash-block dash-station today-mode-detail" data-mobile-open="false">
             <summary class="collapse-summary">測站即時風</summary>
-            <div class="card">${obsRows || '<div class="info-note">觀測資料無法取得</div>'}</div>
+            <div class="card">${obsRows
+              ? `${obsRows}<div class="info-note">陣風只有少數測站提供，附近測站沒有回報時不顯示。</div>`
+              : '<div class="info-note">觀測資料無法取得</div>'}</div>
           </details>
         </div>
 
@@ -2492,7 +2705,12 @@ document.getElementById("coastSelect")?.addEventListener("change", e => {
 
 // 位置快取的純函式掛出來給測試用，並讓測試擋掉自動初始化——其他互動頁
 // （/sky/、/float/、/subtitle/、/convert/、/bait/）都是這個慣例，這頁先前漏了。
-window.WeatherApp = { helpers: { readStoredFix, rememberFix } };
+window.WeatherApp = { helpers: {
+  readStoredFix, rememberFix,
+  tideNowState, maxTideRange, oceanCurrent, stationExtras,
+  countyHazards, activeTyphoonAlerts, warningFloor, applyWarningFloor,
+  nearestEntry,
+} };
 
 if (!window.__WEATHER_SKIP_AUTO_INIT__) loadAll();
 </script>
