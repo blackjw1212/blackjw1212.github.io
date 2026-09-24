@@ -1985,6 +1985,14 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     return html + "</tbody></table></div>";
   }
 
+  function evidenceSummary(evidence) {
+    var counts = {};
+    for (var i = 0; i < evidence.length; i += 1) counts[evidence[i].grade] = (counts[evidence[i].grade] || 0) + 1;
+    var parts = [];
+    for (var key in GRADE_LABEL) if (counts[key]) parts.push(GRADE_LABEL[key] + " " + counts[key]);
+    return "證據等級 " + evidence.length + " 條（" + parts.join("、") + "）";
+  }
+
   function renderAdditives() {
     var node = $("addRows");
     if (!node) return;
@@ -2001,15 +2009,16 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
           esc(stock.made) + '<div class="stock-note">' + esc(stock.note) + "</div>"];
       })) + "</div>";
 
-      html += '<div class="add-block"><h4>實驗組（每 200 g 基礎餌）</h4>' + stackTable(["組", "變數", "加什麼", "每公斤餌", "看什麼", "跟誰比"], plan.groups.map(function (group) {
+      /* 實驗組與證據等級預設收合：手機上兩個魚種攤開有八千多 px。收合時的那一行要講得出內容多少。 */
+      html += '<details class="src-fold"><summary>實驗組（每 200 g 基礎餌，' + plan.groups.length + " 組）</summary>" + stackTable(["組", "變數", "加什麼", "每公斤餌", "看什麼", "跟誰比"], plan.groups.map(function (group) {
         return [esc(group.id), esc(group.variable), esc(doseText(plan, group.doses)), esc(activeText(plan, group.doses)),
           esc(group.purpose), esc(group.compare.join("、") || "—")];
-      })) + "</div>";
+      })) + "</details>";
 
-      html += '<div class="add-block"><h4>證據等級</h4>' + stackTable(["命題", "等級", "說明", "來源"], plan.evidence.map(function (ev) {
+      html += '<details class="src-fold"><summary>' + esc(evidenceSummary(plan.evidence)) + "</summary>" + stackTable(["命題", "等級", "說明", "來源"], plan.evidence.map(function (ev) {
         return [esc(ev.claim), '<span class="grade ' + esc(ev.grade) + '">' + esc(GRADE_LABEL[ev.grade]) + "</span>",
           esc(ev.text), srcRefs(ev.sources) || "—"];
-      })) + "</div>";
+      })) + "</details>";
 
       html += '<details class="src-fold"><summary>調製步驟（' + plan.sop.length + " 瓶）</summary>";
       for (var p = 0; p < plan.sop.length; p += 1) {

@@ -825,6 +825,9 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // 添加劑的表不可以再共用 fish-table：那條「第 3 欄至少 220px」會把其他欄擠成一格一個字
   const renderAdd = html.slice(html.indexOf("function renderAdditives("), html.indexOf("function fillTrialGroups("));
   assert.doesNotMatch(renderAdd, /fish-table/);
+  // 實驗組與證據等級收合，收合列要看得出幾組、各等級幾條
+  assert.match(renderAdd, /<details class="src-fold"><summary>實驗組/);
+  assert.match(renderAdd, /evidenceSummary\(plan\.evidence\)/);
   assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
   // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值
   assert.doesNotMatch(JSON.stringify(plans), /檸檬酸[^。]*閾值約/);
