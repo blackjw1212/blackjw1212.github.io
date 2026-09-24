@@ -769,6 +769,8 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
     const groups = new Set(plan.groups.map((g) => g.id));
     const srcs = new Set(plan.sources.map((x) => x.id));
     assert.equal(groups.size, plan.groups.length, plan.species + " 組別編號重複");
+    // 每組都要寫明它動的是哪一個變數，另一個人讀矩陣時才不會把劑量、酸種類、複方混成同一題
+    for (const g of plan.groups) assert.ok(g.variable, g.id + " 沒寫變數");
     // 第一組一定是什麼都不加的空白基準，其餘每一組都要說清楚跟誰比
     assert.equal(plan.groups[0].doses.length, 0);
     for (const g of plan.groups.slice(1)) {
@@ -801,6 +803,10 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(Math.abs(d.activeGPerKg - 0.09) < 1e-12, "奶甜 0.2 ml 應該是 0.09 g/kg");
   d = plain(h.doseFor(stock(tilapia, "FRU"), 0.5, 200));
   assert.equal(d.activeGPerKg, null, "香精只知道體積，不能印出有效成分公克數");
+  // 稀釋液 0.5 ml／200 g ＝ 2.5 ml/kg，但純香精只有 2.5 × 15/200 ＝ 0.1875 ml/kg——
+  // 也就是原報告 A2 夾帶的量（0.5 × 15/200 ＝ 0.0375 ml／200 g）。印稀釋液體積曾被照抄成 10 倍錯誤。
+  assert.ok(Math.abs(d.pureMlPerKg - 0.1875) < 1e-12);
+  assert.ok(Math.abs(d.pureMlPerKg / 5 - 0.0375) < 1e-12);
   d = plain(h.doseFor(stock(plans[1], "KRL"), 5, 200));
   assert.equal(d.activeGPerKg, 25, "粉末 5 g／200 g ＝ 25 g/kg");
 
@@ -815,6 +821,10 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(tilapia.groups.some((g) => g.doses.some(([id]) => id === "ORIG")));
 
   assert.match(html, /待驗證的實驗假說，不是本站的建議/);
+  // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值
+  assert.doesNotMatch(JSON.stringify(plans), /檸檬酸[^。]*閾值約/);
+  // 「沒有研究」只能寫成「這次檢索沒找到」
+  assert.doesNotMatch(JSON.stringify(plans) + html, /黑鯛本身沒有同類研究|黑鯛沒有同類研究/);
 });
 
 test("添加劑實測紀錄：存得進去、欄位收斂、統計不拿 0 填空、匯入舊檔不洗掉", async () => {
@@ -842,6 +852,8 @@ test("添加劑實測紀錄：存得進去、欄位收斂、統計不拿 0 填�
   assert.equal(st.signalsPer30, 4);
   // 中魚率：只算訊號與中魚都有填的場次 (2 + 2) / (4 + 8)
   assert.ok(Math.abs(st.hookRate - 4 / 12) < 1e-12);
+  // CPUE：中魚都有填的三場 (2 + 2 + 1) 尾 ÷ (30 + 60 + 30) 分 × 60 ＝ 2.5 尾／小時
+  assert.equal(st.cpuePerHour, 2.5);
   assert.equal(plain(h.trialStats(trials, "黑鯛", "B2")).n, 0);
 
   // 存檔與匯出都要帶著實測紀錄
