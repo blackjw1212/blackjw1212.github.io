@@ -247,6 +247,20 @@ body {
 .fc-item .hz-time,
 .fc-item .hz-sub { white-space: nowrap; }
 .fc-item .hz-time b { color: var(--txt-2); font-weight: 600; }
+/* 每天第一格：日期改用強調色、外框加深，前面留一道分隔線，看得出哪幾格屬於同一天 */
+.fc-item.fc-newday { border-color: var(--border-strong); }
+.fc-item.fc-newday .hz-time b { color: var(--accent); }
+.fc-item.fc-newday:not(:first-child) { position: relative; margin-left: 10px; }
+.fc-item.fc-newday:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
 
 /* ─── Spinner ────────────────────────────────────────────── */
 .spinner {
@@ -754,11 +768,16 @@ body {
 .info-note { font-size: 13px; color: var(--txt-3); margin-top: 10px; line-height: 1.55; }
 .info-note:first-child { margin-top: 0; }
 
+/* 頁尾的完整預報入口：做成按鈕樣式的導覽，不是一行普通文字 */
 .ext-link {
-  font-size: 13px; color: var(--link); text-decoration: none;
-  display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-weight: 500;
+  font-size: 14px; color: var(--link); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-weight: 600;
+  padding: 10px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
 }
-.ext-link:hover { text-decoration: underline; }
+.ext-link:hover { text-decoration: underline; background: var(--bg-raised); }
 
 .err-box {
   background: var(--bg-card); border: 1px solid var(--border);
@@ -1091,21 +1110,24 @@ body {
 
   .two-col { grid-template-columns: minmax(0, 1.28fr) minmax(0, .95fr); }
 
-  /* 首屏初判：標題 / 兩個判斷 / 三個數字 排成一列 */
+  /* 首屏初判：讀的順序是「結論 → 條件 → 依據」。
+     左欄上方是小標、中間是兩個判斷、下方是判斷依據；右欄是三個條件數字。
+     原本標題佔最左一欄，三段平均排開，看起來不像結論。 */
   .quick-summary {
     display: grid;
-    grid-template-columns: minmax(0, .8fr) minmax(0, 1.25fr) minmax(0, 1.05fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
     grid-template-areas:
-      "kicker decisions metrics"
-      "title  decisions metrics"
-      "note   decisions metrics";
-    column-gap: 24px;
+      "kicker    metrics"
+      "title     metrics"
+      "decisions metrics"
+      "note      metrics";
+    column-gap: 28px;
     align-items: start;
   }
   .quick-kicker  { grid-area: kicker; }
-  .quick-title   { grid-area: title; font-size: 20px; }
-  .quick-note    { grid-area: note; margin-top: 8px; }
-  .decision-list { grid-area: decisions; margin-top: 0; align-self: center; }
+  .quick-title   { grid-area: title; font-size: 14px; font-weight: 600; color: var(--txt-2); }
+  .quick-note    { grid-area: note; margin-top: 10px; }
+  .decision-list { grid-area: decisions; margin-top: 10px; }
   .quick-metrics {
     grid-area: metrics;
     margin-top: 0;
@@ -1169,10 +1191,12 @@ body {
     border-color: var(--border-strong);
     padding: 22px 26px;
   }
+  .decision-line       { padding: 12px 16px; }
   .decision-label      { font-size: 13px; }
-  .decision-main       { font-size: clamp(1.75rem, 1.2rem + .7vw, 2.4rem); }
-  .quick-metric span   { font-size: 12px; }
-  .quick-metric strong { font-size: 18px; }
+  .decision-main       { font-size: clamp(2rem, 1.3rem + .9vw, 2.75rem); }
+  .quick-metrics       { align-self: stretch; align-content: center; }
+  .quick-metric span   { font-size: 12px; margin-bottom: 4px; }
+  .quick-metric strong { font-size: 22px; }
 
   .dash-weather .section-lbl,
   .dash-tide .section-lbl,
@@ -1221,7 +1245,7 @@ body {
 
 /* ─── 大螢幕：只放大決策與核心數值，輔助資料與註記不跟著變大 ─── */
 @media (min-width: 1600px) {
-  .quick-metric strong { font-size: 20px; }
+  .quick-metric strong { font-size: 24px; }
   .dash-weather .section-lbl,
   .dash-tide .section-lbl,
   .dash-marine .collapse-summary { font-size: 16px; }
@@ -2446,9 +2470,12 @@ async function loadAll() {
       const wdir = sea["風向"]?.[k];
       const wave = sea["浪高"]?.[k];
       const cur = oceanCurrent(sea["流速"]?.[k], sea["流向"]?.[k]);
-      const dayLabel = d !== fcLastDay ? `${fmtDate(d)} 週${WEEKDAYS[new Date(d + "T00:00:00").getDay()]}` : "";
+      const relDay = { [today]: "今天", [tomorrow]: "明天", [twDateKey(addDays(n, 2))]: "後天" }[d];
+      const dayLabel = d !== fcLastDay
+        ? `${fmtDate(d)} 週${WEEKDAYS[new Date(d + "T00:00:00").getDay()]}${relDay ? ` · ${relDay}` : ""}`
+        : "";
       fcLastDay = d;
-      fcItems += `<div class="hz-item fc-item">
+      fcItems += `<div class="hz-item fc-item${dayLabel ? " fc-newday" : ""}">
         <span class="hz-time">${dayLabel ? `<b>${esc(dayLabel)}</b><br>` : ""}${String(twHour(dt)).padStart(2, "0")}:00</span>
         ${bftBadge(parseBftValue(spd?.BeaufortScale))}
         <span class="hz-sub">${show(valid(wdir?.WindDirection))}</span>
