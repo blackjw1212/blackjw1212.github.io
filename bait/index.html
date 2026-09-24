@@ -234,6 +234,12 @@
     .topbar a{min-height:44px;display:inline-flex;align-items:center}
     /* 四顆分頁在 320px 寬會把「魚種對照」擠成兩行（量到 60px 高）；縮 padding、禁換行。 */
     .tabbar{flex-wrap:wrap;gap:0 4px}
+    .add-table,.add-table tbody{display:block;width:100%}
+    .add-table thead{display:none}
+    .add-table tr{display:block;border-bottom:1px solid var(--line);padding:8px 0}
+    .add-table td{display:grid;grid-template-columns:4.5em minmax(0,1fr);gap:8px;border:0;padding:3px 0;white-space:normal}
+    .add-table td::before{content:attr(data-label);color:var(--faint);font-size:12px}
+    .add-table td:first-child{font-weight:700;color:var(--ink)}
     .tabbar .tab{min-height:44px;padding:8px 10px;white-space:nowrap}
     .check{min-height:44px;padding:6px 0}
     .check input{width:20px;height:20px}
@@ -983,7 +989,7 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
      香精只知道體積，粉末直接就是公克。 */
   function doseFor(stock, amount, baitGrams) {
     var perKg = amount * 1000 / baitGrams;
-    if (stock.kind === "powder") return { amountPerKg: perKg, unit: "g", activeGPerKg: perKg };
+    if (stock.kind === "powder") return { amountPerKg: perKg, unit: "g", activeGPerKg: perKg, pureMlPerKg: null };
     /* 稀釋過的香精要換回純香精的體積——只印稀釋液的 ml 數，別人照抄就會差 10 倍以上。 */
     return {
       amountPerKg: perKg,
@@ -1958,11 +1964,25 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     return doses.map(function (pair) {
       var stock = stockOf(plan, pair[0]);
       var dose = doseFor(stock, pair[1], 200);
-      var flavor = dose.pureMlPerKg !== null ? "純香精 " + trimNum(dose.pureMlPerKg, 4) + " ml/kg" : "";
+      var flavor = typeof dose.pureMlPerKg === "number" ? "純香精 " + trimNum(dose.pureMlPerKg, 4) + " ml/kg" : "";
       if (dose.activeGPerKg !== null) return stock.name.replace(/液$/, "") + " " + trimNum(dose.activeGPerKg, 3) + " g/kg" + (flavor ? "（另含" + flavor + "）" : "");
       if (flavor) return flavor;
       return stock.name + " " + trimNum(dose.amountPerKg, 2) + " ml/kg";
     }).join("、");
+  }
+
+  /* 手機上多欄表會被擠成一格一個字直排，所以每一格帶欄名，窄螢幕改排成卡片。
+     cells 已經是 HTML（呼叫端負責 esc）。 */
+  function stackTable(headers, rows) {
+    var html = '<div class="table-wrap"><table class="add-table"><thead><tr>';
+    for (var h = 0; h < headers.length; h += 1) html += "<th>" + esc(headers[h]) + "</th>";
+    html += "</tr></thead><tbody>";
+    for (var r = 0; r < rows.length; r += 1) {
+      html += "<tr>";
+      for (var c = 0; c < rows[r].length; c += 1) html += '<td data-label="' + esc(headers[c]) + '"><div>' + rows[r][c] + "</div></td>";
+      html += "</tr>";
+    }
+    return html + "</tbody></table></div>";
   }
 
   function renderAdditives() {
@@ -1976,29 +1996,20 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
       for (var w = 0; w < waters.length; w += 1) html += '<span class="tag">' + esc(waters[w]) + "</span>";
       html += '</div><p class="fish-diet">' + esc(plan.base) + "</p>";
 
-      html += '<div class="add-block"><h4>濃縮液</h4><div class="table-wrap"><table class="fish-table"><thead><tr><th>名稱</th><th>調法</th><th>濃度</th></tr></thead><tbody>';
-      for (var s = 0; s < plan.stocks.length; s += 1) {
-        var stock = plan.stocks[s];
-        html += "<tr><td>" + esc(stock.name) + "</td><td>" + esc(stock.made) + '<div class="stock-note">' + esc(stock.note) + "</div></td><td>"
-          + (stock.mgPerMl === null ? "—" : esc(stock.mgPerMl + " mg/ml")) + "</td></tr>";
-      }
-      html += "</tbody></table></div></div>";
+      html += '<div class="add-block"><h4>濃縮液</h4>' + stackTable(["名稱", "濃度", "調法"], plan.stocks.map(function (stock) {
+        return [esc(stock.name), stock.mgPerMl === null ? "—" : esc(stock.mgPerMl + " mg/ml"),
+          esc(stock.made) + '<div class="stock-note">' + esc(stock.note) + "</div>"];
+      })) + "</div>";
 
-      html += '<div class="add-block"><h4>實驗組（每 200 g 基礎餌）</h4><div class="table-wrap"><table class="fish-table"><thead><tr><th>組</th><th>變數</th><th>加什麼</th><th>每公斤餌</th><th>看什麼</th><th>跟誰比</th></tr></thead><tbody>';
-      for (var g = 0; g < plan.groups.length; g += 1) {
-        var group = plan.groups[g];
-        html += "<tr><td>" + esc(group.id) + "</td><td>" + esc(group.variable) + "</td><td>" + esc(doseText(plan, group.doses)) + "</td><td>" + esc(activeText(plan, group.doses))
-          + "</td><td>" + esc(group.purpose) + "</td><td>" + esc(group.compare.join("、") || "—") + "</td></tr>";
-      }
-      html += "</tbody></table></div></div>";
+      html += '<div class="add-block"><h4>實驗組（每 200 g 基礎餌）</h4>' + stackTable(["組", "變數", "加什麼", "每公斤餌", "看什麼", "跟誰比"], plan.groups.map(function (group) {
+        return [esc(group.id), esc(group.variable), esc(doseText(plan, group.doses)), esc(activeText(plan, group.doses)),
+          esc(group.purpose), esc(group.compare.join("、") || "—")];
+      })) + "</div>";
 
-      html += '<div class="add-block"><h4>證據等級</h4><div class="table-wrap"><table class="fish-table"><thead><tr><th>命題</th><th>等級</th><th>說明</th><th>來源</th></tr></thead><tbody>';
-      for (var e = 0; e < plan.evidence.length; e += 1) {
-        var ev = plan.evidence[e];
-        html += "<tr><td>" + esc(ev.claim) + '</td><td><span class="grade ' + esc(ev.grade) + '">' + esc(GRADE_LABEL[ev.grade]) + "</span></td><td>"
-          + esc(ev.text) + "</td><td>" + srcRefs(ev.sources) + "</td></tr>";
-      }
-      html += "</tbody></table></div></div>";
+      html += '<div class="add-block"><h4>證據等級</h4>' + stackTable(["命題", "等級", "說明", "來源"], plan.evidence.map(function (ev) {
+        return [esc(ev.claim), '<span class="grade ' + esc(ev.grade) + '">' + esc(GRADE_LABEL[ev.grade]) + "</span>",
+          esc(ev.text), srcRefs(ev.sources) || "—"];
+      })) + "</div>";
 
       html += '<details class="src-fold"><summary>調製步驟（' + plan.sop.length + " 瓶）</summary>";
       for (var p = 0; p < plan.sop.length; p += 1) {

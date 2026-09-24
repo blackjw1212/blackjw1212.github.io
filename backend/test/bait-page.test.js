@@ -809,6 +809,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(Math.abs(d.pureMlPerKg / 5 - 0.0375) < 1e-12);
   d = plain(h.doseFor(stock(plans[1], "KRL"), 5, 200));
   assert.equal(d.activeGPerKg, 25, "粉末 5 g／200 g ＝ 25 g/kg");
+  assert.equal(d.pureMlPerKg, null, "粉末沒有香精；少了這個欄位畫面會印出「純香精 NaN」");
 
   // 修正一：主酸液不得再夾帶香精——夾帶的話 T2、T6 又會變回「酸＋香」，分不開
   assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
@@ -821,6 +822,10 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(tilapia.groups.some((g) => g.doses.some(([id]) => id === "ORIG")));
 
   assert.match(html, /待驗證的實驗假說，不是本站的建議/);
+  // 添加劑的表不可以再共用 fish-table：那條「第 3 欄至少 220px」會把其他欄擠成一格一個字
+  const renderAdd = html.slice(html.indexOf("function renderAdditives("), html.indexOf("function fillTrialGroups("));
+  assert.doesNotMatch(renderAdd, /fish-table/);
+  assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
   // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值
   assert.doesNotMatch(JSON.stringify(plans), /檸檬酸[^。]*閾值約/);
   // 「沒有研究」只能寫成「這次檢索沒找到」
