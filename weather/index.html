@@ -242,6 +242,10 @@ body {
 
 /* 未來 3 天風浪流沿用逐時預報的橫捲樣式 */
 .fc-item .badge { margin-bottom: 6px; }
+/* 格子維持自然寬度、文字不換行；桌機 .hz-item 的 flex:1 1 0 會把它壓到 64px、每行斷成兩行 */
+.fc-strip .fc-item { flex: 0 0 auto; }
+.fc-item .hz-time,
+.fc-item .hz-sub { white-space: nowrap; }
 .fc-item .hz-time b { color: var(--txt-2); font-weight: 600; }
 
 /* ─── Spinner ────────────────────────────────────────────── */
@@ -1045,11 +1049,12 @@ body {
     align-items: start;
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
     grid-template-areas:
-      "weather marine"
-      "weather station"
-      "tide    tide"
-      "future  future"
-      "ext     ext";
+      "weather  marine"
+      "weather  station"
+      "tide     tide"
+      "forecast forecast"
+      "future   future"
+      "ext      ext";
   }
   .two-col .section-lbl { margin-top: 0; }
   .col-wrap     { display: contents; }
@@ -1058,6 +1063,7 @@ body {
   .dash-marine  { grid-area: marine;  }
   .dash-station { grid-area: station; }
   .dash-tide    { grid-area: tide;    }
+  .dash-forecast { grid-area: forecast; }
   .dash-future  { grid-area: future;  }
   .ext-full     { grid-area: ext;     }
   .full         { grid-column: 1 / -1; min-width: 0; }
@@ -1134,10 +1140,10 @@ body {
   .two-col {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-areas:
-      "weather tide   marine"
-      "weather tide   station"
-      "future  future future"
-      "ext     ext    ext";
+      "weather  tide     marine"
+      "forecast forecast station"
+      "future   future   future"
+      "ext      ext      ext";
   }
   /* 大字與副標已經寫了溫度與體感，窄欄不再重複一次（手機版本來就隱藏） */
   .dash-weather .g2 { display: none; }
@@ -1169,6 +1175,12 @@ body {
     --grid-gap:   24px;
   }
 }
+
+/* ─── 大螢幕：整頁等比放大 ──────────────────────────────────
+   字級、間距、徽章都是 px，逐條調大會漏；zoom 讓已驗證過的版面整體等比放大。
+   門檻＝1600 × zoom ＋ 捲軸寬，確保放大後仍比視窗窄、不產生橫捲。 */
+@media (min-width: 1840px) { .page { zoom: 1.125; } }
+@media (min-width: 2040px) { .page { zoom: 1.25; } }
 </style>
 </head>
 <body>
@@ -2393,10 +2405,7 @@ async function loadAll() {
       </div>`;
     }
     const fcStripHtml = fcItems
-      ? `<div class="today-window-inline">
-           <div class="inline-lbl">未來 3 天（每 3 小時）</div>
-           <div class="hz-scroll fc-strip" role="group" aria-label="未來 3 天風浪流" tabindex="0">${fcItems}</div>
-         </div>`
+      ? `<div class="hz-scroll fc-strip" role="group" aria-label="未來 3 天風浪流" tabindex="0">${fcItems}</div>`
       : "";
 
     /* ── 潮汐 ─────────────────────────────────────────────── */
@@ -2660,10 +2669,14 @@ async function loadAll() {
             <summary class="collapse-summary">${esc(coastTitle)}</summary>
             <div class="card">
               ${windRows || '<div class="info-note">海線風浪資料無法取得</div>'}
-              ${fcStripHtml}
               <div class="info-note">浪高為逐 3 小時示性波高；最大波高可能約為 2 倍。${waveTimeInfo}</div>
             </div>
           </details>
+
+          ${fcStripHtml ? `<details class="support-detail dash-block dash-forecast today-mode-detail" data-mobile-open="false">
+            <summary class="collapse-summary">${esc(selectedCoast.label)}未來 3 天（每 3 小時）</summary>
+            <div class="card">${fcStripHtml}</div>
+          </details>` : ""}
 
           <details class="support-detail dash-block dash-station today-mode-detail" data-mobile-open="false">
             <summary class="collapse-summary">測站即時風</summary>
