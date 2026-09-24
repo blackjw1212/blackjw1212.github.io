@@ -83,3 +83,16 @@ B1–B3 是同一作者，頁面上的來源數把它們算成一票。
 
 一投入魂磯研會《白毛 蘭勃舵魚》（xuite）DNS 失敗，未讀到；漁拓釣具《磯釣初學者入門》開過但沒有分魚種的餌料內容；
 davidluo23《福壽釣史》DNS 失敗。
+
+## 添加劑（第五頁）
+
+| 編號 | 來源 | 網址 | 讀取方式 | 備註 |
+|---|---|---|---|---|
+| X1 | Levina、Mikhailova、Kasumyan 2021《Taste preferences and feeding behaviour in the facultative herbivorous fish, Nile tilapia Oreochromis niloticus》J Fish Biol 98(5):1385–1400 | https://pubmed.ncbi.nlm.nih.gov/33448377/ | 開過 | 讀的是 PubMed 摘要（E-utilities）；Wiley 全文 403。含檸檬酸的顆粒 >85% 被吃；測試濃度 0.0001–0.1 M；沒測蘋果酸；糖類適口性與人的甜度不相關 |
+| X2 | Johnsen、Adams 1986《Chemical feeding stimulants for the herbivorous fish, Tilapia zillii》 | https://www.sciencedirect.com/science/article/pii/0300962986900964 | 搜尋摘要 | ScienceDirect 403；摘要列出 glutamic、aspartic、lysine、citric、malic acid 有促進 |
+| X3 | Adams、Johnsen《Chemical enhancement of feeding for the herbivorous fish Tilapia zillii》 | https://www.semanticscholar.org/paper/a69aa8639326fe813d7e3564626a5f17214d9193 | 搜尋摘要 | 頁面抓回來是空的。「純蘋果酸無效、檸檬酸閾值約 0.01 M」那句出處不明，未採 |
+| X4 | Baek、Cho 2024《Effects of Dietary Inclusion of a Crude Protein Source Exhibiting the Strongest Attractiveness to Red Sea Bream (Pagrus major)》Animals 14(5):771 | https://pmc.ncbi.nlm.nih.gov/articles/PMC10931256/ | 開過 | 真鯛對丙胺酸、甘胺酸、精胺酸、絲胺酸味覺反應強；混合比單一強；Kohbara：合成混合物不如竹莢魚萃取；18 種蛋白原料中竹莢魚粉吸引力最強 |
+| X5 | 幼黑鯛甜菜鹼與脂肪肝（Acanthopagrus schlegelii） | https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8261298/ | 搜尋摘要 | 講肝臟代謝，不是誘食 |
+| X6 | 使用者貼上的添加劑技術報告 | — | 使用者提供 | 2026-09-24。數學驗算全對；主酸選擇與 A1–A7 的解耦有問題，見頁面證據等級 |
+| X7 | DMPT 對螯蝦（Pontastacus leptodactylus）的生理與腸道菌研究 | https://pmc.ncbi.nlm.nih.gov/articles/PMC13295222/ | 開過 | 前言引述 DMPT 在真鯛等魚的飼料研究；沒有黑鯛 |
+

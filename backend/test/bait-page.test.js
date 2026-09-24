@@ -646,7 +646,9 @@ test("頁面結構的硬性前提", async () => {
   assert.doesNotMatch(html, /\bfetch\s*\(|XMLHttpRequest|sendBeacon/, "這一頁不打網路");
   // 分頁鈕的 class 是 mobile-audit.html 走訪非預設分頁的依據，改名等於那兩個分頁量不到
   assert.match(html, /<div class="tabbar"/);
-  assert.equal((html.match(/class="tab(?: on)?"/g) || []).length, 4);
+  assert.equal((html.match(/class="tab(?: on)?"/g) || []).length, 5);
+  assert.match(html, /id="tabAdd"/);
+  assert.match(html, /id="addPanel"/);
   assert.match(html, /id="tabFish"/);
   assert.match(html, /id="fishPanel"/);
   assert.match(html, /id="mixWaterTypes"/);
@@ -753,5 +755,103 @@ test("預設值更正：只換還是舊預設值的欄位、每筆只做一次�
   gone.dismissedSeedIds = ["item-fushou-nile-1"];
   h.mergeSeed(gone, seed);
   assert.ok(!gone.items.some((i) => i.id === "item-fushou-nile-1"));
+});
+
+test("添加劑：配方資料自洽、換算正確、兩處修正不得退回", async () => {
+  const { app, html } = await loadPage();
+  const h = app.helpers;
+  const plans = plain(h.ADDITIVES);
+  assert.equal(plans.map((p) => p.species).join("、"), "福壽魚、黑鯛");
+  const GRADES = Object.keys(plain(h.GRADE_LABEL));
+  for (const plan of plans) {
+    assert.ok(h.SPECIES_NAMES.includes(plan.species), plan.species + " 不在 SPECIES 裡");
+    const stocks = new Map(plan.stocks.map((st) => [st.id, st]));
+    const groups = new Set(plan.groups.map((g) => g.id));
+    const srcs = new Set(plan.sources.map((x) => x.id));
+    assert.equal(groups.size, plan.groups.length, plan.species + " 組別編號重複");
+    // 第一組一定是什麼都不加的空白基準，其餘每一組都要說清楚跟誰比
+    assert.equal(plan.groups[0].doses.length, 0);
+    for (const g of plan.groups.slice(1)) {
+      assert.ok(g.compare.length >= 1, g.id + " 沒有比較對象");
+      for (const c of g.compare) assert.ok(groups.has(c), g.id + " 比較對象 " + c + " 不存在");
+      for (const [id, amount] of g.doses) {
+        assert.ok(stocks.has(id), g.id + " 用了不存在的濃縮液 " + id);
+        assert.ok(amount > 0);
+      }
+    }
+    for (const e of plan.evidence) {
+      assert.ok(GRADES.includes(e.grade), e.claim + " 等級不合法");
+      if (e.grade !== "test") assert.ok(e.sources.length >= 1, e.claim + " 沒有來源");
+      for (const id of e.sources) assert.ok(srcs.has(id), e.claim + " 引用了不存在的來源 " + id);
+    }
+    for (const x of plan.sources) assert.ok(["opened", "search-summary", "user-supplied"].includes(x.seenVia));
+    for (const sop of plan.sop) assert.ok(stocks.has(sop.stock));
+  }
+  assert.doesNotMatch(JSON.stringify(plans), /http/, "網址不進頁面，放 bait/SOURCES.md");
+
+  // 換算：每 200 g 基礎餌加 0.5 ml 的 100 mg/ml 液 ＝ 每公斤 2.5 ml ＝ 0.25 g 有效成分
+  const tilapia = plans[0];
+  const stock = (plan, id) => plan.stocks.find((st) => st.id === id);
+  let d = plain(h.doseFor(stock(tilapia, "CIT"), 0.5, 200));
+  assert.equal(d.amountPerKg, 2.5);
+  assert.ok(Math.abs(d.activeGPerKg - 0.25) < 1e-12);
+  d = plain(h.doseFor(stock(tilapia, "CIT"), 2.0, 200));
+  assert.ok(Math.abs(d.activeGPerKg - 1.0) < 1e-12);
+  d = plain(h.doseFor(stock(tilapia, "SWT"), 0.2, 200));
+  assert.ok(Math.abs(d.activeGPerKg - 0.09) < 1e-12, "奶甜 0.2 ml 應該是 0.09 g/kg");
+  d = plain(h.doseFor(stock(tilapia, "FRU"), 0.5, 200));
+  assert.equal(d.activeGPerKg, null, "香精只知道體積，不能印出有效成分公克數");
+  d = plain(h.doseFor(stock(plans[1], "KRL"), 5, 200));
+  assert.equal(d.activeGPerKg, 25, "粉末 5 g／200 g ＝ 25 g/kg");
+
+  // 修正一：主酸液不得再夾帶香精——夾帶的話 T2、T6 又會變回「酸＋香」，分不開
+  assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
+  assert.doesNotMatch(stock(tilapia, "MAL").made, /香/);
+  // 修正二：同酸濃度的檸檬酸與蘋果酸各有一組、而且都跟 T2 比，才是只差酸種類的單一變因
+  const t7 = tilapia.groups.find((g) => g.id === "T7");
+  assert.deepEqual(t7.compare, ["T2"]);
+  assert.equal(stock(tilapia, "CIT").mgPerMl, stock(tilapia, "MAL").mgPerMl);
+  // 原報告的配方要留著比，不是被刪掉
+  assert.ok(tilapia.groups.some((g) => g.doses.some(([id]) => id === "ORIG")));
+
+  assert.match(html, /待驗證的實驗假說，不是本站的建議/);
+});
+
+test("添加劑實測紀錄：存得進去、欄位收斂、統計不拿 0 填空、匯入舊檔不洗掉", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  assert.equal(h.sanitizeTrial({ species: "福壽魚", groupId: "B2" }), null, "組別不屬於那個魚種要丟掉");
+  assert.equal(h.sanitizeTrial({ species: "鯉魚", groupId: "T1" }), null);
+  const t = plain(h.sanitizeTrial({ species: "福壽魚", groupId: "T2", date: "2026-09-24", minutes: "", signals: "4", hooked: "2", ttrSec: "", waterTempC: "27.5", notes: "x".repeat(300) }));
+  assert.equal(t.minutes, 30, "時長沒填就是 30 分");
+  assert.equal(t.ttrSec, null, "沒填就是 null，不是 0");
+  assert.equal(t.signals, 4);
+  assert.equal(t.waterTempC, 27.5);
+  assert.equal(t.notes.length, 200);
+
+  const trials = [
+    t,
+    plain(h.sanitizeTrial({ species: "福壽魚", groupId: "T2", date: "2026-09-24", minutes: 60, signals: 8, hooked: 2, ttrSec: 120 })),
+    plain(h.sanitizeTrial({ species: "福壽魚", groupId: "T2", date: "2026-09-24", minutes: 30, signals: null, hooked: 1 })),
+    plain(h.sanitizeTrial({ species: "黑鯛", groupId: "B1", date: "2026-09-24", signals: 1, hooked: 0 }))
+  ];
+  const st = plain(h.trialStats(trials, "福壽魚", "T2"));
+  assert.equal(st.n, 3);
+  assert.equal(st.ttrMean, 120, "只有一場有填首訊時間");
+  // 訊號：(4 + 8) / (30 + 60) × 30 ＝ 4；第三場沒填訊號，不算進分母
+  assert.equal(st.signalsPer30, 4);
+  // 中魚率：只算訊號與中魚都有填的場次 (2 + 2) / (4 + 8)
+  assert.ok(Math.abs(st.hookRate - 4 / 12) < 1e-12);
+  assert.equal(plain(h.trialStats(trials, "黑鯛", "B2")).n, 0);
+
+  // 存檔與匯出都要帶著實測紀錄
+  const state = plain(h.sanitizeState({ items: [], recipes: [], trials: [...trials, { species: "福壽魚", groupId: "ZZ" }] }));
+  assert.equal(state.trials.length, 4, "不合法的那筆丟掉，其餘留下");
+  assert.equal(plain(h.exportPayload(state)).trials.length, 4);
+  const withTrials = plain(h.importPayload(JSON.stringify(h.exportPayload(state))));
+  assert.equal(withTrials.ok, true);
+  assert.equal(withTrials.hasTrials, true);
+  const oldFile = plain(h.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 7, items: [], recipes: [] })));
+  assert.equal(oldFile.hasTrials, false, "舊檔沒有 trials 欄位，匯入時不可以把手上的紀錄清空");
 });
 
