@@ -505,6 +505,9 @@ body {
 .hz-scroll {
   display: flex; overflow-x: auto; gap: 12px;
   padding-bottom: 8px; scrollbar-width: thin;
+  /* 設了 scrollbar-width 之後 Chrome 就不讀 ::-webkit-scrollbar 的顏色，
+     少了這行會退回瀏覽器預設的淺色軌道 */
+  scrollbar-color: var(--border-strong) transparent;
 }
 .hz-scroll::-webkit-scrollbar { height: 6px; }
 .hz-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
@@ -1035,7 +1038,8 @@ body {
 /* ─── Tablet（768+）：進入 dashboard grid ─────────────────
    .col-wrap 改 display:contents，讓卡片直接成為 grid item，
    由 grid-template-areas 重排；DOM 與資料流不變。
-   天氣佔左欄兩列，海況／測站堆在右欄，潮汐與明後天滿版。
+   天氣與海況並排（兩者高度相近），潮汐、未來 3 天、測站、明後天各佔滿版一列。
+   先前測站堆在海況下方，天氣卡旁邊會空出近 500px。
 ────────────────────────────────────────────────────────── */
 @media (min-width: 768px) {
   :root {
@@ -1050,9 +1054,9 @@ body {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
     grid-template-areas:
       "weather  marine"
-      "weather  station"
       "tide     tide"
       "forecast forecast"
+      "station  station"
       "future   future"
       "ext      ext";
   }
@@ -1137,8 +1141,13 @@ body {
    代價是天氣卡變窄、逐時預報要橫捲。明後天兩天改成左右並排。
 ────────────────────────────────────────────────────────── */
 @media (min-width: 1280px) {
+  /* 欄寬照內容實測分配。三欄要的寬度（逐時 7 格約 546px、海況一列約 453px、
+     潮汐 2×2 最少 270px）在 1440 寬時放不下：把潮汐壓到 284px 能讓前兩者都達標，
+     但潮窗與潮況會斷行、潮汐卡變高，天氣與海況下方各空出 167／288px。
+     取這組比例：1440 時空白合計 80px、逐時溢出 51px（改用主題色捲軸）；
+     1600 以上三欄共 1480px，兩者都放得下。 */
   .two-col {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1.1fr) minmax(270px, .8fr) minmax(0, 1fr);
     grid-template-areas:
       "weather  tide     marine"
       "forecast forecast station"
@@ -1147,6 +1156,40 @@ body {
   }
   /* 大字與副標已經寫了溫度與體感，窄欄不再重複一次（手機版本來就隱藏） */
   .dash-weather .g2 { display: none; }
+
+  /* 中欄變窄後 auto-fit 會退成單欄、卡片暴高，這裡固定 2×2 */
+  .dash-tide .tide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* 逐時每格內容 48px；左右內距 12→8、間距 10→8，1440 起 7 格放得下 */
+  .dash-weather .hz-scroll { gap: 8px; }
+  .dash-weather .hz-item   { padding-inline: 8px; }
+
+  /* ── 資訊層級：今日初判 → 現在／今天 → 未來與輔助 ── */
+  .quick-summary {
+    border-color: var(--border-strong);
+    padding: 22px 26px;
+  }
+  .decision-label      { font-size: 13px; }
+  .decision-main       { font-size: clamp(1.75rem, 1.2rem + .7vw, 2.4rem); }
+  .quick-metric span   { font-size: 12px; }
+  .quick-metric strong { font-size: 18px; }
+
+  .dash-weather .section-lbl,
+  .dash-tide .section-lbl,
+  .dash-marine .collapse-summary { font-size: 15px; color: var(--txt-2); }
+
+  .row-main    { font-size: 15px; color: var(--txt); }
+  .row-meta    { font-size: 13px; }
+  .tide-now    { font-size: 14px; }
+  .info-note   { font-size: 12px; }
+
+  /* 第三、四層：不加裝飾，只把底色與陰影收掉一階 */
+  .dash-forecast .card,
+  .dash-station .card,
+  .dash-future .card {
+    background: color-mix(in srgb, var(--bg-card) 55%, var(--bg));
+    box-shadow: none;
+  }
 
   /* 明後天：天數與每天的潮汐事件數都不寫死，有幾個就排幾欄 */
   .future-days {
@@ -1176,11 +1219,20 @@ body {
   }
 }
 
-/* ─── 大螢幕：整頁等比放大 ──────────────────────────────────
-   字級、間距、徽章都是 px，逐條調大會漏；zoom 讓已驗證過的版面整體等比放大。
-   門檻＝1600 × zoom ＋ 捲軸寬，確保放大後仍比視窗窄、不產生橫捲。 */
-@media (min-width: 1840px) { .page { zoom: 1.125; } }
-@media (min-width: 2040px) { .page { zoom: 1.25; } }
+/* ─── 大螢幕：只放大決策與核心數值，輔助資料與註記不跟著變大 ─── */
+@media (min-width: 1600px) {
+  .quick-metric strong { font-size: 20px; }
+  .dash-weather .section-lbl,
+  .dash-tide .section-lbl,
+  .dash-marine .collapse-summary { font-size: 16px; }
+  .row-main  { font-size: 16px; }
+  .cf-sub    { font-size: 15px; }
+  .hz-temp   { font-size: 20px; }
+  .hz-sub    { font-size: 14px; }
+  .tide-now  { font-size: 15px; }
+  .tide-type { font-size: 13px; }
+  .tide-ht   { font-size: 16px; }
+}
 </style>
 </head>
 <body>
