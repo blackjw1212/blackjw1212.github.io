@@ -124,8 +124,7 @@
   .fish-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;margin-bottom:6px}
   .fish-head h3{font-size:16px;margin:0}
   .fish-diet{font-size:13px;color:var(--soft);line-height:1.5;margin:0 0 10px}
-  .fish-src{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint);white-space:nowrap}
-  .fish-table td:nth-child(3){min-width:220px}
+  .fish-src{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
   .seasons{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px}
   .season{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:8px 10px;font-size:13px;color:var(--soft);line-height:1.5}
   .season b{display:block;color:var(--faint);font-size:12px;margin-bottom:2px}
@@ -1897,7 +1896,8 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
 
   function srcRefs(ids) {
     if (!ids || !ids.length) return "";
-    return '<span class="fish-src">' + ids.map(function (id) { return "[" + esc(id) + "]"; }).join("") + "</span>";
+    /* 編號之間放 wbr：一列掛到八個來源時要能斷行，不然在手機上把表撐出去。 */
+    return '<span class="fish-src">' + ids.map(function (id) { return "[" + esc(id) + "]"; }).join("<wbr>") + "</span>";
   }
 
   /* 收合狀態下只看得到這一行，所以把「幾筆是真的開過」講在這裡。 */
@@ -1919,12 +1919,9 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
       html += '<section class="card"><div class="fish-head"><h3>' + esc(fish.species) + "</h3>";
       for (var w = 0; w < waters.length; w += 1) html += '<span class="tag">' + esc(waters[w]) + "</span>";
       html += '</div><p class="fish-diet">' + esc(fish.diet) + "</p>";
-      html += '<div class="table-wrap"><table class="fish-table"><thead><tr><th>餌料類別</th><th>角色</th><th>說明</th><th>來源</th></tr></thead><tbody>';
-      for (var b = 0; b < fish.baits.length; b += 1) {
-        var bait = fish.baits[b];
-        html += "<tr><td>" + esc(bait.group) + "</td><td>" + esc(bait.role) + "</td><td>" + esc(bait.note) + "</td><td>" + srcRefs(bait.sources) + "</td></tr>";
-      }
-      html += "</tbody></table></div>";
+      html += stackTable(["餌料類別", "角色", "說明", "來源"], fish.baits.map(function (bait) {
+        return [esc(bait.group), esc(bait.role), esc(bait.note), srcRefs(bait.sources)];
+      }));
       html += '<div class="seasons">';
       for (var s = 0; s < SEASON_LABEL.length; s += 1) {
         var season = fish.seasons[SEASON_LABEL[s][0]] || { text: "", sources: [] };
@@ -2068,7 +2065,7 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
           + (st.cpuePerHour === null ? "—" : esc(trimNum(st.cpuePerHour, 1))) + "</td></tr>";
       }
       if (any) {
-        html += '<div class="add-block"><h4>' + esc(speciesLabel(plan.species)) + '</h4><div class="table-wrap"><table class="fish-table trial-stats"><thead><tr><th>組</th><th>場次</th><th>平均首訊</th><th>訊號／30 分</th><th>中魚率</th><th>尾／小時</th></tr></thead><tbody>'
+        html += '<div class="add-block"><h4>' + esc(speciesLabel(plan.species)) + '</h4><div class="table-wrap"><table class="trial-stats"><thead><tr><th>組</th><th>場次</th><th>平均首訊</th><th>訊號／30 分</th><th>中魚率</th><th>尾／小時</th></tr></thead><tbody>'
           + body + "</tbody></table></div></div>";
       }
     }

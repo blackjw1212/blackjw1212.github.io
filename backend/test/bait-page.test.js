@@ -822,9 +822,12 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(tilapia.groups.some((g) => g.doses.some(([id]) => id === "ORIG")));
 
   assert.match(html, /待驗證的實驗假說，不是本站的建議/);
-  // 添加劑的表不可以再共用 fish-table：那條「第 3 欄至少 220px」會把其他欄擠成一格一個字
+  // 以前的「第 3 欄至少 220px」規則把手機上的其他欄擠成一格一個字、整張表撐出螢幕。
+  // 魚種對照與添加劑的表都改走 stackTable（手機上排成「欄名：內容」），那條規則不得回來。
   const renderAdd = html.slice(html.indexOf("function renderAdditives("), html.indexOf("function fillTrialGroups("));
-  assert.doesNotMatch(renderAdd, /fish-table/);
+  assert.doesNotMatch(html, /fish-table|min-width:220px/);
+  const renderFishBody = html.slice(html.indexOf("function renderFish("), html.indexOf("function renderLog("));
+  assert.match(renderFishBody, /stackTable\(\["餌料類別"/);
   // 實驗組與證據等級收合，收合列要看得出幾組、各等級幾條
   assert.match(renderAdd, /<details class="src-fold"><summary>實驗組/);
   assert.match(renderAdd, /evidenceSummary\(plan\.evidence\)/);
