@@ -103,6 +103,8 @@
      兩欄需要 2×min + 12 的間距 ≤ 266，也就是 min ≤ 127。150 與 130 實測都會掉成
      單欄，一張圖 272px 見方、七個品項把那一頁拉到 4500px。 */
   .item-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+  .kind-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+  .kind-cols h3{margin-top:0}
   .item-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden;display:flex;flex-direction:column}
   .item-card .shot{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:var(--panel-2);border-bottom:1px solid var(--line)}
   .item-card .shot.noimg{display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:12px}
@@ -346,7 +348,7 @@
 
       <section class="card" aria-labelledby="itemListHeading">
         <h2 id="itemListHeading">品項庫</h2>
-        <div id="itemRows"></div>
+        <div class="kind-cols" id="itemRows"></div>
         <p class="none" id="itemEmpty">還沒有任何品項。左邊建一筆。</p>
       </section>
     </div>
@@ -1685,11 +1687,14 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
         + "</div></div>";
     }
     var html = "";
-    for (var k = 0; k < ITEM_KINDS.length; k += 1) {
-      var kind = ITEM_KINDS[k];
-      if (!counts[kind.id]) continue;
-      html += "<h3>" + esc(kind.label) + "（" + counts[kind.id] + "）</h3>"
-        + '<div class="item-grid">' + cards[kind.id] + "</div>";
+    /* 左右兩欄固定都在，某一類是空的也留著欄位——欄位位置不因資料多寡而跳動。 */
+    if (state.items.length) {
+      for (var k = 0; k < ITEM_KINDS.length; k += 1) {
+        var kind = ITEM_KINDS[k];
+        html += '<div class="kind-col"><h3>' + esc(kind.label) + "（" + (counts[kind.id] || 0) + "）</h3>"
+          + (counts[kind.id] ? '<div class="item-grid">' + cards[kind.id] + "</div>" : '<p class="none">沒有品項</p>')
+          + "</div>";
+      }
     }
     node.innerHTML = html;
     bindSheetTriggers(node);
