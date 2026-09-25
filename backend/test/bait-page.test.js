@@ -827,12 +827,16 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // 主餌以每次釣用的乾粉 300 g 為基準、底餌 200 g；每公斤的比例不因換基準而變
   const baseOf = (stageId) => tilapia.stages.find((st) => st.id === stageId).baseGrams;
   assert.equal(baseOf("bite"), 300);
-  assert.equal(baseOf("attract"), 200);
+  assert.equal(baseOf("attract"), 1500, "底餌以每次釣用的 1.5 kg 為準");
+  // 換了基準，每公斤比例不能變：紅蟲萃取仍 50 ml/kg、南極蝦粉仍 25 g/kg
+  const g2 = tilapia.groups.find((g) => g.id === "G2");
+  assert.equal(plain(h.doseFor(stock(tilapia, "BLW"), g2.doses[0][1], 1500)).amountPerKg, 50);
   const perKg = (groupId, stockId) => {
     const g = tilapia.groups.find((x) => x.id === groupId);
     const amount = g.doses.find(([id]) => id === stockId)[1];
     return plain(h.doseFor(stock(tilapia, stockId), amount, baseOf(g.stage))).activeGPerKg;
   };
+  assert.equal(perKg("G3", "KRL"), 25);
   // 色胺酸照 GIFT 吳郭魚飼料試驗的 1.8 g/kg——300 g 主餌乾粉 0.54 g
   assert.ok(Math.abs(perKg("T11", "TRP") - 1.8) < 1e-12);
   assert.ok(Math.abs(perKg("T2", "CIT") - 0.25) < 1e-12, "檸檬酸低劑量仍是 0.25 g/kg");
