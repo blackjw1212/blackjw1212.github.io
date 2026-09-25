@@ -318,8 +318,6 @@
       <section class="card" aria-labelledby="itemFormHeading">
         <h2 id="itemFormHeading">新增品項</h2>
         <label class="field"><span>名稱</span><input id="itemName" type="text" maxlength="40"></label>
-        <span class="big-label" id="itemKindLabel">分類</span>
-        <div class="checks" id="itemKind" role="radiogroup" aria-labelledby="itemKindLabel"></div>
         <div class="duo">
           <label class="field"><span>包裝重量（克，可留空）</span>
             <input id="itemPack" type="number" min="0" step="10" inputmode="numeric">
@@ -457,7 +455,9 @@
   var FLAVORS = ["腥", "香", "酸/發酵", "藻/青苔", "甜"];
   var WATER_TYPES = ["淡水", "海水"];
   /* 品項本身是什麼：餌料還是添加劑。這跟配方的 purpose（這鍋拿去當主餌還是 A 撒）
-     是兩件事——檸檬酸放進哪一鍋都是添加劑，所以掛在品項上。 */
+     是兩件事——檸檬酸放進哪一鍋都是添加劑，所以掛在品項上。
+     表單上不給選：自己建的一律是餌料（添加劑放在餌料區是正常的），
+     編輯時沿用原本的分類，預設資料的添加劑不會因為存一次檔就變回餌料。 */
   var ITEM_KINDS = [{ id: "bait", label: "餌料" }, { id: "additive", label: "添加劑" }];
   /* 每個目標的棲息水域。查證於 2026-09-04，來源記在 README 之外的對話裡，
      判準是「這個東西在該水域釣得到」而不是分類學：
@@ -1606,17 +1606,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
   var itemForm = { flavorProfile: [], targetSpecies: [], waterTypes: [], imageUrl: "" };
 
   function renderItemForm() {
-    var kindNode = $("itemKind");
-    if (kindNode) {
-      kindNode.innerHTML = ITEM_KINDS.map(function (kind) {
-        return '<label class="check"><input type="radio" name="itemKind" value="' + kind.id + '"'
-          + (itemForm.kind === kind.id ? " checked" : "") + "><span>" + esc(kind.label) + "</span></label>";
-      }).join("");
-      var radios = kindNode.querySelectorAll("input");
-      for (var r = 0; r < radios.length; r += 1) {
-        radios[r].addEventListener("change", function (event) { itemForm.kind = event.target.value; });
-      }
-    }
     renderChecks($("itemFlavors"), FLAVORS, itemForm.flavorProfile, function (value, on) {
       toggleIn(itemForm.flavorProfile, value, on);
     });

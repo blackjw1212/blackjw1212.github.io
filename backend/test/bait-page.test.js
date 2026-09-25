@@ -110,8 +110,8 @@ test("品項分類：餌料／添加劑，品項庫分兩區", async () => {
   assert.equal(old.items.filter((i) => i.kind === "additive").length, 4);
   // 分類要撐過存檔再讀回
   assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 4);
-  // 表單有分類的單選、品項庫容器不再自己是格線（格線在各分區裡）
-  assert.match(html, /id="itemKind" role="radiogroup"/);
+  // 表單不給選分類（使用者要求移除）；品項庫容器不再自己是格線（格線在各分區裡）
+  assert.doesNotMatch(html, /id="itemKind"|name="itemKind"/);
   assert.match(html, /<div id="itemRows"><\/div>/);
 });
 
