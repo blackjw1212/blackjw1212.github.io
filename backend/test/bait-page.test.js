@@ -1170,3 +1170,23 @@ test("來源原文核對：掛錯的來源與沒有出處的說法不得回來",
   assert.match(tilapia.stocks.find((x) => x.id === "CYS").note, /0\.17～0\.19 g\/kg/);
   assert.match(ev("劑量 0.25～1 g/kg 在安全範圍內").text, /只能當設計參考/);
 });
+
+test("福壽魚第一輪：T1 空白、T14 起始、T15 高量上限，換算與紀錄欄位", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
+  const stock = (id) => tilapia.stocks.find((x) => x.id === id);
+  const perKg = (groupId, stockId) => {
+    const g = tilapia.groups.find((x) => x.id === groupId);
+    return plain(h.doseFor(stock(stockId), g.doses.find(([id]) => id === stockId)[1], 300)).activeGPerKg;
+  };
+  // 300 g 乾粉：T14 各 1.5 mL＋色胺酸 0.54 g；T15 各 3.0 mL＋0.54 g
+  assert.ok(Math.abs(perKg("T14", "CIT") - 0.5) < 1e-12 && Math.abs(perKg("T14", "SOR") - 0.5) < 1e-12);
+  assert.ok(Math.abs(perKg("T15", "CIT") - 1.0) < 1e-12 && Math.abs(perKg("T15", "SOR") - 1.0) < 1e-12);
+  for (const g of ["T14", "T15"]) assert.ok(Math.abs(perKg(g, "TRP") - 1.8) < 1e-12, g + " 的色胺酸固定 1.8 g/kg");
+  assert.equal(tilapia.groups.find((g) => g.id === "T14").compare.join(), "T1");
+  assert.equal(tilapia.groups.find((g) => g.id === "T15").compare.join(), "T14");
+  // 兩組都只能是實戰起始值，不可以被寫成最佳
+  for (const g of ["T14", "T15"]) assert.doesNotMatch(tilapia.groups.find((x) => x.id === g).purpose, /最佳(?!濃度)|已證實/);
+  assert.match(tilapia.stages.find((st) => st.id === "bite").metric, /CPUE/);
+});
