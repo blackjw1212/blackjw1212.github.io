@@ -98,18 +98,19 @@ test("品項分類：餌料／添加劑，品項庫分兩區", async () => {
   assert.equal(plain(h.sanitizeItem({ name: "x" })).kind, "bait", "沒填是餌料");
   assert.equal(plain(h.sanitizeItem({ name: "x", kind: "additive" })).kind, "additive");
   assert.equal(plain(h.sanitizeItem({ name: "x", kind: "ADDITIVE" })).kind, "bait", "對不上就退回預設");
-  // 預設資料裡的添加劑剛好是若亞方舟那四樣
+  // 預設資料裡的添加劑是若亞方舟那四樣，加上黑格胺基酸液用的甘胺酸與 L-丙胺酸
   const seed = plain(h.seed());
   const additives = seed.items.filter((i) => plain(h.sanitizeItem(i)).kind === "additive").map((i) => i.id).sort();
-  assert.equal(additives.join(","), "item-citric-noah,item-cysteine-noah,item-sorbitol-noah,item-tryptophan-noah");
+  assert.equal(additives.join(","), "item-alanine-noah,item-citric-noah,item-cysteine-noah,item-glycine-noah,item-sorbitol-noah,item-tryptophan-noah");
   // 舊裝置：那四樣是在分類欄位出現前補進去的，讀回來是餌料；開一次要更正成添加劑
+  const FIRST_FOUR = ["item-citric-noah", "item-cysteine-noah", "item-sorbitol-noah", "item-tryptophan-noah"];
   const old = plain(h.sanitizeState(seed));
-  for (const i of old.items) if (i.id.endsWith("-noah")) i.kind = "bait";
+  for (const i of old.items) if (FIRST_FOUR.includes(i.id)) i.kind = "bait";
   old.appliedFixes = old.appliedFixes.filter((id) => !id.endsWith(":kind:1"));
   h.mergeSeed(old, seed);
-  assert.equal(old.items.filter((i) => i.kind === "additive").length, 4);
+  assert.equal(old.items.filter((i) => i.kind === "additive").length, 6);
   // 分類要撐過存檔再讀回
-  assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 4);
+  assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 6);
   // 表單不給選分類（使用者要求移除）；品項庫用切換鈕一次顯示一類（左右並排太擠，使用者退回）
   assert.doesNotMatch(html, /id="itemKind"|name="itemKind"/);
   assert.match(html, /<div id="itemRows"><\/div>/);
@@ -906,4 +907,75 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.doesNotMatch(JSON.stringify(plans), /檸檬酸[^。]*閾值約/);
   // 「沒有研究」只能寫成「這次檢索沒找到」
   assert.doesNotMatch(JSON.stringify(plans) + html, /黑鯛本身沒有同類研究|黑鯛沒有同類研究/);
+});
+
+// 黑格比照福壽魚分兩段：A 撒（誘過來）與練餌（讓牠開口），各自只動一層。
+test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預設配方的總重與總價", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const bream = plain(h.ADDITIVES).find((p) => p.species === "黑鯛");
+  assert.equal(bream.stages.map((st) => st.id).join(","), "attract,bite");
+  const baseOf = (stageId) => bream.stages.find((st) => st.id === stageId).baseGrams;
+  assert.equal(baseOf("attract"), 3000, "A 撒以每次 3 kg 為準");
+  assert.equal(baseOf("bite"), 300, "練餌以每次 300 g 為準");
+  const byId = new Map(bream.groups.map((g) => [g.id, g]));
+  for (const st of ["attract", "bite"]) {
+    assert.equal(bream.groups.filter((g) => g.stage === st && g.doses.length === 0).length, 1, st + " 段要剛好一個空白組");
+  }
+  for (const g of bream.groups) {
+    for (const c of g.compare) assert.equal(byId.get(c).stage, g.stage, g.id + " 跨段比較 " + c);
+  }
+  // 實驗組以前用 B1–B7，跟魚種對照的來源 B1–B11 撞名；組別不可以再跟任何來源編號重疊
+  const fish = plain(h.FISH_REF).find((f) => f.species === "黑鯛");
+  const sourceIds = new Set([...fish.sources, ...bream.sources].map((s) => s.id));
+  for (const g of bream.groups) assert.ok(!sourceIds.has(g.id), g.id + " 跟來源編號撞名");
+  assert.ok(bream.groups.filter((g) => g.stage === "attract").every((g) => /^M\d+$/.test(g.id)), "A 撒是 M 組");
+  assert.ok(bream.groups.filter((g) => g.stage === "bite").every((g) => /^K\d+$/.test(g.id)), "練餌是 K 組");
+  // 每公斤換算：換了基準（200 g → 300 g、加上 3 kg 的 A 撒），比例不能變
+  const stock = (id) => bream.stocks.find((st) => st.id === id);
+  const perKg = (groupId, stockId) => {
+    const g = byId.get(groupId);
+    const amount = g.doses.find(([id]) => id === stockId)[1];
+    return plain(h.doseFor(stock(stockId), amount, baseOf(g.stage))).activeGPerKg;
+  };
+  assert.equal(perKg("M2", "KRL"), 25, "A 撒 3 kg 取 75 g 南極蝦粉＝每公斤 25 g");
+  assert.equal(perKg("K6", "KRL"), 25, "練餌 300 g 取 7.5 g＝每公斤 25 g，跟改基準前的 5 g／200 g 相同");
+  assert.equal(perKg("M3", "KRL"), 50);
+  assert.ok(Math.abs(perKg("M4", "AA") - 0.25) < 1e-12, "A 撒的胺基酸 7.5 ml＝0.25 g/kg");
+  assert.ok(Math.abs(perKg("K2", "AA") - 0.25) < 1e-12, "練餌的胺基酸低劑量仍是 0.25 g/kg");
+  assert.ok(Math.abs(perKg("K5", "AA") - 1.0) < 1e-12, "練餌的胺基酸高劑量仍是 1 g/kg");
+  assert.ok(Math.abs(perKg("K3", "BET") - 0.25) < 1e-12);
+
+  // 兩份預設配方：總重就是使用者給的每次份量，每一列都算得出價格
+  const seed = plain(h.seed());
+  const itemsById = {};
+  for (const item of seed.items) itemsById[item.id] = item;
+  const recipe = (id) => seed.recipes.find((r) => r.id === id);
+  const esa = recipe("recipe-blackbream-groundbait");
+  const paste = recipe("recipe-blackbream-paste");
+  assert.equal(esa.title, "黑格 A 撒");
+  assert.equal(esa.purpose, "GROUNDBAIT");
+  assert.equal(paste.title, "黑格 練餌");
+  assert.equal(paste.purpose, "MAIN_BAIT");
+  for (const r of [esa, paste]) assert.deepEqual(r.targetSpecies, ["黑鯛"]);
+  // 驗收基準：蝦磚 1 包 1500 g $135 ＋ 燕麥片 400 g $50.4 ＋ 尼羅魚一號 500 g $15.3125 ＋ 幼雞飼料 600 g $18.9
+  let cost = plain(h.recipeCost(esa, itemsById));
+  assert.equal(cost.totalGrams, 3000);
+  assert.ok(Math.abs(cost.total - 219.6125) < 1e-9, "A 撒總價得到 " + cost.total);
+  assert.deepEqual(cost.unknown, []);
+  // 蝦肉 150 g $13.5 ＋ 高筋麵粉 110 g $7.92 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
+  cost = plain(h.recipeCost(paste, itemsById));
+  assert.equal(cost.totalGrams, 300);
+  assert.ok(Math.abs(cost.total - (13.5 + 7.92 + 3.9 + 30 * 20 / 70)) < 1e-9, "練餌總價得到 " + cost.total);
+  assert.deepEqual(cost.unknown, []);
+
+  // 備註有字數上限（品項 200、配方 500），超過會在 sanitize 時被安靜截掉
+  const clean = plain(h.sanitizeState(seed));
+  for (const id of ["item-krill-block", "item-flour-bread", "item-oats-noah", "item-glycine-noah", "item-alanine-noah"]) {
+    assert.equal(clean.items.find((i) => i.id === id).notes, itemsById[id].notes, id + " 的備註被截掉");
+  }
+  for (const r of [esa, paste]) assert.equal(clean.recipes.find((x) => x.id === r.id).notes, r.notes, r.title + " 的備註被截掉");
+  // 使用者提供的價格要說出來，不可以寫得像在頁面上看到的
+  assert.match(itemsById["item-krill-block"].notes, /使用者提供/);
+  assert.match(itemsById["item-flour-bread"].notes, /使用者提供/);
 });

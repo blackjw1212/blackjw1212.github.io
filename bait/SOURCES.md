@@ -37,7 +37,7 @@ udn《羅非雜談》403；Mobile01 403；Google Groups 429；cch1940planet.blog
 | 編號 | 來源 | 網址 | 讀取方式 | 備註 |
 |---|---|---|---|---|
 | B1 | 老鬼の磯釣筆記《磯釣實戰 黑鯛》 | https://www.jangler.net/article_detail?item=10&page=1 | 開過 | |
-| B2 | 老鬼の磯釣筆記《誘餌的種類與選擇》 | https://el1a41.pixnet.net/blog/post/69259287 | 開過 | |
+| B2 | 老鬼の磯釣筆記《誘餌的種類與選擇》 | https://el1a41.pixnet.net/blog/post/69259287 | 開過 | 2026-09-25 重開，補記先前漏掉的「誘餌應該添加的海水比例」：完全退冰 3 kg 蝦＋1～2 kg 粉、不加或少加海水；1.5 kg 蝦＋1.5 kg 粉＋海水 300～500 cc；1.5 kg 蝦＋2.5 kg 粉＋海水 800～1000 cc（原文寫 1：1.5，算起來是 1：1.67）；1 包粉＋1 塊蝦磚加海水約 5～6 kg、夠釣約 3 小時。通用磯釣文章；濁水與深場用低霧化 |
 | B3 | 老鬼の磯釣筆記《磯釣常用釣餌介紹》 | https://el1a41.pixnet.net/blog/post/140536764 | 開過 | |
 | B4 | 釣魚密技《黑格類魚種台灣釣點分佈與垂釣季節月份》 | https://angling.sport.blog/2018/07/01/黑格（黑鯛）類魚種台灣釣點分佈與垂釣季節月份/ | 開過 | |
 | B5 | 堤防行走人《前打訊號抓取與夜間前打》 | https://mau208.pixnet.net/blog/posts/10002840920 | 開過 | |
@@ -49,6 +49,52 @@ udn《羅非雜談》403；Mobile01 403；Google Groups 429；cch1940planet.blog
 | B11 | 銀之羽翼《不想推廣的釣法……前打》 | https://skc6464.pixnet.net/blog/posts/9235099115 | 開過 | 岩蟹、白蝦；作者不建議推廣 |
 
 B1–B3 是同一作者，頁面上的來源數把它們算成一票。
+
+## 黑鯛：A 撒與練餌（C 編號，2026-09-25）
+
+魚種對照的黑鯛卡片與添加劑頁的黑格計畫共用這組編號。同一作者或同一站算一票，備註欄標出來。
+robots.txt 對 AI bot Disallow 而**刻意沒開**的站：tsurihack.com、96dai.net、detail.chiebukuro.yahoo.co.jp（明文擋 ClaudeBot）、
+esano-tsurioh.com——它們只出現在搜尋摘要裡，沒有拿來當任何數字的依據。
+連不上：所有 `*.blogspot.com`（DNS 失敗）、xuite（已關站）。
+
+| 編號 | 來源 | 網址 | 讀取方式 | 備註 |
+|---|---|---|---|---|
+| C1 | フカセでチヌ！《撒き餌・コマセの分量と配合について》 | https://www.ukifukase.net/know-how/makie.html | 開過 | 轉述廠商建議 1 袋：蝦 3 kg；作者自己 蝦 1.5 kg：粉 3 kg＝3 小時；配合餌 1～2 kg／小時；深場用茶系、赤系（嗅覺型） |
+| C3 | チヌ（黒鯛）釣り入門（Nao☆）《マキエの作り方と配合のレシピ集》 | http://fishing-blackseabream.net/article/113804385.html | 開過 | Shift_JIS 解碼後讀。12 組「蝦 3 kg＋某粉 N 袋」；メガミックスチヌ標冬用 |
+| C5 | 同站《刺し餌の練り餌の作り方と自作方法レシピ》 | http://fishing-blackseabream.net/article/164722995.html | 開過 | 與 C3 同作者。小麥粉 150 cc：蛹粉 50 cc（體積 3：1） |
+| C9 | note「フカセ釣りの教科書」《フカセ釣りの撒き餌、完全マスター！》 | https://note.com/fukase_fishing/n/n6808754126ca | 開過 | 蝦 3 kg＋1 袋（約 3 kg）＝約 6 kg／3～4 小時 |
+| C11 | 釣りカタログ《チヌフカセの集魚剤について》 | https://tfishing.net/tinuhukase-esa/ | 開過 | 半日 3 kg：1 袋；全日 6 kg：2 袋 |
+| C12 | しまちゃんの釣りログ《フカセ釣りのコマセを安く自作して》 | https://shimachan50.com/2021-4-25-column/ | 開過 | 自製：米糠、牡蠣殼、押麥、麵包粉＋蝦 3 kg（體積） |
+| C15 | 漁庫《磯釣誘餌(ASA)簡易調配!》（轉載 WCF from Tainan） | https://ufishing.com.tw/2019/07/25/磯釣誘餌asa簡易調配/ | 開過 | 南極蝦磚半塊～1 塊＋沉底型誘餌粉 1 包；海水淹過蝦體。原文 twfishing-wcf.blogspot.com DNS 失敗 |
+| C17 | cch1940 planet《不傳之秘-自製練餌》 | http://cch1940planet.blogspot.com/2008/11/blog-post_20.html | 搜尋摘要 | DNS 失敗。南極蝦 1 kg＋中筋麵粉 1 kg（炒）＋吐司 1 條＋蚵精＋黏粉；「7:3」兩則摘要方向相反，未採 |
+| C22 | もうびっくり《チヌ専用練り餌の作り方》 | https://mo-biquri.com/チヌ専用練り餌の作り方/ | 開過 | 絞乾的アミエビ（糠蝦）1 kg：小麥粉 700～800 g；做得稍硬 |
+| C23 | 澳門漁樂網論壇《再談磯之靈魂...誘餌》（轉貼 kevin-chow） | https://www.fishingmacau.com/bbs/read.php?tid=34909 | 開過 | 沉速：底層誘餌每 10 秒 1 m 以上 |
+| C26 | 釣魚密技《磯釣中正確施打磯釣誘餌的方法》 | https://angling.sport.blog/2018/07/01/磯釣中正確施打磯釣誘餌的方法，你掌握了嗎/ | 開過 | 與 B4 同站，算同一票。加海砂加快沉速，沒給量 |
+| C27 | TSURINEWS 杉本隼一《フカセクロダイ釣りの「コマセ」配合術：冬の低水温期》 | https://tsurinews.jp/160320/ | 開過 | 冬：高集魚、高比重、帶濁；沒有數字 |
+| C28 | TSURINEWS 杉本隼一《チヌフカセ釣りのまきエサに『押し麦』を多用するワケ》 | https://tsurinews.jp/113822/ | 開過 | 與 C27 同作者。押麥落下慢、沉底留在標點 |
+| C29 | TSURINEWS《クロダイを「コーン」や「スイカ」のエサで釣るための条件》 | https://tsurinews.jp/154291/ | 開過 | 只有吃慣玉米的魚群才吃 |
+| C31 | マルキユー 官網入門頁《チヌ／エサの付け方》 | https://www.marukyu.com/marukyu/hajimete_b/gyoshu_umi/gyoshu_umi3_3_4.html | 開過 | 廠商：黃色練餌在濁潮、深場看得見 |
+| C32 | 成山堂書店 書評：海野徹也《クロダイの生物学とチヌの釣魚学》 | https://www.seizando.co.jp/column/20220128/ | 開過 | 黑鯛嗅板 55～60；泳池 50×25×2 m 溶一匙麩醯胺酸可感知；反應強：甘胺酸、脯胺酸、丙胺酸、精胺酸。二手轉述，原始論文本次檢索沒找到 |
+| C33 | つり人オンライン《東京湾のクロダイ・キビレの今 第3回》 | https://web.tsuribito.co.jp/enviroment/tokyo-kurodai-kibire-seitai2108-03 | 開過 | 同一件事，泳池寫成 50×20×2 m（與 C32 不一致） |
+| C38 | FAO 1986《Feeding stimulants for fish – Application in mariculture》 | https://www.fao.org/4/s5347e/S5347E10.htm | 開過 | 真鯛：甘胺酸甜菜鹼＋游離 L-胺基酸（引 Goh & Tamura 1980）。近緣種推論 |
+| C40 | 中島、内田、石田 1989《A New Feeding Attractant, DMPT, for Freshwater Fish》日水誌 55(4):689–695 | https://www.jstage.jst.go.jp/article/suisan1932/55/4/55_4_689/_article/-char/en | 開過 | 讀摘要。金魚、鯉、鯽 |
+| C41 | 中国鳗鱼网《DMPT的作用机理及在水产饲料中的应用》 | http://www.chinaeel.cn/index.php?c=content&a=show&id=4863 | 開過 | 二手綜述：引 Nakajima 1990，真鯛飼料 DMPT 最適 5 mM/L |
+| C42 | 溴化 DMPT 碩士論文（CNKI 2004）等 | http://big5.oversea.cnki.net/KCMS/detail/detailall.aspx?filename=2004032915.nh&dbcode=CMFD&dbname=CMFD2004 | 搜尋摘要 | 「0.2 g/kg 使黑鯛增重 1.6 倍」出自哪一頁無法確認，而且是生長不是誘食 |
+
+完整的 42 筆檢索紀錄（含沒上頁面的 C 編號）不進 repo；上表只列頁面引用到的。
+
+### 價格
+
+| 品項 | 價格 | 出處 | 讀取方式 |
+|---|---|---|---|
+| 南極蝦磚 1.5 kg | $135 | 使用者平常的買價 | 使用者提供 |
+| 高筋麵粉 1 kg | $72 | 使用者平常的買價 | 使用者提供 |
+| 若亞方舟 燕麥片 1 kg | $126（100 g $70、500 g $98） | https://shop.noahsark.com.tw/product/2620 | 開過（2026-09-25） |
+| 若亞方舟 甘胺酸（胺基乙酸）1 kg | $230（最小可選規格） | https://shop.noahsark.com.tw/product/666 | 開過（2026-09-25） |
+| 若亞方舟 L-丙胺酸 100 g | $137（500 g $395、1 kg $730） | https://shop.noahsark.com.tw/product/1563 | 開過（2026-09-25） |
+
+若亞方舟查無：食品級無水甜菜鹼（站內只有化妝品用的甜菜鹼起泡劑，不能代用）、麵粉、蚵殼粉、麵包粉。
+蝦皮的搜尋頁與商品頁都被導到登入／流量驗證頁，沒有取得任何價格。
 
 ## 黑毛、白毛
 
