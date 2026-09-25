@@ -110,10 +110,11 @@ test("品項分類：餌料／添加劑，品項庫分兩區", async () => {
   assert.equal(old.items.filter((i) => i.kind === "additive").length, 4);
   // 分類要撐過存檔再讀回
   assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 4);
-  // 表單不給選分類（使用者要求移除）；品項庫左右兩欄（餌料｜添加劑），格線在各欄裡
+  // 表單不給選分類（使用者要求移除）；品項庫用切換鈕一次顯示一類（左右並排太擠，使用者退回）
   assert.doesNotMatch(html, /id="itemKind"|name="itemKind"/);
-  assert.match(html, /<div class="kind-cols" id="itemRows"><\/div>/);
-  assert.match(html, /\.kind-cols\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(html, /<div id="itemRows"><\/div>/);
+  assert.match(html, /data-kind="' \+ kind\.id \+ '" aria-pressed="/);
+  assert.doesNotMatch(html, /kind-cols/);
 });
 
 test("每個目標都要有棲息水域，而且只能是淡水或海水", async () => {

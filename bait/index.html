@@ -103,8 +103,11 @@
      兩欄需要 2×min + 12 的間距 ≤ 266，也就是 min ≤ 127。150 與 130 實測都會掉成
      單欄，一張圖 272px 見方、七個品項把那一頁拉到 4500px。 */
   .item-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
-  .kind-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
-  .kind-cols h3{margin-top:0}
+  .kind-switch{display:flex;width:max-content;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}
+  .kind-switch button{background:var(--panel);border:0;color:var(--soft);font:inherit;font-size:13px;font-weight:700;padding:8px 18px;min-height:40px;cursor:pointer}
+  .kind-switch button+button{border-left:1px solid var(--line)}
+  .kind-switch button[aria-pressed="true"]{background:var(--teal);color:#0d1417}
+  .kind-switch button:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:-3px}
   .item-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden;display:flex;flex-direction:column}
   .item-card .shot{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:var(--panel-2);border-bottom:1px solid var(--line)}
   .item-card .shot.noimg{display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:12px}
@@ -243,6 +246,7 @@
     .check{min-height:44px;padding:6px 0}
     .check input{width:20px;height:20px}
     .btn,.btn.small{min-height:44px}
+    .kind-switch button{min-height:44px}
     .step,.row-amount,.row-unit{min-height:44px}
     .step{width:44px}
     /* 要跟 .field select 的 min-height:40px 同特異度才蓋得過去，
@@ -348,7 +352,7 @@
 
       <section class="card" aria-labelledby="itemListHeading">
         <h2 id="itemListHeading">品項庫</h2>
-        <div class="kind-cols" id="itemRows"></div>
+        <div id="itemRows"></div>
         <p class="none" id="itemEmpty">還沒有任何品項。左邊建一筆。</p>
       </section>
     </div>
@@ -1004,6 +1008,8 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
 
   var state = { version: STATE_VERSION, items: [], recipes: [], dismissedSeedIds: [], draft: emptyDraft() };
   var editingItemId = "";
+  /* 品項庫一次只顯示一類，用上方的切換鈕換。 */
+  var itemKindView = "bait";
   var undoSnapshot = null;
 
   function $(id) { return document.getElementById(id); }
@@ -1687,14 +1693,12 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
         + "</div></div>";
     }
     var html = "";
-    /* 左右兩欄固定都在，某一類是空的也留著欄位——欄位位置不因資料多寡而跳動。 */
     if (state.items.length) {
-      for (var k = 0; k < ITEM_KINDS.length; k += 1) {
-        var kind = ITEM_KINDS[k];
-        html += '<div class="kind-col"><h3>' + esc(kind.label) + "（" + (counts[kind.id] || 0) + "）</h3>"
-          + (counts[kind.id] ? '<div class="item-grid">' + cards[kind.id] + "</div>" : '<p class="none">沒有品項</p>')
-          + "</div>";
-      }
+      html += '<div class="kind-switch">' + ITEM_KINDS.map(function (kind) {
+        return '<button type="button" data-kind="' + kind.id + '" aria-pressed="' + (itemKindView === kind.id) + '">'
+          + esc(kind.label) + "（" + (counts[kind.id] || 0) + "）</button>";
+      }).join("") + "</div>"
+        + (counts[itemKindView] ? '<div class="item-grid">' + cards[itemKindView] + "</div>" : '<p class="none">沒有品項</p>');
     }
     node.innerHTML = html;
     bindSheetTriggers(node);
@@ -1702,6 +1706,8 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     for (var j = 0; j < buttons.length; j += 1) {
       buttons[j].addEventListener("click", function (event) {
         var target = event.currentTarget;
+        var kindView = target.getAttribute("data-kind");
+        if (kindView) { itemKindView = kindView; renderItems(); return; }
         var edit = target.getAttribute("data-edit");
         if (edit) { editItem(edit); return; }
         var del = target.getAttribute("data-del");
@@ -1766,6 +1772,8 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
         state.items.push(draft);
       }
       var name = draft.name;
+      /* 存完切到那一類，剛存的品項才看得到。 */
+      itemKindView = draft.kind;
       resetItemForm();
       renderItems();
       renderMix();
