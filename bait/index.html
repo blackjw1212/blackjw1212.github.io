@@ -149,10 +149,6 @@
   .add-block h4{font-size:13px;color:var(--soft);margin:0 0 6px}
   .stock-note{font-size:12px;color:var(--faint);line-height:1.45}
   .sop{font-size:13px;color:var(--soft);line-height:1.55;padding-left:1.4em;margin:6px 0 10px}
-  .trial-stats td:nth-child(n+2),.trial-stats th:nth-child(n+2){text-align:right}
-  .trial-rows{list-style:none;display:grid;gap:8px;margin-top:10px}
-  .trial-row{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:8px 10px;display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:13px;color:var(--soft)}
-  .trial-row b{color:var(--ink)}
   .src{font-size:12px;color:var(--soft);padding-left:1.6em;margin:0 0 8px;display:grid;gap:3px}
   .src-note{font-size:11px;color:var(--faint);margin:8px 0 0}
 
@@ -391,37 +387,6 @@
       <p class="none">這一頁的配方是<strong>待驗證的實驗假說，不是本站的建議</strong>。福壽魚版分兩段：先用底餌把魚誘過來（嗅覺，G 組），再用主餌讓牠開口（味覺，T 組），每一段只動自己那一層。主餌的部分改自你貼上的技術報告：主酸從蘋果酸改成檸檬酸、果酸液裡的香精拆成獨立一瓶，酸和香才分得開；原報告的配方留在 T8 拿來比。黑格版是依鯛科（真鯛）的文獻另開的，這次檢索沒找到黑鯛本身的同類研究。每組的每公斤用量是照「每 200 g 基礎餌加幾 ml」換算出來的，不是文獻給的劑量。完整網址在原始碼 bait/SOURCES.md。</p>
     </section>
     <div id="addRows"></div>
-    <section class="card" aria-labelledby="trialHeading">
-      <h2 id="trialHeading">實測紀錄</h2>
-      <p class="none">一次記一組、一個時段。同一天輪流換組、每組多做幾輪再比；只做一場的差異多半是魚群來去，不是添加劑。下表只把你記的數字加總平均，不做任何判斷。</p>
-      <div class="duo">
-        <label class="field"><span>魚種</span><select id="trialSpecies"></select></label>
-        <label class="field"><span>組別</span><select id="trialGroup"></select></label>
-      </div>
-      <div class="duo">
-        <label class="field"><span>日期</span><input id="trialDate" type="date"></label>
-        <label class="field"><span>釣場</span><input id="trialPlace" type="text" maxlength="40"></label>
-      </div>
-      <div class="duo">
-        <label class="field"><span>記錄時長（分鐘）</span><input id="trialMinutes" type="number" min="1" step="1" inputmode="numeric" value="30"></label>
-        <label class="field"><span>水溫（°C，可空）</span><input id="trialTemp" type="number" step="0.1" inputmode="decimal"></label>
-      </div>
-      <div class="duo">
-        <label class="field"><span>第一次有效訊號（秒）</span><input id="trialTtr" type="number" min="0" step="1" inputmode="numeric"></label>
-        <label class="field"><span>有效訊號次數</span><input id="trialSignals" type="number" min="0" step="1" inputmode="numeric"></label>
-      </div>
-      <div class="duo">
-        <label class="field"><span>中魚尾數</span><input id="trialHooked" type="number" min="0" step="1" inputmode="numeric"></label>
-        <label class="field"><span>空槍／吐餌次數</span><input id="trialMissed" type="number" min="0" step="1" inputmode="numeric"></label>
-      </div>
-      <label class="field"><span>備註</span><textarea id="trialNotes" maxlength="200"></textarea></label>
-      <div class="btnrow">
-        <button class="btn primary" id="saveTrial" type="button">記下這一場</button>
-      </div>
-      <p class="state" id="trialState"></p>
-      <div id="trialStats"></div>
-      <ul class="trial-rows" id="trialRows"></ul>
-    </section>
   </div>
 
   <footer class="notes">
@@ -799,19 +764,12 @@
     for (var a = 0; a < rawApplied.length; a += 1) {
       if (fixIds[rawApplied[a]] && applied.indexOf(rawApplied[a]) < 0) applied.push(rawApplied[a]);
     }
-    var trials = [];
-    var rawTrials = Array.isArray(raw.trials) ? raw.trials : [];
-    for (var t = 0; t < rawTrials.length; t += 1) {
-      var trial = sanitizeTrial(rawTrials[t]);
-      if (trial) trials.push(trial);
-    }
     return {
       version: STATE_VERSION,
       items: items,
       recipes: recipes,
       dismissedSeedIds: dismissed,
       appliedFixes: applied,
-      trials: trials,
       draft: sanitizeRecipe(raw.draft, known) || emptyDraft()
     };
   }
@@ -822,8 +780,7 @@
       version: STATE_VERSION,
       exportedAt: todayISO(),
       items: (state && state.items) || [],
-      recipes: (state && state.recipes) || [],
-      trials: (state && state.trials) || []
+      recipes: (state && state.recipes) || []
     };
   }
 
@@ -852,7 +809,7 @@
     }
     var state = sanitizeState(parsed);
     if (!state) return { ok: false, reason: "內容無法解析" };
-    return { ok: true, state: state, hasTrials: Array.isArray(parsed.trials) };
+    return { ok: true, state: state };
   }
 
   /* 第一次開啟時帶入的預設資料。它走跟匯入完全同一條 sanitizeState，
@@ -974,7 +931,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
   }
 
   var GRADE_LABEL = { supported: "文獻支持", related: "近緣種推論", anecdote: "釣友經驗", conflicting: "來源分歧", claimed: "報告宣稱、未查證", test: "需要實測", none: "沒有來源" };
-  var TRIAL_SPECIES = ADDITIVES.map(function (row) { return row.species; });
 
   function additiveFor(species) {
     for (var i = 0; i < ADDITIVES.length; i += 1) if (ADDITIVES[i].species === species) return ADDITIVES[i];
@@ -998,56 +954,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
       activeGPerKg: stock.mgPerMl === null ? null : perKg * stock.mgPerMl / 1000,
       pureMlPerKg: typeof stock.pureFraction === "number" ? perKg * stock.pureFraction : null
     };
-  }
-
-  function nonNegativeIntOrNull(value) {
-    if (value === null || value === undefined || value === "") return null;
-    var num = Number(value);
-    return isFinite(num) && num >= 0 ? Math.round(num) : null;
-  }
-
-  function sanitizeTrial(raw) {
-    if (!raw || typeof raw !== "object") return null;
-    var plan = additiveFor(raw.species);
-    if (!plan) return null;
-    var groupOk = false;
-    for (var i = 0; i < plan.groups.length; i += 1) if (plan.groups[i].id === raw.groupId) groupOk = true;
-    if (!groupOk) return null;
-    var temp = raw.waterTempC === null || raw.waterTempC === undefined || raw.waterTempC === "" ? null : Number(raw.waterTempC);
-    return {
-      id: clampText(raw.id, 40) || makeId("trial"),
-      date: /^\d{4}-\d{2}-\d{2}$/.test(String(raw.date)) ? String(raw.date) : todayISO(),
-      species: plan.species,
-      groupId: raw.groupId,
-      place: clampText(raw.place, 40),
-      minutes: positiveOrNull(raw.minutes) || 30,
-      waterTempC: isFinite(temp) ? temp : null,
-      ttrSec: nonNegativeIntOrNull(raw.ttrSec),
-      signals: nonNegativeIntOrNull(raw.signals),
-      hooked: nonNegativeIntOrNull(raw.hooked),
-      missed: nonNegativeIntOrNull(raw.missed),
-      notes: clampText(raw.notes, 200)
-    };
-  }
-
-  /* 只做加總與平均。有欄位空著的場次就不算進那一欄，分母跟著少——不拿 0 去填。 */
-  function trialStats(trials, species, groupId) {
-    var out = { n: 0, ttrMean: null, signalsPer30: null, hookRate: null, cpuePerHour: null };
-    var ttrSum = 0, ttrN = 0, sigSum = 0, sigMin = 0, hookSum = 0, hookSig = 0, catchSum = 0, catchMin = 0;
-    for (var i = 0; i < trials.length; i += 1) {
-      var t = trials[i];
-      if (t.species !== species || t.groupId !== groupId) continue;
-      out.n += 1;
-      if (t.ttrSec !== null) { ttrSum += t.ttrSec; ttrN += 1; }
-      if (t.signals !== null) { sigSum += t.signals; sigMin += t.minutes; }
-      if (t.signals !== null && t.hooked !== null) { hookSum += t.hooked; hookSig += t.signals; }
-      if (t.hooked !== null) { catchSum += t.hooked; catchMin += t.minutes; }
-    }
-    if (ttrN) out.ttrMean = ttrSum / ttrN;
-    if (sigMin) out.signalsPer30 = sigSum / sigMin * 30;
-    if (hookSig) out.hookRate = hookSum / hookSig;
-    if (catchMin) out.cpuePerHour = catchSum / catchMin * 60;
-    return out;
   }
 
   var helpers = {
@@ -1082,8 +988,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     ADDITIVES: ADDITIVES,
     GRADE_LABEL: GRADE_LABEL,
     doseFor: doseFor,
-    sanitizeTrial: sanitizeTrial,
-    trialStats: trialStats,
     sourceSummary: sourceSummary
   };
 
@@ -1307,7 +1211,7 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     if (bootDone) dirtySinceLoad = true;
     var payload;
     try {
-      payload = JSON.stringify({ version: STATE_VERSION, items: state.items, recipes: state.recipes, dismissedSeedIds: state.dismissedSeedIds, appliedFixes: state.appliedFixes, trials: state.trials, draft: state.draft });
+      payload = JSON.stringify({ version: STATE_VERSION, items: state.items, recipes: state.recipes, dismissedSeedIds: state.dismissedSeedIds, appliedFixes: state.appliedFixes, draft: state.draft });
     } catch (error) {
       return Promise.resolve({ ok: false, reason: "serialize", chars: 0 });
     }
@@ -2045,96 +1949,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     node.innerHTML = html;
   }
 
-  function fillTrialGroups() {
-    var plan = additiveFor($("trialSpecies").value);
-    if (!plan) return;
-    fillSelect($("trialGroup"), plan.groups.map(function (group) {
-      var tag = group.stage === "attract" ? "［誘］" : group.stage === "bite" ? "［咬］" : "";
-      return { id: group.id, label: tag + group.id + " " + doseText(plan, group.doses) };
-    }), plan.groups[0].id);
-  }
-
-  function renderTrials() {
-    var stats = $("trialStats");
-    var rows = $("trialRows");
-    if (!stats || !rows) return;
-    var trials = state.trials || [];
-    var html = "";
-    for (var i = 0; i < ADDITIVES.length; i += 1) {
-      var plan = ADDITIVES[i];
-      var any = false;
-      var body = "";
-      for (var g = 0; g < plan.groups.length; g += 1) {
-        var st = trialStats(trials, plan.species, plan.groups[g].id);
-        if (!st.n) continue;
-        any = true;
-        body += "<tr><td>" + esc(plan.groups[g].id) + "</td><td>" + st.n + "</td><td>"
-          + (st.ttrMean === null ? "—" : esc(trimNum(st.ttrMean, 0) + " 秒")) + "</td><td>"
-          + (st.signalsPer30 === null ? "—" : esc(trimNum(st.signalsPer30, 1))) + "</td><td>"
-          + (st.hookRate === null ? "—" : esc(trimNum(st.hookRate * 100, 0) + "%")) + "</td><td>"
-          + (st.cpuePerHour === null ? "—" : esc(trimNum(st.cpuePerHour, 1))) + "</td></tr>";
-      }
-      if (any) {
-        html += '<div class="add-block"><h4>' + esc(speciesLabel(plan.species)) + '</h4><div class="table-wrap"><table class="trial-stats"><thead><tr><th>組</th><th>場次</th><th>平均首訊</th><th>訊號／30 分</th><th>中魚率</th><th>尾／小時</th></tr></thead><tbody>'
-          + body + "</tbody></table></div></div>";
-      }
-    }
-    stats.innerHTML = html;
-    var list = "";
-    var sorted = trials.slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
-    for (var t = 0; t < sorted.length; t += 1) {
-      var trial = sorted[t];
-      var bits = [trial.date, speciesLabel(trial.species), trial.groupId];
-      if (trial.place) bits.push(trial.place);
-      bits.push(trial.minutes + " 分");
-      if (trial.signals !== null) bits.push("訊號 " + trial.signals);
-      if (trial.hooked !== null) bits.push("中 " + trial.hooked);
-      list += '<li class="trial-row"><span>' + esc(bits.join("　")) + (trial.notes ? "<br>" + esc(trial.notes) : "") + '</span><button class="btn small" type="button" data-drop-trial="' + esc(trial.id) + '">刪除</button></li>';
-    }
-    rows.innerHTML = list;
-  }
-
-  function bindTrials() {
-    var species = $("trialSpecies");
-    if (!species) return;
-    fillSelect(species, TRIAL_SPECIES.map(function (name) { return { id: name, label: speciesLabel(name) }; }), TRIAL_SPECIES[0]);
-    fillTrialGroups();
-    $("trialDate").value = todayISO();
-    species.addEventListener("change", fillTrialGroups);
-    $("saveTrial").addEventListener("click", function () {
-      var trial = sanitizeTrial({
-        species: species.value,
-        groupId: $("trialGroup").value,
-        date: $("trialDate").value,
-        place: $("trialPlace").value,
-        minutes: $("trialMinutes").value,
-        waterTempC: $("trialTemp").value,
-        ttrSec: $("trialTtr").value,
-        signals: $("trialSignals").value,
-        hooked: $("trialHooked").value,
-        missed: $("trialMissed").value,
-        notes: $("trialNotes").value
-      });
-      if (!trial) { setState($("trialState"), "組別對不上，沒有記下來。", "err"); return; }
-      if (!state.trials) state.trials = [];
-      state.trials.push(trial);
-      renderTrials();
-      save().then(function (saved) {
-        setState($("trialState"), saved.ok ? "已記下 " + trial.groupId + " 這一場。" : "記下了但沒存進瀏覽器：" + saveError(saved), saved.ok ? "ok" : "err");
-      });
-      ["trialTtr", "trialSignals", "trialHooked", "trialMissed", "trialNotes"].forEach(function (id) { $(id).value = ""; });
-    });
-    $("trialRows").addEventListener("click", function (event) {
-      var button = event.target.closest("[data-drop-trial]");
-      if (!button) return;
-      var id = button.getAttribute("data-drop-trial");
-      state.trials = (state.trials || []).filter(function (trial) { return trial.id !== id; });
-      renderTrials();
-      save();
-      setState($("trialState"), "已刪除一場紀錄。", "");
-    });
-  }
-
   function renderLog() {
     var node = $("logRows");
     var empty = $("logEmpty");
@@ -2322,10 +2136,9 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
           return;
         }
         /* 覆寫之前先留一份現況，按錯了還救得回來。 */
-        undoSnapshot = JSON.parse(JSON.stringify({ items: state.items, recipes: state.recipes, trials: state.trials }));
+        undoSnapshot = JSON.parse(JSON.stringify({ items: state.items, recipes: state.recipes }));
         state.items = result.state.items;
         state.recipes = result.state.recipes;
-        if (result.hasTrials) state.trials = result.state.trials;
         var known = {};
         for (var i = 0; i < state.items.length; i += 1) known[state.items[i].id] = true;
         state.draft = sanitizeRecipe(state.draft, known) || emptyDraft();
@@ -2334,7 +2147,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
         hydrateMix();
         renderMix();
         renderLog();
-        renderTrials();
         save().then(function (saved) {
           setState($("ioState"), saved.ok
             ? "已匯入 " + state.items.length + " 個品項、" + state.recipes.length + " 份配方。"
@@ -2383,7 +2195,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
       state.items = undoSnapshot.items;
       state.recipes = undoSnapshot.recipes;
       if (undoSnapshot.dismissedSeedIds) state.dismissedSeedIds = undoSnapshot.dismissedSeedIds;
-      if (undoSnapshot.trials) state.trials = undoSnapshot.trials;
       undoSnapshot = null;
       $("undoImport").hidden = true;
       save();
@@ -2391,7 +2202,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
       hydrateMix();
       renderMix();
       renderLog();
-      renderTrials();
       setState($("ioState"), "已復原到匯入前。", "ok");
     });
   }
@@ -2431,8 +2241,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     bindItems();
     bindIo();
     bindSheet();
-    bindTrials();
-    renderTrials();
     for (var pair of [["tabMix", "mix"], ["tabItems", "items"], ["tabLog", "log"], ["tabFish", "fish"], ["tabAdd", "add"]]) {
       (function (id, name) {
         var node = $(id);

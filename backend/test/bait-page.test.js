@@ -843,9 +843,11 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(tilapia.groups.some((g) => g.doses.some(([id]) => id === "ORIG")));
 
   assert.match(html, /待驗證的實驗假說，不是本站的建議/);
+  // 實測紀錄已依使用者要求移除（2026-09-25）
+  assert.doesNotMatch(html, /trialHeading|sanitizeTrial|state\.trials/);
   // 以前的「第 3 欄至少 220px」規則把手機上的其他欄擠成一格一個字、整張表撐出螢幕。
   // 魚種對照與添加劑的表都改走 stackTable（手機上排成「欄名：內容」），那條規則不得回來。
-  const renderAdd = html.slice(html.indexOf("function renderAdditives("), html.indexOf("function fillTrialGroups("));
+  const renderAdd = html.slice(html.indexOf("function renderAdditives("), html.indexOf("function renderLog("));
   assert.doesNotMatch(html, /fish-table|min-width:220px/);
   const renderFishBody = html.slice(html.indexOf("function renderFish("), html.indexOf("function renderLog("));
   assert.match(renderFishBody, /stackTable\(\["餌料類別"/);
@@ -859,44 +861,3 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // 「沒有研究」只能寫成「這次檢索沒找到」
   assert.doesNotMatch(JSON.stringify(plans) + html, /黑鯛本身沒有同類研究|黑鯛沒有同類研究/);
 });
-
-test("添加劑實測紀錄：存得進去、欄位收斂、統計不拿 0 填空、匯入舊檔不洗掉", async () => {
-  const { app } = await loadPage();
-  const h = app.helpers;
-  assert.equal(h.sanitizeTrial({ species: "福壽魚", groupId: "B2" }), null, "組別不屬於那個魚種要丟掉");
-  assert.equal(h.sanitizeTrial({ species: "鯉魚", groupId: "T1" }), null);
-  const t = plain(h.sanitizeTrial({ species: "福壽魚", groupId: "T2", date: "2026-09-24", minutes: "", signals: "4", hooked: "2", ttrSec: "", waterTempC: "27.5", notes: "x".repeat(300) }));
-  assert.equal(t.minutes, 30, "時長沒填就是 30 分");
-  assert.equal(t.ttrSec, null, "沒填就是 null，不是 0");
-  assert.equal(t.signals, 4);
-  assert.equal(t.waterTempC, 27.5);
-  assert.equal(t.notes.length, 200);
-
-  const trials = [
-    t,
-    plain(h.sanitizeTrial({ species: "福壽魚", groupId: "T2", date: "2026-09-24", minutes: 60, signals: 8, hooked: 2, ttrSec: 120 })),
-    plain(h.sanitizeTrial({ species: "福壽魚", groupId: "T2", date: "2026-09-24", minutes: 30, signals: null, hooked: 1 })),
-    plain(h.sanitizeTrial({ species: "黑鯛", groupId: "B1", date: "2026-09-24", signals: 1, hooked: 0 }))
-  ];
-  const st = plain(h.trialStats(trials, "福壽魚", "T2"));
-  assert.equal(st.n, 3);
-  assert.equal(st.ttrMean, 120, "只有一場有填首訊時間");
-  // 訊號：(4 + 8) / (30 + 60) × 30 ＝ 4；第三場沒填訊號，不算進分母
-  assert.equal(st.signalsPer30, 4);
-  // 中魚率：只算訊號與中魚都有填的場次 (2 + 2) / (4 + 8)
-  assert.ok(Math.abs(st.hookRate - 4 / 12) < 1e-12);
-  // CPUE：中魚都有填的三場 (2 + 2 + 1) 尾 ÷ (30 + 60 + 30) 分 × 60 ＝ 2.5 尾／小時
-  assert.equal(st.cpuePerHour, 2.5);
-  assert.equal(plain(h.trialStats(trials, "黑鯛", "B2")).n, 0);
-
-  // 存檔與匯出都要帶著實測紀錄
-  const state = plain(h.sanitizeState({ items: [], recipes: [], trials: [...trials, { species: "福壽魚", groupId: "ZZ" }] }));
-  assert.equal(state.trials.length, 4, "不合法的那筆丟掉，其餘留下");
-  assert.equal(plain(h.exportPayload(state)).trials.length, 4);
-  const withTrials = plain(h.importPayload(JSON.stringify(h.exportPayload(state))));
-  assert.equal(withTrials.ok, true);
-  assert.equal(withTrials.hasTrials, true);
-  const oldFile = plain(h.importPayload(JSON.stringify({ kind: "bjkw-bait", version: 7, items: [], recipes: [] })));
-  assert.equal(oldFile.hasTrials, false, "舊檔沒有 trials 欄位，匯入時不可以把手上的紀錄清空");
-});
-
