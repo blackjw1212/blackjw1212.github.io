@@ -1081,6 +1081,8 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   // 使用者提供的價格要說出來，不可以寫得像在頁面上看到的
   assert.match(itemsById["item-krill-block"].notes, /使用者提供/);
   assert.match(itemsById["item-flour-bread"].notes, /使用者提供/);
+  // 100 g／500 g 裝的包裝標示不是純品（只有 1 kg 裝是 100%），成分照標示抄
+  assert.equal(itemsById["item-alanine-noah"].ingredients, "L-丙胺酸 99.9%、強化長鏈菊苣纖維 0.1%");
 });
 
 // 2026-09-25 曾把這兩份改成 150 g／1.5 kg 並上線，使用者要求改回原本的整包版。
