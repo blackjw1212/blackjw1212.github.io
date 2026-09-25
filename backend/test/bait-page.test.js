@@ -824,9 +824,24 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.equal(d.pureMlPerKg, null, "粉末沒有香精；少了這個欄位畫面會印出「純香精 NaN」");
   // 兩段式：第一段是底餌（嗅覺），第二段是主餌（味覺）
   assert.equal(tilapia.stages.map((st) => st.id).join(","), "attract,bite");
-  // 色胺酸照 GIFT 吳郭魚飼料試驗的 1.8 g/kg——0.36 g／200 g
-  const trp = tilapia.groups.find((g) => g.id === "T11");
-  assert.ok(Math.abs(plain(h.doseFor(stock(tilapia, "TRP"), trp.doses[0][1], 200)).activeGPerKg - 1.8) < 1e-12);
+  // 主餌以每次釣用的乾粉 300 g 為基準、底餌 200 g；每公斤的比例不因換基準而變
+  const baseOf = (stageId) => tilapia.stages.find((st) => st.id === stageId).baseGrams;
+  assert.equal(baseOf("bite"), 300);
+  assert.equal(baseOf("attract"), 200);
+  const perKg = (groupId, stockId) => {
+    const g = tilapia.groups.find((x) => x.id === groupId);
+    const amount = g.doses.find(([id]) => id === stockId)[1];
+    return plain(h.doseFor(stock(tilapia, stockId), amount, baseOf(g.stage))).activeGPerKg;
+  };
+  // 色胺酸照 GIFT 吳郭魚飼料試驗的 1.8 g/kg——300 g 主餌乾粉 0.54 g
+  assert.ok(Math.abs(perKg("T11", "TRP") - 1.8) < 1e-12);
+  assert.ok(Math.abs(perKg("T2", "CIT") - 0.25) < 1e-12, "檸檬酸低劑量仍是 0.25 g/kg");
+  assert.ok(Math.abs(perKg("T6", "CIT") - 1.0) < 1e-12, "檸檬酸高劑量仍是 1 g/kg");
+  assert.ok(Math.abs(perKg("T12", "SOR") - 0.25) < 1e-12);
+  // 半胱胺酸是若亞方舟買得到的紅蟲替代，在第一段、要跟紅蟲比
+  const g5 = tilapia.groups.find((g) => g.id === "G5");
+  assert.equal(g5.stage, "attract");
+  assert.ok(g5.compare.includes("G2"));
   // 紅蟲萃取是研究裡測的那一種氣味，必須在第一段
   assert.equal(tilapia.groups.find((g) => g.doses.some(([id]) => id === "BLW")).stage, "attract");
   // DMPT、甜菜鹼在吳郭魚飼料試驗裡沒有增加攝食量，不可以出現在福壽魚的配方裡
@@ -853,7 +868,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.match(renderFishBody, /stackTable\(\["餌料類別"/);
   // 實驗組與證據等級收合，收合列要看得出幾組、各等級幾條
   assert.match(renderAdd, /<details class="src-fold"><summary>' \+ esc\(stage\.title\)/, "每一段的實驗組各自收合");
-  assert.match(renderAdd, /title: "實驗組（每 200 g 基礎餌）"/, "沒分段的魚種仍是一個實驗組收合");
+  assert.match(renderAdd, /title: "實驗組", baseGrams: 200, baseLabel: "基礎餌"/, "沒分段的魚種仍是一個實驗組收合，基準 200 g");
   assert.match(renderAdd, /evidenceSummary\(plan\.evidence\)/);
   assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
   // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值
