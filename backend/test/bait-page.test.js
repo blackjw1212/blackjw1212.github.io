@@ -563,7 +563,7 @@ test("補齊預設資料只補缺的、只填空的，不動使用者的東西",
 
   // 再跑一次應該完全沒有動作——自動補齊每次開啟都會跑，不能每次都改東西
   const again = plain(app.helpers.mergeSeed(target, seed));
-  assert.deepEqual(again, { addedItems: [], addedRecipes: [], filledItems: [], fixedItems: [] });
+  assert.deepEqual(again, { addedItems: [], addedRecipes: [], filledItems: [], fixedItems: [], fixedRecipes: [] });
 });
 
 // 使用者回報：刪掉預設配方之後按「補齊預設資料」，它們又回來了。
@@ -742,6 +742,12 @@ test("預設值更正：只換還是舊預設值的欄位、每筆只做一次�
   for (const item of seed.items) seedById[item.id] = item;
   assert.ok(fixes.length >= 3);
   for (const fix of fixes) {
+    if (fix.recipeId) {
+      const recipe = seed.recipes.find((r) => r.id === fix.recipeId);
+      assert.ok(recipe, fix.id + " 指向不存在的預設配方");
+      assert.ok(!fix.from.some((old) => JSON.stringify(old) === JSON.stringify(recipe[fix.field])), fix.id + " 的 from 含有現在的預設值");
+      continue;
+    }
     assert.ok(seedById[fix.itemId], fix.id + " 指向不存在的預設品項");
     // from 若等於現在的預設值，這筆更正等於「把正確值換成正確值」，而且會把使用者刻意填的值當成舊值
     assert.ok(!fix.from.includes(seedById[fix.itemId][fix.field]), fix.id + " 的 from 含有現在的預設值");
@@ -783,6 +789,74 @@ test("預設值更正：只換還是舊預設值的欄位、每筆只做一次�
   gone.dismissedSeedIds = ["item-fushou-nile-1"];
   h.mergeSeed(gone, seed);
   assert.ok(!gone.items.some((i) => i.id === "item-fushou-nile-1"));
+});
+
+// 預設配方存進裝置之後，mergeSeed 只補缺的配方、不動已存在的；改了預設配方就得靠 SEED_FIXES 送過去。
+test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置，改過或刪掉的不動", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const seed = plain(h.seed());
+  const fixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === "recipe-blackbream-groundbait");
+  assert.deepEqual(fixes.map((f) => f.field).sort(), ["items", "notes"]);
+  const oldItems = fixes.find((f) => f.field === "items").from[0];
+  const oldNotes = fixes.find((f) => f.field === "notes").from[0];
+  const ESA = "recipe-blackbream-groundbait";
+  const esaOf = (state) => state.recipes.find((r) => r.id === ESA);
+
+  // 舊裝置：還是上一版的預設（沒有玉米碎、那時也還沒有玉米碎這個品項）
+  const makeOld = () => {
+    const s = plain(h.sanitizeState(seed));
+    s.appliedFixes = s.appliedFixes.filter((id) => !id.startsWith(ESA));
+    s.items = s.items.filter((i) => i.id !== "item-corn-cracked");
+    esaOf(s).items = plain(oldItems);
+    esaOf(s).notes = oldNotes;
+    return s;
+  };
+  const old = makeOld();
+  const report = plain(h.mergeSeed(old, seed));
+  assert.deepEqual(plain(esaOf(old).items), esaOf(seed).items, "還是舊預設就換成新的組成");
+  assert.equal(esaOf(old).notes, esaOf(seed).notes);
+  assert.ok(old.items.some((i) => i.id === "item-corn-cracked"), "玉米碎要先補進品項庫");
+  assert.deepEqual(report.fixedRecipes, ["黑格 A 撒"]);
+  assert.match(h.mergeSummary(report), /更正 1 份配方的預設值（黑格 A 撒/);
+  const byId = {};
+  for (const item of old.items) byId[item.id] = item;
+  assert.deepEqual(plain(h.recipeCost(esaOf(old), byId)).unknown, [], "換過去的每一列都算得出價格");
+  // 存檔再讀回，組成不能被 sanitize 丟掉
+  assert.deepEqual(plain(h.sanitizeState(old)).recipes.find((r) => r.id === ESA).items, esaOf(seed).items);
+
+  // 使用者改過份量：組成不動（備註沒改過，照樣更正）
+  const edited = makeOld();
+  esaOf(edited).items[3].amount = 700;
+  h.mergeSeed(edited, seed);
+  assert.equal(esaOf(edited).items.length, 4, "改過的組成不可以被換掉");
+  assert.equal(esaOf(edited).items[3].amount, 700);
+
+  // 使用者刪掉玉米碎這個品項：換過去會缺一列，所以組成不換
+  const noCorn = makeOld();
+  noCorn.dismissedSeedIds = ["item-corn-cracked"];
+  h.mergeSeed(noCorn, seed);
+  assert.deepEqual(plain(esaOf(noCorn).items), oldItems);
+
+  // 黑格 練餌從蝦磚改成南極蝦粉末：已存的舊預設一樣要換過去
+  const PASTE = "recipe-blackbream-paste";
+  const pasteFixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === PASTE);
+  assert.deepEqual(pasteFixes.map((f) => f.field).sort(), ["items", "notes"]);
+  const oldPaste = plain(h.sanitizeState(seed));
+  oldPaste.appliedFixes = [];
+  const pasteOf = (state) => state.recipes.find((r) => r.id === PASTE);
+  pasteOf(oldPaste).items = plain(pasteFixes.find((f) => f.field === "items").from[0]);
+  pasteOf(oldPaste).notes = pasteFixes.find((f) => f.field === "notes").from[0];
+  const pasteReport = plain(h.mergeSeed(oldPaste, seed));
+  assert.deepEqual(plain(pasteOf(oldPaste).items), seed.recipes.find((r) => r.id === PASTE).items);
+  assert.ok(pasteReport.fixedRecipes.includes("黑格 練餌"));
+
+  // 刪掉的預設配方不因更正而復活
+  const gone = makeOld();
+  gone.recipes = gone.recipes.filter((r) => r.id !== ESA);
+  gone.dismissedSeedIds = [ESA];
+  h.mergeSeed(gone, seed);
+  assert.ok(!gone.recipes.some((r) => r.id === ESA));
 });
 
 test("添加劑：配方資料自洽、換算正確、兩處修正不得退回", async () => {
@@ -963,20 +1037,22 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.equal(paste.title, "黑格 練餌");
   assert.equal(paste.purpose, "MAIN_BAIT");
   for (const r of [esa, paste]) assert.deepEqual(r.targetSpecies, ["黑鯛"]);
-  // 驗收基準：蝦磚 1 包 1500 g $135 ＋ 燕麥片 400 g $50.4 ＋ 尼羅魚一號 500 g $15.3125 ＋ 幼雞飼料 600 g $18.9
+  // 驗收基準：蝦磚 1 包 1500 g $135 ＋ 燕麥片 400 g $50.4 ＋ 尼羅魚一號 500 g $15.3125
+  //         ＋ 幼雞飼料 450 g $14.175 ＋ 玉米碎 150 g $10.5
   let cost = plain(h.recipeCost(esa, itemsById));
   assert.equal(cost.totalGrams, 3000);
-  assert.ok(Math.abs(cost.total - 219.6125) < 1e-9, "A 撒總價得到 " + cost.total);
+  assert.ok(Math.abs(cost.total - 225.3875) < 1e-9, "A 撒總價得到 " + cost.total);
   assert.deepEqual(cost.unknown, []);
-  // 蝦肉 150 g $13.5 ＋ 高筋麵粉 110 g $7.92 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
+  // 全乾粉：高筋麵粉 185 g $13.32 ＋ 老百王南極蝦粉末 75 g $17 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
   cost = plain(h.recipeCost(paste, itemsById));
   assert.equal(cost.totalGrams, 300);
-  assert.ok(Math.abs(cost.total - (13.5 + 7.92 + 3.9 + 30 * 20 / 70)) < 1e-9, "練餌總價得到 " + cost.total);
+  assert.ok(Math.abs(cost.total - (13.32 + 17 + 3.9 + 30 * 20 / 70)) < 1e-9, "練餌總價得到 " + cost.total);
   assert.deepEqual(cost.unknown, []);
+  assert.ok(!paste.items.some((row) => row.itemId === "item-krill-block"), "練餌改用南極蝦粉末，不用蝦磚");
 
   // 備註有字數上限（品項 200、配方 500），超過會在 sanitize 時被安靜截掉
   const clean = plain(h.sanitizeState(seed));
-  for (const id of ["item-krill-block", "item-flour-bread", "item-oats-noah", "item-glycine-noah", "item-alanine-noah"]) {
+  for (const id of ["item-krill-block", "item-flour-bread", "item-oats-noah", "item-corn-cracked", "item-glycine-noah", "item-alanine-noah"]) {
     assert.equal(clean.items.find((i) => i.id === id).notes, itemsById[id].notes, id + " 的備註被截掉");
   }
   for (const r of [esa, paste]) assert.equal(clean.recipes.find((x) => x.id === r.id).notes, r.notes, r.title + " 的備註被截掉");
