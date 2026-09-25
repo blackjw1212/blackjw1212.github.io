@@ -877,6 +877,10 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.equal(g5.stage, "attract");
   assert.equal(g5.compare.join(","), "G1");
   assert.ok(Math.abs(perKg("G5", "CYS") - 0.25) < 1e-12);
+  // 雞肝漿同樣只留作備註（使用者不自己蒸）：T13 與 LIV 不得回來，第二段要說出這件事
+  assert.ok(!tilapia.stocks.some((x) => x.id === "LIV"));
+  assert.ok(!tilapia.groups.some((g) => g.id === "T13"));
+  assert.match(tilapia.stages.find((st) => st.id === "bite").base, /蒸熟雞肝漿只留作備註/);
   // DMPT、甜菜鹼在吳郭魚飼料試驗裡沒有增加攝食量，不可以出現在福壽魚的配方裡
   assert.doesNotMatch(JSON.stringify(tilapia.stocks), /DMPT|甜菜鹼/);
 
