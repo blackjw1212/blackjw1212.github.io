@@ -479,8 +479,9 @@ test("一列都換不成克時，總重與每 100g 都是 null 而不是 0", asy
   assert.deepEqual(cost.unknown.map((row) => row.reason), ["「杯」換不成克", "「匙」換不成克"]);
 });
 
-// 種子裡的主餌是驗收基準：376 + 70 + 75 + 460 + 1800 + 20 + 200 = 3001 g，
-// $68 + 30 + 17 + 50 + 150 + 30 + 39 = $384
+// 種子裡的主餌是驗收基準（每次 150 g，由 3001 g 的整包版等比例縮小）：
+// 19 + 3 + 4 + 23 + 90 + 1 + 10 = 150 g，
+// 19×34/188 + 3×30/70 + 4×34/150 + 23×50/460 + 90×150/1800 + 1×30/20 + 10×195/1000 ≈ $19.08
 test("預設配方的總重與成本要算得出來且全部有價格", async () => {
   const { app } = await loadPage();
   const seed = plain(app.helpers.seed());
@@ -489,10 +490,15 @@ test("預設配方的總重與成本要算得出來且全部有價格", async ()
   const main = seed.recipes.find((row) => row.id === "recipe-main-allpowder");
   assert.ok(main, "應該有「主餌 全乾粉版」");
   const cost = plain(app.helpers.recipeCost(main, byId));
-  assert.equal(cost.totalGrams, 3001);
-  assert.ok(Math.abs(cost.total - 384) < 1e-9, `總價得到 ${cost.total}`);
+  assert.equal(cost.totalGrams, 150);
+  const expected = 19 * 34 / 188 + 3 * 30 / 70 + 4 * 34 / 150 + 23 * 50 / 460 + 90 * 150 / 1800 + 1 * 30 / 20 + 10 * 195 / 1000;
+  assert.ok(Math.abs(cost.total - expected) < 1e-9, `總價得到 ${cost.total}`);
   assert.equal(cost.pricedGrams, cost.totalGrams, "每一項都要有價格，否則每 100g 的分母會小於總重");
-  assert.equal(Math.round(cost.per100 * 10) / 10, 12.8);
+  assert.equal(Math.round(cost.per100 * 10) / 10, 12.7);
+  // 底餌每次 1.5 kg（由 2025 g 版等比例縮小、湊整到 10 g）
+  const ground = plain(app.helpers.recipeCost(seed.recipes.find((row) => row.id === "recipe-groundbait-base"), byId));
+  assert.equal(ground.totalGrams, 1500);
+  assert.equal(Math.round(ground.per100 * 10) / 10, 3.7);
   assert.deepEqual(cost.unknown, []);
   // 每一份預設配方都必須算得出完整成本——種子帶進來的東西不該一開就掛警示
   for (const recipe of seed.recipes) {
@@ -1077,4 +1083,41 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   // 使用者提供的價格要說出來，不可以寫得像在頁面上看到的
   assert.match(itemsById["item-krill-block"].notes, /使用者提供/);
   assert.match(itemsById["item-flour-bread"].notes, /使用者提供/);
+});
+
+test("預設配方更正：福壽魚主餌 150 g、底餌 1.5 kg 送得到已存過的裝置，改過的不動", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const seed = plain(h.seed());
+  const IDS = ["recipe-main-allpowder", "recipe-groundbait-base"];
+  const fixes = plain(h.SEED_FIXES).filter((f) => IDS.includes(f.recipeId));
+  assert.equal(fixes.length, 4);
+  const of = (state, id) => state.recipes.find((r) => r.id === id);
+  const makeOld = () => {
+    const s = plain(h.sanitizeState(seed));
+    s.appliedFixes = s.appliedFixes.filter((id) => !IDS.some((r) => id.startsWith(r)));
+    for (const f of fixes) of(s, f.recipeId)[f.field] = plain(f.from[0]);
+    return s;
+  };
+  const old = makeOld();
+  const byId = {};
+  for (const item of old.items) byId[item.id] = item;
+  assert.equal(plain(h.recipeCost(of(old, IDS[0]), byId)).totalGrams, 3001, "舊裝置是整包版");
+  const report = plain(h.mergeSeed(old, seed));
+  for (const id of IDS) {
+    assert.deepEqual(plain(of(old, id).items), of(seed, id).items);
+    assert.equal(of(old, id).notes, of(seed, id).notes);
+  }
+  assert.equal(plain(h.recipeCost(of(old, IDS[0]), byId)).totalGrams, 150);
+  assert.equal(plain(h.recipeCost(of(old, IDS[1]), byId)).totalGrams, 1500);
+  assert.deepEqual(report.fixedRecipes.slice().sort(), ["主餌 全乾粉版", "底餌 三底料版"].sort());
+  // 再開一次不會再動
+  assert.deepEqual(plain(h.mergeSeed(old, seed)).fixedRecipes, []);
+
+  // 使用者改過份量的配方：組成不動
+  const edited = makeOld();
+  of(edited, IDS[0]).items[0].amount = 3;
+  h.mergeSeed(edited, seed);
+  assert.equal(of(edited, IDS[0]).items[0].amount, 3);
+  assert.equal(of(edited, IDS[0]).items[0].unit, "包");
 });
