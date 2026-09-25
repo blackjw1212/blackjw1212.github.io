@@ -798,7 +798,7 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const seed = plain(h.seed());
   const fixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === "recipe-blackbream-groundbait");
   // 兩代：沒有玉米碎的第一版 → 含蝦磚的第二版 → 3 kg 只算粉料的現在這一版
-  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2"]);
+  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3"]);
   const oldItems = fixes.find((f) => f.id.endsWith(":items:1")).from[0];
   const oldNotes = fixes.find((f) => f.id.endsWith(":notes:1")).from[0];
   const ESA = "recipe-blackbream-groundbait";
@@ -1053,11 +1053,12 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.equal(paste.title, "黑格 練餌");
   assert.equal(paste.purpose, "MAIN_BAIT");
   for (const r of [esa, paste]) assert.deepEqual(r.targetSpecies, ["黑鯛"]);
-  // 驗收基準（3 kg 只算粉料，蝦磚現場另加、不在配方裡）：燕麥片 800 g $100.8 ＋ 尼羅魚一號 1000 g $30.625
-  //         ＋ 幼雞飼料 900 g $28.35 ＋ 玉米碎 300 g $21
+  // 驗收基準（3 kg 只算粉料，蝦磚現場另加、不在配方裡）：米糠 1500 g $30.625 ＋ 燕麥片 400 g $50.4
+  //         ＋ 尼羅魚一號 500 g $15.3125 ＋ 幼雞飼料 450 g $14.175 ＋ 玉米碎 150 g $10.5
   let cost = plain(h.recipeCost(esa, itemsById));
   assert.equal(cost.totalGrams, 3000);
-  assert.ok(Math.abs(cost.total - 180.775) < 1e-9, "A 撒總價得到 " + cost.total);
+  assert.ok(Math.abs(cost.total - 121.0125) < 1e-9, "A 撒總價得到 " + cost.total);
+  assert.deepEqual(esa.items[0], { itemId: "item-rice-bran", amount: 1500, unit: "克" }, "米糠 1.5 kg 打底（使用者定的）");
   assert.deepEqual(cost.unknown, []);
   assert.ok(!esa.items.some((row) => row.itemId === "item-krill-block"), "3 kg 裡不含南極蝦磚");
   // 全乾粉：高筋麵粉 110 g $7.92 ＋ 老百王南極蝦粉末整包 150 g $34 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
@@ -1086,7 +1087,8 @@ test("預設配方更正：福壽魚主餌與底餌從 150 g／1.5 kg 版改回�
   const h = app.helpers;
   const seed = plain(h.seed());
   const IDS = ["recipe-main-allpowder", "recipe-groundbait-base"];
-  const fixes = plain(h.SEED_FIXES).filter((f) => IDS.includes(f.recipeId));
+  // 只看第 2 代（150 g／1.5 kg 版 → 當時的預設）；底餌之後又改過，那是 :3
+  const fixes = plain(h.SEED_FIXES).filter((f) => IDS.includes(f.recipeId) && f.id.endsWith(":2"));
   assert.deepEqual(fixes.map((f) => f.id).sort(), IDS.flatMap((id) => [id + ":items:2", id + ":notes:2"]).sort());
   const of = (state, id) => state.recipes.find((r) => r.id === id);
   const makeShrunk = () => {
@@ -1105,7 +1107,7 @@ test("預設配方更正：福壽魚主餌與底餌從 150 g／1.5 kg 版改回�
     assert.equal(of(shrunk, id).notes, of(seed, id).notes);
   }
   assert.equal(plain(h.recipeCost(of(shrunk, IDS[0]), byId)).totalGrams, 3001);
-  assert.equal(plain(h.recipeCost(of(shrunk, IDS[1]), byId)).totalGrams, 2025);
+  assert.equal(plain(h.recipeCost(of(shrunk, IDS[1]), byId)).totalGrams, 1580, "直接換到現在的預設（米糠打底版）");
   assert.deepEqual(report.fixedRecipes.slice().sort(), ["主餌 全乾粉版", "底餌 三底料版"].sort());
   assert.deepEqual(plain(h.mergeSeed(shrunk, seed)).fixedRecipes, [], "再開一次不動");
   // 使用者自己改過的不動
@@ -1113,4 +1115,28 @@ test("預設配方更正：福壽魚主餌與底餌從 150 g／1.5 kg 版改回�
   of(edited, IDS[0]).items[0].amount = 25;
   h.mergeSeed(edited, seed);
   assert.equal(of(edited, IDS[0]).items[0].amount, 25);
+});
+
+test("底餌 三底料版：米糠 1 kg 打底、尼羅魚與幼雞各 250 g、蝦粉 80 g 薄鋪；舊裝置換得過去", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const seed = plain(h.seed());
+  const byId = {};
+  for (const item of seed.items) byId[item.id] = item;
+  const ID = "recipe-groundbait-base";
+  const gb = seed.recipes.find((r) => r.id === ID);
+  const grams = Object.fromEntries(gb.items.map((row) => [row.itemId, row.amount + row.unit]));
+  assert.deepEqual(grams, { "item-rice-bran": "1000克", "item-fushou-nile-1": "250克", "item-chick-feed-kuangcheng": "250克", "item-shrimp-laobaiwang": "80克" });
+  const cost = plain(h.recipeCost(gb, byId));
+  assert.equal(cost.totalGrams, 1580);
+  assert.ok(Math.abs(cost.total - (1000 * 490 / 24000 + 250 * 490 / 16000 + 250 * 315 / 10000 + 80 * 34 / 525)) < 1e-9);
+  assert.match(gb.notes, /蝦粉約 80 g 薄鋪在上面/);
+  // 還是 2025 g 原版的裝置要換過來
+  const fix = plain(h.SEED_FIXES).find((f) => f.id === ID + ":items:3");
+  const old = plain(h.sanitizeState(seed));
+  old.appliedFixes = old.appliedFixes.filter((id) => !id.startsWith(ID));
+  old.recipes.find((r) => r.id === ID).items = plain(fix.from[0]);
+  assert.equal(plain(h.recipeCost(old.recipes.find((r) => r.id === ID), byId)).totalGrams, 2025);
+  h.mergeSeed(old, seed);
+  assert.equal(plain(h.recipeCost(old.recipes.find((r) => r.id === ID), byId)).totalGrams, 1580);
 });
