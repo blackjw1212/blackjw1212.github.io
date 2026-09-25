@@ -62,7 +62,7 @@ esano-tsurioh.com——它們只出現在搜尋摘要裡，沒有拿來當任何
 | C1 | フカセでチヌ！《撒き餌・コマセの分量と配合について》 | https://www.ukifukase.net/know-how/makie.html | 開過 | 轉述廠商建議 1 袋：蝦 3 kg；作者自己 蝦 1.5 kg：粉 3 kg＝3 小時；配合餌 1～2 kg／小時；深場用茶系、赤系（嗅覺型） |
 | C3 | チヌ（黒鯛）釣り入門（Nao☆）《マキエの作り方と配合のレシピ集》 | http://fishing-blackseabream.net/article/113804385.html | 開過 | Shift_JIS 解碼後讀。12 組「蝦 3 kg＋某粉 N 袋」；メガミックスチヌ標冬用 |
 | C4 | 同站《配合餌や集魚剤のみの撒き餌作り》 | http://fishing-blackseabream.net/article/180479024.html | 開過 | 與 C3 同作者。轉述爆寄せチヌ包裝：蝦 1.5 kg＋1 袋（3.5 kg）＋海水 1500 cc；追加玉米、押麥各 100 g |
-| C5 | 同站《刺し餌の練り餌の作り方と自作方法レシピ》 | http://fishing-blackseabream.net/article/164722995.html | 開過 | 與 C3 同作者。小麥粉 150 cc：蛹粉 50 cc（體積 3：1）。黑格練餌改用南極蝦粉末後，麵粉：蝦粉約 2.5：1 參考這一條 |
+| C5 | 同站《刺し餌の練り餌の作り方と自作方法レシピ》 | http://fishing-blackseabream.net/article/164722995.html | 開過 | 與 C3 同作者。小麥粉 150 cc：蛹粉 50 cc（體積 3：1） |
 | C9 | note「フカセ釣りの教科書」《フカセ釣りの撒き餌、完全マスター！》 | https://note.com/fukase_fishing/n/n6808754126ca | 開過 | 蝦 3 kg＋1 袋（約 3 kg）＝約 6 kg／3～4 小時 |
 | C11 | 釣りカタログ《チヌフカセの集魚剤について》 | https://tfishing.net/tinuhukase-esa/ | 開過 | 半日 3 kg：1 袋；全日 6 kg：2 袋 |
 | C12 | しまちゃんの釣りログ《フカセ釣りのコマセを安く自作して》 | https://shimachan50.com/2021-4-25-column/ | 開過 | 自製：米糠、牡蠣殼、押麥、麵包粉＋蝦 3 kg（體積） |

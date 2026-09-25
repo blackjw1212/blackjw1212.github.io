@@ -838,18 +838,23 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   h.mergeSeed(noCorn, seed);
   assert.deepEqual(plain(esaOf(noCorn).items), oldItems);
 
-  // 黑格 練餌從蝦磚改成南極蝦粉末：已存的舊預設一樣要換過去
+  // 黑格 練餌改過兩代（蝦磚 → 蝦粉半包 → 蝦粉整包）：停在任何一代舊預設的裝置都要換到現在這一版
   const PASTE = "recipe-blackbream-paste";
   const pasteFixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === PASTE);
-  assert.deepEqual(pasteFixes.map((f) => f.field).sort(), ["items", "notes"]);
-  const oldPaste = plain(h.sanitizeState(seed));
-  oldPaste.appliedFixes = [];
+  const generations = pasteFixes.filter((f) => f.field === "items");
+  assert.equal(generations.length, 2);
+  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 2);
   const pasteOf = (state) => state.recipes.find((r) => r.id === PASTE);
-  pasteOf(oldPaste).items = plain(pasteFixes.find((f) => f.field === "items").from[0]);
-  pasteOf(oldPaste).notes = pasteFixes.find((f) => f.field === "notes").from[0];
-  const pasteReport = plain(h.mergeSeed(oldPaste, seed));
-  assert.deepEqual(plain(pasteOf(oldPaste).items), seed.recipes.find((r) => r.id === PASTE).items);
-  assert.ok(pasteReport.fixedRecipes.includes("黑格 練餌"));
+  for (const gen of generations) {
+    const oldPaste = plain(h.sanitizeState(seed));
+    oldPaste.appliedFixes = [];
+    pasteOf(oldPaste).items = plain(gen.from[0]);
+    pasteOf(oldPaste).notes = pasteFixes.find((f) => f.field === "notes" && f.id.endsWith(gen.id.slice(-2))).from[0];
+    const pasteReport = plain(h.mergeSeed(oldPaste, seed));
+    assert.deepEqual(plain(pasteOf(oldPaste).items), seed.recipes.find((r) => r.id === PASTE).items, gen.id + " 那一代沒換到現在的版本");
+    assert.equal(pasteOf(oldPaste).notes, seed.recipes.find((r) => r.id === PASTE).notes);
+    assert.ok(pasteReport.fixedRecipes.includes("黑格 練餌"));
+  }
 
   // 刪掉的預設配方不因更正而復活
   const gone = makeOld();
@@ -1043,10 +1048,11 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.equal(cost.totalGrams, 3000);
   assert.ok(Math.abs(cost.total - 225.3875) < 1e-9, "A 撒總價得到 " + cost.total);
   assert.deepEqual(cost.unknown, []);
-  // 全乾粉：高筋麵粉 185 g $13.32 ＋ 老百王南極蝦粉末 75 g $17 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
+  // 全乾粉：高筋麵粉 110 g $7.92 ＋ 老百王南極蝦粉末整包 150 g $34 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
   cost = plain(h.recipeCost(paste, itemsById));
   assert.equal(cost.totalGrams, 300);
-  assert.ok(Math.abs(cost.total - (13.32 + 17 + 3.9 + 30 * 20 / 70)) < 1e-9, "練餌總價得到 " + cost.total);
+  assert.ok(Math.abs(cost.total - (7.92 + 34 + 3.9 + 30 * 20 / 70)) < 1e-9, "練餌總價得到 " + cost.total);
+  assert.deepEqual(paste.items.find((row) => row.itemId === "item-krill-laobaiwang"), { itemId: "item-krill-laobaiwang", amount: 1, unit: "包" }, "南極蝦粉末用整包");
   assert.deepEqual(cost.unknown, []);
   assert.ok(!paste.items.some((row) => row.itemId === "item-krill-block"), "練餌改用南極蝦粉末，不用蝦磚");
 
