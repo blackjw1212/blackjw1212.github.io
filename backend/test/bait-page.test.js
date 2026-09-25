@@ -771,11 +771,23 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
     assert.equal(groups.size, plan.groups.length, plan.species + " 組別編號重複");
     // 每組都要寫明它動的是哪一個變數，另一個人讀矩陣時才不會把劑量、酸種類、複方混成同一題
     for (const g of plan.groups) assert.ok(g.variable, g.id + " 沒寫變數");
-    // 第一組一定是什麼都不加的空白基準，其餘每一組都要說清楚跟誰比
+    // 第一組一定是什麼都不加的空白基準；空白組不跟誰比，其餘每一組都要說清楚跟誰比
     assert.equal(plan.groups[0].doses.length, 0);
-    for (const g of plan.groups.slice(1)) {
+    const byId = new Map(plan.groups.map((g) => [g.id, g]));
+    const stageIds = (plan.stages || []).map((st) => st.id);
+    for (const st of stageIds) {
+      const blanks = plan.groups.filter((g) => g.stage === st && g.doses.length === 0);
+      assert.equal(blanks.length, 1, plan.species + " 的 " + st + " 段要剛好一個空白組");
+    }
+    for (const g of plan.groups) {
+      if (stageIds.length) assert.ok(stageIds.includes(g.stage), g.id + " 沒標是哪一段");
+      if (!g.doses.length) { assert.equal(g.compare.length, 0); continue; }
       assert.ok(g.compare.length >= 1, g.id + " 沒有比較對象");
-      for (const c of g.compare) assert.ok(groups.has(c), g.id + " 比較對象 " + c + " 不存在");
+      for (const c of g.compare) {
+        assert.ok(groups.has(c), g.id + " 比較對象 " + c + " 不存在");
+        // 兩段各自只動一層：比較對象不可以跨段，否則比到的是兩層一起變
+        assert.equal(byId.get(c).stage, g.stage, g.id + " 跨段比較 " + c);
+      }
       for (const [id, amount] of g.doses) {
         assert.ok(stocks.has(id), g.id + " 用了不存在的濃縮液 " + id);
         assert.ok(amount > 0);
@@ -810,6 +822,15 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   d = plain(h.doseFor(stock(plans[1], "KRL"), 5, 200));
   assert.equal(d.activeGPerKg, 25, "粉末 5 g／200 g ＝ 25 g/kg");
   assert.equal(d.pureMlPerKg, null, "粉末沒有香精；少了這個欄位畫面會印出「純香精 NaN」");
+  // 兩段式：第一段是底餌（嗅覺），第二段是主餌（味覺）
+  assert.equal(tilapia.stages.map((st) => st.id).join(","), "attract,bite");
+  // 色胺酸照 GIFT 吳郭魚飼料試驗的 1.8 g/kg——0.36 g／200 g
+  const trp = tilapia.groups.find((g) => g.id === "T11");
+  assert.ok(Math.abs(plain(h.doseFor(stock(tilapia, "TRP"), trp.doses[0][1], 200)).activeGPerKg - 1.8) < 1e-12);
+  // 紅蟲萃取是研究裡測的那一種氣味，必須在第一段
+  assert.equal(tilapia.groups.find((g) => g.doses.some(([id]) => id === "BLW")).stage, "attract");
+  // DMPT、甜菜鹼在吳郭魚飼料試驗裡沒有增加攝食量，不可以出現在福壽魚的配方裡
+  assert.doesNotMatch(JSON.stringify(tilapia.stocks), /DMPT|甜菜鹼/);
 
   // 修正一：主酸液不得再夾帶香精——夾帶的話 T2、T6 又會變回「酸＋香」，分不開
   assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
@@ -829,7 +850,8 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   const renderFishBody = html.slice(html.indexOf("function renderFish("), html.indexOf("function renderLog("));
   assert.match(renderFishBody, /stackTable\(\["餌料類別"/);
   // 實驗組與證據等級收合，收合列要看得出幾組、各等級幾條
-  assert.match(renderAdd, /<details class="src-fold"><summary>實驗組/);
+  assert.match(renderAdd, /<details class="src-fold"><summary>' \+ esc\(stage\.title\)/, "每一段的實驗組各自收合");
+  assert.match(renderAdd, /title: "實驗組（每 200 g 基礎餌）"/, "沒分段的魚種仍是一個實驗組收合");
   assert.match(renderAdd, /evidenceSummary\(plan\.evidence\)/);
   assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
   // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值

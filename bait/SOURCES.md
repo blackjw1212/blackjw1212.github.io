@@ -95,4 +95,11 @@ davidluo23《福壽釣史》DNS 失敗。
 | X5 | 幼黑鯛甜菜鹼與脂肪肝（Acanthopagrus schlegelii） | https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8261298/ | 搜尋摘要 | 講肝臟代謝，不是誘食 |
 | X6 | 使用者貼上的添加劑技術報告 | — | 使用者提供 | 2026-09-24。數學驗算全對；主酸選擇與 A1–A7 的解耦有問題，見頁面證據等級 |
 | X7 | DMPT 對螯蝦（Pontastacus leptodactylus）的生理與腸道菌研究 | https://pmc.ncbi.nlm.nih.gov/articles/PMC13295222/ | 開過 | 前言引述 DMPT 在真鯛等魚的飼料研究；沒有黑鯛 |
+| X8 | Kasumyan 2017《Feeding behavior and responsivity to food odors in Nile tilapia Oreochromis niloticus after chronic polisensory deprivation》J Ichthyol 57:747–752 | https://link.springer.com/article/10.1134/S0032945217050113 | 開過 | 摘要：紅蟲（搖蚊幼蟲）水萃取液的嗅覺閾值 10⁻⁴ g/L；嗅覺破壞後 10⁻¹～10⁻² g/L 也不找食物，4.5 個月未恢復。第一段 G2 的依據 |
+| X9 | Kutsyna 2013《Chemical communication in the Mozambique tilapia: a role for amino acids》碩士論文，Algarve 大學（指導 Hubbard） | https://sapientia.ualg.pt/entities/publication/d1cf7296-f067-458e-8eaa-6efb96fb8fde | 開過 | 摘要：EOG 測 20 種胺基酸全部有嗅覺反應，最強 L-半胱胺酸、L-麩醯胺酸、L-蘇胺酸。非期刊；主題是尿液社會訊號 |
+| X10 | Zou 等 2017《Effects of four feeding stimulants in high plant-based diets … juvenile GIFT tilapia》Aquac Nutr 23(5):1076–1085 | https://doi.org/10.1111/anu.12475 | 開過 | 經 Europe PMC 讀摘要。攝食量顯著增加：色胺酸 1.8 g/kg、DMT 0.6 g/kg；DMPT 0.4 g/kg、甜菜鹼 6 g/kg 沒被列入。8 週飼料試驗 |
+| X11 | 誠誠《福壽淺談（下）釣技剖析》 | https://n67666.pixnet.net/blog/posts/10025532917 | 開過 | 同 S14。「只要誘餌的味道不比主餌突出或搶眼，不易飽食又有誘魚效果者，都可以使用」 |
+| X12 | 誠誠《一年四季的味道偏向……福壽魚》；釣魚密技《秋釣福壽的疑惑》 | 同 S4、S5 | 開過 | 鳳梨精：誠誠春季「酸類香精」；釣魚密技秋天三色餌加鳳梨精 |
+| X13 | 開南食品 柏泰鳳梨香料 產品頁 | https://www.kainan-food.com.tw/cht/productm/pageinfo-3745.html | 開過 | 成分含 D-山梨醇液 70%、無水檸檬酸。注意這是「香料」（有色），不是「鳳梨精」；鳳梨精的成分沒查到 |
 
+這次沒查到的：Yacoob 2001（Nile tilapia 外部味蕾對胺基酸，Wiley／Europe PMC 都沒有摘要）；吳郭魚對任何烘焙香精氣味的研究（PubMed 上的吳郭魚嗅覺研究都是費洛蒙與社會訊號）。
