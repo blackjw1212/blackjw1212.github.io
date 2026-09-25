@@ -87,7 +87,32 @@ test("沒有任何試算或審查的殘留", async () => {
     name: "殘留測試", gramsPerCup: 250, category: "ADDITIVE",
     viscosity: 5, foggingRate: 1, sinkingSpeed: "FAST", recommendedWaterRatio: 0.5,
   }));
-  assert.deepEqual(Object.keys(item).sort(), ["flavorProfile", "id", "imageUrl", "ingredients", "name", "notes", "packWeightG", "targetSpecies", "unitPrice", "waterTypes"]);
+  assert.deepEqual(Object.keys(item).sort(), ["flavorProfile", "id", "imageUrl", "ingredients", "kind", "name", "notes", "packWeightG", "targetSpecies", "unitPrice", "waterTypes"]);
+  // 舊的 category 是用途（已移到配方層），不可以借屍還魂成品項分類
+  assert.equal(item.kind, "bait");
+});
+
+test("品項分類：餌料／添加劑，品項庫分兩區", async () => {
+  const { app, html } = await loadPage();
+  const h = app.helpers;
+  assert.equal(plain(h.sanitizeItem({ name: "x" })).kind, "bait", "沒填是餌料");
+  assert.equal(plain(h.sanitizeItem({ name: "x", kind: "additive" })).kind, "additive");
+  assert.equal(plain(h.sanitizeItem({ name: "x", kind: "ADDITIVE" })).kind, "bait", "對不上就退回預設");
+  // 預設資料裡的添加劑剛好是若亞方舟那四樣
+  const seed = plain(h.seed());
+  const additives = seed.items.filter((i) => plain(h.sanitizeItem(i)).kind === "additive").map((i) => i.id).sort();
+  assert.equal(additives.join(","), "item-citric-noah,item-cysteine-noah,item-sorbitol-noah,item-tryptophan-noah");
+  // 舊裝置：那四樣是在分類欄位出現前補進去的，讀回來是餌料；開一次要更正成添加劑
+  const old = plain(h.sanitizeState(seed));
+  for (const i of old.items) if (i.id.endsWith("-noah")) i.kind = "bait";
+  old.appliedFixes = old.appliedFixes.filter((id) => !id.endsWith(":kind:1"));
+  h.mergeSeed(old, seed);
+  assert.equal(old.items.filter((i) => i.kind === "additive").length, 4);
+  // 分類要撐過存檔再讀回
+  assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 4);
+  // 表單有分類的單選、品項庫容器不再自己是格線（格線在各分區裡）
+  assert.match(html, /id="itemKind" role="radiogroup"/);
+  assert.match(html, /<div id="itemRows"><\/div>/);
 });
 
 test("每個目標都要有棲息水域，而且只能是淡水或海水", async () => {
