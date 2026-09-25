@@ -798,7 +798,7 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const seed = plain(h.seed());
   const fixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === "recipe-blackbream-groundbait");
   // 兩代：沒有玉米碎的第一版 → 含蝦磚的第二版 → 3 kg 只算粉料的現在這一版
-  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4"]);
+  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4", "recipe-blackbream-groundbait:notes:5"]);
   const oldItems = fixes.find((f) => f.id.endsWith(":items:1")).from[0];
   const oldNotes = fixes.find((f) => f.id.endsWith(":notes:1")).from[0];
   const ESA = "recipe-blackbream-groundbait";
@@ -854,7 +854,8 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const pasteFixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === PASTE);
   const generations = pasteFixes.filter((f) => f.field === "items");
   assert.equal(generations.length, 2);
-  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 2);
+  // 備註多一代：2026-09-25 來源核對改了出處標注（組成沒變）
+  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 3);
   const pasteOf = (state) => state.recipes.find((r) => r.id === PASTE);
   for (const gen of generations) {
     const oldPaste = plain(h.sanitizeState(seed));
@@ -1144,4 +1145,25 @@ test("底餌 三底料版：米糠 1 kg 打底、尼羅魚與幼雞各 250 g、�
   assert.equal(plain(h.recipeCost(old.recipes.find((r) => r.id === ID), byId)).totalGrams, 2025);
   h.mergeSeed(old, seed);
   assert.equal(plain(h.recipeCost(old.recipes.find((r) => r.id === ID), byId)).totalGrams, 1580);
+});
+
+// 2026-09-25 重開來源原文逐條核對後的修正，不可以退回
+test("來源原文核對：掛錯的來源與沒有出處的說法不得回來", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
+  const ev = (claim) => tilapia.evidence.find((e) => e.claim === claim);
+  // 檸檬酸、蘋果酸的增強效果出自 Adams & Johnsen 1988（X3）；1986 那篇（X2）只講胺基酸
+  assert.ok(!ev("檸檬酸讓吳郭魚吃得多").sources.includes("X2"));
+  assert.ok(ev("檸檬酸讓吳郭魚吃得多").sources.includes("X3"));
+  assert.deepEqual(ev("蘋果酸有沒有效").sources, ["X3"]);
+  const ref = plain(h.FISH_REF);
+  const cell = (sp, g) => ref.find((f) => f.species === sp).baits.find((b) => b.group === g);
+  // 輕比重那一型是細目麥粒、麵包粉、海藻、膨脹粉（B2），沒有米糠
+  assert.doesNotMatch(JSON.stringify(ref) + JSON.stringify(plain(h.ADDITIVES)), /米糠[^。；（]{0,12}輕比重/);
+  // 「農業部」那句其實是網友留言
+  assert.doesNotMatch(cell("福壽魚", "粒子／飼料").note, /農業部/);
+  // 「重蝦不重粉」只出自 W1；「掛 2–3 隻」原文是投餌數
+  assert.ok(!cell("黑毛", "南極蝦").sources.includes("W2"));
+  assert.doesNotMatch(cell("黑毛", "南極蝦").note, /掛 2/);
 });
