@@ -856,9 +856,11 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   const baseOf = (stageId) => tilapia.stages.find((st) => st.id === stageId).baseGrams;
   assert.equal(baseOf("bite"), 300);
   assert.equal(baseOf("attract"), 1500, "底餌以每次釣用的 1.5 kg 為準");
-  // 換了基準，每公斤比例不能變：紅蟲萃取仍 50 ml/kg、南極蝦粉仍 25 g/kg
-  const g2 = tilapia.groups.find((g) => g.id === "G2");
-  assert.equal(plain(h.doseFor(stock(tilapia, "BLW"), g2.doses[0][1], 1500)).amountPerKg, 50);
+  // 紅蟲萃取只留作備註（使用者不購買冷凍紅蟲）：不可以回到實驗組或濃縮液，但第一段要說出這件事
+  assert.ok(!tilapia.stocks.some((x) => x.id === "BLW"));
+  assert.ok(!tilapia.groups.some((g) => g.id === "G2"));
+  assert.match(tilapia.stages.find((st) => st.id === "attract").base, /紅蟲萃取液只留作備註/);
+  // 換了基準，每公斤比例不能變：南極蝦粉仍 25 g/kg
   const perKg = (groupId, stockId) => {
     const g = tilapia.groups.find((x) => x.id === groupId);
     const amount = g.doses.find(([id]) => id === stockId)[1];
@@ -870,12 +872,11 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(Math.abs(perKg("T2", "CIT") - 0.25) < 1e-12, "檸檬酸低劑量仍是 0.25 g/kg");
   assert.ok(Math.abs(perKg("T6", "CIT") - 1.0) < 1e-12, "檸檬酸高劑量仍是 1 g/kg");
   assert.ok(Math.abs(perKg("T12", "SOR") - 0.25) < 1e-12);
-  // 半胱胺酸是若亞方舟買得到的紅蟲替代，在第一段、要跟紅蟲比
+  // 半胱胺酸是若亞方舟買得到的紅蟲替代，在第一段；紅蟲不做了，只跟空白比
   const g5 = tilapia.groups.find((g) => g.id === "G5");
   assert.equal(g5.stage, "attract");
-  assert.ok(g5.compare.includes("G2"));
-  // 紅蟲萃取是研究裡測的那一種氣味，必須在第一段
-  assert.equal(tilapia.groups.find((g) => g.doses.some(([id]) => id === "BLW")).stage, "attract");
+  assert.equal(g5.compare.join(","), "G1");
+  assert.ok(Math.abs(perKg("G5", "CYS") - 0.25) < 1e-12);
   // DMPT、甜菜鹼在吳郭魚飼料試驗裡沒有增加攝食量，不可以出現在福壽魚的配方裡
   assert.doesNotMatch(JSON.stringify(tilapia.stocks), /DMPT|甜菜鹼/);
 
