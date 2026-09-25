@@ -797,9 +797,10 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const h = app.helpers;
   const seed = plain(h.seed());
   const fixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === "recipe-blackbream-groundbait");
-  assert.deepEqual(fixes.map((f) => f.field).sort(), ["items", "notes"]);
-  const oldItems = fixes.find((f) => f.field === "items").from[0];
-  const oldNotes = fixes.find((f) => f.field === "notes").from[0];
+  // 兩代：沒有玉米碎的第一版 → 含蝦磚的第二版 → 3 kg 只算粉料的現在這一版
+  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2"]);
+  const oldItems = fixes.find((f) => f.id.endsWith(":items:1")).from[0];
+  const oldNotes = fixes.find((f) => f.id.endsWith(":notes:1")).from[0];
   const ESA = "recipe-blackbream-groundbait";
   const esaOf = (state) => state.recipes.find((r) => r.id === ESA);
 
@@ -837,6 +838,16 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   noCorn.dismissedSeedIds = ["item-corn-cracked"];
   h.mergeSeed(noCorn, seed);
   assert.deepEqual(plain(esaOf(noCorn).items), oldItems);
+
+  // 停在第二版（含蝦磚、已有玉米碎）的裝置：一樣換到現在這一版，而且換過去就不含蝦磚
+  const second = plain(h.sanitizeState(seed));
+  second.appliedFixes = [];
+  esaOf(second).items = plain(fixes.find((f) => f.id.endsWith(":items:2")).from[0]);
+  esaOf(second).notes = fixes.find((f) => f.id.endsWith(":notes:2")).from[0];
+  h.mergeSeed(second, seed);
+  assert.deepEqual(plain(esaOf(second).items), esaOf(seed).items);
+  assert.equal(esaOf(second).notes, esaOf(seed).notes);
+  assert.ok(!esaOf(second).items.some((row) => row.itemId === "item-krill-block"));
 
   // 黑格 練餌改過兩代（蝦磚 → 蝦粉半包 → 蝦粉整包）：停在任何一代舊預設的裝置都要換到現在這一版
   const PASTE = "recipe-blackbream-paste";
@@ -1042,12 +1053,13 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.equal(paste.title, "黑格 練餌");
   assert.equal(paste.purpose, "MAIN_BAIT");
   for (const r of [esa, paste]) assert.deepEqual(r.targetSpecies, ["黑鯛"]);
-  // 驗收基準：蝦磚 1 包 1500 g $135 ＋ 燕麥片 400 g $50.4 ＋ 尼羅魚一號 500 g $15.3125
-  //         ＋ 幼雞飼料 450 g $14.175 ＋ 玉米碎 150 g $10.5
+  // 驗收基準（3 kg 只算粉料，蝦磚現場另加、不在配方裡）：燕麥片 800 g $100.8 ＋ 尼羅魚一號 1000 g $30.625
+  //         ＋ 幼雞飼料 900 g $28.35 ＋ 玉米碎 300 g $21
   let cost = plain(h.recipeCost(esa, itemsById));
   assert.equal(cost.totalGrams, 3000);
-  assert.ok(Math.abs(cost.total - 225.3875) < 1e-9, "A 撒總價得到 " + cost.total);
+  assert.ok(Math.abs(cost.total - 180.775) < 1e-9, "A 撒總價得到 " + cost.total);
   assert.deepEqual(cost.unknown, []);
+  assert.ok(!esa.items.some((row) => row.itemId === "item-krill-block"), "3 kg 裡不含南極蝦磚");
   // 全乾粉：高筋麵粉 110 g $7.92 ＋ 老百王南極蝦粉末整包 150 g $34 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
   cost = plain(h.recipeCost(paste, itemsById));
   assert.equal(cost.totalGrams, 300);
