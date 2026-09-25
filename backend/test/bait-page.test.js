@@ -798,7 +798,7 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const seed = plain(h.seed());
   const fixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === "recipe-blackbream-groundbait");
   // 兩代：沒有玉米碎的第一版 → 含蝦磚的第二版 → 3 kg 只算粉料的現在這一版
-  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3"]);
+  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4"]);
   const oldItems = fixes.find((f) => f.id.endsWith(":items:1")).from[0];
   const oldNotes = fixes.find((f) => f.id.endsWith(":notes:1")).from[0];
   const ESA = "recipe-blackbream-groundbait";
@@ -1059,6 +1059,9 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.equal(cost.totalGrams, 3000);
   assert.ok(Math.abs(cost.total - 121.0125) < 1e-9, "A 撒總價得到 " + cost.total);
   assert.deepEqual(esa.items[0], { itemId: "item-rice-bran", amount: 1500, unit: "克" }, "米糠 1.5 kg 打底（使用者定的）");
+  // 品項備註裡寫的每次用量要跟配方一致（玉米碎曾停在舊的 300 g）
+  const corn = esa.items.find((row) => row.itemId === "item-corn-cracked");
+  assert.match(itemsById["item-corn-cracked"].notes, new RegExp("每次 " + corn.amount + " g"));
   assert.deepEqual(cost.unknown, []);
   assert.ok(!esa.items.some((row) => row.itemId === "item-krill-block"), "3 kg 裡不含南極蝦磚");
   // 全乾粉：高筋麵粉 110 g $7.92 ＋ 老百王南極蝦粉末整包 150 g $34 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
