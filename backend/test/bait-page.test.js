@@ -1166,4 +1166,7 @@ test("來源原文核對：掛錯的來源與沒有出處的說法不得回來",
   // 「重蝦不重粉」只出自 W1；「掛 2–3 隻」原文是投餌數
   assert.ok(!cell("黑毛", "南極蝦").sources.includes("W2"));
   assert.doesNotMatch(cell("黑毛", "南極蝦").note, /掛 2/);
+  // 半胱胺酸買到的是鹽酸鹽：重量要折算，而且洋菜顆粒的濃度不能當成釣餌已被證明的濃度
+  assert.match(tilapia.stocks.find((x) => x.id === "CYS").note, /0\.17～0\.19 g\/kg/);
+  assert.match(ev("劑量 0.25～1 g/kg 在安全範圍內").text, /只能當設計參考/);
 });
