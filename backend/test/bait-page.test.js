@@ -933,14 +933,13 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(Math.abs(d.activeGPerKg - 0.25) < 1e-12);
   d = plain(h.doseFor(stock(tilapia, "CIT"), 2.0, 200));
   assert.ok(Math.abs(d.activeGPerKg - 1.0) < 1e-12);
-  d = plain(h.doseFor(stock(tilapia, "SWT"), 0.2, 200));
-  assert.ok(Math.abs(d.activeGPerKg - 0.09) < 1e-12, "奶甜 0.2 ml 應該是 0.09 g/kg");
-  d = plain(h.doseFor(stock(tilapia, "FRU"), 0.5, 200));
+  // 頁面上的香精與奶甜液已經拿掉，doseFor 的另外兩種情形改用合成的濃縮液測
+  d = plain(h.doseFor({ id: "SYN1", kind: "liquid", mgPerMl: 90 }, 0.2, 200));
+  assert.ok(Math.abs(d.activeGPerKg - 0.09) < 1e-12, "90 mg/ml 加 0.2 ml／200 g 應該是 0.09 g/kg");
+  d = plain(h.doseFor({ id: "SYN2", kind: "liquid", mgPerMl: null, pureFraction: 0.075 }, 0.5, 200));
   assert.equal(d.activeGPerKg, null, "香精只知道體積，不能印出有效成分公克數");
-  // 稀釋液 0.5 ml／200 g ＝ 2.5 ml/kg，但純香精只有 2.5 × 15/200 ＝ 0.1875 ml/kg——
-  // 也就是原報告 A2 夾帶的量（0.5 × 15/200 ＝ 0.0375 ml／200 g）。印稀釋液體積曾被照抄成 10 倍錯誤。
+  // 稀釋液 0.5 ml／200 g ＝ 2.5 ml/kg，但純香精只有 2.5 × 15/200 ＝ 0.1875 ml/kg——印稀釋液體積曾被照抄成 10 倍錯誤。
   assert.ok(Math.abs(d.pureMlPerKg - 0.1875) < 1e-12);
-  assert.ok(Math.abs(d.pureMlPerKg / 5 - 0.0375) < 1e-12);
   d = plain(h.doseFor(stock(plans[1], "KRL"), 5, 200));
   assert.equal(d.activeGPerKg, 25, "粉末 5 g／200 g ＝ 25 g/kg");
   assert.equal(d.pureMlPerKg, null, "粉末沒有香精；少了這個欄位畫面會印出「純香精 NaN」");
@@ -978,15 +977,10 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // DMPT、甜菜鹼在吳郭魚飼料試驗裡沒有增加攝食量，不可以出現在福壽魚的配方裡
   assert.doesNotMatch(JSON.stringify(tilapia.stocks), /DMPT|甜菜鹼/);
 
-  // 修正一：主酸液不得再夾帶香精——夾帶的話 T2、T6 又會變回「酸＋香」，分不開
+  // 主酸液不得夾帶香精——夾帶的話 T2、T6 又會變回「酸＋香」，分不開
   assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
-  assert.doesNotMatch(stock(tilapia, "MAL").made, /香/);
-  // 修正二：同酸濃度的檸檬酸與蘋果酸各有一組、而且都跟 T2 比，才是只差酸種類的單一變因
-  const t7 = tilapia.groups.find((g) => g.id === "T7");
-  assert.deepEqual(t7.compare, ["T2"]);
-  assert.equal(stock(tilapia, "CIT").mgPerMl, stock(tilapia, "MAL").mgPerMl);
-  // 原報告的配方要留著比，不是被刪掉
-  assert.ok(tilapia.groups.some((g) => g.doses.some(([id]) => id === "ORIG")));
+  // 只放使用者買了、而且有研究支持的原料（2026-09-27）：鳳梨精、糖精鈉、蘋果酸、香精、奶甜液、原報告果酸液不得回來
+  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "KRL", "SOR", "TRP"]);
 
   assert.match(html, /待驗證的實驗假說，不是本站的建議/);
   // 實測紀錄已依使用者要求移除（2026-09-25）
@@ -1043,7 +1037,8 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.ok(Math.abs(perKg("M4", "AA") - 0.25) < 1e-12, "A 撒的胺基酸 7.5 ml＝0.25 g/kg");
   assert.ok(Math.abs(perKg("K2", "AA") - 0.25) < 1e-12, "練餌的胺基酸低劑量仍是 0.25 g/kg");
   assert.ok(Math.abs(perKg("K5", "AA") - 1.0) < 1e-12, "練餌的胺基酸高劑量仍是 1 g/kg");
-  assert.ok(Math.abs(perKg("K3", "BET") - 0.25) < 1e-12);
+  // 甜菜鹼買不到食品級，不列入（2026-09-27）
+  assert.deepEqual(bream.stocks.map((x) => x.id).sort(), ["AA", "KRL"]);
 
   // 兩份預設配方：總重就是使用者給的每次份量，每一列都算得出價格
   const seed = plain(h.seed());
