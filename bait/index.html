@@ -153,6 +153,7 @@
   .add-block{margin-top:14px}
   .add-block h4{font-size:13px;color:var(--soft);margin:0 0 6px}
   .stock-note{font-size:12px;color:var(--faint);line-height:1.45}
+  .cell-sub{display:block;font-size:11px;font-weight:400;color:var(--faint);margin-top:2px}
   .sop{font-size:13px;color:var(--soft);line-height:1.55;padding-left:1.4em;margin:6px 0 10px}
   .src{font-size:12px;color:var(--soft);padding-left:1.6em;margin:0 0 8px;display:grid;gap:3px}
   .src-note{font-size:11px;color:var(--faint);margin:8px 0 0}
@@ -390,7 +391,8 @@
   <div id="addPanel" hidden>
     <section class="card" aria-labelledby="addHeading">
       <h2 id="addHeading">添加劑</h2>
-      <p class="none">這一頁的配方是<strong>待驗證的實驗假說，不是本站的建議</strong>。福壽魚版分兩段：先用底餌把魚誘過來（嗅覺，G 組），再用主餌讓牠開口（味覺，T 組），每一段只動自己那一層。實驗組只放你買了、而且有研究支持的原料：底餌用南極蝦粉與 L-半胱胺酸鹽酸鹽，主餌用檸檬酸、D-山梨醇、L-色胺酸；技術報告裡的蘋果酸、香精與奶甜液沒有買、也沒有吳郭魚的研究，不列入。黑格版也分兩段：先用 A 撒誘過來（嗅覺，M 組），再用練餌讓牠開口（味覺，K 組）；組別換掉 B 開頭，避免跟魚種對照的來源 B1–B11 撞名。黑格只用甘胺酸＋L-丙胺酸與南極蝦粉；甜菜鹼買不到食品級，不列入。胺基酸的依據是黑鯛同種的二手轉述與真鯛的文獻，原始論文這次檢索沒找到。每一組的加量是照每次的份量寫的（福壽魚主餌乾粉 300 g、底餌 1.5 kg；黑格 A 撒粉料 3 kg（南極蝦磚另加）、練餌 300 g），每公斤欄是同一個比例，換了份量照它換算。這些都不是文獻給的劑量。完整網址在原始碼 bait/SOURCES.md。</p>
+      <p class="none">這一頁的配方是<strong>待驗證的實驗假說，不是本站的建議</strong>。</p>
+      <details class="src-fold"><summary>為什麼這樣配置</summary><p class="none">福壽魚版分兩段：先用底餌把魚誘過來（嗅覺，G 組），再用主餌讓牠開口（味覺，T 組），每一段只動自己那一層。實驗組只放你買了、而且有研究支持的原料：底餌用南極蝦粉與 L-半胱胺酸鹽酸鹽，主餌用檸檬酸、D-山梨醇、L-色胺酸；技術報告裡的蘋果酸、香精與奶甜液沒有買、也沒有吳郭魚的研究，不列入。黑格版也分兩段：先用 A 撒誘過來（嗅覺，M 組），再用練餌讓牠開口（味覺，K 組）；組別換掉 B 開頭，避免跟魚種對照的來源 B1–B11 撞名。黑格只用甘胺酸＋L-丙胺酸與南極蝦粉；甜菜鹼買不到食品級，不列入。胺基酸的依據是黑鯛同種的二手轉述與真鯛的文獻，原始論文這次檢索沒找到。每一組的加量是照每次的份量寫的（福壽魚主餌乾粉 300 g、底餌 1.5 kg；黑格 A 撒粉料 3 kg（南極蝦磚另加）、練餌 300 g），每公斤欄是同一個比例，換了份量照它換算。這些都不是文獻給的劑量。完整網址在原始碼 bait/SOURCES.md。</p></details>
     </section>
     <div id="addRows"></div>
   </div>
@@ -1973,9 +1975,11 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
         var base = stage.baseGrams || 200;
         html += '<details class="src-fold"><summary>' + esc(stage.title) + (stage.sense ? "・" + esc(stage.sense) : "") + "（每 " + base + " g " + esc(stage.baseLabel || "") + "，" + inStage.length + " 組）</summary>"
           + (stage.base ? '<p class="stage-note">' + esc(stage.base) + " " + esc(stage.metric) + "</p>" : "")
-          + stackTable(["組", "變數", "加什麼", "每公斤餌", "看什麼", "跟誰比"], inStage.map(function (group) {
-            return [esc(group.id), esc(group.variable), esc(doseText(plan, group.doses)), esc(activeText(plan, group.doses, base)),
-              esc(group.purpose), esc(group.compare.join("、") || "—")];
+          /* 主表只留四欄；變數與比較對象是次要資訊，收成各格底下的小字。 */
+          + stackTable(["組", "加什麼", "每公斤", "看什麼"], inStage.map(function (group) {
+            return [esc(group.id) + '<span class="cell-sub">' + esc(group.variable) + "</span>",
+              esc(doseText(plan, group.doses)), esc(activeText(plan, group.doses, base)),
+              esc(group.purpose) + (group.compare.length ? '<span class="cell-sub">跟 ' + esc(group.compare.join("、")) + " 比</span>" : "")];
           })) + "</details>";
       }
 
@@ -2001,6 +2005,13 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
       html += "</ol></details></section>";
     }
     node.innerHTML = html;
+    /* 同一個魚種裡同時只展開一個區塊。同名的 details 是瀏覽器原生的互斥手風琴，
+       不支援的瀏覽器會忽略這個屬性、照常各自展開，不會壞。 */
+    var cards = node.querySelectorAll("section.card");
+    for (var c = 0; c < cards.length; c += 1) {
+      var folds = cards[c].querySelectorAll("details.src-fold");
+      for (var f = 0; f < folds.length; f += 1) folds[f].setAttribute("name", "add-fold-" + c);
+    }
   }
 
   function renderLog() {

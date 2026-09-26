@@ -996,6 +996,10 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.match(renderAdd, /title: "實驗組", baseGrams: 200, baseLabel: "基礎餌"/, "沒分段的魚種仍是一個實驗組收合，基準 200 g");
   assert.match(renderAdd, /evidenceSummary\(plan\.evidence\)/);
   assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
+  // 實驗組主表只留四欄，變數與比較對象收成小字；同一魚種的收合區塊同名（同時只開一個）；頁首長說明收起來
+  assert.match(renderAdd, /stackTable\(\["組", "加什麼", "每公斤", "看什麼"\]/);
+  assert.match(renderAdd, /setAttribute\("name", "add-fold-" \+ c\)/);
+  assert.match(html, /<details class="src-fold"><summary>為什麼這樣配置<\/summary>/);
   // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值
   assert.doesNotMatch(JSON.stringify(plans), /檸檬酸[^。]*閾值約/);
   // 「沒有研究」只能寫成「這次檢索沒找到」
