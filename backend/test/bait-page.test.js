@@ -722,8 +722,8 @@ test("魚種對照：每格都有來源、來源都存在、魚種都在 SPECIES
   // 白毛的夏季沒有任何來源講，必須留空（黑鯛的夏季在補來源後有尬馬劉撐著）
   assert.equal(ref.find((f) => f.species === "白毛").seasons.summer.text, "");
   assert.doesNotMatch(JSON.stringify(ref), /http/, "網址不進頁面，放 bait/SOURCES.md");
-  assert.match(html, /來源數是共識強度，不是釣獲率/);
-  assert.match(html, /不是本站的建議/);
+  // 頁頂說明卡依使用者要求移除（2026-09-27）
+  assert.doesNotMatch(html, /aria-labelledby="fishHeading"|aria-labelledby="addHeading"/);
   assert.match(html, /function renderFish\(/);
   assert.match(html, /來源沒講/);
   // 來源清單收進 details，收合時那一行要說清楚幾筆是真的開過
@@ -982,7 +982,6 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // 只放使用者買了、而且有研究支持的原料（2026-09-27）：鳳梨精、糖精鈉、蘋果酸、香精、奶甜液、原報告果酸液不得回來
   assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "KRL", "SOR", "TRP"]);
 
-  assert.match(html, /待驗證的實驗假說，不是本站的建議/);
   // 實測紀錄已依使用者要求移除（2026-09-25）
   assert.doesNotMatch(html, /trialHeading|sanitizeTrial|state\.trials/);
   // 以前的「第 3 欄至少 220px」規則把手機上的其他欄擠成一格一個字、整張表撐出螢幕。
@@ -996,10 +995,9 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.match(renderAdd, /title: "實驗組", baseGrams: 200, baseLabel: "基礎餌"/, "沒分段的魚種仍是一個實驗組收合，基準 200 g");
   assert.match(renderAdd, /evidenceSummary\(plan\.evidence\)/);
   assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
-  // 實驗組主表只留四欄，變數與比較對象收成小字；同一魚種的收合區塊同名（同時只開一個）；頁首長說明收起來
+  // 實驗組主表只留四欄，變數與比較對象收成小字；同一魚種的收合區塊同名（同時只開一個）
   assert.match(renderAdd, /stackTable\(\["組", "加什麼", "每公斤", "看什麼"\]/);
   assert.match(renderAdd, /setAttribute\("name", "add-fold-" \+ c\)/);
-  assert.match(html, /<details class="src-fold"><summary>為什麼這樣配置<\/summary>/);
   // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值
   assert.doesNotMatch(JSON.stringify(plans), /檸檬酸[^。]*閾值約/);
   // 「沒有研究」只能寫成「這次檢索沒找到」
