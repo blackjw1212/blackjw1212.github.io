@@ -83,6 +83,9 @@ test("沒有任何試算或審查的殘留", async () => {
   const stripped = plain(app.helpers.sanitizeRecipe({ title: "x", items: [], rating: 3, inSituAdjustments: "x", caughtTarget: true }, null));
   assert.equal(stripped.rating, undefined);
   assert.equal(stripped.caughtTarget, undefined);
+  // 紀錄的水溫／氣溫／天氣欄位依使用者要求移除（2026-09-27）
+  assert.doesNotMatch(html, /data-env|waterTempC|airTempC|tempOrNull/);
+  assert.equal(plain(app.helpers.sanitizeRecipe({ title: "x", items: [], waterTempC: 26, weather: "晴" }, null)).waterTempC, undefined);
   const item = plain(app.helpers.sanitizeItem({
     name: "殘留測試", gramsPerCup: 250, category: "ADDITIVE",
     viscosity: 5, foggingRate: 1, sinkingSpeed: "FAST", recommendedWaterRatio: 0.5,
@@ -1189,29 +1192,4 @@ test("福壽魚第一輪：T1 空白、T14 起始、T15 高量上限，換算與
   // 兩組都只能是實戰起始值，不可以被寫成最佳
   for (const g of ["T14", "T15"]) assert.doesNotMatch(tilapia.groups.find((x) => x.id === g).purpose, /最佳(?!濃度)|已證實/);
   assert.match(tilapia.stages.find((st) => st.id === "bite").metric, /CPUE/);
-});
-
-test("紀錄的環境欄位：水溫、氣溫、天氣", async () => {
-  const { app, html } = await loadPage();
-  const h = app.helpers;
-  const r = (raw) => plain(h.sanitizeRecipe(Object.assign({ title: "x", items: [] }, raw), null));
-  // 沒填是 null／空字串，不是 0
-  assert.equal(r({}).waterTempC, null);
-  assert.equal(r({}).airTempC, null);
-  assert.equal(r({}).weather, "");
-  // 0 與負的氣溫是真的溫度，要留著；取到小數一位
-  assert.equal(r({ airTempC: 0 }).airTempC, 0);
-  assert.equal(r({ airTempC: "-3" }).airTempC, -3);
-  assert.equal(r({ waterTempC: "26.44" }).waterTempC, 26.4);
-  // 超出範圍多半是打錯字，當成沒填
-  assert.equal(r({ waterTempC: 260 }).waterTempC, null);
-  assert.equal(r({ airTempC: "abc" }).airTempC, null);
-  assert.equal(r({ weather: "  晴、微風  " }).weather, "晴、微風");
-  assert.equal(r({ weather: "x".repeat(40) }).weather.length, 20);
-  // 存檔再讀回不能掉
-  const st = plain(h.sanitizeState({ items: [], recipes: [{ id: "r1", title: "x", items: [], waterTempC: 27, airTempC: 31.5, weather: "陰" }] }));
-  assert.deepEqual([st.recipes[0].waterTempC, st.recipes[0].airTempC, st.recipes[0].weather], [27, 31.5, "陰"]);
-  // 紀錄卡上有三個欄位；新存的一鍋要清空環境，不沿用載回的那一鍋
-  for (const key of ["waterTempC", "airTempC", "weather"]) assert.match(html, new RegExp('data-env="' + key + '"'));
-  assert.match(html, /recipe\.waterTempC = null;\s*recipe\.airTempC = null;\s*recipe\.weather = "";/);
 });
