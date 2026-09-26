@@ -1958,6 +1958,16 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
           esc(stock.made) + '<div class="stock-note">' + esc(stock.note) + "</div>"];
       })) + "</div>";
 
+      /* 調製步驟緊跟在濃縮液表後面：先調好液，才用得到下面的實驗組。 */
+      html += '<details class="src-fold"><summary>調製步驟（' + plan.sop.length + " 瓶）</summary>";
+      for (var p = 0; p < plan.sop.length; p += 1) {
+        var sop = plan.sop[p];
+        html += '<div class="stock-note">' + esc(stockOf(plan, sop.stock).name) + '</div><ol class="sop">';
+        for (var k = 0; k < sop.steps.length; k += 1) html += "<li>" + esc(sop.steps[k]) + "</li>";
+        html += "</ol>";
+      }
+      html += "</details>";
+
       /* 實驗組與證據等級預設收合：手機上兩個魚種攤開有八千多 px。收合時的那一行要講得出內容多少。 */
       var stageList = plan.stages || [{ id: "", title: "實驗組", baseGrams: 200, baseLabel: "基礎餌" }];
       for (var st = 0; st < stageList.length; st += 1) {
@@ -1978,15 +1988,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
         return [esc(ev.claim), '<span class="grade ' + esc(ev.grade) + '">' + esc(GRADE_LABEL[ev.grade]) + "</span>",
           esc(ev.text), srcRefs(ev.sources) || "—"];
       })) + "</details>";
-
-      html += '<details class="src-fold"><summary>調製步驟（' + plan.sop.length + " 瓶）</summary>";
-      for (var p = 0; p < plan.sop.length; p += 1) {
-        var sop = plan.sop[p];
-        html += '<div class="stock-note">' + esc(stockOf(plan, sop.stock).name) + '</div><ol class="sop">';
-        for (var k = 0; k < sop.steps.length; k += 1) html += "<li>" + esc(sop.steps[k]) + "</li>";
-        html += "</ol>";
-      }
-      html += "</details>";
 
       html += '<details class="src-fold"><summary>' + esc(sourceSummary(plan.sources)) + '</summary><ol class="src">';
       for (var r = 0; r < plan.sources.length; r += 1) {
