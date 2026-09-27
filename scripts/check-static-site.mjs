@@ -385,8 +385,8 @@ if (has("forscan/tracker/index.html")) {
   assertMatch("forscan/tracker/index.html", html, /rel="canonical" href="\/forscan\/tracker\/"/, "tracker canonical");
   assertMatch("forscan/tracker/index.html", html, /name="theme-color" content="#101418"/, "tracker theme color");
   assertMatch("forscan/tracker/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "tracker service worker registration");
-  // 靜態快照：狀態不隨日期更新。少了這句，頁面上的「已逾期」看起來像即時判定。
-  assertMatch("forscan/tracker/index.html", html, /不會隨今天的日期自動更新/, "tracker snapshot disclosure");
+  // 時間用今天算、里程卻是寫死的快照。少了這句，「剩 N km」看起來像即時里程。
+  assertMatch("forscan/tracker/index.html", html, /里程則是資料截至時的快照/, "tracker snapshot disclosure");
 }
 
 if (has("forscan/sync3/index.html")) {

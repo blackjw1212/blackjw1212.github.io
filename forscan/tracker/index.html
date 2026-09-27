@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>保養追蹤｜Focus Mk3.5</title>
-<meta name="description" content="2017 Ford Focus Mk3.5 1.5T EcoBoost 180 的保養紀錄與保養計畫：里程或時間先到先做，標出已逾期與待確認項目。" />
+<meta name="description" content="2017 Ford Focus Mk3.5 1.5T EcoBoost 180 的保養紀錄與下次保養：里程或時間先到先做，標出已逾期、即將到期與未記錄項目。" />
 <link rel="canonical" href="/forscan/tracker/" />
 <meta property="og:title" content="保養追蹤｜Focus Mk3.5" />
-<meta property="og:description" content="Focus Mk3.5 保養紀錄與保養計畫。" />
+<meta property="og:description" content="Focus Mk3.5 保養紀錄與下次保養。" />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
 <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -29,6 +29,7 @@
     --bg:#101418;--surface:#151c23;--panel:#19232c;--line:#31404b;
     --ink:#f3f7f4;--soft:#b8c4c0;--faint:#82908c;--teal:#42b8a8;--cyan:#67c7e5;
     --amber:#d9a64c;--green:#77d66e;--red:#ff766e;--shadow:0 18px 50px rgba(0,0,0,.25);
+    --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}
@@ -37,56 +38,64 @@
   .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}
   .brand{display:flex;align-items:center;gap:12px;min-width:0}
   .brand img{width:34px;height:34px;flex:0 0 auto}
-  .brand-kicker{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px;line-height:1.1}
+  .brand-kicker{font-family:var(--mono);color:var(--teal);font-size:11px;line-height:1.1}
   .brand-title{font-weight:900;font-size:17px;letter-spacing:0}
-  .back{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;text-decoration:none}
+  .back{color:var(--faint);font-family:var(--mono);font-size:12px;text-decoration:none}
   .back:hover{color:var(--cyan)}
-  .hero{border:1px solid var(--line);border-radius:8px;background:linear-gradient(135deg,#172029 0%,#12181f 100%);box-shadow:var(--shadow);padding:26px;margin-bottom:18px}
-  .eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--amber);font-size:12px;font-weight:800}
-  h1{max-width:760px;margin-top:10px;font-size:clamp(28px,4.5vw,46px);line-height:1.1;font-weight:900}
-  .lead{max-width:760px;margin-top:14px;color:var(--soft);font-size:15px}
-  .hero-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:22px}
-  .metric{border-top:1px solid var(--line);padding-top:10px}
-  .metric strong{display:block;font-size:18px}
-  .metric span{display:block;margin-top:2px;color:var(--faint);font-size:12px}
-  .metric.bad strong{color:var(--red)}
-  .metric.warn strong{color:var(--amber)}
-  .group{margin-top:26px}
-  .group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px}
-  .group-head h2{font-size:18px;letter-spacing:0}
-  .group-head span{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--faint);font-size:12px}
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-  .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px}
-  .card.overdue{border-left:4px solid var(--red)}
-  .card.check{border-left:4px solid var(--amber)}
-  .card h3{font-size:16px;line-height:1.25}
-  .card code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--teal);font-size:11px}
-  .card p{margin-top:8px;color:var(--soft);font-size:13px}
-  .card p.note{color:var(--faint);font-size:12px}
-  .card ul{margin:8px 0 0 18px;color:var(--soft);font-size:13px;display:grid;gap:5px}
-  .card ul li::marker{color:var(--teal)}
-  .due{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin-top:10px;font-size:13px}
-  .due dt{color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;padding-top:1px}
-  .due dd{color:var(--ink)}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:12px}
-  .chip{border:1px solid rgba(103,199,229,.32);border-radius:999px;padding:2px 9px;color:var(--cyan);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
-  .chip.ok{border-color:rgba(119,214,110,.45);color:var(--green)}
-  .chip.warn{border-color:rgba(217,166,76,.5);color:var(--amber)}
-  .chip.bad{border-color:rgba(255,118,110,.5);color:var(--red)}
-  .footnote{margin-top:24px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.7}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .muted{color:var(--faint)}
+  .car{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;justify-content:space-between;margin:8px 0 28px}
+  .eyebrow{font-size:12px;letter-spacing:.12em;color:var(--faint);font-weight:500}
+  .car h1{font-size:24px;font-weight:700;line-height:1.3}
+  .car-sub{color:var(--soft);font-size:14px;margin-top:2px}
+  .odo{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .odo-box{display:flex;align-items:center;gap:10px;background:#0b0f13;border:1px solid var(--line);border-radius:8px;padding:8px 14px}
+  .odo-digits{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:.08em}
+  .odo-unit{font-size:12px;opacity:.7}
+  .odo-meta{font-size:12px;color:var(--faint)}
+  section{display:flex;flex-direction:column;gap:12px;margin-bottom:28px}
+  .sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .sec-head h2{font-size:17px;font-weight:700}
+  .summary{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;border-radius:999px;padding:3px 10px;white-space:nowrap}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .s-overdue{background:rgba(255,118,110,.14);color:var(--red)}
+  .s-soon{background:rgba(217,166,76,.14);color:var(--amber)}
+  .s-ok{background:rgba(119,214,110,.12);color:var(--green)}
+  .s-unknown{background:rgba(130,144,140,.16);color:var(--soft)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+  .tbl-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-size:12px;letter-spacing:.06em;color:var(--faint);font-weight:500;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.item{font-weight:500;min-width:140px}
+  td .note{display:block;font-size:12.5px;color:var(--faint);font-weight:400;margin-top:2px;max-width:34em}
+  td .flag{display:block;font-size:12.5px;color:var(--amber);font-weight:500;margin-top:2px;max-width:34em}
+  td.r{white-space:nowrap}
+  .remain{font-size:12px;color:var(--faint);display:block}
+  .hint{font-size:12.5px;color:var(--faint)}
+  .rec{display:grid;grid-template-columns:130px 1fr;gap:4px 16px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .rec:last-child{border-bottom:none}
+  .rec-when{display:flex;flex-direction:column}
+  .rec-date{font-family:var(--mono);font-weight:600}
+  .rec-km{font-family:var(--mono);font-size:13px;color:var(--faint)}
+  .rec ul{padding-left:1.1em;color:var(--soft)}
+  .rec-note{font-size:13px;color:var(--amber);margin-top:4px}
+  .footnote{margin-top:8px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:var(--mono);font-size:12px;line-height:1.7}
   .sectabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:18px;padding:4px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
   .sectabs a{display:flex;align-items:center;justify-content:center;min-height:44px;padding:4px 2px;border-radius:6px;word-break:keep-all;color:var(--soft);font-size:14px;font-weight:800;line-height:1.2;text-align:center;text-decoration:none}
   .sectabs a:hover{color:var(--cyan)}
   .sectabs a[aria-current="page"]{background:var(--panel);color:var(--ink);box-shadow:inset 0 -2px 0 var(--teal)}
   @media (max-width:640px){
     .shell{width:min(100% - 24px,1120px);padding-top:18px}
-    .hero{padding:16px}
-    .hero-meta{grid-template-columns:repeat(2,minmax(0,1fr))}
     .back{min-height:44px;display:inline-flex;align-items:center}
     .topbar{gap:10px}
-    h1{font-size:clamp(22px,6vw,28px)}
-    .cards{gap:10px}
-    .card{padding:14px}
+    .odo{align-items:flex-start}
+    .rec{grid-template-columns:1fr}
+    /* 寬表在手機上黏住第一欄；黏住的格子要自己上底色，否則透出底下的內容 */
+    td.item,th:first-child{position:sticky;left:0;z-index:1;background:var(--panel)}
+    td.item{min-width:9em;max-width:9em}
   }
 </style>
 </head>
@@ -110,91 +119,117 @@
     <a href="/forscan/tracker/" aria-current="page">保養追蹤</a>
   </nav>
 
-  <section class="hero">
-    <div class="eyebrow">MAINTENANCE LOG</div>
-    <h1>Focus Mk3.5 保養追蹤</h1>
-    <p class="lead">本車（2017 Focus 1.5T EcoBoost 180）的保養紀錄與保養計畫。里程或時間，哪個先到就先做。本頁是靜態快照：狀態以資料截至日的里程與月份判定，不會隨今天的日期自動更新。</p>
-    <div class="hero-meta" aria-label="目前狀態">
-      <div class="metric"><strong>66,198 km</strong><span>目前里程</span></div>
-      <div class="metric"><strong>2026-09</strong><span>資料截至</span></div>
-      <div class="metric bad"><strong>2 項</strong><span>已逾期</span></div>
-      <div class="metric warn"><strong>4 項</strong><span>待確認</span></div>
+  <div class="car">
+    <div>
+      <div class="eyebrow">保養紀錄簿</div>
+      <h1>2017 Ford Focus MK3.5</h1>
+      <div class="car-sub">UX EcoBoost 180</div>
     </div>
+    <div class="odo">
+      <div class="odo-box"><span class="odo-digits" id="odoDigits">------</span><span class="odo-unit">km</span></div>
+      <div class="odo-meta" id="odoDate">里程更新：—</div>
+    </div>
+  </div>
+
+  <section aria-label="下次保養">
+    <div class="sec-head"><h2>下次保養</h2><div class="summary" id="summary"></div></div>
+    <div class="panel tbl-wrap">
+      <table>
+        <thead><tr><th>項目</th><th>狀態</th><th>上次</th><th>間隔</th><th>下次</th></tr></thead>
+        <tbody id="planBody"><tr><td colspan="5" class="muted">需要 JavaScript 才能計算狀態。</td></tr></tbody>
+      </table>
+    </div>
+    <div class="hint">狀態以「里程或時間，先到者為準」判定；剩 1,000 km 或 2 個月內列為「即將到期」。時間以今天的日期計算，里程則是資料截至時的快照，不會自己增加。</div>
   </section>
 
-  <section class="group" aria-label="保養計畫">
-    <div class="group-head"><h2>保養計畫</h2><span>先到先做 · 截至 2026-09</span></div>
-    <div class="cards">
-      <article class="card overdue"><h3>冷氣濾網</h3><code>每 10,000 km／12 個月</code>
-        <dl class="due"><dt>上次</dt><dd>2024-10 · 58,566 km</dd><dt>應換</dt><dd>2025-10 或 68,566 km</dd></dl>
-        <div class="chips"><span class="chip bad">已逾期（時間）</span></div></article>
-      <article class="card overdue"><h3>電瓶健康檢測</h3><code>每 12 個月 · CCA／充電電壓／靜態耗電</code>
-        <dl class="due"><dt>上次</dt><dd>2025-07（換湯淺 FBN4）</dd><dt>應檢</dt><dd>2026-07</dd></dl>
-        <p class="note">前一顆因改裝日行燈造成寄生耗電而提早更換，日行燈已拆除。</p>
-        <div class="chips"><span class="chip bad">已逾期</span></div></article>
-      <article class="card"><h3>空氣濾網清潔</h3><code>每 10,000 km · 不銹鋼高流量，可重複使用</code>
-        <dl class="due"><dt>上次</dt><dd>2025-01 · 60,100 km</dd><dt>下次</dt><dd>70,100 km（剩 3,902 km）</dd></dl>
-        <p class="note">2023-07 改裝 RAEMCO 不銹鋼高流量濾網，保養方式為清潔。</p>
-        <div class="chips"><span class="chip ok">正常</span></div></article>
-      <article class="card"><h3>四輪前後對調</h3><code>每 10,000 km</code>
-        <dl class="due"><dt>上次</dt><dd>2025-01 · 60,100 km</dd><dt>下次</dt><dd>70,100 km（剩 3,902 km）</dd></dl>
-        <div class="chips"><span class="chip ok">正常</span></div></article>
-      <article class="card"><h3>機油＋機油濾芯</h3><code>每 5,000 km／12 個月</code>
-        <dl class="due"><dt>上次</dt><dd>2026-09 · 66,198 km</dd><dt>下次</dt><dd>71,000 km 或 2027-09（剩 4,802 km）</dd></dl>
-        <p class="note">LIQUI MOLY MOLYGEN 5W-20。2025-01 到 2026-09 間隔 20 個月，超過 12 個月上限；之後以 12 個月為上限。</p>
-        <div class="chips"><span class="chip ok">正常</span></div></article>
-      <article class="card"><h3>變速箱油</h3><code>每 25,000 km · MERCON LV</code>
-        <dl class="due"><dt>上次</dt><dd>2023-07 · 50,000 km</dd><dt>下次</dt><dd>75,000 km（剩 8,802 km）</dd></dl>
-        <div class="chips"><span class="chip ok">正常</span></div></article>
-      <article class="card"><h3>輪胎檢查</h3><code>胎齡滿 5 年起每年檢查 · 馬牌 UCJ 225/45/18</code>
-        <dl class="due"><dt>上次換</dt><dd>2023-09 · 51,977 km</dd><dt>開始</dt><dd>2028-09 起每年</dd></dl>
-        <p class="note">是否更換依胎紋深度與 DOT 年份判斷。</p>
-        <div class="chips"><span class="chip ok">正常</span></div></article>
-      <article class="card check"><h3>煞車油</h3><code>每 2 年／40,000 km</code>
-        <dl class="due"><dt>上次</dt><dd>無更換紀錄</dd></dl>
-        <p class="note">建議先檢測含水率。</p>
-        <div class="chips"><span class="chip warn">待確認</span></div></article>
-      <article class="card check"><h3>冷卻液（水箱精）</h3><code>間隔未設定</code>
-        <dl class="due"><dt>上次</dt><dd>無更換紀錄</dd></dl>
-        <p class="note">2025-01 的「散熱系統微清」是否有換冷卻液，未記錄。</p>
-        <div class="chips"><span class="chip warn">待確認</span></div></article>
-      <article class="card check"><h3>火星塞</h3><code>間隔待查原廠手冊</code>
-        <dl class="due"><dt>上次</dt><dd>2023-09 · 51,977 km</dd></dl>
-        <p class="note">ILZNAR8A7G 銥鉑合金。</p>
-        <div class="chips"><span class="chip warn">待確認</span></div></article>
-      <article class="card check"><h3>100,000 km 大保養</h3><code>正時皮帶＋水泵＋汽油濾芯</code>
-        <dl class="due"><dt>里程</dt><dd>100,000 km（剩 33,802 km）</dd></dl>
-        <p class="note">水泵建議與皮帶同步更換。皮帶除了里程，常見還有 10 年年限，2017 年車約 2027 年可能先到期，需以原廠手冊確認。</p>
-        <div class="chips"><span class="chip warn">待確認年限</span></div></article>
-    </div>
-  </section>
-
-  <section class="group" aria-label="保養紀錄">
-    <div class="group-head"><h2>保養紀錄</h2><span>新到舊 · 8 筆</span></div>
-    <div class="cards">
-      <article class="card"><h3>2026-09</h3><code>66,198 km</code>
-        <ul><li>機油（LIQUI MOLY MOLYGEN 5W-20）</li><li>機油濾芯</li></ul></article>
-      <article class="card"><h3>2025-07</h3><code>里程未記錄</code>
-        <ul><li>電瓶換湯淺 FBN4</li></ul>
-        <p class="note">原因：改裝日行燈造成寄生耗電（日行燈已拆除）。</p></article>
-      <article class="card"><h3>2025-01</h3><code>60,100 km</code>
-        <ul><li>機油（LIQUI MOLY MOLYGEN 5W-20）</li><li>機油濾芯</li><li>四輪前後對調</li><li>空氣濾網清潔</li><li>散熱系統微清</li></ul></article>
-      <article class="card"><h3>2025-01</h3><code>59,723 km</code>
-        <ul><li>電瓶（ATLASBX EFB 黑霸 SE 57530 LBN4 75Ah）</li></ul></article>
-      <article class="card"><h3>2024-10</h3><code>58,566 km</code>
-        <ul><li>冷氣濾網更換</li></ul></article>
-      <article class="card"><h3>2024-01</h3><code>55,120 km</code>
-        <ul><li>機油＋機油濾芯（5W-20 WSS-M2C948-B）</li></ul></article>
-      <article class="card"><h3>2023-09</h3><code>51,977 km</code>
-        <ul><li>火星塞（ILZNAR8A7G 銥鉑合金）</li><li>輪胎（馬牌 UCJ 225/45/18）</li></ul></article>
-      <article class="card"><h3>2023-07</h3><code>50,000 km</code>
-        <ul><li>機油＋機油濾芯（5W-20 WSS-M2C948-B／FL910S）</li><li>變速箱油（MERCON LV）</li><li>進氣管（TDCI RAEMCO 不銹鋼高流量濾網）</li></ul></article>
-    </div>
+  <section aria-label="保養紀錄">
+    <div class="sec-head"><h2>保養紀錄</h2></div>
+    <div class="panel" id="timeline"></div>
   </section>
 
   <footer class="footnote">
-    本頁為車主自行紀錄的快照，資料截至 2026-09。間隔為一般建議值，實際以原廠保養手冊為準；料號與扭力見 <a href="/forscan/service/" style="color:var(--cyan)">保養維修專頁</a>。
+    本頁為車主自行紀錄的快照。間隔為一般建議值，實際以原廠保養手冊為準；料號與扭力見 <a href="/forscan/service/" style="color:var(--cyan)">保養維修專頁</a>。
   </footer>
 </main>
+<script>
+(function () {
+  "use strict";
+  // 與保養追蹤 Artifact 的資料庫同步（手動）。改里程時連 currentKmDate 一起改。
+  const car = { currentKm: 66198, currentKmDate: "2026-09" };
+  const plan = [
+    { name: "機油＋機油濾芯", intervalKm: 5000, intervalMonths: 12, lastKm: 66198, lastDate: "2026-09", targetKm: 71000, note: "LIQUI MOLY MOLYGEN 5W-20；里程或 12 個月先到先換", flag: "", order: 1 },
+    { name: "空氣濾網清潔（不銹鋼高流量，可重複使用）", intervalKm: 10000, intervalMonths: null, lastKm: 60100, lastDate: "2025-01", targetKm: null, note: "2023/07 改裝 RAEMCO 不銹鋼高流量濾網，保養方式為清潔", flag: "", order: 2 },
+    { name: "四輪前後對調", intervalKm: 10000, intervalMonths: null, lastKm: 60100, lastDate: "2025-01", targetKm: null, note: "", flag: "", order: 3 },
+    { name: "變速箱油", intervalKm: 25000, intervalMonths: null, lastKm: 50000, lastDate: "2023-07", targetKm: null, note: "MERCON LV；依保養計畫 75,000 km 換", flag: "", order: 4 },
+    { name: "輪胎檢查（馬牌 UCJ 225/45/18）", intervalKm: null, intervalMonths: 60, lastKm: 51977, lastDate: "2023-09", targetKm: null, note: "胎齡滿 5 年起建議每年檢查；是否更換依胎紋深度與 DOT 年份判斷", flag: "", order: 4 },
+    { name: "冷氣濾網", intervalKm: 10000, intervalMonths: 12, lastKm: 58566, lastDate: "2024-10", targetKm: null, note: "", flag: "", order: 5 },
+    { name: "電瓶健康檢測（CCA／充電電壓／靜態耗電）", intervalKm: null, intervalMonths: 12, lastKm: null, lastDate: "2025-07", targetKm: null, note: "目前為湯淺 FBN4；前一顆因改裝日行燈寄生耗電提早更換（已拆除）", flag: "", order: 6 },
+    { name: "煞車油", intervalKm: 40000, intervalMonths: 24, lastKm: null, lastDate: null, targetKm: null, note: "常見建議：每 2 年", flag: "未有更換紀錄，建議先檢測含水率", order: 7 },
+    { name: "冷卻液（水箱精）", intervalKm: null, intervalMonths: null, lastKm: null, lastDate: null, targetKm: null, note: "", flag: "2025/01 散熱系統微清是否含更換冷卻液未記錄", order: 8 },
+    { name: "火星塞", intervalKm: null, intervalMonths: null, lastKm: 51977, lastDate: "2023-09", targetKm: null, note: "ILZNAR8A7G 銥鉑合金", flag: "更換間隔未設定，請依原廠手冊填入", order: 9 },
+    { name: "100,000 km 大保養：正時皮帶＋水泵＋汽油濾芯", intervalKm: null, intervalMonths: null, lastKm: null, lastDate: null, targetKm: 100000, note: "水泵建議與皮帶同步更換", flag: "皮帶另有年限（常見 10 年），2017 年車約 2027 年可能先到期，請以原廠手冊確認", order: 10 }
+  ];
+  const records = [
+    { date: "2026-09", km: 66198, items: ["機油（LIQUI MOLY MOLYGEN 5W-20）", "機油濾芯"], note: "" },
+    { date: "2025-07", km: null, items: ["電瓶換湯淺 FBN4"], note: "更換原因：改裝日行燈造成寄生耗電（日行燈已拆除）" },
+    { date: "2025-01", km: 60100, items: ["機油（LIQUI MOLY MOLYGEN 5W-20）", "機油濾芯", "四輪前後對調", "空氣濾清器清潔", "散熱系統微清"], note: "" },
+    { date: "2025-01", km: 59723, items: ["電瓶（ATLASBX EFB 黑霸 SE 57530 LBN4 75Ah）"], note: "" },
+    { date: "2024-10", km: 58566, items: ["冷氣濾網更換"], note: "" },
+    { date: "2024-01", km: 55120, items: ["機油＋機油濾芯（5W-20 WSS-M2C948-B）"], note: "" },
+    { date: "2023-09", km: 51977, items: ["火星塞（ILZNAR8A7G 銥鉑合金）", "輪胎（馬牌 UCJ 225/45/18）"], note: "" },
+    { date: "2023-07", km: 50000, items: ["機油＋機油濾芯（5W-20 WSS-M2C948-B／FL910S）", "變速箱油（MERCON LV）", "進氣管（TDCI RAEMCO 不銹鋼高流量濾網）"], note: "" }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmtKm = (n) => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString("en-US");
+  function monthAdd(ym, m) { if (!ym || !m) return null; const [y, mo] = ym.split("-").map(Number); const t = y * 12 + (mo - 1) + m; return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, "0")}`; }
+  function nowYM() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+  function monthsBetween(a, b) { const [y1, m1] = a.split("-").map(Number), [y2, m2] = b.split("-").map(Number); return (y2 * 12 + m2) - (y1 * 12 + m1); }
+
+  function compute(p) {
+    const nextKm = p.targetKm != null ? p.targetKm : (p.lastKm != null && p.intervalKm ? p.lastKm + p.intervalKm : null);
+    const nextDate = (p.lastDate && p.intervalMonths) ? monthAdd(p.lastDate, p.intervalMonths) : null;
+    if (nextKm == null && nextDate == null) return { nextKm, nextDate, status: "unknown", remainKm: null, remainMo: null };
+    const remainKm = nextKm != null ? nextKm - car.currentKm : null;
+    const remainMo = nextDate ? monthsBetween(nowYM(), nextDate) : null;
+    let status = "ok";
+    if ((remainKm != null && remainKm <= 1000) || (remainMo != null && remainMo <= 2)) status = "soon";
+    if ((remainKm != null && remainKm <= 0) || (remainMo != null && remainMo < 0)) status = "overdue";
+    return { nextKm, nextDate, status, remainKm, remainMo };
+  }
+  const LABEL = { overdue: "已逾期", soon: "即將到期", ok: "正常", unknown: "未記錄" };
+  const RANK = { overdue: 0, soon: 1, unknown: 2, ok: 3 };
+
+  $("odoDigits").textContent = String(car.currentKm).padStart(6, "0");
+  $("odoDate").textContent = "里程更新：" + car.currentKmDate;
+
+  const rows = plan.map((p) => ({ p, c: compute(p) })).sort((a, b) => (RANK[a.c.status] - RANK[b.c.status]) || ((a.c.nextKm ?? 9e9) - (b.c.nextKm ?? 9e9)) || (a.p.order - b.p.order));
+  const counts = { overdue: 0, soon: 0, ok: 0, unknown: 0 };
+  rows.forEach((r) => counts[r.c.status]++);
+  $("summary").innerHTML = ["overdue", "soon", "unknown", "ok"].filter((k) => counts[k]).map((k) => `<span class="chip s-${k}"><span class="dot"></span>${LABEL[k]} ${counts[k]}</span>`).join("");
+
+  $("planBody").innerHTML = rows.map(({ p, c }) => {
+    const last = (p.lastDate || p.lastKm != null) ? `<span class="num">${esc(p.lastDate || "—")}</span><span class="remain num">${fmtKm(p.lastKm)} km</span>` : `<span class="muted">未記錄</span>`;
+    const intv = [p.intervalKm ? `<span class="num">${fmtKm(p.intervalKm)}</span> km` : "", p.intervalMonths ? `<span class="num">${p.intervalMonths}</span> 個月` : ""].filter(Boolean).join("<br>") || `<span class="muted">—</span>`;
+    let next = "";
+    if (c.nextKm != null) next += `<span class="num">${fmtKm(c.nextKm)} km</span>${p.targetKm != null ? ' <span class="muted" style="font-size:12px">指定</span>' : ""}<span class="remain">${c.remainKm > 0 ? "剩 " + fmtKm(c.remainKm) + " km" : "超過 " + fmtKm(-c.remainKm) + " km"}</span>`;
+    if (c.nextDate) next += `<span class="num">${esc(c.nextDate)}</span><span class="remain">${c.remainMo >= 0 ? "剩 " + c.remainMo + " 個月" : "逾期 " + (-c.remainMo) + " 個月"}</span>`;
+    if (!next) next = `<span class="muted">—</span>`;
+    return `<tr>
+      <td class="item">${esc(p.name)}${p.note ? `<span class="note">${esc(p.note)}</span>` : ""}${p.flag ? `<span class="flag">⚑ ${esc(p.flag)}</span>` : ""}</td>
+      <td class="r"><span class="chip s-${c.status}"><span class="dot"></span>${LABEL[c.status]}</span></td>
+      <td class="r">${last}</td>
+      <td class="r">${intv}</td>
+      <td class="r">${next}</td>
+    </tr>`;
+  }).join("");
+
+  $("timeline").innerHTML = records.map((r) => `<div class="rec">
+    <div class="rec-when"><span class="rec-date">${esc(r.date.replace("-", "/"))}</span><span class="rec-km">${r.km != null ? fmtKm(r.km) + " km" : "里程未記錄"}</span></div>
+    <div><ul>${r.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>${r.note ? `<div class="rec-note">${esc(r.note)}</div>` : ""}</div>
+  </div>`).join("");
+})();
+</script>
 </body>
 </html>
