@@ -126,6 +126,7 @@ for (const rel of [
   "forscan/index.html",
   "forscan/service/index.html",
   "forscan/sync3/index.html",
+  "forscan/tracker/index.html",
   "flight/index.html",
   "dash/index.html",
   "coupon/index.html",
@@ -374,6 +375,18 @@ if (has("forscan/index.html")) {
   assertMatch("forscan/index.html", html, /逐車不同/, "forscan per-car disclaimer");
   assertMatch("forscan/index.html", html, /href="\/forscan\/service\/"/, "forscan links to service sub-page");
   assertMatch("forscan/index.html", html, /href="\/forscan\/sync3\/"/, "forscan links to sync3 sub-page");
+  assertMatch("forscan/index.html", html, /href="\/forscan\/tracker\/"/, "forscan links to tracker sub-page");
+}
+
+if (has("forscan/tracker/index.html")) {
+  const html = await read("forscan/tracker/index.html");
+  assertMatch("forscan/tracker/index.html", html, /<html lang="zh-Hant">/, "tracker document language");
+  assertMatch("forscan/tracker/index.html", html, /<title>保養追蹤｜Focus Mk3.5<\/title>/, "tracker title");
+  assertMatch("forscan/tracker/index.html", html, /rel="canonical" href="\/forscan\/tracker\/"/, "tracker canonical");
+  assertMatch("forscan/tracker/index.html", html, /name="theme-color" content="#101418"/, "tracker theme color");
+  assertMatch("forscan/tracker/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "tracker service worker registration");
+  // 靜態快照：狀態不隨日期更新。少了這句，頁面上的「已逾期」看起來像即時判定。
+  assertMatch("forscan/tracker/index.html", html, /不會隨今天的日期自動更新/, "tracker snapshot disclosure");
 }
 
 if (has("forscan/sync3/index.html")) {
@@ -797,7 +810,7 @@ if (has("bjkw_weather.html")) {
   assertMatch("bjkw_weather.html", html, /window\.location\.replace\(target\)/, "query-preserving redirect");
 }
 
-for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bait/index.html", "float/index.html", "sky/index.html", "bjkw_weather.html", "404.html"]) {
+for (const rel of ["index.html", "stocks/index.html", "market/index.html", "weather/index.html", "esp32/index.html", "forscan/index.html", "forscan/service/index.html", "forscan/sync3/index.html", "forscan/tracker/index.html", "flight/index.html", "dash/index.html", "coupon/index.html", "subtitle/index.html", "convert/index.html", "bait/index.html", "float/index.html", "sky/index.html", "bjkw_weather.html", "404.html"]) {
   if (!has(rel)) continue;
   const html = await read(rel);
   for (const match of html.matchAll(/\b(?:href|src|poster)=["'](\/[^"'#]+(?:#[^"']*)?)["']/g)) {

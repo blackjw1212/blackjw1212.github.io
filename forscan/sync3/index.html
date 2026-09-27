@@ -84,6 +84,10 @@
   .fig .lbl{position:absolute;left:0;right:0;bottom:0;z-index:2;background:rgba(16,20,24,.74);color:var(--ink);font-size:12px;font-weight:800;padding:5px 9px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
   .footnote{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.7}
   .footnote a{color:var(--cyan)}
+  .sectabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:18px;padding:4px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+  .sectabs a{display:flex;align-items:center;justify-content:center;min-height:44px;padding:4px 2px;border-radius:6px;word-break:keep-all;color:var(--soft);font-size:14px;font-weight:800;line-height:1.2;text-align:center;text-decoration:none}
+  .sectabs a:hover{color:var(--cyan)}
+  .sectabs a[aria-current="page"]{background:var(--panel);color:var(--ink);box-shadow:inset 0 -2px 0 var(--teal)}
   @media (max-width:760px){.manual{grid-template-columns:1fr}}
   @media (max-width:640px){
     .shell{width:min(100% - 24px,1120px);padding-top:18px}
@@ -118,8 +122,15 @@
         <div class="brand-title">Syn3Updater · SYNC 3</div>
       </div>
     </div>
-    <a class="back" href="/forscan/" aria-label="回到 FORScan 設定">&larr; 回 FORScan /forscan/</a>
+    <a class="back" href="/" aria-label="回到 BJKW Console">&larr; 回控制台 /</a>
   </header>
+
+  <nav class="sectabs" aria-label="Focus Mk3.5 分頁">
+    <a href="/forscan/">FORScan</a>
+    <a href="/forscan/sync3/" aria-current="page">SYNC 3</a>
+    <a href="/forscan/service/">保養 · 維修</a>
+    <a href="/forscan/tracker/">保養追蹤</a>
+  </nav>
 
   <section class="hero">
     <div class="eyebrow">SYN3UPDATER · CYANLABS</div>

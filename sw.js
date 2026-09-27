@@ -1,5 +1,5 @@
 /* BJKW Public Console — service worker */
-const VERSION = "bjkw-v15";
+const VERSION = "bjkw-v16";
 const CACHE = `bjkw-${VERSION}`;
 
 /* App shell：可導覽頁面 + 必要圖示。刻意保持輕量，不預載 512k 大圖。 */
@@ -11,6 +11,7 @@ const PRECACHE = [
   "/forscan/",
   "/forscan/service/",
   "/forscan/sync3/",
+  "/forscan/tracker/",
   "/flight/",
   "/dash/",
   // sw.js 建於 2026-06-21、market/ 建於 2026-07-27，之後一直沒補進來（git log -p 確認

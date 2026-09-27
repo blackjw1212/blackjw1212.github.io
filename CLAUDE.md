@@ -66,7 +66,7 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 
 - 頁面清單**跟著首頁的 `data-primary-entry` 走**，不重抄第四份（那份清單已經釘在
   靜態契約與 `frontend-smoke.test.js` 兩個地方）。首頁沒連出去的 `/market/`、
-  `/forscan/service/`、`/forscan/sync3/` 列在 `EXTRA_ROUTES`。
+  `/forscan/service/`、`/forscan/sync3/`、`/forscan/tracker/` 列在 `EXTRA_ROUTES`。
 - 載入後固定等 900ms 再量。`/weather/` 的 `.ext-link`（沿海預報 CTA）要等 fetch
   回來才渲染，太早量會漏。
 - **有分頁的頁面會逐一切過去量**（`/market/` 3 個、`/flight/` 6 個，選擇器
@@ -107,7 +107,8 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
   `input,select,textarea` 蓋回去——**media query 一律收在 `<style>` 最後**。
 - **句中的行內文字連結不要強拉**（WCAG 2.5.8 明文豁免，硬撐會把行高撐開）。
   **但單獨佔一行的 CTA 不算行內**——`/forscan/` 通往兩個子頁的那兩顆只有 19px，
-  它們是那頁的主要導覽，補了 class 撐到 44px；同頁 footer 句子裡那顆 14px 的維持原樣。
+  它們是那頁的主要導覽，補了 class 撐到 44px（2026-09-27 已改成頂端分頁列）；
+  同頁 footer 句子裡那顆 14px 的維持原樣。
 - **`<summary>` 只有沒掛 class 的會漏。** `/market/` 的 `.fold>summary` 本來就有
   `padding:12px 14px`（實測 46px），但另外四個裸的摺疊標題只有 18–21px。
   補 `padding` ＋ `min-height`，**不要改 `display`**——改成 flex 會讓預設的三角形箭頭消失。
@@ -129,7 +130,12 @@ Stop 閘門會**放行但什麼都沒驗**（實測過）。這個檔不可刪�
 
 規則寫在哪：`esp32`／`forscan`／`forscan/service`／`forscan/sync3`／`subtitle`／`convert`
 是**同一套骨架**，共用的那段在六頁裡逐字相同（方便 diff 比對），各自寫在自己的
-`@media (max-width:640px)` 裡；只有 `forscan` 在後面多一條 `.subpage-cta`。
+`@media (max-width:640px)` 裡。
+`forscan`／`forscan/sync3`／`forscan/service`／`forscan/tracker` 頂端共用一條四格分頁列
+`.sectabs`（2026-09-27 起取代舊的 `.subpage-cta` 子頁卡片），規則寫在 media 之外、
+四頁逐字相同，`min-height:44px` 是基準值不靠斷點；`word-break:keep-all` 讓
+「保養 · 維修」在 320px 只在空格處斷行。`/forscan/tracker/` 是靜態快照（無 JS），
+資料來源是使用者在 claude.ai 的保養追蹤 Artifact，更新時手動同步里程與「資料截至」。
 `market`／`stocks` 用 `@media (max-width:760px)`。
 **改 `/stocks/` 那個區塊要小心**：`.header-shell{flex-direction:column` 與
 `.row-del{min-height:44px}` 兩行被 `frontend-smoke.test.js` 逐字釘住，動到就紅。

@@ -74,6 +74,10 @@
   .chip.warn{border-color:rgba(217,166,76,.5);color:var(--amber)}
   .chip.bad{border-color:rgba(255,118,110,.5);color:var(--red)}
   .footnote{margin-top:24px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.7}
+  .sectabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:18px;padding:4px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+  .sectabs a{display:flex;align-items:center;justify-content:center;min-height:44px;padding:4px 2px;border-radius:6px;word-break:keep-all;color:var(--soft);font-size:14px;font-weight:800;line-height:1.2;text-align:center;text-decoration:none}
+  .sectabs a:hover{color:var(--cyan)}
+  .sectabs a[aria-current="page"]{background:var(--panel);color:var(--ink);box-shadow:inset 0 -2px 0 var(--teal)}
   @media (max-width:640px){
     .shell{width:min(100% - 24px,1120px);padding-top:18px}
     .hero{padding:16px}
@@ -95,8 +99,6 @@
     h1{font-size:clamp(22px,6vw,28px)}
     .cards{gap:10px}
     .card{padding:14px}
-    /* 通往兩個子頁的 CTA 是這頁的主要導覽，實測只有 19px 高 */
-    .subpage-cta{min-height:44px;display:inline-flex;align-items:center}
   }
 </style>
 </head>
@@ -113,12 +115,19 @@
     <a class="back" href="/" aria-label="回到 BJKW Console">&larr; 回控制台 /</a>
   </header>
 
+  <nav class="sectabs" aria-label="Focus Mk3.5 分頁">
+    <a href="/forscan/" aria-current="page">FORScan</a>
+    <a href="/forscan/sync3/">SYNC 3</a>
+    <a href="/forscan/service/">保養 · 維修</a>
+    <a href="/forscan/tracker/">保養追蹤</a>
+  </nav>
+
   <section class="hero">
     <div class="eyebrow">FORSCAN REFERENCE</div>
     <h1>Focus Mk3.5 FORScan 設定</h1>
     <p class="lead">整理 Ford Focus Mk3.5（2015-2018 小改款）以 FORScan 可由使用者調整的項目，涵蓋便利、儀表、影音與保養服務功能。每張卡片以標籤標出四個維度：模組、修改方式、驗證度與風險。本頁為靜態觀察參考，資料來自社群交叉比對，並非保證值；實際數值逐車不同，操作風險自負。</p>
     <div class="hero-meta" aria-label="內容概況">
-      <div class="metric"><strong>8</strong><span>主題分類</span></div>
+      <div class="metric"><strong>6</strong><span>主題分類</span></div>
       <div class="metric"><strong>25+</strong><span>可調項目</span></div>
       <div class="metric"><strong>Mk3.5 / 2015-2018</strong><span>適用車型</span></div>
     </div>
@@ -213,26 +222,6 @@
       <article class="card"><h3>PATS 防盜鑰匙編程</h3><code>PATS Programming</code><p>新增 / 清除鑰匙，需 Extended License。</p><div class="chips"><span class="chip mcu">PATS</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
       <article class="card"><h3>PowerShift 離合器適應學習</h3><code>TCM Adaptive Learning</code><p>DPS6 雙離合器變速箱頓挫 / 維修後重學：在 Service 區跑 TCM Adaptive Learning（含 Range / Shift Drum / Clutch 適應）。僅自排 PowerShift 車型。</p><div class="chips"><span class="chip mcu">TCM</span><span class="chip method">服務</span><span class="chip">多源確認</span><span class="chip warn">風險中</span></div></article>
       <article class="card"><h3>噴油嘴 IQA 編碼</h3><code>Injector IQA coding</code><p>更換噴油嘴後輸入各缸 IQA / 校正係數。僅柴油車。</p><div class="chips"><span class="chip mcu">PCM</span><span class="chip method">服務</span><span class="chip warn">僅柴油</span><span class="chip warn">風險中</span></div></article>
-    </div>
-  </section>
-
-  <section class="group" aria-label="保養維修專頁">
-    <div class="group-head"><h2>保養 · 維修圖解</h2><span>已整理成獨立子分頁</span></div>
-    <div class="cards">
-      <article class="card wide"><h3>🔧 保養套餐 · 料號 · 扭力 · 圖示順序維修</h3><code>/forscan/service/</code><p>本車（1.5 EcoBoost · 6F35）的保養耗材料號、原廠扭力值（洩油 27 Nm / 機油濾芯 14 Nm / 火星塞 15 Nm / 輪胎 133 Nm），以及機油 / 變速箱油 / 空氣濾芯 / 冷氣濾網的圖示順序維修指引，已整理成獨立子分頁，方便對照施作。</p>
-        <div class="chips"><span class="chip">機油 · 變速箱 · 空濾 · 冷氣濾</span><span class="chip method">圖示步驟</span><span class="chip ok">原廠扭力</span></div>
-        <p style="margin-top:12px"><a class="subpage-cta" href="/forscan/service/" aria-label="開啟保養維修圖解專頁 /forscan/service/" style="color:var(--cyan);font-weight:800;text-decoration:none">開啟保養維修圖解專頁 /forscan/service/ &rarr;</a></p>
-      </article>
-    </div>
-  </section>
-
-  <section class="group" aria-label="SYNC 3 更新專頁">
-    <div class="group-head"><h2>SYNC 3 更新（Syn3Updater）</h2><span>已整理成獨立子分頁</span></div>
-    <div class="cards">
-      <article class="card wide"><h3>📻 Syn3Updater · SYNC 3 更新指引</h3><code>/forscan/sync3/</code><p>用 CyanLabs Syn3Updater 把 SYNC 3 更新到 3.2 / 3.3 / 3.4 的需求、三種安裝模式（AutoInstall / Reformat / Downgrade）、MY20 判定與圖示順序步驟。<strong>注意：升級後無法退回 3.0</strong>，屬不可逆操作。</p>
-        <div class="chips"><span class="chip">需求 · 安裝模式</span><span class="chip method">圖示步驟</span><span class="chip bad">不可逆風險</span></div>
-        <p style="margin-top:12px"><a class="subpage-cta" href="/forscan/sync3/" aria-label="開啟 SYNC 3 更新指引專頁 /forscan/sync3/" style="color:var(--cyan);font-weight:800;text-decoration:none">開啟 SYNC 3 更新指引專頁 /forscan/sync3/ &rarr;</a></p>
-      </article>
     </div>
   </section>
 

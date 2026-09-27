@@ -117,7 +117,7 @@ const TAB_SETTLE_MS = 1200;
 /* 首頁沒有連出去、但仍要量的路徑。首頁那九個入口是從 data-primary-entry 自動抓的，
    不在這裡重抄一份——那份清單已經釘在 check-static-site.mjs 與 frontend-smoke.test.js
    兩個地方了，這裡再抄第三份只會分叉。 */
-const EXTRA_ROUTES = ["/", "/market/", "/forscan/service/", "/forscan/sync3/"];
+const EXTRA_ROUTES = ["/", "/market/", "/forscan/service/", "/forscan/sync3/", "/forscan/tracker/"];
 
 /* ── 三條刻意的豁免 ────────────────────────────────────────────────
    1. 勾選框／單選鈕：命中區是包住它的 <label>（點文字也會勾），量 label 不量方塊。
