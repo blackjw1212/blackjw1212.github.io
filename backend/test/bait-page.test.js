@@ -1206,5 +1206,15 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 3.33 g");
   assert.equal(text("黑鯛", "KRL"), "A 撒粉料 25／50 g；練餌 25／500 g");
   assert.equal(h.stockPerKgText(undefined), "—");
-  assert.match(html, /stackTable\(\["名稱", "怎麼加", "每公斤（乾粉）"\]/);
+});
+
+test("原料表的味道欄：每樣原料都有，而且寫出處", async () => {
+  const { app, html } = await loadPage();
+  for (const plan of plain(app.helpers.ADDITIVES)) {
+    for (const x of plan.stocks) {
+      assert.ok(x.smell && x.smell.length > 1, plan.species + " " + x.id + " 沒有味道");
+      assert.match(x.smell, /PubChem|品項庫/, plan.species + " " + x.id + " 的味道沒寫出處");
+    }
+  }
+  assert.match(html, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）"\]/);
 });
