@@ -1194,3 +1194,17 @@ test("福壽魚第一輪：T1 空白、T14 三樣各 1 g，換算與紀錄欄位
   assert.doesNotMatch(tilapia.groups.find((x) => x.id === "T14").purpose, /最佳(?!濃度)|已證實/);
   assert.match(tilapia.stages.find((st) => st.id === "bite").metric, /CPUE/);
 });
+
+test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async () => {
+  const { app, html } = await loadPage();
+  const h = app.helpers;
+  const plans = plain(h.ADDITIVES);
+  const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
+  assert.equal(text("福壽魚", "CIT"), "主餌乾粉 3.33 g");
+  assert.equal(text("福壽魚", "CYS"), "底餌 0.67 g");
+  assert.equal(text("福壽魚", "KRL"), "底餌 25 g");
+  assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 3.33 g");
+  assert.equal(text("黑鯛", "KRL"), "A 撒粉料 25／50 g；練餌 25／500 g");
+  assert.equal(h.stockPerKgText(undefined), "—");
+  assert.match(html, /stackTable\(\["名稱", "怎麼加", "每公斤（乾粉）"\]/);
+});

@@ -1012,6 +1012,8 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     ADDITIVES: ADDITIVES,
     GRADE_LABEL: GRADE_LABEL,
     doseFor: doseFor,
+    stockPerKg: stockPerKg,
+    stockPerKgText: stockPerKgText,
     sourceSummary: sourceSummary
   };
 
@@ -1920,6 +1922,39 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     }).join("、");
   }
 
+  /* 原料表的「每公斤（乾粉）」由下面的實驗組算出來，不另外寫一份：組的加量改了，這欄自動跟著變。
+     同一樣原料在不同段（底餌／主餌、A 撒／練餌）各列一次，同一段有幾種量就全列。 */
+  function stockPerKg(plan) {
+    var out = {};
+    var stages = plan.stages || [];
+    for (var i = 0; i < plan.groups.length; i += 1) {
+      var group = plan.groups[i];
+      var stage = null;
+      for (var s = 0; s < stages.length; s += 1) if (stages[s].id === group.stage) stage = stages[s];
+      var base = (stage && stage.baseGrams) || 200;
+      var label = (stage && stage.baseLabel) || "基礎餌";
+      for (var d = 0; d < group.doses.length; d += 1) {
+        var id = group.doses[d][0];
+        var per = doseFor(stockOf(plan, id), group.doses[d][1], base).activeGPerKg;
+        if (per === null) continue;
+        if (!out[id]) out[id] = [];
+        var row = null;
+        for (var r = 0; r < out[id].length; r += 1) if (out[id][r].label === label) row = out[id][r];
+        if (!row) { row = { label: label, values: [] }; out[id].push(row); }
+        if (row.values.indexOf(per) < 0) row.values.push(per);
+      }
+    }
+    for (var key in out) for (var k = 0; k < out[key].length; k += 1) out[key][k].values.sort(function (a, b) { return a - b; });
+    return out;
+  }
+
+  function stockPerKgText(rows) {
+    if (!rows || !rows.length) return "—";
+    return rows.map(function (row) {
+      return row.label + " " + row.values.map(function (v) { return trimNum(v, 2); }).join("／") + " g";
+    }).join("；");
+  }
+
   /* 手機上多欄表會被擠成一格一個字直排，所以每一格帶欄名，窄螢幕改排成卡片。
      cells 已經是 HTML（呼叫端負責 esc）。 */
   function stackTable(headers, rows) {
@@ -1953,8 +1988,9 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
       for (var w = 0; w < waters.length; w += 1) html += '<span class="tag">' + esc(waters[w]) + "</span>";
       html += '</div><p class="fish-diet">' + esc(plan.base) + "</p>";
 
-      html += '<div class="add-block"><h4>原料</h4>' + stackTable(["名稱", "怎麼加"], plan.stocks.map(function (stock) {
-        return [esc(stock.name), esc(stock.made) + '<div class="stock-note">' + esc(stock.note) + "</div>"];
+      var perKg = stockPerKg(plan);
+      html += '<div class="add-block"><h4>原料</h4>' + stackTable(["名稱", "怎麼加", "每公斤（乾粉）"], plan.stocks.map(function (stock) {
+        return [esc(stock.name), esc(stock.made) + '<div class="stock-note">' + esc(stock.note) + "</div>", esc(stockPerKgText(perKg[stock.id]))];
       })) + "</div>";
 
       /* 加法緊跟在原料表後面：先知道怎麼加，才用得到下面的實驗組。 */
