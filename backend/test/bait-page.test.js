@@ -101,19 +101,19 @@ test("品項分類：餌料／添加劑，品項庫分兩區", async () => {
   assert.equal(plain(h.sanitizeItem({ name: "x" })).kind, "bait", "沒填是餌料");
   assert.equal(plain(h.sanitizeItem({ name: "x", kind: "additive" })).kind, "additive");
   assert.equal(plain(h.sanitizeItem({ name: "x", kind: "ADDITIVE" })).kind, "bait", "對不上就退回預設");
-  // 預設資料裡的添加劑是若亞方舟那四樣，加上黑格胺基酸液用的甘胺酸與 L-丙胺酸
+  // 預設資料裡的添加劑是若亞方舟那四樣、黑格用的甘胺酸與 L-丙胺酸，加上 T16 的味王 味精
   const seed = plain(h.seed());
   const additives = seed.items.filter((i) => plain(h.sanitizeItem(i)).kind === "additive").map((i) => i.id).sort();
-  assert.equal(additives.join(","), "item-alanine-noah,item-citric-noah,item-cysteine-noah,item-glycine-noah,item-sorbitol-noah,item-tryptophan-noah");
+  assert.equal(additives.join(","), "item-alanine-noah,item-citric-noah,item-cysteine-noah,item-glycine-noah,item-msg-vewong,item-sorbitol-noah,item-tryptophan-noah");
   // 舊裝置：那四樣是在分類欄位出現前補進去的，讀回來是餌料；開一次要更正成添加劑
   const FIRST_FOUR = ["item-citric-noah", "item-cysteine-noah", "item-sorbitol-noah", "item-tryptophan-noah"];
   const old = plain(h.sanitizeState(seed));
   for (const i of old.items) if (FIRST_FOUR.includes(i.id)) i.kind = "bait";
   old.appliedFixes = old.appliedFixes.filter((id) => !id.endsWith(":kind:1"));
   h.mergeSeed(old, seed);
-  assert.equal(old.items.filter((i) => i.kind === "additive").length, 6);
+  assert.equal(old.items.filter((i) => i.kind === "additive").length, 7);
   // 分類要撐過存檔再讀回
-  assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 6);
+  assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 7);
   // 表單不給選分類（使用者要求移除）；品項庫用切換鈕一次顯示一類（左右並排太擠，使用者退回）
   assert.doesNotMatch(html, /id="itemKind"|name="itemKind"/);
   assert.match(html, /<div id="itemRows"><\/div>/);
@@ -984,7 +984,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // 主酸液不得夾帶香精——夾帶的話 T2、T6 又會變回「酸＋香」，分不開
   assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
   // 只放使用者買了、而且有研究支持的原料（2026-09-27）：鳳梨精、糖精鈉、蘋果酸、香精、奶甜液、原報告果酸液不得回來
-  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "KRL", "SOR", "TRP"]);
+  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "KRL", "MSG", "SOR", "TRP"]);
 
   // 實測紀錄已依使用者要求移除（2026-09-25）
   assert.doesNotMatch(html, /trialHeading|sanitizeTrial|state\.trials/);
@@ -1217,4 +1217,26 @@ test("原料表的味道欄：每樣原料都有，而且寫出處", async () =>
     }
   }
   assert.match(html, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）"\]/);
+});
+
+test("味精：品項庫有味王 味精，添加劑頁 T16 單獨跟 T1 比、原料表自動算出每公斤", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const item = plain(h.seed()).items.find((i) => i.id === "item-msg-vewong");
+  assert.ok(item, "品項庫要有味王 味精");
+  assert.equal(item.name, "味王 味精");
+  assert.equal(item.packWeightG, 500);
+  assert.equal(item.unitPrice, 58);
+  assert.equal(item.ingredients, "L-麩酸鈉");
+  assert.equal(plain(h.sanitizeItem(item)).kind, "additive");
+  const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
+  const t16 = tilapia.groups.find((g) => g.id === "T16");
+  assert.equal(t16.stage, "bite");
+  assert.deepEqual(t16.doses, [["MSG", 1]]);
+  assert.deepEqual(t16.compare, ["T1"], "單獨跟空白比，不混進 T14");
+  assert.ok(!tilapia.groups.find((g) => g.id === "T14").doses.some(([id]) => id === "MSG"));
+  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).MSG), "主餌乾粉 3.33 g");
+  const ev = tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多");
+  assert.deepEqual(ev.sources, ["X2", "X3"]);
+  assert.ok(tilapia.sources.some((x) => x.id === "X2" && x.seenVia === "opened"));
 });

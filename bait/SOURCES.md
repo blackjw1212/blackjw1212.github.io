@@ -138,7 +138,7 @@ davidluo23《福壽釣史》DNS 失敗。
 | 編號 | 來源 | 網址 | 讀取方式 | 備註 |
 |---|---|---|---|---|
 | X1 | Levina、Mikhailova、Kasumyan 2021《Taste preferences and feeding behaviour in the facultative herbivorous fish, Nile tilapia Oreochromis niloticus》J Fish Biol 98(5):1385–1400 | https://pubmed.ncbi.nlm.nih.gov/33448377/ | 開過 | 讀的是 PubMed 摘要（E-utilities）；Wiley 全文 403。含檸檬酸的顆粒 >85% 被吃；測試濃度 0.0001–0.1 M；沒測蘋果酸；糖類適口性與人的甜度不相關。摘要的 0.01 M／0.001 M 是 L-半胱胺酸／L-正纈胺酸失效的濃度（2026-09-24 重抓摘要原文確認），不是檸檬酸閾值 |
-| X2 | Johnsen、Adams 1986《Chemical feeding stimulants for the herbivorous fish, Tilapia zillii》 | https://www.sciencedirect.com/science/article/pii/0300962986900964 | 開過 | 2026-09-25 重開，以 DOI 經 Semantic Scholar 讀到摘要：只講胺基酸（麩胺酸、天門冬胺酸、絲胺酸、離胺酸、丙胺酸）促進攝食，沒有測酸。先前把 X3 的內容記在這裡，頁面已不引用 X2 |
+| X2 | Johnsen、Adams 1986《Chemical feeding stimulants for the herbivorous fish, Tilapia zillii》 | https://www.sciencedirect.com/science/article/pii/0300962986900964 | 開過 | 2026-09-25 重開，以 DOI 經 Semantic Scholar 讀到摘要：只講胺基酸（麩胺酸、天門冬胺酸、絲胺酸、離胺酸、丙胺酸）促進攝食，沒有測酸。先前把 X3 的內容記在這裡。2026-10-04 起頁面重新引用 X2：麩胺酸（T16 味精）的依據 |
 | X3 | Adams、Johnsen《Chemical enhancement of feeding for the herbivorous fish Tilapia zillii》 | https://www.semanticscholar.org/paper/a69aa8639326fe813d7e3564626a5f17214d9193 | 開過 | 2026-09-25 重開，DOI 10.1016/0044-8486(88)90150-0 摘要：麩胺酸、天門冬胺酸、離胺酸、檸檬酸、蘋果酸有增強效果，丙胺酸、絲胺酸無效；酸性越強效果越大。「純蘋果酸無效、檸檬酸閾值約 0.01 M」那句仍出處不明，未採 |
 | X4 | Baek、Cho 2024《Effects of Dietary Inclusion of a Crude Protein Source Exhibiting the Strongest Attractiveness to Red Sea Bream (Pagrus major)》Animals 14(5):771 | https://pmc.ncbi.nlm.nih.gov/articles/PMC10931256/ | 開過 | 該文**引述既有研究**：真鯛對丙胺酸、甘胺酸、精胺酸、絲胺酸味覺反應強（不是該文自己的味覺試驗）；甜菜鹼只出現在背景文獻的誘食劑類別；混合比單一強；Kohbara：合成混合物不如竹莢魚萃取；18 種蛋白原料中竹莢魚粉吸引力最強 |
 | X5 | 幼黑鯛甜菜鹼與脂肪肝（Acanthopagrus schlegelii） | https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8261298/ | 開過 | 講肝臟代謝，不是誘食（2026-09-25 重開讀到 PMC 全文） |
@@ -151,7 +151,7 @@ davidluo23《福壽釣史》DNS 失敗。
 | X12 | 誠誠《一年四季的味道偏向……福壽魚》；釣魚密技《秋釣福壽的疑惑》 | 同 S4、S5 | 開過 | 鳳梨精：誠誠春季「酸類香精」；釣魚密技那篇是讀者留言說三色餌加鳳梨精 |
 | X13 | 開南食品 柏泰鳳梨香料 產品頁 | https://www.kainan-food.com.tw/cht/productm/pageinfo-3745.html | 開過 | 成分含 D-山梨醇液 70%、無水檸檬酸。注意這是「香料」（有色），不是「鳳梨精」；鳳梨精的成分見 X15。2026-09-27 起頁面不引用：鳳梨精組已移除（使用者沒買） |
 | X15 | 柏泰鳳梨精（ESS003）與鳳梨香精（FLA500）標籤照片 | — | 使用者提供 | 2026-09-25。兩罐標籤成分都只有「香料、丙二醇」，不含 D-山梨醇與檸檬酸；皆為 1 kg、食品添加物。產品編號與登錄碼不同。店家回覆（使用者轉述）：鳳梨香精「增加鳳梨，偏香氣表現」、鳳梨精「增加鳳梨風味，可能較偏濃縮風味」；鳳梨香精價格約鳳梨精兩倍。G4 用鳳梨精。2026-09-27 起頁面不引用：鳳梨精組已移除（使用者沒買） |
-| X16 | PubChem 物性資料（Odor／Taste／Physical Description） | https://pubchem.ncbi.nlm.nih.gov/ （CID 311 檸檬酸、5780 D-山梨醇、6305 L-色胺酸、60960 L-半胱胺酸鹽酸鹽、5862 L-半胱胺酸、750 甘胺酸、5950 L-丙胺酸） | 開過 | 2026-10-03 以 PUG View 取得。添加劑頁原料表的「味道」欄出自這裡；半胱胺酸鹽酸鹽是 Alfa Aesar MSDS 的轉錄「irritating odor、hygroscopic」，半胱胺酸是「sulfurous aroma」 |
+| X16 | PubChem 物性資料（Odor／Taste／Physical Description） | https://pubchem.ncbi.nlm.nih.gov/ （CID 311 檸檬酸、5780 D-山梨醇、6305 L-色胺酸、60960 L-半胱胺酸鹽酸鹽、5862 L-半胱胺酸、750 甘胺酸、5950 L-丙胺酸、23689119 味精） | 開過 | 2026-10-03 以 PUG View 取得。添加劑頁原料表的「味道」欄出自這裡；半胱胺酸鹽酸鹽是 Alfa Aesar MSDS 的轉錄「irritating odor、hygroscopic」，半胱胺酸是「sulfurous aroma」 |
 | X14 | 徐小明《怎麼釣台灣鯛、大吳郭魚、福壽魚》 | 同 S1 | 開過 | 雞肝蒸熟打漿混蝦漿；結構「肝漿蝦漿 1：腥味商品餌 2：赤尾青 1＋拉絲粉」。雞肝漿的依據；使用者不自己蒸雞肝，頁面只留作備註（原 T13 已移除） |
 
 這次沒查到的：Yacoob 2001（Nile tilapia 外部味蕾對胺基酸，Wiley／Europe PMC 都沒有摘要）；吳郭魚對任何烘焙香精氣味的研究（PubMed 上的吳郭魚嗅覺研究都是費洛蒙與社會訊號）。
