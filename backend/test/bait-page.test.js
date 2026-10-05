@@ -1230,7 +1230,7 @@ test("味精：品項庫有味王 味精，添加劑頁 T16 單獨跟 T1 比、�
   assert.ok(item, "品項庫要有味王 味精");
   assert.equal(item.name, "味王 味精");
   assert.equal(item.packWeightG, 500);
-  assert.equal(item.unitPrice, 58);
+  assert.equal(item.unitPrice, 62, "實付價（使用者 2026-10-05 更正，原本記的是 PChome 標價 58）");
   assert.equal(item.ingredients, "L-麩酸鈉");
   assert.equal(plain(h.sanitizeItem(item)).kind, "additive");
   const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
