@@ -1091,6 +1091,10 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.match(itemsById["item-flour-bread"].notes, /使用者提供/);
   // 100 g／500 g 裝的包裝標示不是純品（只有 1 kg 裝是 100%），成分照標示抄
   assert.equal(itemsById["item-alanine-noah"].ingredients, "L-丙胺酸 99.9%、強化長鏈菊苣纖維 0.1%");
+  // 2026-10-03 實際訂的是 500 g $395，不是先前查價記的 100 g $137；重量與價格要跟訂單一致
+  assert.equal(itemsById["item-alanine-noah"].packWeightG, 500);
+  assert.equal(itemsById["item-alanine-noah"].unitPrice, 395);
+  assert.doesNotMatch(itemsById["item-alanine-noah"].notes + itemsById["item-glycine-noah"].notes, /未訂購/);
 });
 
 // 2026-09-25 曾把這兩份改成 150 g／1.5 kg 並上線，使用者要求改回原本的整包版。
