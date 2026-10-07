@@ -1291,3 +1291,15 @@ test("開餌頁的備註框有高度上限，超過在框內捲動", async () =>
   // 紀錄頁的備註同一個上限；overflow 不可以是 hidden，否則超過上限的部分捲不到
   assert.match(html, /\.log-body textarea\{max-height:10em;overflow-y:auto;resize:none\}/);
 });
+
+test("添加劑頁第二輪去重複：每公斤只在原料表、加量只在實驗組表、理由只在證據等級", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  for (const plan of plans) {
+    for (const x of plan.stocks) assert.doesNotMatch(x.note, /每公斤 0\.67|每公斤 0\.33|每公斤 3\.3|每公斤 500|取 37\.5|取 7\.5|取 75/, plan.species + " " + x.id + " 的說明重複了每公斤欄或實驗組的加量");
+    for (const g of plan.groups) assert.doesNotMatch(g.purpose, /每公斤/, g.id + " 的「看什麼」重複了每公斤欄");
+  }
+  const tilapia = plans.find((p) => p.species === "福壽魚");
+  assert.doesNotMatch(tilapia.stages.find((st) => st.id === "attract").base, /循紅蟲的氣味/, "紅蟲的理由在證據等級");
+  assert.doesNotMatch(tilapia.stages.find((st) => st.id === "bite").base, /徐小明/, "雞肝的理由在證據等級");
+});
