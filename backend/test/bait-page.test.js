@@ -376,7 +376,8 @@ test("紀錄的組成在寬螢幕要能一列放多項，備註要完整顯示",
   // 開餌那頁的備註也一樣，不能只有紀錄那邊會撐
   assert.match(html, /\$\("recipeNotes"\)\.addEventListener\("input"/, "開餌的備註要跟著輸入撐高");
   assert.match(html, /autoGrow\(\$\("recipeNotes"\)\)/, "開餌的備註在載入既有內容時就要撐開");
-  assert.match(html, /\.log-body textarea\{overflow:hidden/, "撐高之後不該再出現捲軸");
+  // 撐高到上限為止；超過上限在框內捲（2026-10-07，見「備註框有高度上限」那條）
+  assert.match(html, /\.log-body textarea\{max-height:10em;overflow-y:auto/, "超過上限的部分要捲得到");
   assert.match(html, /row-spec/, "組成列要顯示整包重量與價格");
   assert.match(html, /每 100g \$/, "組成列要顯示每 100 克單價");
   // 總重、總價、每 100g 三個數字併在卡片右上與標題同列，不另起一行
@@ -1287,4 +1288,6 @@ test("品項庫：新增表單不收起（使用者要求，2026-10-07）、沒�
 test("開餌頁的備註框有高度上限，超過在框內捲動", async () => {
   const { html } = await loadPage();
   assert.match(html, /#recipeNotes\{max-height:10em;overflow-y:auto\}/);
+  // 紀錄頁的備註同一個上限；overflow 不可以是 hidden，否則超過上限的部分捲不到
+  assert.match(html, /\.log-body textarea\{max-height:10em;overflow-y:auto;resize:none\}/);
 });

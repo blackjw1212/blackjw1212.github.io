@@ -209,8 +209,9 @@
     .sheet{width:min(480px,calc(100% - 32px));border-radius:12px}
   }
   /* 配方備註同理。textarea 預設固定高度會把長段落截在框裡（要捲才看得到），
-     所以渲染後把高度撐到 scrollHeight。 */
-  .log-body textarea{overflow:hidden;resize:none}
+     所以渲染後把高度撐到 scrollHeight；上限同開餌頁約 6 行，超過在框內捲
+     （長備註曾把一張卡撐到 600 多 px）。 */
+  .log-body textarea{max-height:10em;overflow-y:auto;resize:none}
   .log-body{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
   /* 三個數字擠在標題右邊。窄螢幕上整組會換到下一行，但三個彼此不拆開
      （align-items:baseline 讓大小不同的字對齊底線，不會上下跳）。 */
