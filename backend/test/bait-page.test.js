@@ -1303,3 +1303,16 @@ test("添加劑頁第二輪去重複：每公斤只在原料表、加量只在�
   assert.doesNotMatch(tilapia.stages.find((st) => st.id === "attract").base, /循紅蟲的氣味/, "紅蟲的理由在證據等級");
   assert.doesNotMatch(tilapia.stages.find((st) => st.id === "bite").base, /徐小明/, "雞肝的理由在證據等級");
 });
+
+test("魚種對照第二輪去重複：季節列講過的格子不重講，A 撒怎麼調留在添加劑頁", async () => {
+  const { app } = await loadPage();
+  const ref = plain(app.helpers.FISH_REF);
+  const sp = (name) => ref.find((f) => f.species === name);
+  const cell = (name, g) => sp(name).baits.find((b) => b.group === g);
+  assert.doesNotMatch(cell("福壽魚", "果酸").note, /用在春、秋/);
+  assert.doesNotMatch(cell("黑鯛", "高比重基底").note, /低霧化|米糠/);
+  assert.doesNotMatch(sp("黑鯛").seasons.winter.text, /高比重/);
+  assert.doesNotMatch(sp("臭肚").seasons.winter.text, /三大主角/, "藻餌格已經講");
+  assert.match(cell("臭肚", "藻餌").note, /三大主角/);
+  assert.doesNotMatch(sp("臭肚").seasons.spring.text, /晴天/, "食性段已經講");
+});
