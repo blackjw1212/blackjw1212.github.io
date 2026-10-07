@@ -1244,3 +1244,18 @@ test("味精：品項庫有味王 味精，添加劑頁 T16 單獨跟 T1 比、�
   assert.deepEqual(ev.sources, ["X2", "X3"]);
   assert.ok(tilapia.sources.some((x) => x.id === "X2" && x.seenVia === "opened"));
 });
+
+test("添加劑頁的重點表：每樣原料都要出現、只引用存在的原料", async () => {
+  const { app, html } = await loadPage();
+  for (const plan of plain(app.helpers.ADDITIVES)) {
+    assert.ok(Array.isArray(plan.summary) && plan.summary.length, plan.species + " 沒有重點表");
+    const ids = plan.stocks.map((x) => x.id).sort();
+    const used = [...new Set(plan.summary.flatMap((r) => r.stocks))].sort();
+    assert.deepEqual(used, ids, plan.species + " 的重點表跟原料表對不上（新增原料要記得放進重點表）");
+    for (const r of plan.summary) assert.ok(r.use && r.evidence, plan.species + " 重點表有空欄");
+  }
+  const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
+  assert.deepEqual(tilapia.summary[0].stocks, ["CIT", "SOR", "TRP"], "主餌第一順位");
+  assert.match(html, /stackTable\(\["用在哪", "原料", "證據"\]/);
+  assert.match(html, /不是已經證明有效的配方/);
+});
