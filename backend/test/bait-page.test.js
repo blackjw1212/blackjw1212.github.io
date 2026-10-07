@@ -1071,9 +1071,8 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.equal(cost.totalGrams, 3000);
   assert.ok(Math.abs(cost.total - 121.0125) < 1e-9, "A 撒總價得到 " + cost.total);
   assert.deepEqual(esa.items[0], { itemId: "item-rice-bran", amount: 1500, unit: "克" }, "米糠 1.5 kg 打底（使用者定的）");
-  // 品項備註裡寫的每次用量要跟配方一致（玉米碎曾停在舊的 300 g）
-  const corn = esa.items.find((row) => row.itemId === "item-corn-cracked");
-  assert.match(itemsById["item-corn-cracked"].notes, new RegExp("每次 " + corn.amount + " g"));
+  // 品項備註不寫每次用量（玉米碎曾停在舊的 300 g）：用量只在配方裡，就不會跟配方分叉（2026-10-07）
+  assert.doesNotMatch(itemsById["item-corn-cracked"].notes, /每次 \d+ g/);
   assert.deepEqual(cost.unknown, []);
   assert.ok(!esa.items.some((row) => row.itemId === "item-krill-block"), "3 kg 裡不含南極蝦磚");
   // 全乾粉：高筋麵粉 110 g $7.92 ＋ 老百王南極蝦粉末整包 150 g $34 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
@@ -1315,4 +1314,14 @@ test("魚種對照第二輪去重複：季節列講過的格子不重講，A 撒
   assert.doesNotMatch(sp("臭肚").seasons.winter.text, /三大主角/, "藻餌格已經講");
   assert.match(cell("臭肚", "藻餌").note, /三大主角/);
   assert.doesNotMatch(sp("臭肚").seasons.spring.text, /晴天/, "食性段已經講");
+});
+
+test("品項庫第二輪去重複：添加劑品項不重抄添加劑頁的加法與依據、備註不重講重量", async () => {
+  const { app } = await loadPage();
+  const items = plain(app.helpers.seed()).items;
+  for (const item of items.filter((i) => i.kind === "additive")) {
+    assert.doesNotMatch(item.notes, /直接秤|依據：|攪溶/, item.name + " 的加法與依據在添加劑頁");
+    assert.match(item.notes, /見添加劑頁/, item.name + " 要指得到添加劑頁");
+  }
+  for (const item of items) assert.doesNotMatch(item.notes, /\d ?(公斤|kg) ?裝/, item.name + " 的重量卡片上已經有");
 });
