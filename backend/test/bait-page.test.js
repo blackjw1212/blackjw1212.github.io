@@ -1262,3 +1262,17 @@ test("添加劑頁的重點表：每樣原料都要出現、只引用存在的�
   assert.match(html, /stackTable\(\["用在哪", "原料", "證據"\]/);
   assert.match(html, /不是已經證明有效的配方/);
 });
+
+test("魚種對照去重複：表格兩欄、黑鯛的配比留在添加劑頁、來源清單只留引用得到的", async () => {
+  const { app, html } = await loadPage();
+  const ref = plain(app.helpers.FISH_REF);
+  const cell = (sp, g) => ref.find((f) => f.species === sp).baits.find((b) => b.group === g);
+  assert.doesNotMatch(cell("黑鯛", "南極蝦").note, /1\.5 kg|3～4 小時/, "A 撒配比在添加劑頁");
+  assert.doesNotMatch(cell("黑鯛", "練餌").note, /700～800 g|蛹粉/, "練餌配比在添加劑頁");
+  assert.doesNotMatch(cell("福壽魚", "香甜添加").note, /冬季/, "季節的事寫在季節列");
+  for (const f of ref) {
+    const cited = new Set([...f.baits.flatMap((b) => b.sources), ...Object.values(f.seasons).flatMap((v) => v.sources || [])]);
+    for (const x of f.sources) assert.ok(cited.has(x.id), f.species + " 的來源 " + x.id + " 沒被任何一格引用");
+  }
+  assert.match(html, /stackTable\(\["餌料類別", "說明"\]/);
+});
