@@ -921,7 +921,8 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
       for (const id of e.sources) assert.ok(srcs.has(id), e.claim + " 引用了不存在的來源 " + id);
     }
     for (const x of plan.sources) assert.ok(["opened", "search-summary", "user-supplied"].includes(x.seenVia));
-    for (const sop of plan.sop) assert.ok(stocks.has(sop.stock));
+    // 加法摺疊區與「怎麼加」欄重複，已拿掉（2026-10-07）
+    assert.equal(plan.sop, undefined);
   }
   assert.doesNotMatch(JSON.stringify(plans), /http/, "網址不進頁面，放 bait/SOURCES.md");
 
@@ -1000,7 +1001,9 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.match(renderAdd, /evidenceSummary\(plan\.evidence\)/);
   assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
   // 實驗組主表只留四欄，變數與比較對象收成小字；同一魚種的收合區塊同名（同時只開一個）
-  assert.match(renderAdd, /stackTable\(\["組", "加什麼", "每公斤", "看什麼"\]/);
+  // 每公斤只在原料表出現一次，實驗組表不重複（2026-10-07）
+  assert.match(renderAdd, /stackTable\(\["組", "加什麼", "看什麼"\]/);
+  assert.doesNotMatch(renderAdd, /加法（|activeText/);
   assert.match(renderAdd, /setAttribute\("name", "add-fold-" \+ c\)/);
   // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值
   assert.doesNotMatch(JSON.stringify(plans), /檸檬酸[^。]*閾值約/);
