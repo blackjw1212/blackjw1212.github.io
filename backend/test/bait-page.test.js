@@ -1277,11 +1277,14 @@ test("魚種對照去重複：表格兩欄、黑鯛的配比留在添加劑頁�
   assert.match(html, /stackTable\(\["餌料類別", "說明"\]/);
 });
 
-test("品項庫精簡：新增表單預設收起、沒有照片不放灰框", async () => {
+test("品項庫：新增表單不收起（使用者要求，2026-10-07）、沒有照片不放灰框", async () => {
   const { html } = await loadPage();
-  assert.match(html, /<details class="form-fold" id="itemFormFold">\s*<summary><h2 id="itemFormHeading">/, "表單預設收起（沒有 open）");
-  // 存檔訊息放在收合區外面，表單收起後仍看得到
-  assert.match(html, /<\/details>\s*<p class="state" id="itemState">/);
-  assert.match(html, /\$\("itemFormFold"\)\.open = true;/, "按編輯要打開表單");
+  assert.doesNotMatch(html, /itemFormFold|form-fold/);
+  assert.match(html, /<h2 id="itemFormHeading">新增品項<\/h2>/);
   assert.match(html, /item\.imageUrl \? sheetShot\(item, "shot"\) : ""/);
+});
+
+test("開餌頁的備註框有高度上限，超過在框內捲動", async () => {
+  const { html } = await loadPage();
+  assert.match(html, /#recipeNotes\{max-height:10em;overflow-y:auto\}/);
 });

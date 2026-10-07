@@ -60,6 +60,8 @@
   .field span{display:block;font-size:12px;color:var(--faint);margin-bottom:5px}
   .field select,.field input[type=number],.field input[type=text],.field input[type=date],.field textarea,.field input[type=file]{width:100%;min-height:40px;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink);font:inherit;padding:8px 10px}
   .field textarea{min-height:70px;resize:vertical}
+  /* 開餌頁的備註會隨內容長高；載回長備註的配方時撐到 300 多 px，上限約 6 行、超過在框內捲。 */
+  #recipeNotes{max-height:10em;overflow-y:auto}
   .field select:focus-visible,.field input:focus-visible,.field textarea:focus-visible,.check input:focus-visible{outline:3px solid rgba(103,199,229,.75);outline-offset:2px}
   .duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
   .check{display:flex;align-items:flex-start;gap:9px;min-height:32px;font-size:13px;color:var(--soft);cursor:pointer;padding:3px 0}
@@ -114,10 +116,6 @@
   .item-card .body{padding:10px 11px;display:flex;flex-direction:column;gap:6px;flex:1}
   .item-card .nm{font-weight:700;font-size:13px;line-height:1.35}
   .item-card .nm[data-sheet]{cursor:pointer}
-  /* 新增表單預設收起：品項庫才是常看的。不改 summary 的 display，預設的三角形才會留著。 */
-  .form-fold>summary{cursor:pointer;min-height:44px;padding:8px 0;box-sizing:border-box}
-  .form-fold>summary h2{display:inline;margin:0}
-  .form-fold[open]>summary{margin-bottom:10px}
   .item-card .spec{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;color:var(--faint)}
   .item-card .acts{display:flex;gap:6px;margin-top:auto}
   .item-card .acts .btn{flex:1;padding:5px 4px}
@@ -328,8 +326,7 @@
   <div id="itemsPanel" hidden>
     <div class="grid">
       <section class="card" aria-labelledby="itemFormHeading">
-        <details class="form-fold" id="itemFormFold">
-        <summary><h2 id="itemFormHeading">新增品項</h2></summary>
+        <h2 id="itemFormHeading">新增品項</h2>
         <label class="field"><span>名稱</span><input id="itemName" type="text" maxlength="40"></label>
         <div class="duo">
           <label class="field"><span>包裝重量（克，可留空）</span>
@@ -354,7 +351,6 @@
           <button class="btn primary" id="saveItem" type="button">儲存品項</button>
           <button class="btn" id="resetItem" type="button">清空表單</button>
         </div>
-        </details>
         <p class="state" id="itemState"></p>
       </section>
 
@@ -1680,9 +1676,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     $("saveItem").textContent = "更新品項";
     renderItemForm();
     setState($("itemState"), "正在編輯「" + item.name + "」。", "");
-    /* 表單平常收著，按編輯才打開並捲過去。 */
-    $("itemFormFold").open = true;
-    if ($("itemFormFold").scrollIntoView) $("itemFormFold").scrollIntoView({ block: "start" });
   }
 
   function renderItems() {
@@ -1800,7 +1793,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
       /* 存完切到那一類，剛存的品項才看得到。 */
       itemKindView = draft.kind;
       resetItemForm();
-      $("itemFormFold").open = false;
       renderItems();
       renderMix();
       renderLog();
