@@ -802,7 +802,7 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const seed = plain(h.seed());
   const fixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === "recipe-blackbream-groundbait");
   // 兩代：沒有玉米碎的第一版 → 含蝦磚的第二版 → 3 kg 只算粉料的現在這一版
-  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4", "recipe-blackbream-groundbait:notes:5"]);
+  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4", "recipe-blackbream-groundbait:notes:5", "recipe-blackbream-groundbait:notes:6"]);
   const oldItems = fixes.find((f) => f.id.endsWith(":items:1")).from[0];
   const oldNotes = fixes.find((f) => f.id.endsWith(":notes:1")).from[0];
   const ESA = "recipe-blackbream-groundbait";
@@ -858,8 +858,8 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const pasteFixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === PASTE);
   const generations = pasteFixes.filter((f) => f.field === "items");
   assert.equal(generations.length, 2);
-  // 備註多一代：2026-09-25 來源核對改了出處標注（組成沒變）
-  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 3);
+  // 備註多兩代：2026-09-25 來源核對改了出處標注、2026-10-07 去掉跟組成列與證據等級重複的句子（組成都沒變）
+  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 4);
   const pasteOf = (state) => state.recipes.find((r) => r.id === PASTE);
   for (const gen of generations) {
     const oldPaste = plain(h.sanitizeState(seed));
@@ -1150,7 +1150,7 @@ test("底餌 三底料版：米糠 1 kg 打底、尼羅魚與幼雞各 250 g、�
   const cost = plain(h.recipeCost(gb, byId));
   assert.equal(cost.totalGrams, 1580);
   assert.ok(Math.abs(cost.total - (1000 * 490 / 24000 + 250 * 490 / 16000 + 250 * 315 / 10000 + 80 * 34 / 525)) < 1e-9);
-  assert.match(gb.notes, /蝦粉約 80 g 薄鋪在上面/);
+  assert.match(gb.notes, /蝦粉薄鋪在上面/);
   // 還是 2025 g 原版的裝置要換過來
   const fix = plain(h.SEED_FIXES).find((f) => f.id === ID + ":items:3");
   const old = plain(h.sanitizeState(seed));
@@ -1324,4 +1324,16 @@ test("品項庫第二輪去重複：添加劑品項不重抄添加劑頁的加�
     assert.match(item.notes, /見添加劑頁/, item.name + " 要指得到添加劑頁");
   }
   for (const item of items) assert.doesNotMatch(item.notes, /\d ?(公斤|kg) ?裝/, item.name + " 的重量卡片上已經有");
+});
+
+test("開餌頁第二輪去重複：沒有跟按鈕同字的小標題，預設配方備註不重講組成列的克數", async () => {
+  const { app, html } = await loadPage();
+  assert.doesNotMatch(html, /<h3>存成配方<\/h3>/);
+  const seed = plain(app.helpers.seed());
+  for (const r of seed.recipes.filter((x) => x.id !== "recipe-main-allpowder")) {
+    for (const row of r.items) {
+      if (row.unit !== "克") continue;
+      assert.ok(!r.notes.includes(row.amount + " g") && !r.notes.includes("、" + row.amount + "、"), r.title + " 的備註重講了組成列的 " + row.amount + " g");
+    }
+  }
 });
