@@ -949,7 +949,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.equal(d.activeGPerKg, null, "香精只知道體積，不能印出有效成分公克數");
   // 稀釋液 0.5 ml／200 g ＝ 2.5 ml/kg，但純香精只有 2.5 × 15/200 ＝ 0.1875 ml/kg——印稀釋液體積曾被照抄成 10 倍錯誤。
   assert.ok(Math.abs(d.pureMlPerKg - 0.1875) < 1e-12);
-  d = plain(h.doseFor(stock(plans[1], "KRL"), 5, 200));
+  d = plain(h.doseFor({ id: "SYN3", kind: "powder", mgPerMl: null }, 5, 200));
   assert.equal(d.activeGPerKg, 25, "粉末 5 g／200 g ＝ 25 g/kg");
   assert.equal(d.pureMlPerKg, null, "粉末沒有香精；少了這個欄位畫面會印出「純香精 NaN」");
   // 兩段式：第一段是底餌（嗅覺），第二段是主餌（味覺）
@@ -1042,19 +1042,19 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
     const amount = g.doses.find(([id]) => id === stockId)[1];
     return plain(h.doseFor(stock(stockId), amount, baseOf(g.stage))).activeGPerKg;
   };
-  assert.equal(perKg("M2", "KRL"), 25, "A 撒 3 kg 取 75 g 南極蝦粉＝每公斤 25 g");
+  // A 撒與練餌都只留基準組加胺基酸那一組（使用者指定，2026-10-08）
+  assert.deepEqual(bream.groups.filter((g) => g.stage === "attract").map((g) => g.id), ["M1", "M4"]);
   // 練餌的基準＝預設配方「黑格 練餌」原樣，實驗組只留 K2（使用者指定，2026-10-08）
   assert.deepEqual(bream.groups.filter((g) => g.stage === "bite").map((g) => g.id), ["K1", "K2"]);
   assert.match(bream.stages.find((st) => st.id === "bite").base, /預設配方「黑格 練餌」原樣/);
-  assert.equal(perKg("M3", "KRL"), 50);
   // 甘胺酸、丙胺酸各自直接秤粉，每樣每次最少 1 g：A 撒 3 kg 每公斤 0.33 g、練餌 150 g 每公斤 6.67 g
   for (const id of ["GLY", "ALA"]) {
     assert.ok(Math.abs(perKg("M4", id) - 1000 / 3000) < 1e-9, "M4 " + id);
     assert.ok(Math.abs(perKg("K2", id) - 1000 / 150) < 1e-9, "K2 " + id);
   }
   assert.ok(!bream.groups.some((g) => g.id === "K5"));
-  // 甜菜鹼買不到食品級，不列入（2026-09-27）
-  assert.deepEqual(bream.stocks.map((x) => x.id).sort(), ["ALA", "GLY", "KRL"]);
+  // 甜菜鹼買不到食品級，不列入（2026-09-27）；南極蝦粉 2026-10-08 起沒有組在用，不列
+  assert.deepEqual(bream.stocks.map((x) => x.id).sort(), ["ALA", "GLY"]);
 
   // 兩份預設配方：總重就是使用者給的每次份量，每一列都算得出價格
   const seed = plain(h.seed());
@@ -1223,7 +1223,6 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
   assert.equal(text("福壽魚", "CIT"), "主餌乾料 5 g");
   assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 6.67 g");
-  assert.equal(text("黑鯛", "KRL"), "A 撒粉料 25／50 g");
   assert.equal(h.stockPerKgText(undefined), "—");
 });
 
