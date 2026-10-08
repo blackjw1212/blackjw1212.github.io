@@ -1358,6 +1358,7 @@ test("T17：四樣各 1 g 跟 T1 比；第二段固定 600 g 水、200 g 乾料�
   assert.match(bite.base, /每次只取其中 200 g/);
   assert.match(bite.base, /T1 也用 200 g 清水/, "水量每組都要一樣");
   assert.match(bite.base, /未驗證/, "溶液能放多久沒有資料，要說出來");
+  assert.match(bite.base, /一杯 600 g 正好用三次/, "剩下的 400 g 留到下次（使用者，2026-10-08）");
   // 黑鯛沒有先溶成一大杯，不受影響
   assert.equal(h.stockPerKgText(plain(h.stockPerKg(plain(h.ADDITIVES).find((p) => p.species === "黑鯛"))).GLY), "A 撒粉料 0.33 g；練餌 6.67 g");
   const t17 = tilapia.groups.find((g) => g.id === "T17");
