@@ -858,13 +858,14 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   assert.equal(esaOf(second).notes, esaOf(seed).notes);
   assert.ok(!esaOf(second).items.some((row) => row.itemId === "item-krill-block"));
 
-  // 黑格 練餌改過兩代（蝦磚 → 蝦粉半包 → 蝦粉整包）：停在任何一代舊預設的裝置都要換到現在這一版
+  // 黑格 練餌改過三代（蝦磚 → 蝦粉半包 → 蝦粉整包 → 每次 150 g）：停在任何一代舊預設的裝置都要換到現在這一版
   const PASTE = "recipe-blackbream-paste";
   const pasteFixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === PASTE);
   const generations = pasteFixes.filter((f) => f.field === "items");
-  assert.equal(generations.length, 2);
-  // 備註多兩代：2026-09-25 來源核對改了出處標注、2026-10-07 去掉跟組成列與證據等級重複的句子（組成都沒變）
-  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 4);
+  assert.equal(generations.length, 3);
+  // 備註多兩代：2026-09-25 來源核對改了出處標注、2026-10-07 去掉跟組成列與證據等級重複的句子（組成都沒變）；
+  // 2026-10-08 改成 150 g 時水量跟著減半
+  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 5);
   const pasteOf = (state) => state.recipes.find((r) => r.id === PASTE);
   for (const gen of generations) {
     const oldPaste = plain(h.sanitizeState(seed));
@@ -1020,7 +1021,7 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.equal(bream.stages.map((st) => st.id).join(","), "attract,bite");
   const baseOf = (stageId) => bream.stages.find((st) => st.id === stageId).baseGrams;
   assert.equal(baseOf("attract"), 3000, "A 撒以每次 3 kg 為準");
-  assert.equal(baseOf("bite"), 300, "練餌以每次 300 g 為準");
+  assert.equal(baseOf("bite"), 150, "練餌以每次 150 g 為準（使用者指定，2026-10-08）");
   const byId = new Map(bream.groups.map((g) => [g.id, g]));
   for (const st of ["attract", "bite"]) {
     assert.equal(bream.groups.filter((g) => g.stage === st && g.doses.length === 0).length, 1, st + " 段要剛好一個空白組");
@@ -1042,12 +1043,13 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
     return plain(h.doseFor(stock(stockId), amount, baseOf(g.stage))).activeGPerKg;
   };
   assert.equal(perKg("M2", "KRL"), 25, "A 撒 3 kg 取 75 g 南極蝦粉＝每公斤 25 g");
-  assert.equal(perKg("K6", "KRL"), 25, "練餌 300 g 取 7.5 g＝每公斤 25 g，跟改基準前的 5 g／200 g 相同");
+  assert.equal(perKg("K6", "KRL"), 25, "練餌 150 g 取 3.75 g＝每公斤 25 g，換基準比例不變");
+  assert.equal(perKg("K8", "KRL"), 500, "K8 是預設配方的蝦粉量：150 g 裡 75 g");
   assert.equal(perKg("M3", "KRL"), 50);
-  // 甘胺酸、丙胺酸各自直接秤粉，每樣每次 1 g：A 撒 3 kg 每公斤 0.33 g、練餌 300 g 每公斤 3.33 g
+  // 甘胺酸、丙胺酸各自直接秤粉，每樣每次最少 1 g：A 撒 3 kg 每公斤 0.33 g、練餌 150 g 每公斤 6.67 g
   for (const id of ["GLY", "ALA"]) {
     assert.ok(Math.abs(perKg("M4", id) - 1000 / 3000) < 1e-9, "M4 " + id);
-    assert.ok(Math.abs(perKg("K2", id) - 1000 / 300) < 1e-9, "K2 " + id);
+    assert.ok(Math.abs(perKg("K2", id) - 1000 / 150) < 1e-9, "K2 " + id);
   }
   assert.ok(!bream.groups.some((g) => g.id === "K5"));
   // 甜菜鹼買不到食品級，不列入（2026-09-27）
@@ -1075,11 +1077,12 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.doesNotMatch(itemsById["item-corn-cracked"].notes, /每次 \d+ g/);
   assert.deepEqual(cost.unknown, []);
   assert.ok(!esa.items.some((row) => row.itemId === "item-krill-block"), "3 kg 裡不含南極蝦磚");
-  // 全乾粉：高筋麵粉 110 g $7.92 ＋ 老百王南極蝦粉末整包 150 g $34 ＋ 小麥蛋白 20 g $3.9 ＋ 赤尾青 20 g $30×20/70
+  // 每次 150 g（2026-10-08）：高筋麵粉 55 g ＋ 老百王南極蝦粉末 75 g（半包）＋ 小麥蛋白 10 g ＋ 赤尾青 10 g
   cost = plain(h.recipeCost(paste, itemsById));
-  assert.equal(cost.totalGrams, 300);
-  assert.ok(Math.abs(cost.total - (7.92 + 34 + 3.9 + 30 * 20 / 70)) < 1e-9, "練餌總價得到 " + cost.total);
-  assert.deepEqual(paste.items.find((row) => row.itemId === "item-krill-laobaiwang"), { itemId: "item-krill-laobaiwang", amount: 1, unit: "包" }, "南極蝦粉末用整包");
+  assert.equal(cost.totalGrams, 150);
+  assert.ok(Math.abs(cost.total - (55 * 72 / 1000 + 75 * 34 / 150 + 10 * 195 / 1000 + 10 * 30 / 70)) < 1e-9, "練餌總價得到 " + cost.total);
+  assert.deepEqual(paste.items.find((row) => row.itemId === "item-krill-laobaiwang"), { itemId: "item-krill-laobaiwang", amount: 75, unit: "克" }, "南極蝦粉末用半包");
+  assert.equal(bream.stages.find((st) => st.id === "bite").baseGrams, cost.totalGrams, "添加劑頁的練餌基準跟預設配方同一個量");
   assert.deepEqual(cost.unknown, []);
   assert.ok(!paste.items.some((row) => row.itemId === "item-krill-block"), "練餌改用南極蝦粉末，不用蝦磚");
 
@@ -1218,7 +1221,7 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const plans = plain(h.ADDITIVES);
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
   assert.equal(text("福壽魚", "CIT"), "主餌乾料 5 g");
-  assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 3.33 g");
+  assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 6.67 g");
   assert.equal(text("黑鯛", "KRL"), "A 撒粉料 25／50 g；練餌 25／500 g");
   assert.equal(h.stockPerKgText(undefined), "—");
 });
