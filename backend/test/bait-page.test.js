@@ -1048,11 +1048,15 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   // 練餌的基準＝預設配方「黑格 練餌」原樣，實驗組只留 K2（使用者指定，2026-10-08）
   assert.deepEqual(bream.groups.filter((g) => g.stage === "bite").map((g) => g.id), ["K1", "K2"]);
   assert.match(bream.stages.find((st) => st.id === "bite").base, /預設配方「黑格 練餌」原樣/);
-  // 甘胺酸、丙胺酸各自直接秤粉，每樣每次最少 1 g：A 撒 3 kg 每公斤 0.33 g、練餌 150 g 每公斤 6.67 g
+  // 甘胺酸、丙胺酸各 6 g 溶進 600 g 水（每 100 cc 含各 1 g）：A 撒倒 100 cc＝1 g／3 kg，練餌倒 75 cc＝0.75 g／150 g（2026-10-08）
   for (const id of ["GLY", "ALA"]) {
-    assert.ok(Math.abs(perKg("M4", id) - 1000 / 3000) < 1e-9, "M4 " + id);
-    assert.ok(Math.abs(perKg("K2", id) - 1000 / 150) < 1e-9, "K2 " + id);
+    assert.equal(perKg("M4", id), 2, "M4 " + id + " 秤的量 6 g／3 kg");
+    assert.equal(perKg("K2", id), 40, "K2 " + id + " 秤的量 6 g／150 g");
   }
+  assert.deepEqual([bream.stages[0].solutionG, bream.stages[0].useG, bream.stages[1].solutionG, bream.stages[1].useG], [600, 100, 600, 75]);
+  const eff = plain(h.stockPerKg(bream));
+  assert.ok(Math.abs(eff.GLY[0].values[0] - 1000 / 3000) < 1e-9, "A 撒進去 1 g／3 kg");
+  assert.equal(eff.GLY[1].values[0], 5, "練餌進去 0.75 g／150 g");
   assert.ok(!bream.groups.some((g) => g.id === "K5"));
   // 甜菜鹼買不到食品級，不列入（2026-09-27）；南極蝦粉 2026-10-08 起沒有組在用，不列
   assert.deepEqual(bream.stocks.map((x) => x.id).sort(), ["ALA", "GLY"]);
@@ -1224,7 +1228,7 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const plans = plain(h.ADDITIVES);
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
   assert.equal(text("福壽魚", "CIT"), "主餌乾料 5 g", "3 g 溶進 600 g、取 200 g：1 g／200 g");
-  assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 6.67 g");
+  assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 5 g");
   assert.equal(h.stockPerKgText(undefined), "—");
 });
 
@@ -1348,7 +1352,7 @@ test("開餌頁第二輪去重複：沒有跟按鈕同字的小標題，預設�
 });
 
 test("T17：四樣各 1 g 跟 T1 比；第二段固定 600 g 水、200 g 乾料（使用者指定，2026-10-08）", async () => {
-  const { app } = await loadPage();
+  const { app, html } = await loadPage();
   const h = app.helpers;
   const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
   const bite = tilapia.stages.find((st) => st.id === "bite");
@@ -1361,8 +1365,8 @@ test("T17：四樣各 1 g 跟 T1 比；第二段固定 600 g 水、200 g 乾料�
   assert.match(bite.base, /T1 也用 200 g 清水/, "水量每組都要一樣");
   assert.match(bite.base, /未驗證/, "溶液能放多久沒有資料，要說出來");
   assert.match(bite.base, /一杯 600 g 正好用三次/, "剩下的 400 g 留到下次（使用者，2026-10-08）");
-  // 黑鯛沒有先溶成一大杯，不受影響
-  assert.equal(h.stockPerKgText(plain(h.stockPerKg(plain(h.ADDITIVES).find((p) => p.species === "黑鯛"))).GLY), "A 撒粉料 0.33 g；練餌 6.67 g");
+  // 「加什麼」欄要說出溶進多少水、每次取多少，不然 3 g、6 g 會被讀成全部加進去
+  assert.match(html, /"，溶進 " \+ stage\.solutionG \+ " g 水、每次取 " \+ stage\.useG \+ " g"/);
   const t17 = tilapia.groups.find((g) => g.id === "T17");
   assert.equal(t17.stage, "bite");
   assert.deepEqual(t17.doses.map(([id]) => id).sort(), ["CIT", "MSG", "SOR", "TRP"]);
