@@ -1043,8 +1043,9 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
     return plain(h.doseFor(stock(stockId), amount, baseOf(g.stage))).activeGPerKg;
   };
   assert.equal(perKg("M2", "KRL"), 25, "A 撒 3 kg 取 75 g 南極蝦粉＝每公斤 25 g");
-  assert.equal(perKg("K6", "KRL"), 25, "練餌 150 g 取 3.75 g＝每公斤 25 g，換基準比例不變");
-  assert.equal(perKg("K8", "KRL"), 500, "K8 是預設配方的蝦粉量：150 g 裡 75 g");
+  // 練餌的基準＝預設配方「黑格 練餌」原樣，實驗組只留 K2（使用者指定，2026-10-08）
+  assert.deepEqual(bream.groups.filter((g) => g.stage === "bite").map((g) => g.id), ["K1", "K2"]);
+  assert.match(bream.stages.find((st) => st.id === "bite").base, /預設配方「黑格 練餌」原樣/);
   assert.equal(perKg("M3", "KRL"), 50);
   // 甘胺酸、丙胺酸各自直接秤粉，每樣每次最少 1 g：A 撒 3 kg 每公斤 0.33 g、練餌 150 g 每公斤 6.67 g
   for (const id of ["GLY", "ALA"]) {
@@ -1222,7 +1223,7 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
   assert.equal(text("福壽魚", "CIT"), "主餌乾料 5 g");
   assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 6.67 g");
-  assert.equal(text("黑鯛", "KRL"), "A 撒粉料 25／50 g；練餌 25／500 g");
+  assert.equal(text("黑鯛", "KRL"), "A 撒粉料 25／50 g");
   assert.equal(h.stockPerKgText(undefined), "—");
 });
 
