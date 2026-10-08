@@ -956,31 +956,25 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // 主餌以每次釣用的魔粒 100 g＋主餌 100 g 為基準（2026-10-08 使用者實際做法）；每公斤的比例由基準自動算
   const baseOf = (stageId) => tilapia.stages.find((st) => st.id === stageId).baseGrams;
   assert.equal(baseOf("bite"), 200);
-  assert.equal(baseOf("attract"), 1500, "底餌以每次釣用的 1.5 kg 為準");
+  assert.equal(baseOf("attract"), 1600, "底餌就是預設配方「底餌 三底料版」原樣 1.6 kg（2026-10-08）");
   // 紅蟲萃取只留作備註（使用者不購買冷凍紅蟲）：不可以回到實驗組或濃縮液，但第一段要說出這件事
   assert.ok(!tilapia.stocks.some((x) => x.id === "BLW"));
   assert.ok(!tilapia.groups.some((g) => g.id === "G2"));
   assert.match(tilapia.stages.find((st) => st.id === "attract").base, /紅蟲萃取液只留作備註/);
-  // 換了基準，每公斤比例不能變：南極蝦粉仍 25 g/kg
   const perKg = (groupId, stockId) => {
     const g = tilapia.groups.find((x) => x.id === groupId);
     const amount = g.doses.find(([id]) => id === stockId)[1];
     return plain(h.doseFor(stock(tilapia, stockId), amount, baseOf(g.stage))).activeGPerKg;
   };
-  assert.equal(perKg("G3", "KRL"), 25);
-  // 改成直接秤粉、每樣每次最少 1 g（使用者決定，2026-10-03）：200 g 主餌乾料加 1 g ＝ 每公斤 5 g
-  for (const [g, id] of [["T2", "CIT"], ["T10", "SOR"], ["T11", "TRP"]]) assert.ok(Math.abs(perKg(g, id) - 1000 / 200) < 1e-9, g);
-  assert.ok(!tilapia.groups.some((g) => ["T6", "T12", "T15"].includes(g.id)), "秤不出來的高低劑量組、與 T14 重複的 T12 已拿掉");
+  // 直接秤粉、每樣每次最少 1 g（使用者決定，2026-10-03）：200 g 主餌乾料加 1 g ＝ 每公斤 5 g
+  for (const id of ["CIT", "SOR", "TRP", "MSG"]) assert.ok(Math.abs(perKg("T17", id) - 1000 / 200) < 1e-9, id);
+  // 基準組＝兩份預設配方原樣，實驗組只留 T17（使用者指定，2026-10-08）
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "T1", "T17"]);
   // 不再有溶液：每樣原料都是粉，加量就是克數，而且至少 1 g
   for (const plan of plans) {
     assert.ok(plan.stocks.every((x) => x.kind === "powder"), plan.species + " 還有液體原料");
     for (const g of plan.groups) for (const [id, amt] of g.doses) assert.ok(amt >= 1, g.id + " 的 " + id + " 少於 1 g");
   }
-  // 半胱胺酸是若亞方舟買得到的紅蟲替代，在第一段；紅蟲不做了，只跟空白比
-  const g5 = tilapia.groups.find((g) => g.id === "G5");
-  assert.equal(g5.stage, "attract");
-  assert.equal(g5.compare.join(","), "G1");
-  assert.ok(Math.abs(perKg("G5", "CYS") - 1000 / 1500) < 1e-9, "1.5 kg 底餌加 1 g");
   // 雞肝漿同樣只留作備註（使用者不自己蒸）：T13 與 LIV 不得回來，第二段要說出這件事
   assert.ok(!tilapia.stocks.some((x) => x.id === "LIV"));
   assert.ok(!tilapia.groups.some((g) => g.id === "T13"));
@@ -988,10 +982,11 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // DMPT、甜菜鹼在吳郭魚飼料試驗裡沒有增加攝食量，不可以出現在福壽魚的配方裡
   assert.doesNotMatch(JSON.stringify(tilapia.stocks), /DMPT|甜菜鹼/);
 
-  // 主酸液不得夾帶香精——夾帶的話 T2、T6 又會變回「酸＋香」，分不開
+  // 主酸液不得夾帶香精——夾帶的話又會變回「酸＋香」，分不開
   assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
   // 只放使用者買了、而且有研究支持的原料（2026-09-27）：鳳梨精、糖精鈉、蘋果酸、香精、奶甜液、原報告果酸液不得回來
-  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "KRL", "MSG", "SOR", "TRP"]);
+  // 2026-10-08 起只留 T17 用到的四樣；半胱胺酸、南極蝦粉沒有任何組在用，不列
+  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "MSG", "SOR", "TRP"]);
 
   // 實測紀錄已依使用者要求移除（2026-09-25）
   assert.doesNotMatch(html, /trialHeading|sanitizeTrial|state\.trials/);
@@ -1155,10 +1150,9 @@ test("底餌 三底料版：米糠 1000、尼羅魚 300、幼雞 200、蝦粉 10
   const cost = plain(h.recipeCost(gb, byId));
   assert.equal(cost.totalGrams, 1600);
   assert.ok(Math.abs(cost.total - (1000 * 490 / 24000 + 300 * 490 / 16000 + 200 * 315 / 10000 + 100 * 34 / 525)) < 1e-9);
-  // 添加劑頁第一段的基準是三樣底料、不含蝦粉（G3 才加南極蝦粉）：1000＋300＋200 剛好 1.5 kg
+  // 添加劑頁第一段的基準就是這份配方原樣（2026-10-08 起 G1＝底餌 三底料版，含薄鋪的蝦粉）
   const attract = plain(h.ADDITIVES).find((p) => p.species === "福壽魚").stages.find((st) => st.id === "attract");
-  const powders = gb.items.filter((row) => row.itemId !== "item-shrimp-laobaiwang").reduce((n, row) => n + row.amount, 0);
-  assert.equal(attract.baseGrams, powders);
+  assert.equal(attract.baseGrams, cost.totalGrams);
   assert.match(gb.notes, /蝦粉薄鋪在上面/);
   // 還是 2025 g 原版的裝置要換過來
   const fix = plain(h.SEED_FIXES).find((f) => f.id === ID + ":items:3");
@@ -1197,12 +1191,11 @@ test("來源原文核對：掛錯的來源與沒有出處的說法不得回來",
   // 「重蝦不重粉」只出自 W1；「掛 2–3 隻」原文是投餌數
   assert.ok(!cell("黑毛", "南極蝦").sources.includes("W2"));
   assert.doesNotMatch(cell("黑毛", "南極蝦").note, /掛 2/);
-  // 半胱胺酸買到的是鹽酸鹽：重量要折算，而且洋菜顆粒的濃度不能當成釣餌已被證明的濃度
-  assert.match(tilapia.stocks.find((x) => x.id === "CYS").note, /每公斤 0\.46～0\.51 g/);
+  // 洋菜顆粒的濃度不能當成釣餌已被證明的濃度
   assert.match(ev("劑量 0.25～1 g/kg 在安全範圍內").text, /只能當設計參考/);
 });
 
-test("福壽魚第一輪：T1 空白、T14 三樣各 1 g，換算與紀錄欄位", async () => {
+test("福壽魚：T1 基準、T17 四樣各 1 g，換算與紀錄欄位", async () => {
   const { app } = await loadPage();
   const h = app.helpers;
   const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
@@ -1211,11 +1204,11 @@ test("福壽魚第一輪：T1 空白、T14 三樣各 1 g，換算與紀錄欄位
     const g = tilapia.groups.find((x) => x.id === groupId);
     return plain(h.doseFor(stock(stockId), g.doses.find(([id]) => id === stockId)[1], 200)).activeGPerKg;
   };
-  // 200 g 乾料：檸檬酸、山梨醇、色胺酸各 1 g，每公斤各 5 g
-  for (const id of ["CIT", "SOR", "TRP"]) assert.ok(Math.abs(perKg("T14", id) - 1000 / 200) < 1e-9, id);
-  assert.equal(tilapia.groups.find((g) => g.id === "T14").compare.join(), "T1");
+  // 200 g 乾料：四樣各 1 g，每公斤各 5 g
+  for (const id of ["CIT", "SOR", "TRP", "MSG"]) assert.ok(Math.abs(perKg("T17", id) - 1000 / 200) < 1e-9, id);
+  assert.equal(tilapia.groups.find((g) => g.id === "T17").compare.join(), "T1");
   // 只能是實戰起始值，不可以被寫成最佳
-  assert.doesNotMatch(tilapia.groups.find((x) => x.id === "T14").purpose, /最佳(?!濃度)|已證實/);
+  assert.doesNotMatch(tilapia.groups.find((x) => x.id === "T17").purpose, /最佳(?!濃度)|已證實/);
   assert.match(tilapia.stages.find((st) => st.id === "bite").metric, /CPUE/);
 });
 
@@ -1225,8 +1218,6 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const plans = plain(h.ADDITIVES);
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
   assert.equal(text("福壽魚", "CIT"), "主餌乾料 5 g");
-  assert.equal(text("福壽魚", "CYS"), "底餌 0.67 g");
-  assert.equal(text("福壽魚", "KRL"), "底餌 25 g");
   assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 3.33 g");
   assert.equal(text("黑鯛", "KRL"), "A 撒粉料 25／50 g；練餌 25／500 g");
   assert.equal(h.stockPerKgText(undefined), "—");
@@ -1243,7 +1234,7 @@ test("原料表的味道欄：每樣原料都有，而且寫出處", async () =>
   assert.match(html, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）"\]/);
 });
 
-test("味精：品項庫有味王 味精，添加劑頁 T16 單獨跟 T1 比、原料表自動算出每公斤", async () => {
+test("味精：品項庫有味王 味精，添加劑頁 T17 裡有它、原料表自動算出每公斤", async () => {
   const { app } = await loadPage();
   const h = app.helpers;
   const item = plain(h.seed()).items.find((i) => i.id === "item-msg-vewong");
@@ -1254,11 +1245,7 @@ test("味精：品項庫有味王 味精，添加劑頁 T16 單獨跟 T1 比、�
   assert.equal(item.ingredients, "L-麩酸鈉");
   assert.equal(plain(h.sanitizeItem(item)).kind, "additive");
   const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
-  const t16 = tilapia.groups.find((g) => g.id === "T16");
-  assert.equal(t16.stage, "bite");
-  assert.deepEqual(t16.doses, [["MSG", 1]]);
-  assert.deepEqual(t16.compare, ["T1"], "單獨跟空白比，不混進 T14");
-  assert.ok(!tilapia.groups.find((g) => g.id === "T14").doses.some(([id]) => id === "MSG"));
+  assert.ok(tilapia.groups.find((g) => g.id === "T17").doses.some(([id, g]) => id === "MSG" && g === 1));
   assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).MSG), "主餌乾料 5 g");
   const ev = tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多");
   assert.deepEqual(ev.sources, ["X2", "X3"]);
@@ -1275,7 +1262,7 @@ test("添加劑頁的重點表：每樣原料都要出現、只引用存在的�
     for (const r of plan.summary) assert.ok(r.use && r.evidence, plan.species + " 重點表有空欄");
   }
   const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
-  assert.deepEqual(tilapia.summary[0].stocks, ["CIT", "SOR", "TRP"], "主餌第一順位");
+  assert.deepEqual(tilapia.summary[0].stocks, ["CIT", "SOR", "TRP", "MSG"], "T17 的四樣");
   assert.match(html, /stackTable\(\["用在哪", "原料", "證據"\]/);
   assert.match(html, /不是已經證明有效的配方/);
 });
@@ -1355,7 +1342,7 @@ test("開餌頁第二輪去重複：沒有跟按鈕同字的小標題，預設�
   }
 });
 
-test("T17：四樣各 1 g 跟 T14 比；第二段固定 600 g 水、200 g 乾料（使用者指定，2026-10-08）", async () => {
+test("T17：四樣各 1 g 跟 T1 比；第二段固定 600 g 水、200 g 乾料（使用者指定，2026-10-08）", async () => {
   const { app } = await loadPage();
   const h = app.helpers;
   const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
@@ -1368,7 +1355,7 @@ test("T17：四樣各 1 g 跟 T14 比；第二段固定 600 g 水、200 g 乾料
   assert.equal(t17.stage, "bite");
   assert.deepEqual(t17.doses.map(([id]) => id).sort(), ["CIT", "MSG", "SOR", "TRP"]);
   assert.ok(t17.doses.every(([, g]) => g === 1));
-  assert.deepEqual(t17.compare, ["T14"], "跟 T14 比才看得出味精多出什麼");
+  assert.deepEqual(t17.compare, ["T1"], "實驗組只留 T17，跟基準 T1 比（2026-10-08）");
   // 濃度改用固定的 600 g 水算，不再用「假設餌的密度接近水」
   for (const claim of ["糖精鈉、D-山梨醇讓吳郭魚吞下去", "劑量 0.25～1 g/kg 在安全範圍內"]) {
     assert.match(tilapia.evidence.find((e) => e.claim === claim).text, /600 g 水/);
