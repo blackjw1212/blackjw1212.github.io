@@ -1221,7 +1221,7 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const h = app.helpers;
   const plans = plain(h.ADDITIVES);
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
-  assert.equal(text("福壽魚", "CIT"), "主餌乾料 5 g");
+  assert.equal(text("福壽魚", "CIT"), "主餌乾料 1.67 g", "1 g 溶進 600 g、取 200 g：0.33 g／200 g");
   assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 6.67 g");
   assert.equal(h.stockPerKgText(undefined), "—");
 });
@@ -1249,7 +1249,7 @@ test("味精：品項庫有味王 味精，添加劑頁 T17 裡有它、原料�
   assert.equal(plain(h.sanitizeItem(item)).kind, "additive");
   const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
   assert.ok(tilapia.groups.find((g) => g.id === "T17").doses.some(([id, g]) => id === "MSG" && g === 1));
-  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).MSG), "主餌乾料 5 g");
+  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).MSG), "主餌乾料 1.67 g");
   const ev = tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多");
   assert.deepEqual(ev.sources, ["X2", "X3"]);
   assert.ok(tilapia.sources.some((x) => x.id === "X2" && x.seenVia === "opened"));
@@ -1352,8 +1352,14 @@ test("T17：四樣各 1 g 跟 T1 比；第二段固定 600 g 水、200 g 乾料�
   const bite = tilapia.stages.find((st) => st.id === "bite");
   assert.equal(bite.baseGrams, 200);
   assert.match(bite.base, /魔粒 100 g＋主餌 100 g/);
-  assert.match(bite.base, /水固定 600 g/);
-  assert.match(bite.base, /不要倒掉/, "吸不完的水倒掉會連添加劑一起倒掉");
+  // 各 1 g 溶進 600 g 水、每次取 200 g（使用者實際做法，2026-10-08）：進到餌裡的只有三分之一
+  assert.equal(bite.solutionG, 600);
+  assert.equal(bite.useG, 200);
+  assert.match(bite.base, /每次只取其中 200 g/);
+  assert.match(bite.base, /T1 也用 200 g 清水/, "水量每組都要一樣");
+  assert.match(bite.base, /未驗證/, "溶液能放多久沒有資料，要說出來");
+  // 黑鯛沒有先溶成一大杯，不受影響
+  assert.equal(h.stockPerKgText(plain(h.stockPerKg(plain(h.ADDITIVES).find((p) => p.species === "黑鯛"))).GLY), "A 撒粉料 0.33 g；練餌 6.67 g");
   const t17 = tilapia.groups.find((g) => g.id === "T17");
   assert.equal(t17.stage, "bite");
   assert.deepEqual(t17.doses.map(([id]) => id).sort(), ["CIT", "MSG", "SOR", "TRP"]);
