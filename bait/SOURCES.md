@@ -76,9 +76,9 @@ esano-tsurioh.com——它們只出現在搜尋摘要裡，沒有拿來當任何
 | C28 | TSURINEWS 杉本隼一《チヌフカセ釣りのまきエサに『押し麦』を多用するワケ》 | https://tsurinews.jp/113822/ | 開過 | 與 C27 同作者。押麥落下慢、沉底留在標點 |
 | C29 | TSURINEWS《クロダイを「コーン」や「スイカ」のエサで釣るための条件》 | https://tsurinews.jp/154291/ | 開過 | 只有吃慣玉米的魚群才吃 |
 | C31 | マルキユー 官網入門頁《チヌ／エサの付け方》 | https://www.marukyu.com/marukyu/hajimete_b/gyoshu_umi/gyoshu_umi3_3_4.html | 開過 | 廠商：黃色練餌在濁潮、深場看得見 |
-| C32 | 成山堂書店 書評：海野徹也《クロダイの生物学とチヌの釣魚学》 | https://www.seizando.co.jp/column/20220128/ | 開過 | 黑鯛嗅板 55～60；泳池 50×25×2 m 溶一匙麩醯胺酸可感知；反應強：甘胺酸、脯胺酸、丙胺酸、精胺酸。二手轉述，原始論文本次檢索沒找到 |
-| C33 | つり人オンライン《東京湾のクロダイ・キビレの今 第3回》 | https://web.tsuribito.co.jp/enviroment/tokyo-kurodai-kibire-seitai2108-03 | 開過 | 同一件事，泳池寫成 50×20×2 m（與 C32 不一致） |
-| C38 | FAO 1986《Feeding stimulants for fish – Application in mariculture》 | https://www.fao.org/4/s5347e/S5347E10.htm | 開過 | 真鯛：甘胺酸甜菜鹼＋游離 L-胺基酸（引 Goh & Tamura 1980）。近緣種推論 |
+| C32 | 成山堂書店 專欄（書中節錄）：海野徹也《クロダイの生物学とチヌの釣魚学》 | https://www.seizando.co.jp/column/20220128/ | 開過 | 黑鯛嗅板 55～60；泳池 50×25×2 m 溶一匙麩醯胺酸可感知。甘胺酸、脯胺酸、丙胺酸、精胺酸那句是講「對主食的味道反應強」（2026-10-09 重開原文確認），不是嗅覺。出版社專欄，不是第三方書評；原始論文本次檢索沒找到 |
+| C33 | つり人オンライン《東京湾のクロダイ・キビレの今 第3回》 | https://web.tsuribito.co.jp/enviroment/tokyo-kurodai-kibire-seitai2108-03 | 開過 | 嗅板 55～60（メジナ 24、マアジ 42 等）；泳池寫成 50×20×2 m（與 C32 不一致），標的是麩醯胺酸。2026-10-09 重開：全文沒有甘胺酸、丙胺酸、脯胺酸、精胺酸 |
+| C38 | FAO 1986《Feeding stimulants for fish – Application in mariculture》 | https://www.fao.org/4/s5347e/S5347E10.htm | 開過 | 由真鯛的食性（吃含甘胺酸甜菜鹼與游離胺基酸的無脊椎動物）推論誘食物質，不是實驗結論；沒有單獨點名甘胺酸或丙胺酸（2026-10-09 重開確認） |
 | C40 | 中島、内田、石田 1989《A New Feeding Attractant, DMPT, for Freshwater Fish》日水誌 55(4):689–695 | https://www.jstage.jst.go.jp/article/suisan1932/55/4/55_4_689/_article/-char/en | 開過 | 讀摘要。金魚、鯉、鯽 |
 | C41 | 中国鳗鱼网《DMPT的作用机理及在水产饲料中的应用》 | http://www.chinaeel.cn/index.php?c=content&a=show&id=4863 | 開過 | 二手綜述：引 Nakajima 1990，真鯛飼料 DMPT 最適 5 mM/L |
 | C42 | 溴化 DMPT 碩士論文（CNKI 2004）等 | http://big5.oversea.cnki.net/KCMS/detail/detailall.aspx?filename=2004032915.nh&dbcode=CMFD&dbname=CMFD2004 | 搜尋摘要 | 「0.2 g/kg 使黑鯛增重 1.6 倍」出自哪一頁無法確認，而且是生長不是誘食 |
@@ -139,8 +139,8 @@ davidluo23《福壽釣史》DNS 失敗。
 |---|---|---|---|---|
 | X1 | Levina、Mikhailova、Kasumyan 2021《Taste preferences and feeding behaviour in the facultative herbivorous fish, Nile tilapia Oreochromis niloticus》J Fish Biol 98(5):1385–1400 | https://pubmed.ncbi.nlm.nih.gov/33448377/ | 開過 | 讀的是 PubMed 摘要（E-utilities）；Wiley 全文 403。含檸檬酸的顆粒 >85% 被吃；測試濃度 0.0001–0.1 M；沒測蘋果酸；糖類適口性與人的甜度不相關。摘要的 0.01 M／0.001 M 是 L-半胱胺酸／L-正纈胺酸失效的濃度（2026-09-24 重抓摘要原文確認），不是檸檬酸閾值 |
 | X2 | Johnsen、Adams 1986《Chemical feeding stimulants for the herbivorous fish, Tilapia zillii》 | https://www.sciencedirect.com/science/article/pii/0300962986900964 | 開過 | 2026-09-25 重開，以 DOI 經 Semantic Scholar 讀到摘要：只講胺基酸（麩胺酸、天門冬胺酸、絲胺酸、離胺酸、丙胺酸）促進攝食，沒有測酸。先前把 X3 的內容記在這裡。2026-10-04 起頁面重新引用 X2：麩胺酸（T16 味精）的依據 |
-| X3 | Adams、Johnsen《Chemical enhancement of feeding for the herbivorous fish Tilapia zillii》 | https://www.semanticscholar.org/paper/a69aa8639326fe813d7e3564626a5f17214d9193 | 開過 | 2026-09-25 重開，DOI 10.1016/0044-8486(88)90150-0 摘要：麩胺酸、天門冬胺酸、離胺酸、檸檬酸、蘋果酸有增強效果，丙胺酸、絲胺酸無效；酸性越強效果越大。「純蘋果酸無效、檸檬酸閾值約 0.01 M」那句仍出處不明，未採 |
-| X4 | Baek、Cho 2024《Effects of Dietary Inclusion of a Crude Protein Source Exhibiting the Strongest Attractiveness to Red Sea Bream (Pagrus major)》Animals 14(5):771 | https://pmc.ncbi.nlm.nih.gov/articles/PMC10931256/ | 開過 | 該文**引述既有研究**：真鯛對丙胺酸、甘胺酸、精胺酸、絲胺酸味覺反應強（不是該文自己的味覺試驗）；甜菜鹼只出現在背景文獻的誘食劑類別；混合比單一強；Kohbara：合成混合物不如竹莢魚萃取；18 種蛋白原料中竹莢魚粉吸引力最強 |
+| X3 | Adams、Johnsen、Zhou 1988《Chemical enhancement of feeding for the herbivorous fish Tilapia zillii》Aquaculture 72:95–107 | https://www.semanticscholar.org/paper/a69aa8639326fe813d7e3564626a5f17214d9193 | 開過 | 2026-09-25 重開，DOI 10.1016/0044-8486(88)90150-0 摘要：麩胺酸、天門冬胺酸、離胺酸、檸檬酸、蘋果酸有增強效果，丙胺酸、絲胺酸無效；酸性越強效果越大。「純蘋果酸無效、檸檬酸閾值約 0.01 M」那句仍出處不明，未採 |
+| X4 | Baek、Cho 2024《Effects of Dietary Inclusion of a Crude Protein Source Exhibiting the Strongest Attractiveness to Red Sea Bream (Pagrus major)》Animals 14(5):771 | https://pmc.ncbi.nlm.nih.gov/articles/PMC10931256/ | 開過 | 該文**引述既有研究**：真鯛對丙胺酸、甘胺酸、精胺酸、絲胺酸味覺反應強（不是該文自己的味覺試驗）；甜菜鹼只出現在背景文獻的誘食劑類別；混合比單一強；Kohbara：合成混合物不如竹莢魚萃取；18 種蛋白原料中竹莢魚粉吸引力最強。原始出處是 Goh & Tamura 1980（Comp Biochem Physiol 66C:217–224），本次讀不到原文 |
 | X5 | 幼黑鯛甜菜鹼與脂肪肝（Acanthopagrus schlegelii） | https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8261298/ | 開過 | 講肝臟代謝，不是誘食（2026-09-25 重開讀到 PMC 全文） |
 | X6 | 使用者貼上的添加劑技術報告 | — | 使用者提供 | 2026-09-24。數學驗算全對；主酸選擇與 A1–A7 的解耦有問題，見頁面證據等級 |
 | X7 | DMPT 對螯蝦（Pontastacus leptodactylus）的生理與腸道菌研究 | https://pmc.ncbi.nlm.nih.gov/articles/PMC13295222/ | 開過 | 前言引述 DMPT 在真鯛等魚的飼料研究；沒有黑鯛 |
@@ -153,5 +153,8 @@ davidluo23《福壽釣史》DNS 失敗。
 | X15 | 柏泰鳳梨精（ESS003）與鳳梨香精（FLA500）標籤照片 | — | 使用者提供 | 2026-09-25。兩罐標籤成分都只有「香料、丙二醇」，不含 D-山梨醇與檸檬酸；皆為 1 kg、食品添加物。產品編號與登錄碼不同。店家回覆（使用者轉述）：鳳梨香精「增加鳳梨，偏香氣表現」、鳳梨精「增加鳳梨風味，可能較偏濃縮風味」；鳳梨香精價格約鳳梨精兩倍。G4 用鳳梨精。2026-09-27 起頁面不引用：鳳梨精組已移除（使用者沒買） |
 | X16 | PubChem 物性資料（Odor／Taste／Physical Description） | https://pubchem.ncbi.nlm.nih.gov/ （CID 311 檸檬酸、5780 D-山梨醇、6305 L-色胺酸、60960 L-半胱胺酸鹽酸鹽、5862 L-半胱胺酸、750 甘胺酸、5950 L-丙胺酸、23689119 味精） | 開過 | 2026-10-03 以 PUG View 取得。添加劑頁原料表的「味道」欄出自這裡；半胱胺酸鹽酸鹽是 Alfa Aesar MSDS 的轉錄「irritating odor、hygroscopic」，半胱胺酸是「sulfurous aroma」 |
 | X14 | 徐小明《怎麼釣台灣鯛、大吳郭魚、福壽魚》 | 同 S1 | 開過 | 雞肝蒸熟打漿混蝦漿；結構「肝漿蝦漿 1：腥味商品餌 2：赤尾青 1＋拉絲粉」。雞肝漿的依據；使用者不自己蒸雞肝，頁面只留作備註（原 T13 已移除） |
+| X17 | Kasumyan、Levina 2023《尼羅吳郭魚幼魚與成魚的味覺與攝食行為比較》（俄文）Vopr Ikhtiol 63(4) | https://sciencejournals.ru/issues/ikhtiol/2023/vol_63/iss_4/Ikhtiol2303008Kasumyan/Ikhtiol2303008Kasumyan.pdf | 開過 | 2026-10-09 讀圖 1：檸檬酸 0.1 M 幼魚約 88%／成魚約 77% 被吞（顯著），L-色胺酸、L-麩胺酸 0.01 M 與空白（63.5%／63.0%）無顯著差 |
+| X18 | Levina 2021 羅蒙諾索夫研討會摘要（俄文） | https://conf.msu.ru/archive/Lomonosov_2021/data/21881/121693_uid103027_report.pdf | 開過 | 測 L／D-天門冬胺酸、麩胺酸、色胺酸（0.01 M）與丙胺酸（0.1 M）；原文：對 O. niloticus 所有測試的刺激物味道都是中性 |
+| X19 | Hubbard 等 2011《Olfactory sensitivity to amino acids in the blackspot sea bream (Pagellus bogaraveo)》J Comp Physiol A 197(8):839–849 | https://pubmed.ncbi.nlm.nih.gov/21544618/ | 開過 | PubMed 摘要：最強的一群含 L-丙胺酸，最弱的一群含甘胺酸（鯛科近緣種，嗅覺電生理） |
 
 這次沒查到的：Yacoob 2001（Nile tilapia 外部味蕾對胺基酸，Wiley／Europe PMC 都沒有摘要）；吳郭魚對任何烘焙香精氣味的研究（PubMed 上的吳郭魚嗅覺研究都是費洛蒙與社會訊號）。

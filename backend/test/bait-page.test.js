@@ -1257,7 +1257,7 @@ test("味精：品項庫有味王 味精，添加劑頁 T17 裡有它、原料�
   assert.ok(tilapia.groups.find((g) => g.id === "T17").doses.some(([id, g]) => id === "MSG" && g === 3));
   assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).MSG), "主餌乾料 5 g");
   const ev = tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多");
-  assert.deepEqual(ev.sources, ["X2", "X3"]);
+  assert.deepEqual(ev.sources, ["X2", "X3", "X17"], "近緣種的兩篇＋同種中性那篇（2026-10-09）");
   assert.ok(tilapia.sources.some((x) => x.id === "X2" && x.seenVia === "opened"));
 });
 
@@ -1408,4 +1408,24 @@ test("主餌 全乾粉版：整包版（3001 g）的舊裝置換得到 200 g 版
   of(edited).items[0].amount = 3;
   h.mergeSeed(edited, seed);
   assert.equal(of(edited).items[0].amount, 3, "改過的組成不動");
+});
+
+// 2026-10-09 原文核對：證據等級不能再被寫回比原文強
+test("添加劑證據：色胺酸、麩胺酸同種味覺中性；黑鯛的嗅覺與味覺分開、轉述不當成同種研究", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  const tilapia = plans.find((p) => p.species === "福壽魚");
+  const bream = plans.find((p) => p.species === "黑鯛");
+  const ev = (plan, claim) => plan.evidence.find((e) => e.claim === claim);
+  assert.deepEqual(ev(tilapia, "色胺酸、麩胺酸入口的味道是中性").sources, ["X17", "X18"]);
+  assert.equal(ev(tilapia, "麩胺酸（味精）讓吳郭魚吃得多").grade, "conflicting", "近緣種有效、同種中性");
+  assert.match(ev(tilapia, "檸檬酸讓吳郭魚吃得多").text, /不等於釣獲率/);
+  assert.match(tilapia.sources.find((x) => x.id === "X3").title, /Zhou 1988/);
+  assert.ok(!bream.evidence.some((e) => e.claim === "黑鯛聞得到胺基酸"), "C32、C33 撐不起這句");
+  assert.equal(ev(bream, "黑鯛的嗅覺很靈敏").grade, "claimed");
+  assert.doesNotMatch(ev(bream, "黑鯛的嗅覺很靈敏").text, /甘胺酸、脯胺酸/, "C33 原文沒有那四種胺基酸");
+  assert.deepEqual(ev(bream, "黑鯛對甘胺酸、丙胺酸的味道反應強").sources, ["C32"]);
+  assert.match(ev(bream, "黑鯛對甘胺酸、丙胺酸的味道反應強").text, /不能撐 A 撒/);
+  assert.deepEqual(ev(bream, "甘胺酸的嗅覺反應弱、丙胺酸強（近緣種）").sources, ["X19"]);
+  assert.doesNotMatch(bream.sources.find((x) => x.id === "C32").title, /書評/);
 });
