@@ -48,7 +48,7 @@ udn《羅非雜談》403；Mobile01 403；Google Groups 429；cch1940planet.blog
 | B10 | 堤防行走人《螃蟹釣餌垂釣黑鯛的最佳揚竿時機》 | https://mau208.pixnet.net/blog/post/2840743 | 開過 | 青蚶（台灣厚蟹）、瘋馬仔（角眼沙蟹）、婆仔（萬歲大眼蟹） |
 | B11 | 銀之羽翼《不想推廣的釣法……前打》 | https://skc6464.pixnet.net/blog/posts/9235099115 | 開過 | 岩蟹、白蝦；作者不建議推廣 |
 
-B1–B3 是同一作者，頁面上的來源數把它們算成一票。
+B1–B3 是同一作者。頁面逐筆列編號，「來源 N 筆」也照筆數算、沒有合併——看共識強度時要自己把這三筆當成一票。
 
 ## 黑鯛：A 撒與練餌（C 編號，2026-09-25）
 
@@ -142,7 +142,7 @@ davidluo23《福壽釣史》DNS 失敗。
 | X3 | Adams、Johnsen、Zhou 1988《Chemical enhancement of feeding for the herbivorous fish Tilapia zillii》Aquaculture 72:95–107 | https://www.semanticscholar.org/paper/a69aa8639326fe813d7e3564626a5f17214d9193 | 開過 | 2026-09-25 重開，DOI 10.1016/0044-8486(88)90150-0 摘要：麩胺酸、天門冬胺酸、離胺酸、檸檬酸、蘋果酸有增強效果，丙胺酸、絲胺酸無效；酸性越強效果越大。「純蘋果酸無效、檸檬酸閾值約 0.01 M」那句仍出處不明，未採 |
 | X4 | Baek、Cho 2024《Effects of Dietary Inclusion of a Crude Protein Source Exhibiting the Strongest Attractiveness to Red Sea Bream (Pagrus major)》Animals 14(5):771 | https://pmc.ncbi.nlm.nih.gov/articles/PMC10931256/ | 開過 | 該文**引述既有研究**：真鯛對丙胺酸、甘胺酸、精胺酸、絲胺酸味覺反應強（不是該文自己的味覺試驗）；甜菜鹼只出現在背景文獻的誘食劑類別；混合比單一強；Kohbara：合成混合物不如竹莢魚萃取；18 種蛋白原料中竹莢魚粉吸引力最強。原始出處是 Goh & Tamura 1980（Comp Biochem Physiol 66C:217–224），本次讀不到原文 |
 | X5 | 幼黑鯛甜菜鹼與脂肪肝（Acanthopagrus schlegelii） | https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8261298/ | 開過 | 講肝臟代謝，不是誘食（2026-09-25 重開讀到 PMC 全文） |
-| X6 | 使用者貼上的添加劑技術報告 | — | 使用者提供 | 2026-09-24。數學驗算全對；主酸選擇與 A1–A7 的解耦有問題，見頁面證據等級 |
+| X6 | 使用者貼上的添加劑技術報告 | — | 使用者提供 | 2026-09-24。數學驗算全對；主酸選擇與 A1–A7 的解耦有問題（當時記在頁面證據等級；那些組別已移除，現在頁面只在兩條劑量證據引用它：福壽魚「劑量 0.25～1 g/kg」、黑格「劑量：溶液每 100 cc」） |
 | X7 | DMPT 對螯蝦（Pontastacus leptodactylus）的生理與腸道菌研究 | https://pmc.ncbi.nlm.nih.gov/articles/PMC13295222/ | 開過 | 前言引述 DMPT 在真鯛等魚的飼料研究；沒有黑鯛 |
 | X8 | Kasumyan 2017《Feeding behavior and responsivity to food odors in Nile tilapia Oreochromis niloticus after chronic polisensory deprivation》J Ichthyol 57:747–752 | https://link.springer.com/article/10.1134/S0032945217050113 | 開過 | 摘要：紅蟲（搖蚊幼蟲）水萃取液的嗅覺閾值 10⁻⁴ g/L；嗅覺破壞後 10⁻¹～10⁻² g/L 也不找食物，4.5 個月未恢復。誘集研究裡最直接的一條；使用者不購買冷凍紅蟲，頁面只留作備註（原 G2 已移除） |
 | X9 | Kutsyna 2013《Chemical communication in the Mozambique tilapia: a role for amino acids》碩士論文，Algarve 大學（指導 Hubbard） | https://sapientia.ualg.pt/entities/publication/d1cf7296-f067-458e-8eaa-6efb96fb8fde | 開過 | 摘要：EOG 測 20 種胺基酸全部有嗅覺反應，最強 L-半胱胺酸、L-麩醯胺酸、L-蘇胺酸。非期刊；主題是尿液社會訊號 |
