@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-10-09T11:00:03.642Z",
-  "eodUpdatedAt": "2026-10-09T11:00:03.642Z",
+  "updatedAt": "2026-10-10T01:45:02.278Z",
+  "eodUpdatedAt": "2026-10-10T01:45:02.278Z",
   "eodTradingDate": "2026-10-08",
   "holdings": [
     "2330",
@@ -191,15 +191,10 @@
     }
   },
   "yield10y": {
-    "date": "2026-10-07",
-    "value": 5.28,
-    "updatedAt": "2026-10-07T22:00:00.000Z",
+    "date": "2026-10-08",
+    "value": 5.22,
+    "updatedAt": "2026-10-08T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    }
-  ]
+  "errors": []
 }
