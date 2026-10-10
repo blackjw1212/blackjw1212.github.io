@@ -968,10 +968,13 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
     return plain(h.doseFor(stock(tilapia, stockId), amount, baseOf(g.stage))).activeGPerKg;
   };
   // 溶進 600 g 水、取 200 g（使用者指定，2026-10-08）。檸檬酸改照同種研究的有效濃度 0.1 M 秤 11.5 g
-  // （使用者指定，2026-10-10）：進到 200 g 乾料約 3.83 g ＝ 每公斤約 19.17 g；其餘三樣沒有有效濃度可對，仍秤 3 g ＝ 每公斤 5 g
+  // （使用者指定，2026-10-10）：進到 200 g 乾料約 3.83 g ＝ 每公斤約 19.17 g；山梨醇也比照 0.1 M 秤 10.9 g（假設，使用者指定 2026-10-10）
   const effective = plain(h.stockPerKg(tilapia));
   assert.ok(Math.abs(effective.CIT[0].values[0] - 11.5 * 200 / 600 / 200 * 1000) < 1e-9, "CIT");
-  for (const id of ["SOR", "TRP", "MSG"]) assert.deepEqual(effective[id][0].values, [5], id);
+  assert.ok(Math.abs(effective.SOR[0].values[0] - 10.9 * 200 / 600 / 200 * 1000) < 1e-9, "SOR");
+  // 色胺酸、味精同種試驗沒效果，2026-10-10 起不加（使用者指定）
+  assert.equal(effective.TRP, undefined);
+  assert.equal(effective.MSG, undefined);
   // 基準組＝兩份預設配方原樣，實驗組 T17（使用者指定，2026-10-08）＋T18 半胱胺酸單獨一組（使用者指定，2026-10-10）
   assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "T1", "T17", "T18"]);
   // 不再有溶液：每樣原料都是粉，加量就是克數，而且至少 1 g
@@ -990,7 +993,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
   // 只放使用者買了、而且有研究支持的原料（2026-09-27）：鳳梨精、糖精鈉、蘋果酸、香精、奶甜液、原報告果酸液不得回來
   // T17 用到的四樣＋T18 的半胱胺酸鹽酸鹽（2026-10-10）；南極蝦粉沒有任何組在用，不列
-  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "MSG", "SOR", "TRP"]);
+  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "SOR"]);
   // T18：半胱胺酸單獨一組跟 T1 比，照 X17 有效的 0.1 M——10 g 溶進 600 g 水，無水物或一水合物都在 0.1 M 附近
   const t18 = tilapia.groups.find((g) => g.id === "T18");
   assert.deepEqual(t18.doses, [["CYS", 10]]);
@@ -1224,13 +1227,16 @@ test("福壽魚：T1 基準、T17（檸檬酸 0.1 M＋另三樣各 3 g），換�
     const g = tilapia.groups.find((x) => x.id === groupId);
     return plain(h.doseFor(stock(stockId), g.doses.find(([id]) => id === stockId)[1], 200)).activeGPerKg;
   };
-  // 檸檬酸秤 11.5 g（600 g 水約 0.1 M）、另三樣各 3 g；實際進到 200 g 乾料的是約 3.83 g 與各 1 g
+  // 檸檬酸秤 11.5 g、D-山梨醇秤 10.9 g（600 g 水都約 0.1 M）；實際進到 200 g 乾料的是約 3.83 g 與約 3.63 g
   assert.equal(perKg("T17", "CIT"), 57.5, "CIT 秤的量");
-  for (const id of ["SOR", "TRP", "MSG"]) assert.equal(perKg("T17", id), 15, id + " 秤的量");
+  assert.equal(perKg("T17", "SOR"), 54.5, "SOR 秤的量");
   assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).CIT), "主餌乾料 19.17 g", "CIT 進到餌裡的量");
-  for (const id of ["SOR", "TRP", "MSG"]) assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia))[id]), "主餌乾料 5 g", id + " 進到餌裡的量");
-  // 溶液濃度真的是 0.1 M：11.5 g ÷ 192.12（無水檸檬酸）÷ 0.6 L
+  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).SOR), "主餌乾料 18.17 g", "SOR 進到餌裡的量");
+  // 溶液濃度真的是 0.1 M：11.5 g ÷ 192.12（無水檸檬酸）÷ 0.6 L、10.9 g ÷ 182.17（D-山梨醇）÷ 0.6 L
   assert.ok(Math.abs(11.5 / 192.12 / 0.6 - 0.1) < 0.001);
+  assert.ok(Math.abs(10.9 / 182.17 / 0.6 - 0.1) < 0.001);
+  // 山梨醇的 0.1 M 是假設，要說出來
+  assert.match(tilapia.stocks.find((x) => x.id === "SOR").note, /不是已知的有效濃度/);
   assert.equal(tilapia.groups.find((g) => g.id === "T17").compare.join(), "T1");
   // 只能是實戰起始值，不可以被寫成最佳
   assert.doesNotMatch(tilapia.groups.find((x) => x.id === "T17").purpose, /最佳(?!濃度)|已證實/);
@@ -1243,7 +1249,7 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const plans = plain(h.ADDITIVES);
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
   assert.equal(text("福壽魚", "CIT"), "主餌乾料 19.17 g", "11.5 g 溶進 600 g、取 200 g：約 3.83 g／200 g");
-  assert.equal(text("福壽魚", "SOR"), "主餌乾料 5 g", "3 g 溶進 600 g、取 200 g：1 g／200 g");
+  assert.equal(text("福壽魚", "SOR"), "主餌乾料 18.17 g", "10.9 g 溶進 600 g、取 200 g：約 3.63 g／200 g");
   assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 5 g");
   assert.equal(h.stockPerKgText(undefined), "—");
 });
@@ -1259,7 +1265,7 @@ test("原料表的味道欄：每樣原料都有，而且寫出處", async () =>
   assert.match(html, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）"\]/);
 });
 
-test("味精：品項庫有味王 味精，添加劑頁 T17 裡有它、原料表自動算出每公斤", async () => {
+test("味精：品項庫留著味王 味精，但 T17 不加（同種試驗中性，使用者指定 2026-10-10）", async () => {
   const { app } = await loadPage();
   const h = app.helpers;
   const item = plain(h.seed()).items.find((i) => i.id === "item-msg-vewong");
@@ -1270,8 +1276,9 @@ test("味精：品項庫有味王 味精，添加劑頁 T17 裡有它、原料�
   assert.equal(item.ingredients, "L-麩酸鈉");
   assert.equal(plain(h.sanitizeItem(item)).kind, "additive");
   const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
-  assert.ok(tilapia.groups.find((g) => g.id === "T17").doses.some(([id, g]) => id === "MSG" && g === 3));
-  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).MSG), "主餌乾料 5 g");
+  assert.ok(!tilapia.groups.some((g) => g.doses.some(([id]) => id === "MSG")), "沒有任何組加味精");
+  assert.ok(!tilapia.stocks.some((x) => x.id === "MSG"), "原料表不列沒有組在用的味精");
+  assert.match(item.notes, /不加/, "品項備註要說出已經不加");
   const ev = tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多");
   assert.deepEqual(ev.sources, ["X2", "X3", "X17"], "近緣種的兩篇＋同種中性那篇（2026-10-09）");
   assert.ok(tilapia.sources.some((x) => x.id === "X2" && x.seenVia === "opened"));
@@ -1287,7 +1294,7 @@ test("添加劑頁的重點表：每樣原料都要出現、只引用存在的�
     for (const r of plan.summary) assert.ok(r.use && r.evidence, plan.species + " 重點表有空欄");
   }
   const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
-  assert.deepEqual(tilapia.summary[0].stocks, ["CIT", "SOR", "TRP", "MSG"], "T17 的四樣");
+  assert.deepEqual(tilapia.summary[0].stocks, ["CIT", "SOR"], "T17 的兩樣");
   assert.match(html, /stackTable\(\["用在哪", "原料", "證據"\]/);
   assert.match(html, /不是已經證明有效的配方/);
 });
@@ -1385,11 +1392,13 @@ test("T17：檸檬酸 0.1 M＋另三樣各 3 g 跟 T1 比；第二段固定 600 
   assert.match(html, /"，溶進 " \+ stage\.solutionG \+ " g 水、每次取 " \+ stage\.useG \+ " g"/);
   const t17 = tilapia.groups.find((g) => g.id === "T17");
   assert.equal(t17.stage, "bite");
-  assert.deepEqual(t17.doses.map(([id]) => id).sort(), ["CIT", "MSG", "SOR", "TRP"]);
-  // 檸檬酸照 X17 證實有效的 0.1 M 秤 11.5 g（使用者指定，2026-10-10）；另三樣沒有有效濃度資料，維持 3 g
-  assert.deepEqual(Object.fromEntries(t17.doses), { CIT: 11.5, SOR: 3, TRP: 3, MSG: 3 });
+  assert.deepEqual(t17.doses.map(([id]) => id).sort(), ["CIT", "SOR"]);
+  // 檸檬酸照 X17 證實有效的 0.1 M 秤 11.5 g；山梨醇比照 0.1 M 秤 10.9 g（假設）；色胺酸、味精不加（使用者指定，2026-10-10）
+  assert.deepEqual(Object.fromEntries(t17.doses), { CIT: 11.5, SOR: 10.9 });
   assert.match(bite.base, /檸檬酸秤 11\.5 g/);
-  assert.match(bite.base, /沒有有效濃度可對/, "另三樣為什麼不改，要說出來");
+  assert.match(bite.base, /D-山梨醇秤 10\.9 g/);
+  assert.match(bite.base, /這是假設/, "山梨醇的濃度是假設，要說出來");
+  assert.match(bite.base, /色胺酸、味精不加/, "為什麼拿掉，要說出來");
   assert.deepEqual(t17.compare, ["T1"], "實驗組只留 T17，跟基準 T1 比（2026-10-08）");
   // 濃度改用固定的 600 g 水算，不再用「假設餌的密度接近水」
   for (const claim of ["糖精鈉、D-山梨醇讓吳郭魚吞下去", "劑量 0.25～1 g/kg 在安全範圍內"]) {
