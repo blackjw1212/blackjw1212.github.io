@@ -999,7 +999,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.match(bStage("attract").base, /多半要 1,000～1,200 cc/);
   assert.match(bStage("bite").base, /總共多半要 85～110 cc/);
   assert.match(bStage("bite").base, /兩組補一樣多/, "水量每組都要一樣");
-  assert.deepEqual([bStage("attract").useG, bStage("bite").useG], [100, 75], "胺基酸溶液的倒法不變");
+  assert.deepEqual([bStage("attract").useG, bStage("bite").useG], [900, 75], "A 撒起點 900 cc 整份用溶液、練餌倒 75 cc");
   const breamNotes = (id) => plain(h.seed()).recipes.find((r) => r.id === id).notes;
   assert.match(breamNotes("recipe-blackbream-groundbait"), /海水起點約 900 cc 分次加/);
   assert.match(breamNotes("recipe-blackbream-paste"), /海水起點約 75 ml 分次加/);
@@ -1091,14 +1091,21 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   // 練餌的基準＝預設配方「黑格 練餌」原樣，實驗組只留 K2（使用者指定，2026-10-08）
   assert.deepEqual(bream.groups.filter((g) => g.stage === "bite").map((g) => g.id), ["K1", "K2"]);
   assert.match(bream.stages.find((st) => st.id === "bite").base, /預設配方「黑格 練餌」原樣/);
-  // 甘胺酸、丙胺酸各 6 g 溶進 600 g 水（每 100 cc 含各 1 g）：A 撒倒 100 cc＝1 g／3 kg，練餌倒 75 cc＝0.75 g／150 g（2026-10-08）
+  // 兩杯同一個濃度（每 100 cc 含各 1 g）：A 撒那杯各 12 g 溶進 1,200 cc、整份當拌餌水，起點 900 cc＝9 g／3 kg（使用者指定，2026-10-11）；
+  // 練餌那杯各 6 g 溶進 600 g 水、倒 75 cc＝0.75 g／150 g（2026-10-08）
   for (const id of ["GLY", "ALA"]) {
-    assert.equal(perKg("M4", id), 2, "M4 " + id + " 秤的量 6 g／3 kg");
+    assert.equal(perKg("M4", id), 4, "M4 " + id + " 秤的量 12 g／3 kg");
     assert.equal(perKg("K2", id), 40, "K2 " + id + " 秤的量 6 g／150 g");
   }
-  assert.deepEqual([bream.stages[0].solutionG, bream.stages[0].useG, bream.stages[1].solutionG, bream.stages[1].useG], [600, 100, 600, 75]);
+  assert.deepEqual([bream.stages[0].solutionG, bream.stages[0].useG, bream.stages[1].solutionG, bream.stages[1].useG], [1200, 900, 600, 75]);
   const eff = plain(h.stockPerKg(bream));
-  assert.ok(Math.abs(eff.GLY[0].values[0] - 1000 / 3000) < 1e-9, "A 撒進去 1 g／3 kg");
+  assert.equal(eff.GLY[0].values[0], 3, "A 撒以起點 900 cc 計進去 9 g／3 kg");
+  assert.match(bream.stages[0].base, /M4 的拌餌水整份都用胺基酸溶液/);
+  assert.match(bream.stages[0].base, /各 10～12 g/);
+  assert.match(bream.stages[1].base, /練餌自己那一杯/, "A 撒那杯整份用掉，練餌要另一杯");
+  assert.doesNotMatch(bream.stages[1].base, /A 撒 3 次加練餌 4 次/, "共用一杯的舊說法不得退回");
+  assert.deepEqual(byId.get("M4").doses, [["GLY", 12], ["ALA", 12]]);
+  assert.deepEqual(byId.get("K2").doses, [["GLY", 6], ["ALA", 6]]);
   assert.equal(eff.GLY[1].values[0], 5, "練餌進去 0.75 g／150 g");
   assert.ok(!bream.groups.some((g) => g.id === "K5"));
   // 甜菜鹼買不到食品級，不列入（2026-09-27）；南極蝦粉 2026-10-08 起沒有組在用，不列
@@ -1279,7 +1286,7 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
   assert.equal(text("福壽魚", "CIT"), "主餌乾料 14.38 g", "11.5 g 溶進 600 g、取起點 150 g：約 2.88 g／200 g");
   assert.equal(text("福壽魚", "SOR"), "主餌乾料 13.63 g", "10.9 g 溶進 600 g、取起點 150 g：約 2.73 g／200 g");
-  assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 5 g");
+  assert.equal(text("黑鯛", "GLY"), "A 撒粉料 3 g；練餌 5 g");
   assert.equal(h.stockPerKgText(undefined), "—");
 });
 
