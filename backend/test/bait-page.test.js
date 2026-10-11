@@ -807,7 +807,7 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const seed = plain(h.seed());
   const fixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === "recipe-blackbream-groundbait");
   // 兩代：沒有玉米碎的第一版 → 含蝦磚的第二版 → 3 kg 只算粉料的現在這一版
-  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4", "recipe-blackbream-groundbait:notes:5", "recipe-blackbream-groundbait:notes:6"]);
+  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4", "recipe-blackbream-groundbait:notes:5", "recipe-blackbream-groundbait:notes:6", "recipe-blackbream-groundbait:notes:7"]);
   const oldItems = fixes.find((f) => f.id.endsWith(":items:1")).from[0];
   const oldNotes = fixes.find((f) => f.id.endsWith(":notes:1")).from[0];
   const ESA = "recipe-blackbream-groundbait";
@@ -864,8 +864,8 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const generations = pasteFixes.filter((f) => f.field === "items");
   assert.equal(generations.length, 3);
   // 備註多兩代：2026-09-25 來源核對改了出處標注、2026-10-07 去掉跟組成列與證據等級重複的句子（組成都沒變）；
-  // 2026-10-08 改成 150 g 時水量跟著減半
-  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 5);
+  // 2026-10-08 改成 150 g 時水量跟著減半；2026-10-11 水量改成照原料特性估、從 75 ml 分次加
+  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 6);
   const pasteOf = (state) => state.recipes.find((r) => r.id === PASTE);
   for (const gen of generations) {
     const oldPaste = plain(h.sanitizeState(seed));
@@ -986,8 +986,23 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.ok(Math.abs(16.7 / 1000 - 10 / 600) < 0.0001, "跟 T18 同一個濃度");
   const attractStage = tilapia.stages.find((st) => st.id === "attract");
   assert.equal(attractStage.solutionG, 1000);
-  assert.equal(attractStage.useG, 800);
+  // 拌餌水照原料特性估：起點 650 g、多半在 650～800 g（使用者指定，2026-10-11）
+  assert.equal(attractStage.useG, 650);
+  assert.match(attractStage.base, /起點 650 g，照原料特性估多半在 650～800 g/);
   assert.match(attractStage.base, /沒有來源/, "拌餌水量是本頁起點，要說出來");
+  assert.doesNotMatch(attractStage.base, /1000 g 左右/, "舊的「可能要補到 1000 g」不得退回");
+  assert.match(plain(h.seed()).recipes.find((r) => r.id === "recipe-groundbait-base").notes, /拌餌水起點 650 g/, "預設配方的備註要跟添加劑頁一致");
+  // 黑格也照原料特性估水量（使用者指定，2026-10-11）：A 撒從 900 cc、練餌從 75 cc 分次加，劑量那一杯的倒法不變
+  const bream = plain(h.ADDITIVES).find((p) => p.species === "黑鯛");
+  const bStage = (id) => bream.stages.find((st) => st.id === id);
+  assert.match(bStage("attract").base, /海水起點約 900 cc、分次加/);
+  assert.match(bStage("attract").base, /多半要 1,000～1,200 cc/);
+  assert.match(bStage("bite").base, /總共多半要 85～110 cc/);
+  assert.match(bStage("bite").base, /兩組補一樣多/, "水量每組都要一樣");
+  assert.deepEqual([bStage("attract").useG, bStage("bite").useG], [100, 75], "胺基酸溶液的倒法不變");
+  const breamNotes = (id) => plain(h.seed()).recipes.find((r) => r.id === id).notes;
+  assert.match(breamNotes("recipe-blackbream-groundbait"), /海水起點約 900 cc 分次加/);
+  assert.match(breamNotes("recipe-blackbream-paste"), /海水起點約 75 ml 分次加/);
   assert.match(attractStage.base, /兩組加一樣多/, "水量每組都要一樣");
   assert.match(attractStage.base, /沒有量過魚會不會因此游過來/, "吞食證據撐不起底餌的誘魚，要說出來");
   assert.doesNotMatch(g5.purpose, /最佳(?!濃度)|已證實/);
