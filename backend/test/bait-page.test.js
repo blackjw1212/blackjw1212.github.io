@@ -976,7 +976,20 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.equal(effective.TRP, undefined);
   assert.equal(effective.MSG, undefined);
   // 基準組＝兩份預設配方原樣，實驗組 T17（使用者指定，2026-10-08）＋T18 半胱胺酸單獨一組（使用者指定，2026-10-10）
-  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "T1", "T17", "T18"]);
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18"]);
+  // G5（沿用舊 G5＝底餌加半胱胺酸的編號；G2 是紅蟲萃取，不准回來）：底餌拌餌水加半胱胺酸鹽酸鹽，跟 T18 同一個濃度（16.7 g／1000 g 水 ＝ 10 g／600 g），跟 G1 比（使用者指定，2026-10-11）
+  const g5 = tilapia.groups.find((g) => g.id === "G5");
+  assert.equal(g5.stage, "attract");
+  assert.deepEqual(g5.doses, [["CYS", 16.7]]);
+  assert.deepEqual(g5.compare, ["G1"]);
+  assert.ok(Math.abs(16.7 / 1000 - 10 / 600) < 0.0001, "跟 T18 同一個濃度");
+  const attractStage = tilapia.stages.find((st) => st.id === "attract");
+  assert.equal(attractStage.solutionG, 1000);
+  assert.equal(attractStage.useG, 800);
+  assert.match(attractStage.base, /沒有來源/, "拌餌水量是本頁起點，要說出來");
+  assert.match(attractStage.base, /兩組加一樣多/, "水量每組都要一樣");
+  assert.match(attractStage.base, /沒有量過魚會不會因此游過來/, "吞食證據撐不起底餌的誘魚，要說出來");
+  assert.doesNotMatch(g5.purpose, /最佳(?!濃度)|已證實/);
   // 不再有溶液：每樣原料都是粉，加量就是克數，而且至少 1 g
   for (const plan of plans) {
     assert.ok(plan.stocks.every((x) => x.kind === "powder"), plan.species + " 還有液體原料");
