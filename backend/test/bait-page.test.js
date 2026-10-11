@@ -967,11 +967,12 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
     const amount = g.doses.find(([id]) => id === stockId)[1];
     return plain(h.doseFor(stock(tilapia, stockId), amount, baseOf(g.stage))).activeGPerKg;
   };
-  // 溶進 600 g 水、取 200 g（使用者指定，2026-10-08）。檸檬酸改照同種研究的有效濃度 0.1 M 秤 11.5 g
-  // （使用者指定，2026-10-10）：進到 200 g 乾料約 3.83 g ＝ 每公斤約 19.17 g；山梨醇也比照 0.1 M 秤 10.9 g（假設，使用者指定 2026-10-10）
+  // 溶進 600 g 水（使用者指定，2026-10-08），拌餌水起點 150 g、分次加到成團（使用者指定，2026-10-11）。檸檬酸照同種研究的
+  // 有效濃度 0.1 M 秤 11.5 g（使用者指定，2026-10-10）：以起點 150 g 計，進到 200 g 乾料約 2.88 g ＝ 每公斤約 14.38 g；
+  // 山梨醇也比照 0.1 M 秤 10.9 g（假設，使用者指定 2026-10-10）
   const effective = plain(h.stockPerKg(tilapia));
-  assert.ok(Math.abs(effective.CIT[0].values[0] - 11.5 * 200 / 600 / 200 * 1000) < 1e-9, "CIT");
-  assert.ok(Math.abs(effective.SOR[0].values[0] - 10.9 * 200 / 600 / 200 * 1000) < 1e-9, "SOR");
+  assert.ok(Math.abs(effective.CIT[0].values[0] - 11.5 * 150 / 600 / 200 * 1000) < 1e-9, "CIT");
+  assert.ok(Math.abs(effective.SOR[0].values[0] - 10.9 * 150 / 600 / 200 * 1000) < 1e-9, "SOR");
   // 色胺酸、味精同種試驗沒效果，2026-10-10 起不加（使用者指定）
   assert.equal(effective.TRP, undefined);
   assert.equal(effective.MSG, undefined);
@@ -1240,11 +1241,11 @@ test("福壽魚：T1 基準、T17（檸檬酸 0.1 M＋另三樣各 3 g），換�
     const g = tilapia.groups.find((x) => x.id === groupId);
     return plain(h.doseFor(stock(stockId), g.doses.find(([id]) => id === stockId)[1], 200)).activeGPerKg;
   };
-  // 檸檬酸秤 11.5 g、D-山梨醇秤 10.9 g（600 g 水都約 0.1 M）；實際進到 200 g 乾料的是約 3.83 g 與約 3.63 g
+  // 檸檬酸秤 11.5 g、D-山梨醇秤 10.9 g（600 g 水都約 0.1 M）；以拌餌水起點 150 g 計，實際進到 200 g 乾料的是約 2.88 g 與約 2.73 g
   assert.equal(perKg("T17", "CIT"), 57.5, "CIT 秤的量");
   assert.equal(perKg("T17", "SOR"), 54.5, "SOR 秤的量");
-  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).CIT), "主餌乾料 19.17 g", "CIT 進到餌裡的量");
-  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).SOR), "主餌乾料 18.17 g", "SOR 進到餌裡的量");
+  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).CIT), "主餌乾料 14.38 g", "CIT 進到餌裡的量");
+  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).SOR), "主餌乾料 13.63 g", "SOR 進到餌裡的量");
   // 溶液濃度真的是 0.1 M：11.5 g ÷ 192.12（無水檸檬酸）÷ 0.6 L、10.9 g ÷ 182.17（D-山梨醇）÷ 0.6 L
   assert.ok(Math.abs(11.5 / 192.12 / 0.6 - 0.1) < 0.001);
   assert.ok(Math.abs(10.9 / 182.17 / 0.6 - 0.1) < 0.001);
@@ -1261,8 +1262,8 @@ test("原料表的每公斤（乾粉）由實驗組算出，分段列出", async
   const h = app.helpers;
   const plans = plain(h.ADDITIVES);
   const text = (sp, id) => h.stockPerKgText(plain(h.stockPerKg(plans.find((p) => p.species === sp)))[id]);
-  assert.equal(text("福壽魚", "CIT"), "主餌乾料 19.17 g", "11.5 g 溶進 600 g、取 200 g：約 3.83 g／200 g");
-  assert.equal(text("福壽魚", "SOR"), "主餌乾料 18.17 g", "10.9 g 溶進 600 g、取 200 g：約 3.63 g／200 g");
+  assert.equal(text("福壽魚", "CIT"), "主餌乾料 14.38 g", "11.5 g 溶進 600 g、取起點 150 g：約 2.88 g／200 g");
+  assert.equal(text("福壽魚", "SOR"), "主餌乾料 13.63 g", "10.9 g 溶進 600 g、取起點 150 g：約 2.73 g／200 g");
   assert.equal(text("黑鯛", "GLY"), "A 撒粉料 0.33 g；練餌 5 g");
   assert.equal(h.stockPerKgText(undefined), "—");
 });
@@ -1387,20 +1388,24 @@ test("開餌頁第二輪去重複：沒有跟按鈕同字的小標題，預設�
   }
 });
 
-test("T17：檸檬酸 0.1 M＋另三樣各 3 g 跟 T1 比；第二段固定 600 g 水、200 g 乾料（使用者指定，2026-10-08／10-10）", async () => {
+test("T17：檸檬酸 0.1 M＋另三樣各 3 g 跟 T1 比；第二段固定 600 g 水、200 g 乾料、拌餌水起點 150 g（使用者指定，2026-10-08／10-10／10-11）", async () => {
   const { app, html } = await loadPage();
   const h = app.helpers;
   const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
   const bite = tilapia.stages.find((st) => st.id === "bite");
   assert.equal(bite.baseGrams, 200);
   assert.match(bite.base, /魔粒 100 g＋主餌 100 g/);
-  // 各 1 g 溶進 600 g 水、每次取 200 g（使用者實際做法，2026-10-08）：進到餌裡的只有三分之一
+  // 溶進 600 g 水（使用者實際做法，2026-10-08）；拌餌水起點 150 g、分次加到成團、最多 200 g（使用者指定，2026-10-11）
   assert.equal(bite.solutionG, 600);
-  assert.equal(bite.useG, 200);
-  assert.match(bite.base, /每次只取其中 200 g/);
-  assert.match(bite.base, /T1 也用 200 g 清水/, "水量每組都要一樣");
+  assert.equal(bite.useG, 150);
+  assert.match(bite.base, /拌餌水起點 150 g、分次加到成團/);
+  assert.match(bite.base, /最多加到 200 g/);
+  assert.match(bite.base, /照原料特性估的/, "150 g 沒有來源，要說出來");
+  assert.match(bite.base, /三組都照那個量加/, "水量每組都要一樣");
   assert.match(bite.base, /未驗證/, "溶液能放多久沒有資料，要說出來");
-  assert.match(bite.base, /一杯 600 g 正好用三次/, "剩下的 400 g 留到下次（使用者，2026-10-08）");
+  assert.match(bite.base, /一杯 600 g 每次用 150～200 g，可以用 3～4 次/, "用剩的留到下次（使用者，2026-10-08／10-11）");
+  assert.doesNotMatch(bite.base, /正好用三次/, "每次 200 g 的舊說法不得退回");
+  assert.match(plain(h.seed()).recipes.find((r) => r.id === "recipe-main-allpowder").notes, /拌餌水起點 150 g/, "預設配方的備註要跟添加劑頁一致");
   // 「加什麼」欄要說出溶進多少水、每次取多少，不然 3 g、6 g 會被讀成全部加進去
   assert.match(html, /"，溶進 " \+ stage\.solutionG \+ " g 水、每次取 " \+ stage\.useG \+ " g"/);
   const t17 = tilapia.groups.find((g) => g.id === "T17");
