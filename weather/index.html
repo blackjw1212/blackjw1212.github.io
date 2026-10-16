@@ -147,6 +147,19 @@ body {
   flex: 1 1 auto;
 }
 .title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--txt); }
+/* 行內按鈕：padding 撐出 ~44px 熱區，負 margin 吸收，標題列高度不變（同 .radar-link） */
+.relocate-btn {
+  font: inherit;
+  color: var(--link);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: inline-block;
+  padding: 14px 6px;
+  margin: -14px -6px;
+  margin-left: 4px;
+}
+.relocate-btn:disabled { opacity: .5; cursor: default; }
 .meta  { font-size: 13px; color: var(--txt-3); margin-top: 4px; font-family: 'DM Mono', monospace; }
 .area-control {
   display: flex;
@@ -1264,7 +1277,7 @@ body {
   <div class="topbar">
     <div class="topbar-left">
       <div class="title">BJKW即時氣象報告</div>
-      <div class="meta" id="meta">資料載入中…</div>
+      <div class="meta"><span id="meta">資料載入中…</span> <button type="button" class="relocate-btn" id="relocateBtn">重新定位</button></div>
     </div>
     <div class="area-control">
       <label class="area-label" for="coastSelect">地區</label>
@@ -1630,14 +1643,18 @@ function radarPoint(weatherInfo, coastCfg) {
   return null;
 }
 
-// 上一次的定位。iOS 的位置權限若是「僅允許一次」，每次重新整理都會再問一遍；
-// 而這一頁要位置只是為了挑最近的觀測站，公里級就夠。存一份跨頁面載入的快取，
-// 重整時直接用它，不必再問也不必等 GPS。
-// 12 小時後就丟掉：再舊可能已經是另一趟行程，那會挑錯站。
+// 上一次的定位。iOS 的位置權限設成「詢問」時，每呼叫一次定位就會再問一遍，
+// 所以存一份跨頁面載入的快取。但這頁要的是「人現在在哪」：
+// - 權限已經是允許：每次都重新定位（不會跳提示），快取只當失敗時的退路。
+// - 會跳提示：快取只沿用 30 分鐘（同 /sky/ 的 FIX_REFRESH_AFTER_MS），開車半小時就是另一個海域。
+// 先前一律沿用 12 小時，早上在湖內定位、中午回到臺南，整天都還顯示湖內與茄萣（2026-10-16 回報）。
+// 12 小時只保留給「定位失敗時的退路」，而且畫面會印出那筆定位的時間。
 const FIX_STORAGE_KEY = "bjkw-weather-last-fix";
+const FIX_REUSE_MS = 30 * 60 * 1000;
 const FIX_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+let forceFreshFix = false;
 
-function readStoredFix() {
+function readStoredFix(maxAgeMs = FIX_MAX_AGE_MS) {
   let raw = null;
   try { raw = localStorage.getItem(FIX_STORAGE_KEY); } catch (err) { return null; }
   if (!raw) return null;
@@ -1648,8 +1665,8 @@ function readStoredFix() {
   if (typeof lat !== "number" || !isFinite(lat) || lat < -90 || lat > 90) return null;
   if (typeof lon !== "number" || !isFinite(lon) || lon < -180 || lon > 180) return null;
   if (typeof at !== "number" || !isFinite(at) || at > Date.now()) return null;
-  if (Date.now() - at > FIX_MAX_AGE_MS) return null;
-  return { lat, lon };
+  if (Date.now() - at > maxAgeMs) return null;
+  return { lat, lon, at };
 }
 
 function rememberFix(lat, lon) {
@@ -1658,30 +1675,39 @@ function rememberFix(lat, lon) {
   } catch (err) { /* 無痕視窗會丟例外，這次就只用記憶體裡的 */ }
 }
 
-function getGpsPosition() {
+/* Permissions API 的 geolocation 狀態（Safari 16 起支援）；拿不到就當作未知 */
+async function geolocationPermission() {
+  try {
+    const status = await navigator.permissions?.query({ name: "geolocation" });
+    return status?.state || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function getGpsPosition() {
+  if (!navigator.geolocation) return null;
+  const force = forceFreshFix;
+  forceFreshFix = false;
+  if (!force && (await geolocationPermission()) !== "granted") {
+    const cached = readStoredFix(FIX_REUSE_MS);
+    if (cached) return cached;
+  }
   return new Promise(resolve => {
-    if (!navigator.geolocation) {
-      resolve(null);
-      return;
-    }
-    const cached = readStoredFix();
-    if (cached) {
-      resolve(cached);
-      return;
-    }
     navigator.geolocation.getCurrentPosition(
       pos => {
         rememberFix(pos.coords.latitude, pos.coords.longitude);
         resolve({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
+          at: Date.now(),
         });
       },
       err => {
-        console.warn("GPS 定位失敗，改用東區", err);
-        resolve(null);
+        console.warn("GPS 定位失敗，改用上次定位或東區", err);
+        resolve(readStoredFix());
       },
-      { enableHighAccuracy: false, maximumAge: 15 * 60 * 1000, timeout: 5000 }
+      { enableHighAccuracy: false, maximumAge: 2 * 60 * 1000, timeout: 5000 }
     );
   });
 }
@@ -2263,6 +2289,8 @@ async function loadAll() {
   const content = document.getElementById("content");
   const meta    = document.getElementById("meta");
   if (select) select.disabled = true;
+  const relocateBtn = document.getElementById("relocateBtn");
+  if (relocateBtn) relocateBtn.disabled = true;
   meta.textContent = "資料載入中…";
 
   try {
@@ -2530,7 +2558,7 @@ async function loadAll() {
             const tideIndex = tideCurveEvents.length;
             tideCurveEvents.push({ height: h, isHi });
             if (!isHi && sourceDate === today) dryTides.push({ dt: evDt, h });
-            const cyclePeriod = isNextCycle ? "翌日" : (twHour(evDt) < 12 ? "上午" : "下午");
+            const cyclePeriod = isNextCycle ? "翌日" : "";
             const cycleClass = isNextCycle ? " tide-next-cycle" : "";
             dayCells += `<div class="tide-cell${cycleClass}" data-tide-height="${h}" data-tide-index="${tideIndex}">
               <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${cyclePeriod}</div>
@@ -2776,7 +2804,9 @@ async function loadAll() {
     syncTodayModeDetails();
     requestSyncTideCurves();
 
-    meta.textContent = `最後更新：${n.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
+    // 一律 24 小時制；印出定位的時間，沿用的是舊定位時看得出來
+    const fixAt = weatherInfo.gpsPos?.at;
+    meta.textContent = `更新 ${fmtTime(n)} · ${fixAt ? `定位 ${fmtTime(new Date(fixAt))}` : "未取得定位"}`;
 
   } catch(err) {
     const errMsg = String(err?.message || err);
@@ -2787,6 +2817,7 @@ async function loadAll() {
   }
 
   if (select) select.disabled = false;
+  if (relocateBtn) relocateBtn.disabled = false;
 }
 
 document.getElementById("coastSelect")?.addEventListener("change", e => {
@@ -2795,10 +2826,17 @@ document.getElementById("coastSelect")?.addEventListener("change", e => {
   loadAll();
 });
 
+// 重新定位：略過快取、要一筆新的定位；手動選的海域一併放掉，回到跟隨定位
+document.getElementById("relocateBtn")?.addEventListener("click", () => {
+  forceFreshFix = true;
+  manualCoastLabel = null;
+  loadAll();
+});
+
 // 位置快取的純函式掛出來給測試用，並讓測試擋掉自動初始化——其他互動頁
 // （/sky/、/float/、/subtitle/、/convert/、/bait/）都是這個慣例，這頁先前漏了。
 window.WeatherApp = { helpers: {
-  readStoredFix, rememberFix,
+  readStoredFix, rememberFix, getGpsPosition,
   tideNowState, maxTideRange, oceanCurrent, stationExtras,
   countyHazards, activeTyphoonAlerts, warningFloor, applyWarningFloor,
   nearestEntry,

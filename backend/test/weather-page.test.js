@@ -9,7 +9,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 // 只為了測位置快取。天氣頁的主體要 DOM 與網路，這裡一律給空殼——
 // __WEATHER_SKIP_AUTO_INIT__ 擋掉 loadAll()，所以不會真的去抓資料。
-async function loadHelpers(store) {
+async function loadHelpers(store, nav) {
   const html = await readFile(join(ROOT, "weather", "index.html"), "utf8");
   const script = html.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)?.[1];
   assert.ok(script, "行內主程式必須緊貼 </body>");
@@ -33,7 +33,7 @@ async function loadHelpers(store) {
       querySelector: () => el, querySelectorAll: () => [], createElement: () => el,
       body: el, documentElement: el,
     },
-    navigator: { geolocation: null, userAgent: "test" },
+    navigator: nav || { geolocation: null, userAgent: "test" },
     location: { href: "http://localhost/weather/", search: "" },
     setTimeout, clearTimeout, setInterval, clearInterval,
     fetch: window.fetch, Math, Date, isFinite, parseFloat, parseInt, Number, String,
@@ -54,7 +54,9 @@ test("a fresh stored fix is reused so the page never re-asks for location", asyn
   const store = {};
   const h = await loadHelpers(store);
   h.rememberFix(FIX.lat, FIX.lon);
-  assert.deepEqual(h.readStoredFix(), FIX);
+  const got = h.readStoredFix();
+  assert.deepEqual({ lat: got.lat, lon: got.lon }, FIX);
+  assert.equal(typeof got.at, "number");
 });
 
 test("a stale fix is discarded rather than used to pick the wrong station", async () => {
@@ -288,4 +290,59 @@ test("the nearest forecast slot can cross midnight but not beyond three hours", 
   assert.equal(h.nearestEntry(sea, "浪高", new Date("2026-09-23T19:00:00+08:00")), null);
   assert.equal(h.nearestEntry(sea, "浪高", new Date("2026-09-24T02:00:00+08:00")).key, "2026-09-24_3");
   assert.equal(h.nearestEntry({}, "浪高", new Date()), null);
+});
+
+// ─── 定位快取政策：權限已允許就每次重新定位；會跳提示時快取只沿用 30 分鐘 ─────
+// 2026-10-16 回報：早上在湖內定位，中午回到臺南，頁面仍沿用 12 小時內的舊定位。
+function fakeNav(permission, { fails = false } = {}) {
+  const calls = { n: 0 };
+  return {
+    calls,
+    nav: {
+      userAgent: "test",
+      permissions: permission ? { query: async () => ({ state: permission }) } : undefined,
+      geolocation: {
+        getCurrentPosition(ok, err) {
+          calls.n++;
+          if (fails) err({ code: 3, message: "timeout" });
+          else ok({ coords: { latitude: 22.997, longitude: 120.212 } });
+        },
+      },
+    },
+  };
+}
+const storedAgo = (min) => ({ "bjkw-weather-last-fix": JSON.stringify({ ...FIX, at: Date.now() - min * 60000 }) });
+
+test("with location already allowed the page asks for a fresh fix even when one is stored", async () => {
+  const { nav, calls } = fakeNav("granted");
+  const h = await loadHelpers(storedAgo(5), nav);
+  const pos = await h.getGpsPosition();
+  assert.equal(calls.n, 1);
+  assert.equal(pos.lat, 22.997);
+});
+
+test("when asking would prompt, a fix under 30 minutes old is reused without asking", async () => {
+  const { nav, calls } = fakeNav("prompt");
+  const h = await loadHelpers(storedAgo(10), nav);
+  const pos = await h.getGpsPosition();
+  assert.equal(calls.n, 0);
+  assert.equal(pos.lat, FIX.lat);
+});
+
+test("a fix older than 30 minutes is not reused, even inside the 12-hour fallback window", async () => {
+  const { nav, calls } = fakeNav("prompt");
+  const h = await loadHelpers(storedAgo(40), nav);
+  const pos = await h.getGpsPosition();
+  assert.equal(calls.n, 1);
+  assert.equal(pos.lat, 22.997);
+});
+
+test("if the location request fails, the stored fix is used and keeps its own timestamp", async () => {
+  const { nav } = fakeNav("granted", { fails: true });
+  const store = storedAgo(180);
+  const at = JSON.parse(store["bjkw-weather-last-fix"]).at;
+  const h = await loadHelpers(store, nav);
+  const pos = await h.getGpsPosition();
+  assert.equal(pos.lat, FIX.lat);
+  assert.equal(pos.at, at, "畫面要印出的是那筆舊定位的時間，不是現在");
 });
