@@ -3295,26 +3295,24 @@ test("the growth option says what it does not look at", async () => {
   }
 });
 
-test("the recommender names the salary field when it cannot compute tax, and recovers once it is filled", async () => {
-  const { app, elements } = await loadMarket(dualFeedMock());
-  await app.init();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const set = (id, value) => {
-    const node = elements.get(id);
-    node.value = value;
-    if (node.listeners.get("input")) node.listeners.get("input")();
-  };
+// 第四輪（2026-10-19）：沒填年薪時原本拒算——新手看到的就是「累積資產優先沒有推薦」。
+// 改成先用稅前總報酬排，並講明所得稅沒算、填年薪會改用稅後。
+test("growth without a salary still suggests, says tax is not counted, and switches to after-tax once filled", async () => {
+  const { elements, set, result } = await autoPanel();
   set("simTotal", "1000000");
   set("simNetIncome", "");
   elements.get("pfIntentGrowth").fire("click");
-  const refused = elements.get("suggestResult").innerHTML;
-  assert.match(refused, /年薪/, "拒算時要指向同一列就有的年薪欄，而不是叫人去找下面的稅務設定");
-  assert.doesNotMatch(refused, /上方模擬器/, "模擬器現在在下方");
+  const preTax = result();
+  assert.match(preTax, /pick-card/, "沒填年薪也要有推薦");
+  assert.match(preTax, /未計所得稅/, "要講明這一版沒算所得稅");
+  assert.match(preTax, /年薪/, "要講得出怎麼換成稅後");
+  assert.doesNotMatch(preTax, /需要「綜合所得淨額」/);
+  assert.doesNotMatch(preTax, /稅後總報酬<\/b>/, "沒算稅就不可以標成稅後");
 
   set("simSalary", "1200000");
   assert.ok(elements.get("simNetIncome").value !== "", "年薪要換算成淨額");
-  assert.doesNotMatch(elements.get("suggestResult").innerHTML, /需要「綜合所得淨額」/,
-    "填了年薪之後，畫面上不可留著剛才那句拒算");
+  assert.doesNotMatch(result(), /未計所得稅/, "填了年薪之後要改用稅後，不可留著稅前的說明");
+  assert.match(result(), /稅後總報酬/);
 });
 
 test("a shown suggestion follows a change of the amount", async () => {
@@ -3468,4 +3466,69 @@ test("a feed that is still loading or has failed is named, not passed off as no 
   failing.elements.get("suggestRetry").fire("click");
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.match(failing.result(), /pick-card/, "重試成功後要直接出結果");
+});
+
+// 手動目標鈕那條路沒有年薪仍拒算（既有測試 "refuses to guess the tax bracket" 守著）；
+// 稅前只在問卷那條路、而且要明確要求才會用
+test("the pre-tax fallback is opt-in and ranks by pre-tax total return", async () => {
+  const { app } = await autoPanel();
+  const { optimizeAllocation } = app.helpers;
+  const mk = (code, price, dividend) => ({
+    code, name: code, market: "twse", type: "市值型", close: 50, aum: 500, discountPremium: 0,
+    yield: dividend ? 4 : null, dps: dividend ? [{ m: 6, a: 2 }] : [],
+    totalReturn1y: price + (dividend ? 4 : 0), priceReturn1y: price, maxDrawdown1y: -8,
+  });
+  const universe = [mk("00P1", 30, false), mk("00P2", 25, true), mk("00P3", 20, false), mk("00P4", 18, true), mk("00P5", 15, false)];
+  assert.equal(optimizeAllocation(universe, { total: 1000000, goal: "netTotal" }).picks.length, 0, "沒要求就照舊拒算");
+  const out = optimizeAllocation(universe, { total: 1000000, goal: "netTotal", preTaxFallback: true });
+  assert.ok(out.picks.length >= 3);
+  assert.equal(out.preTax, true, "結果要帶旗標，畫面才知道要標「未計所得稅」");
+  assert.ok(out.result.preTaxTotal > 0);
+  // 有年薪時旗標無效，照稅後算
+  const taxed = optimizeAllocation(universe, { total: 1000000, goal: "netTotal", preTaxFallback: true, netIncome: 800000 });
+  assert.notEqual(taxed.preTax, true);
+});
+
+test("the compare card runs both goals side by side on the same money", async () => {
+  const { elements, set, result } = await autoPanel();
+  set("simTotal", "100000");
+  set("simNetIncome", "800000");
+  const compare = elements.get("pfIntentCompare");
+  assert.ok(compare, "要有第三張卡片");
+  compare.fire("click");
+  assert.match(compare.className, /\bon\b/);
+  assert.doesNotMatch(elements.get("pfIntentIncome").className, /\bon\b/);
+  const html = result();
+  assert.match(html, /想領配息/);
+  assert.match(html, /想讓資產長大/);
+  assert.equal((html.match(/class="cmp-col"/g) || []).length, 2, "兩組並排");
+  for (const label of ["年配息", "近1年總報酬", "最深回撤"]) {
+    assert.ok(html.includes(label), `比較要列出「${label}」`);
+  }
+  assert.doesNotMatch(html, /比較好|較佳|建議選/, "只講差在哪裡，不替使用者判定哪種比較好");
+  // 金額改了也跟著走
+  set("simTotal", "");
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.match(result(), /輸入投入總額/);
+});
+
+test("results say the suggestion range is listed ETFs only", async () => {
+  const { elements, set, result } = await autoPanel();
+  set("simTotal", "100000");
+  elements.get("pfIntentIncome").fire("click");
+  assert.match(result(), /推薦範圍[^<]*ETF/);
+  assert.match(result(), /個股/, "要講出個股為什麼不在範圍內");
+});
+
+test("you can find a holding by name, not only by code", async () => {
+  const { html, app, elements } = await autoPanel();
+  assert.match(html, /<datalist id="simCodeList">/);
+  assert.match(html, /list="simCodeList"/, "代碼欄要接上建議清單");
+  const list = elements.get("simCodeList").innerHTML;
+  assert.match(list, /value="00T01"/);
+  assert.match(list, /測試00T01/, "建議清單要看得到名稱");
+  const { resolveCode } = app.helpers;
+  assert.equal(resolveCode("測試00T02"), "00T02", "打完整名稱要能換成代碼");
+  assert.equal(resolveCode("00t03"), "00T03");
+  assert.equal(resolveCode("找不到的名字"), "找不到的名字", "對不上就原樣保留，不猜");
 });

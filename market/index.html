@@ -90,6 +90,12 @@
   .spark{display:block;margin:2px 0 0 auto;color:var(--faint);overflow:visible}
   /* 新手用的模式卡片與結論卡。沿用既有色票，不新增變數。 */
   .mode-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}
+  .mode-cards.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* 「幫我比較」的兩組並排；手機在下面 640px 斷點改成上下疊 */
+  .cmp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:10px}
+  .cmp-col{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px 12px;min-width:0}
+  .cmp-col h4{font-size:14px;margin:0}
+  .cmp-list{margin:0 0 8px 18px;font-size:13px;line-height:1.8}
   .mode-card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:12px 14px;text-align:left;cursor:pointer;color:inherit;font:inherit}
   .mode-card:hover{border-color:#4c5e6b}
   .mode-card.on{border-color:var(--teal);box-shadow:inset 3px 0 0 var(--teal)}
@@ -122,6 +128,7 @@
   .toolrow:has(> .hint:only-child:empty){display:none}
   @media (max-width:640px){
     .mode-cards{grid-template-columns:1fr}
+    .mode-cards.three, .cmp{grid-template-columns:1fr}
     /* .hero-row 這裡原本被覆寫成 1fr，六張 KPI 卡在手機上排成單欄、
        每張 347px 寬卻只放一個短數字，主視覺高達 836px——那正是把
        「＋ 加入標的」與它產生的清單隔開的那道牆。實測改回兩欄後降到 557px，
@@ -450,9 +457,8 @@
        「控制項緊貼自己的輸出」那條規則沒有放寬。 -->
   <section aria-labelledby="pickHeading">
     <h2 id="pickHeading">投入多少、想怎麼投 <em>START</em></h2>
-    <p class="hint">填金額、選方式，從全市場 ETF 挑出符合條件的組合；已經有想買的標的，就直接用下面的「你的標的」。
-      這是<b>試算不是預測</b>，用的是各檔過去實際發過的配息與近一年的報酬；
-      <b>不是投資或稅務建議</b>，算法與稅制假設都在最下面的「這些數字是怎麼算的」。</p>
+    <p class="hint">填金額、選方式，就會從上市櫃 ETF 挑出組合。這是<b>試算不是預測</b>，<b>不是投資或稅務建議</b>；
+      算法與假設在最下面的「這些數字是怎麼算的」。</p>
     <div class="toolbar">
       <div class="toolrow">
         <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
@@ -461,15 +467,18 @@
     <h3 style="font-size:14px;margin-top:14px" id="suggestHeading">幫我挑標的<span class="hint" style="margin:0 0 0 8px;font-weight:400">從全市場 ETF 挑，按「套用到下方試算」才會換掉你下面的清單</span></h3>
     <div class="profile-form">
       <!-- 兩張都不預選：自動推薦之後，預選一張等於替使用者做了決定還照著算 -->
-      <div class="profile-head">選一種方式就會開始篩選；下面的條件改了也會自動重算</div>
-      <div class="mode-cards">
+      <div class="profile-head">你希望怎麼投資？選了就會開始篩選</div>
+      <!-- 說明照實寫「近一年」：兩個目標看的都是近一年的回測，寫「長期成長」會是假宣稱 -->
+      <div class="mode-cards three">
         <button class="mode-card" id="pfIntentIncome" type="button" aria-pressed="false">
-          <b>配息優先</b><span>要領現金：先讓每個月都有配息入帳，再墊高最薄的那個月</span></button>
+          <b>想領配息</b><span>希望投資帶來現金收入：先讓每個月都有配息</span></button>
         <button class="mode-card" id="pfIntentGrowth" type="button" aria-pressed="false">
-          <b>累積資產優先</b><span>不要求配息：看近一年稅後總報酬（價差＋配息−稅−健保）</span></button>
+          <b>想讓資產長大</b><span>不以領配息為主：挑近一年價差＋配息最高的組合</span></button>
+        <button class="mode-card" id="pfIntentCompare" type="button" aria-pressed="false">
+          <b>幫我比較兩種方式</b><span>同一筆錢各挑一組，並排看配息、報酬與回撤</span></button>
       </div>
-      <div class="profile-note">累積資產優先<b>不等於只挑不配息的 ETF</b>：本站沒有「設計上不配息」的欄位，這裡只是不把配息當條件。
-        費用率與追蹤誤差本站沒有可靠資料，<b>未納入</b>比較；符合門檻、近一年沒配過息的候選多為主題型與海外指數型。</div>
+      <div class="profile-note">「想讓資產長大」不等於只挑不配息的 ETF；費用率、追蹤誤差本站沒有資料，<b>未納入</b>；
+        不配息的候選多為主題型與海外指數型。</div>
       <div class="profile-row">
         <span class="fld">投資期限
           <select id="pfHorizon" aria-label="投資期限">
@@ -548,8 +557,8 @@
 
   <section aria-labelledby="simHeading">
     <h2 id="simHeading">你這樣買，一年能領多少？ <em>SIMULATOR</em></h2>
-    <p class="hint">已經有想買的標的，就在這裡挑幾檔 ETF 直接試算，金額沿用上方的「投入總額」；
-      上方挑出的組合按「套用到下方試算」也會帶進這裡。</p>
+    <p class="hint">想自己選：按「＋ 加入標的」，用名稱或代碼找；金額沿用上方的「投入總額」，比例留白會自動算。
+      上方的組合按「套用到下方試算」也會帶進這裡。</p>
     <!-- 版面依**任務**分組，不依控制項類型：
          【你買什麼】＋加入標的 → 你的標的清單 → 重算比例（投入總額在上一區，兩條路共用）
          【假設】配息打折 → 稅務設定
@@ -571,6 +580,8 @@
 
       <h3 style="font-size:14px;margin-top:14px">你的標的</h3>
       <div class="sim-rows" id="simRows"></div>
+      <!-- 代碼欄的建議清單：打名稱或代碼都找得到。ETF 與個股兩份 feed 載入後才填 -->
+      <datalist id="simCodeList"></datalist>
 
       <!-- 「重算比例」改寫的是上面每一列的比例，所以緊貼清單下方，不放回頂端 -->
       <div class="toolrow" style="margin-top:12px">
@@ -1813,6 +1824,27 @@ function runOverlap(){
 let simStress = 1;
 let simAllocations = [];
 
+// 代碼欄可以打名稱：完全等於某檔名稱就換成它的代碼；代碼大小寫不拘。
+// 對不上就原樣保留，不猜——猜錯一檔比查不到更糟。
+function resolveCode(text){
+  const raw = String(text || "").trim();
+  if (!raw) return raw;
+  const upper = raw.toUpperCase();
+  const byCode = allEtfs.find(function(row){ return row.code === upper; }) || allStocks.find(function(row){ return row.code === upper; });
+  if (byCode) return byCode.code;
+  const byName = allEtfs.find(function(row){ return row.name === raw; }) || allStocks.find(function(row){ return row.name === raw; });
+  return byName ? byName.code : raw;
+}
+
+// 代碼欄的建議清單。標籤帶名稱、類型與收盤，讓人知道自己選的是什麼
+function fillCodeList(){
+  const list = $("simCodeList");
+  if (!list) return;
+  const option = function(code, label){ return '<option value="' + escapeHtml(code) + '">' + escapeHtml(label) + '</option>'; };
+  list.innerHTML = allEtfs.map(function(row){ return option(row.code, row.name + " · " + row.type + " ETF · " + fmt(row.close, 2)); }).join("")
+    + allStocks.map(function(row){ return option(row.code, row.name + " · 個股 · " + fmt(row.close, 2)); }).join("");
+}
+
 function lookupSecurity(code){
   const cleaned = String(code || "").trim().toUpperCase();
   if (!cleaned) return null;
@@ -2569,12 +2601,17 @@ function optimizeAllocation(etfs, options){
 
   // 稅後目標需要使用者的綜合所得淨額才算得出來——沒有就明講，不要偷偷退回稅前排序
   let taxCtx = null;
+  let preTax = false;
   if (goal === "netTotal") {
     const rawNet = opts.netIncome;
     if (rawNet == null || rawNet === "" || !Number.isFinite(Number(rawNet)) || Number(rawNet) < 0) {
-      return {picks:[], reason:"稅後總報酬最大化需要「綜合所得淨額」：在「幫我挑標的」那一列填年薪會自動換算，或在下方「稅務設定」直接填淨額"};
+      // 問卷那條路可以退回稅前（價差＋配息−健保），畫面會標「未計所得稅」。
+      // 第四輪實測：新手不填年薪，「想讓資產長大」就只剩這句拒算，看起來像壞掉。
+      // 手動目標鈕那條路不帶這個旗標，照舊拒算。
+      if (opts.preTaxFallback) preTax = true;
+      else return {picks:[], reason:"稅後總報酬最大化需要「綜合所得淨額」：在「幫我挑標的」那一列填年薪會自動換算，或在下方「稅務設定」直接填淨額"};
     }
-    taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
+    if (!preTax) taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
   }
   if (goal === "afterTax") {
     const rawNet = opts.netIncome;
@@ -2606,7 +2643,7 @@ function optimizeAllocation(etfs, options){
       if (candidate.monthsWithCash !== incumbent.monthsWithCash) return candidate.monthsWithCash > incumbent.monthsWithCash;
       if (candidate.minMonth !== incumbent.minMonth) return candidate.minMonth > incumbent.minMonth;
     }
-    if (goal === "netTotal") return candidate.afterTaxTotal > incumbent.afterTaxTotal;
+    if (goal === "netTotal") return preTax ? candidate.preTaxTotal > incumbent.preTaxTotal : candidate.afterTaxTotal > incumbent.afterTaxTotal;
     if (goal === "afterTax") return candidate.afterTaxNet > incumbent.afterTaxNet;
     return candidate.totalNet > incumbent.totalNet;
   };
@@ -2665,10 +2702,12 @@ function optimizeAllocation(etfs, options){
     baselineMinMonth:baseline.minMonth,
     baselineAfterTaxNet:baseline.afterTaxNet,
     baselineAfterTaxTotal:baseline.afterTaxTotal,
+    baselinePreTaxTotal:baseline.preTaxTotal,
+    preTax:preTax,
     // netYield/diverse 下等權在搜尋空間內，此值恆 ≥ 0；
     // monthly 是字典序目標（可能犧牲總額換最弱月），此值可為負，UI 依 goal 呈現。
     gainVsEqual:goal === "netTotal"
-      ? best.result.afterTaxTotal - baseline.afterTaxTotal
+      ? (preTax ? best.result.preTaxTotal - baseline.preTaxTotal : best.result.afterTaxTotal - baseline.afterTaxTotal)
       : (goal === "afterTax"
         ? best.result.afterTaxNet - baseline.afterTaxNet
         : best.result.totalNet - baseline.totalNet),
@@ -2680,7 +2719,7 @@ function optimizeAllocation(etfs, options){
 
 function simRowHtml(index, allocation){
   return '<div class="sim-row" data-sim-row="' + index + '">'
-    + '<input type="text" value="' + escapeHtml(allocation.code || "") + '" data-sim-code="' + index + '" placeholder="代碼" aria-label="標的代碼" />'
+    + '<input type="text" value="' + escapeHtml(allocation.code || "") + '" data-sim-code="' + index + '" list="simCodeList" placeholder="代碼或名稱" aria-label="標的代碼或名稱" />'
     + '<span class="nm2" id="simName' + index + '"></span>'
     + '<span class="px2" id="simPrice' + index + '">—</span>'
     + '<input type="number" value="' + escapeHtml(allocation.shares == null ? "" : allocation.shares) + '" data-sim-shares="' + index + '" placeholder="股數" min="0" step="1000" aria-label="持有股數（1 張＝1000 股）" />'
@@ -2725,6 +2764,11 @@ function renderSimRows(){
       const sharesIdx = input.dataset && input.dataset.simShares;
       const monthIdx = input.dataset && input.dataset.simMonth;
       if (codeIdx != null) input.addEventListener("input", function(){simAllocations[codeIdx].code = input.value; updateSimNames(); runSim();});
+      // 打完整名稱（沒從建議清單點選）也要換成代碼，否則查不到標的
+      if (codeIdx != null) input.addEventListener("change", function(){
+        const code = resolveCode(input.value);
+        if (code !== input.value) { input.value = code; simAllocations[codeIdx].code = code; updateSimNames(); runSim(); autoAllocate(); }
+      });
       // 雙向連動：每次編輯只單向更新另一欄，不再回頭重算自己——
       // 否則 floor() 會讓股數在反覆換算中逐次縮水
       if (pctIdx != null) input.addEventListener("input", function(){
@@ -3792,9 +3836,51 @@ let activeProfile = null;
 let pfNeedCashflow = null;
 // bind() 裡的問卷計算，讓 ETF feed 載入完成、或重試成功時能接著算
 let profileRunner = null;
+// 同上，給「比較」結果裡的「看完整結果」鈕切換偏好卡片用
+let intentSetter = null;
 let suggestTimer = null;
 // 按過「自己選目標」＝離開問卷；金額變動時照那個目標重算，不要被問卷蓋回去
 let suggestManual = false;
+
+// 個股 feed 只有收盤、殖利率、本益比、淨值比、一年高低，沒有總報酬、波動、回撤——
+// 兩個目標都需要那些欄位，所以推薦範圍只有 ETF。「全股票」分頁不改變這件事。
+const SUGGEST_RANGE_NOTE = "推薦範圍：上市櫃 ETF。個股沒有總報酬與回撤資料，不在推薦範圍。";
+
+// 「幫我比較兩種方式」：兩組並排，只講差在哪裡，不判定哪一種比較好——
+// 那取決於使用者要不要現金流，不是資料能回答的問題。
+// 總報酬兩邊都用稅前：配息那組的目標不算所得稅，拿稅後對稅前會比歪。
+function compareHtml(total, income, growth){
+  const col = function(title, sub, out, buttonId){
+    if (!out.picks.length) {
+      return '<div class="cmp-col"><h4>' + title + '</h4><p class="hint">' + escapeHtml(out.reason || "找不到組合") + '</p></div>';
+    }
+    const r = out.result;
+    const deepest = Math.min.apply(null, out.picks.map(function(p){ const d = worstDrawdown(p.etf); return d == null ? 0 : d; }));
+    return '<div class="cmp-col"><h4>' + title + '</h4><p class="hint" style="margin:2px 0 8px">' + sub + '</p>'
+      + '<ul class="cmp-list">' + out.picks.map(function(p){
+          return '<li>' + codeLink(p.code, p.etf.market, p.name) + ' ' + escapeHtml(p.name) + ' <b>' + p.pct + '%</b></li>';
+        }).join("") + '</ul>'
+      + '<div class="sim-summary">'
+        + '<div class="sim-kpi"><b>年配息（扣健保）</b><span>' + fmt(Math.round(r.totalNet), 0) + '</span>'
+          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">有配息的月份 ' + r.monthsWithCash + ' / 12</span></div>'
+        + '<div class="sim-kpi"><b>近1年總報酬（未計所得稅）</b><span class="' + toneClass(r.preTaxTotal) + '">'
+          + (r.preTaxTotal == null ? "—" : fmt(Math.round(r.preTaxTotal), 0)) + '</span></div>'
+        + '<div class="sim-kpi"><b>最深回撤（組合中最深的一檔）</b><span class="neg">' + fmt(deepest, 1) + '%</span></div>'
+      + '</div>'
+      + '<button class="btn" id="' + buttonId + '" type="button" style="margin-top:8px">看這組的完整結果</button></div>';
+  };
+  const both = income.picks.length && growth.picks.length
+    ? income.picks.filter(function(p){ return growth.picks.some(function(q){ return q.code === p.code; }); }).map(function(p){ return p.code; })
+    : [];
+  return '<div class="backtest-warn">兩組都是<b>近一年回測</b>與過去一年實際發過的配息，不是預測。'
+      + '要不要現金流是你的選擇，這裡只並排兩組的差異。</div>'
+    + '<p class="hint" style="margin:8px 0 0">以投入 <b>' + fmt(total, 0) + ' 元</b>、同一組條件試算。' + escapeHtml(SUGGEST_RANGE_NOTE) + '</p>'
+    + '<div class="cmp">'
+      + col("想領配息", "先讓每個月都有配息，再墊高最少的那個月", income, "cmpIncome")
+      + col("想讓資產長大", "挑近一年價差＋配息最高的組合，不要求配息", growth, "cmpGrowth")
+    + '</div>'
+    + (both.length ? '<p class="hint">兩組都有：' + both.map(escapeHtml).join("、") + '</p>' : '');
+}
 
 function runSuggest(){
   const box = $("suggestResult");
@@ -3823,7 +3909,22 @@ function runSuggest(){
   const netIncomeRaw = ($("simNetIncome") || {}).value;
   // 問卷（選過偏好卡片）覆寫目標與約束；直接按目標按鈕則走原路。
   const base = {total:total, goal:suggestGoal, stress:simStress, nhi:NHI, includeActive:includeActive,
-    netIncome:String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw), taxParams:taxParams};
+    netIncome:String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw), taxParams:taxParams,
+    // 只有問卷那條路允許「沒年薪就先算稅前」；手動目標鈕照舊拒算
+    preTaxFallback:Boolean(activeProfile)};
+  // 「幫我比較」：同一組條件、同一個引擎，兩個目標各跑一次
+  if (pfNeedCashflow === "compare" && activeProfile && !suggestManual) {
+    const run = function(needCashflow){
+      const profile = Object.assign({}, activeProfile, {goal:needCashflow ? "monthly" : "netTotal"});
+      return optimizeAllocation(allEtfs, Object.assign({}, base, profile));
+    };
+    box.innerHTML = compareHtml(total, run(true), run(false));
+    for (const pair of [["cmpIncome", true], ["cmpGrowth", false]]) {
+      const button = $(pair[0]);
+      if (button) button.addEventListener("click", function(){ if (intentSetter) intentSetter(pair[1]); });
+    }
+    return;
+  }
   const out = optimizeAllocation(allEtfs, Object.assign(base, activeProfile || {}));
   const elapsed = Date.now() - started;
   if (!out.picks.length) { box.innerHTML = '<p class="hint">' + escapeHtml(out.reason || "找不到組合") + '</p>'; return; }
@@ -3938,7 +4039,11 @@ function runSuggest(){
       + (Object.keys(dates).length ? Object.keys(dates).sort().join('／') + ' 收盤價' : '最近收盤價') + '計算：'
       + '買進約 <b>' + fmt(Math.round(buySpent), 0) + ' 元</b>、估計手續費 ' + fmt(buyFee, 0) + ' 元、'
       + '零股取整後剩餘現金 ' + fmt(Math.round(buy.cashPool), 0) + ' 元。'
-      + '手續費以標準費率 ' + fmt(DEFAULT_FEE_RATE * 100, 4) + '% 估算，未計券商折扣與最低收費；剩餘現金未扣手續費。</p>'
+      + '手續費以標準費率 ' + fmt(DEFAULT_FEE_RATE * 100, 4) + '% 估算，未計券商折扣與最低收費；剩餘現金未扣手續費。'
+      + escapeHtml(SUGGEST_RANGE_NOTE) + '</p>'
+    // 沒年薪時退回稅前：要講明，也要講出它會偏向哪邊
+    + (out.preTax ? '<p class="hint" style="margin:6px 0 0;color:var(--amber)">沒填年薪，所以<b>未計所得稅</b>：以「價差＋配息−二代健保」排序，'
+      + '會稍微偏向配息較多的標的。在上面填「年薪（含獎金）」就會改用稅後重算。</p>' : '')
     + leverageWarn
     + pickCardsHtml()
     + '<div class="table-scroll pick-table" style="margin-top:10px"><table style="min-width:860px"><thead><tr>'
@@ -3967,16 +4072,16 @@ function runSuggest(){
     + '</tbody></table></div>'
     + '<div class="sim-summary">'
       + (suggestGoal === "netTotal"
-        ? '<div class="sim-kpi"><b>近一年稅後總報酬</b><span class="' + toneClass(result.afterTaxTotal) + '">'
-            + fmt(Math.round(result.afterTaxTotal), 0) + '</span>'
+        ? '<div class="sim-kpi"><b>' + (out.preTax ? '近一年總報酬（未計所得稅）' : '近一年稅後總報酬') + '</b><span class="' + toneClass(out.preTax ? result.preTaxTotal : result.afterTaxTotal) + '">'
+            + fmt(Math.round(out.preTax ? result.preTaxTotal : result.afterTaxTotal), 0) + '</span>'
           + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">'
             + '價差 ' + fmt(Math.round(result.priceGain), 0) + '（免證所稅）＋配息 ' + fmt(Math.round(result.totalNet), 0)
             // 稅可能是負的（可退還的股利抵減大於應納稅額），這時要寫「退稅」而不是「−所得稅 -2,852」
-            + '（扣健保）' + (result.tax < 0
+            + '（扣健保）' + (out.preTax ? '，所得稅未計' : result.tax < 0
               ? '＋退稅 ' + fmt(Math.round(-result.tax), 0)
               : '−所得稅 ' + fmt(Math.round(result.tax || 0), 0)) + '</span></div>'
-          + '<div class="sim-kpi"><b>報酬率（稅後）</b><span class="' + toneClass(result.afterTaxTotal) + '">'
-            + fmt(result.afterTaxTotal / total * 100, 2) + '%</span>'
+          + '<div class="sim-kpi"><b>' + (out.preTax ? '報酬率（未計所得稅）' : '報酬率（稅後）') + '</b><span class="' + toneClass(out.preTax ? result.preTaxTotal : result.afterTaxTotal) + '">'
+            + fmt((out.preTax ? result.preTaxTotal : result.afterTaxTotal) / total * 100, 2) + '%</span>'
           + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">其中配息貢獻 '
             + fmt(result.totalNet / total * 100, 2) + 'pp</span></div>'
         : '')
@@ -3992,8 +4097,8 @@ function runSuggest(){
       + '<div class="sim-kpi"><b>有現金流月數</b><span' + (result.monthsWithCash === 12 ? ' class="pos"' : '') + '>' + result.monthsWithCash + ' / 12</span>'
         + (missing.length ? '<span style="display:block;font-size:11px;color:var(--amber);font-family:inherit">缺 ' + missing.join("·") + ' 月</span>' : '') + '</div>'
       + (suggestGoal === "netTotal"
-        ? '<div class="sim-kpi"><b>較等權重多（稅後總報酬）</b><span' + (out.gainVsEqual > 0 ? ' class="pos"' : '') + '>+' + fmt(Math.round(out.gainVsEqual), 0) + '</span>'
-          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重為 ' + fmt(Math.round(out.baselineAfterTaxTotal), 0) + '</span></div>'
+        ? '<div class="sim-kpi"><b>' + (out.preTax ? '較等權重多（未計所得稅）' : '較等權重多（稅後總報酬）') + '</b><span' + (out.gainVsEqual > 0 ? ' class="pos"' : '') + '>+' + fmt(Math.round(out.gainVsEqual), 0) + '</span>'
+          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重為 ' + fmt(Math.round(out.preTax ? out.baselinePreTaxTotal : out.baselineAfterTaxTotal), 0) + '</span></div>'
         : suggestGoal === "monthly"
         // 字典序目標的價值在「最弱月更厚」，可能犧牲總額——比較最弱月而非總額，才不誤導
         ? '<div class="sim-kpi"><b>最弱月（扣費後）</b><span class="pos">' + fmt(Math.round(result.minMonth), 0) + '</span>'
@@ -4065,6 +4170,7 @@ function showTab(name){
     Promise.all([loadEtf(), name === "sim" ? loadTaxParams() : Promise.resolve()])
       .then(function(){if (name === "sim") {
         renderSimRows(); runSim();
+        fillCodeList();
         // 在 feed 回來之前就選了偏好的人，結果區正寫著「正在載入」——接著算完它
         if (profileRunner && pfNeedCashflow != null) profileRunner();
       }});
@@ -4079,6 +4185,7 @@ async function load(){
     const payload = await response.json();
     allStocks = normalizeFeed(payload);
     recompute();
+    fillCodeList();
     if (stamp) stamp.textContent = feedStamp("全市場", allStocks.length, payload);
     // hiFrom 是**窗口**的起點（剪枝界線）；hiSince 是開始累積的日子，剪枝上線後
     // 兩者不再相同，畫面要講的是窗口。舊 feed 沒有 hiFrom 時退回 hiSince。
@@ -4200,7 +4307,7 @@ function bind(){
   // 要再找到另一顆「依我的情況計算」才會出結果——那顆按鈕已移除，每個輸入都自己重算。
   const setIntent = function(needCashflow){
     pfNeedCashflow = needCashflow;
-    for (const pair of [["pfIntentIncome", true], ["pfIntentGrowth", false]]) {
+    for (const pair of [["pfIntentIncome", true], ["pfIntentGrowth", false], ["pfIntentCompare", "compare"]]) {
       const card = $(pair[0]);
       if (!card) continue;
       card.className = pair[1] === needCashflow ? "mode-card on" : "mode-card";
@@ -4219,12 +4326,15 @@ function bind(){
   if (pfIncome) pfIncome.addEventListener("click", function(){setIntent(true); revealResult();});
   const pfGrowth = $("pfIntentGrowth");
   if (pfGrowth) pfGrowth.addEventListener("click", function(){setIntent(false); revealResult();});
+  const pfCompare = $("pfIntentCompare");
+  if (pfCompare) pfCompare.addEventListener("click", function(){setIntent("compare"); revealResult();});
+  intentSetter = function(value){ setIntent(value); revealResult(); };
   const runProfile = function(){
     // 還沒選偏好：說下一步是什麼，不留白，也不拿預設值替使用者決定
     if (pfNeedCashflow == null) {
       const box = $("suggestResult");
       if (box) box.innerHTML = '<p class="hint">' + (Number(($("simTotal") || {}).value) > 0 ? '' : '填上「投入總額」，')
-        + '選「<b>配息優先</b>」或「<b>累積資產優先</b>」就會開始篩選。</p>';
+        + '選一種方式就會開始篩選：「<b>想領配息</b>」「<b>想讓資產長大</b>」或「<b>幫我比較兩種方式</b>」。</p>';
       return;
     }
     suggestManual = false;
@@ -4233,22 +4343,23 @@ function bind(){
       horizonYears: val("pfHorizon"),
       maxLossPct: val("pfLoss"),
       maxWeightPct: val("pfMaxW"),
-      needCashflow: pfNeedCashflow,
+      needCashflow: pfNeedCashflow === true,
       // 主動型只剩 gActive 一個勾選框（原本 pfActive／gActive 兩個、單向同步）
       includeActive: Boolean(($("gActive") || {}).checked),
       includeLeveraged: Boolean(($("pfLeveraged") || {}).checked),
     });
     // 問卷同時決定目標，按鈕的高亮要跟著動，否則畫面顯示的目標是假的
     suggestGoal = activeProfile.goal;
+    // 比較模式同時跑兩個目標，五顆目標鈕都不亮——亮哪一顆都是假的
     for (const entry of [["gNetTotal","netTotal"],["gYield","netYield"],["gMonthly","monthly"],["gLowOverlap","diverse"],["gAfterTax","afterTax"]]) {
       const button = $(entry[0]);
-      if (button) button.className = entry[1] === suggestGoal ? "btn on" : "btn";
+      if (button) button.className = (pfNeedCashflow !== "compare" && entry[1] === suggestGoal) ? "btn on" : "btn";
     }
     // 原本這裡把 activeProfile.includeActive 寫回 gActive；合併成單一勾選框後
     // 它就是自己指派給自己，拿掉。
     const note = $("pfNote");
     if (note) {
-      note.innerHTML = '<b>已套用</b>：目標 ' + escapeHtml(suggestGoal === "monthly" ? "補滿 12 個月現金流" : "稅後總報酬最大化")
+      note.innerHTML = '<b>已套用</b>：' + escapeHtml(pfNeedCashflow === "compare" ? "兩種方式並排比較" : "目標 " + (suggestGoal === "monthly" ? "補滿 12 個月現金流" : "稅後總報酬最大化"))
         + '　·　單檔上限 ' + activeProfile.maxW + '%　·　至少 ' + activeProfile.minPicks + ' 檔'
         // worstDrawdown() 取 1／3／5 年中最深的那個——這裡曾寫成「近一年」，與程式不符
         + (activeProfile.maxDrawdownPct != null ? '　·　只收已知最深回撤（1／3／5 年中取最深）淺於 ' + activeProfile.maxDrawdownPct + '% 的標的'
@@ -4332,7 +4443,8 @@ function bind(){
     runSim();
     // 兩個稅後目標的結果直接取決於這個數字，改了就要重算，否則畫面停在舊稅率下的組合、
     // 或停在「需要綜合所得淨額」那句拒算（年薪欄就在問卷同一列，填完不該還要再按一次）
-    if ((suggestGoal === "afterTax" || suggestGoal === "netTotal") && $("suggestResult") && $("suggestResult").innerHTML) runSuggest();
+    if (activeProfile && !suggestManual) { if (profileRunner) profileRunner(); }
+    else if ((suggestGoal === "afterTax" || suggestGoal === "netTotal") && $("suggestResult") && $("suggestResult").innerHTML) runSuggest();
   };
   if (simNetIncome) simNetIncome.addEventListener("input", function(){
     // 手動改淨額就視為使用者自己決定，清掉換算列避免兩個數字互相打架
@@ -4492,6 +4604,7 @@ const marketApp = {
     feedStamp:feedStamp,
     etfScores:etfScores,
     profileToConstraints:profileToConstraints,
+    resolveCode:resolveCode,
     combineSectorMix:combineSectorMix,
     buildPortfolioExposure:buildPortfolioExposure,
     marginalContribution:marginalContribution,
