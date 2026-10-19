@@ -3191,7 +3191,7 @@ test("the questionnaire is the visible path and the goal buttons are one level d
   const resultAt = html.indexOf('id="suggestResult"');
   const region = html.slice(suggestAt, resultAt);
 
-  assert.ok(region.indexOf('id="pfRun"') > -1, "問卷的按鈕要留在明面上");
+  assert.ok(region.indexOf('id="pfIntentIncome"') > -1, "問卷的入口（偏好卡片）要留在明面上");
   assert.match(region, /▸ 自己選目標/, "目標按鈕要收在一層折疊底下");
 
   // 目標按鈕必須落在那個折疊之後——落在前面等於根本沒收起來
@@ -3221,9 +3221,9 @@ test("discarding the questionnaire's constraints is stated, not silent", async (
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   // fake DOM 只在頁面程式呼叫過 getElementById 時才建節點；pfLoss 要到
-  // pfRun 的 handler 裡才會被讀到，所以這裡得自己把它取出來（取用即建立）
+  // 問卷的 handler 裡才會被讀到，所以這裡得自己把它取出來（取用即建立）
   document.getElementById("pfLoss").value = "10";
-  elements.get("pfRun").fire("click");
+  elements.get("pfIntentGrowth").fire("click");
   const applied = elements.get("pfNote").innerHTML;
   assert.match(applied, /已套用/, "先確認問卷真的套用了，否則後面測的是空狀態");
   assert.match(applied, /回撤/, "套用時要講出它加了什麼條件");
@@ -3234,7 +3234,7 @@ test("discarding the questionnaire's constraints is stated, not silent", async (
     "清成空白＝靜默作廢；問卷欄位還顯示著那些條件，使用者不會知道它們已失效");
   assert.match(after, /不再套用/, "要明講上面的條件已經不算數");
   assert.match(after, /補滿 12 個月/, "要講出現在改用的是哪個目標");
-  assert.match(after, /依我的情況計算/, "要講得出怎麼把自己的條件要回來");
+  assert.match(after, /偏好卡片/, "要講得出怎麼把自己的條件要回來（計算鈕已移除，點卡片就會重算）");
 });
 
 test("the discard notice does not appear for someone who never used the questionnaire", async () => {
@@ -3252,14 +3252,14 @@ test("the discard notice does not appear for someone who never used the question
 test("the questionnaire comes first, the hand-built simulator second", async () => {
   const { html } = await loadMarket(dualFeedMock());
   const at = (id) => html.indexOf('id="' + id + '"');
-  assert.ok(at("simTotal") < at("pfRun"), "金額是兩條路共用的第一步");
-  for (const id of ["pfIntentIncome", "pfIntentGrowth", "pfHorizon", "pfLoss", "simSalary", "pfRun", "suggestResult"]) {
+  assert.ok(at("simTotal") < at("pfIntentIncome"), "金額是兩條路共用的第一步");
+  for (const id of ["pfIntentIncome", "pfIntentGrowth", "pfHorizon", "pfLoss", "simSalary", "suggestResult"]) {
     assert.ok(at(id) > 0, `${id} 應該存在`);
     assert.ok(at(id) < at("simAdd") && at(id) < at("simHero"),
       `${id} 要排在手動清單與主視覺之前——它是主入口`);
   }
-  // 不得再藏在折疊裡：從頁首到 pfRun 之間不可有 details
-  const lead = html.slice(html.indexOf('id="simPanel"'), at("pfRun"));
+  // 不得再藏在折疊裡：從頁首到年薪欄（問卷最後一格）之間不可有 details
+  const lead = html.slice(html.indexOf('id="simPanel"'), at("simSalary"));
   assert.equal((lead.match(/<details/g) || []).length, 0, "問卷又被收進折疊了");
   // 套用按鈕要講對方向：清單現在在下面
   assert.match(html, /套用到下方試算/);
@@ -3277,13 +3277,11 @@ test("the two intent cards drive the goal, and only one is pressed", async () =>
   income.fire("click");
   assert.match(income.className, /\bon\b/);
   assert.doesNotMatch(growth.className, /\bon\b/, "兩張卡片不可同時亮");
-  elements.get("pfRun").fire("click");
   assert.equal(elements.get("gMonthly").className, "btn on", "配息優先＝補滿 12 個月的現金流目標");
 
   growth.fire("click");
   assert.match(growth.className, /\bon\b/);
   assert.doesNotMatch(income.className, /\bon\b/);
-  elements.get("pfRun").fire("click");
   assert.equal(elements.get("gNetTotal").className, "btn on", "累積資產優先＝稅後總報酬目標，不要求配息");
 });
 
@@ -3291,7 +3289,7 @@ test("the two intent cards drive the goal, and only one is pressed", async () =>
 // 選項可以做，但畫面要講出它**沒有**看哪些東西。
 test("the growth option says what it does not look at", async () => {
   const { html } = await loadMarket(dualFeedMock());
-  const card = html.slice(html.indexOf('id="pfIntentGrowth"'), html.indexOf('id="pfRun"'));
+  const card = html.slice(html.indexOf('id="pfIntentGrowth"'), html.indexOf('id="pfHorizon"'));
   for (const phrase of ["費用率", "追蹤誤差", "未納入", "主題型"]) {
     assert.ok(card.includes(phrase), `累積選項附近要揭露「${phrase}」`);
   }
@@ -3309,7 +3307,6 @@ test("the recommender names the salary field when it cannot compute tax, and rec
   set("simTotal", "1000000");
   set("simNetIncome", "");
   elements.get("pfIntentGrowth").fire("click");
-  elements.get("pfRun").fire("click");
   const refused = elements.get("suggestResult").innerHTML;
   assert.match(refused, /年薪/, "拒算時要指向同一列就有的年薪欄，而不是叫人去找下面的稅務設定");
   assert.doesNotMatch(refused, /上方模擬器/, "模擬器現在在下方");
@@ -3331,7 +3328,7 @@ test("a shown suggestion follows a change of the amount", async () => {
   };
   set("simTotal", "1000000");
   set("simNetIncome", "800000");
-  elements.get("pfRun").fire("click");
+  elements.get("pfIntentIncome").fire("click");
   const before = elements.get("suggestResult").innerHTML;
   assert.ok(before.length > 0);
   assert.doesNotMatch(before, /輸入投入總額/);
@@ -3348,8 +3345,127 @@ test("the applied note describes the drawdown gate the code actually uses", asyn
   await app.init();
   await new Promise((resolve) => setTimeout(resolve, 0));
   document.getElementById("pfLoss").value = "20";
-  elements.get("pfRun").fire("click");
+  elements.get("pfIntentGrowth").fire("click");
   const note = elements.get("pfNote").innerHTML;
   assert.doesNotMatch(note, /近一年最大回撤/);
   assert.match(note, /最深/);
+});
+
+// ── 2026-10-19 第三輪：選了偏好就自動推薦 ──────────────────────────
+// 實測：填 100,000、點兩張卡片，結果區全程空白；要再找到「依我的情況計算」按一次才出結果。
+// 原因是卡片只有在「已經算過一次」時才重算。
+
+// 六檔合格的 ETF，讓結果真的有 picks 可以檢查。fake DOM 的下拉值是空字串，
+// Number("") 是 0 → 被當成「3 年以內」→ 單檔上限 20%、至少 5 檔，所以四檔不夠
+function richEtfFeed() {
+  const mk = (code, close, startMonth) => ({
+    code, name: "測試" + code, market: "twse", type: "高股息", close, change: 0, nav: close, discountPremium: 0,
+    aum: 500, yield: 6, frequency: "季配", date: "2026-07-27",
+    payMonths: [startMonth, startMonth + 3, startMonth + 6, startMonth + 9],
+    dps: [0, 3, 6, 9].map((d) => ({ m: startMonth + d, a: close * 0.015 })), divMonthsCovered: 12, topHoldings: [],
+    totalReturn1y: 12, priceReturn1y: 6, volatility1y: 10, maxDrawdown1y: -8,
+  });
+  return etfFeed({ count: 6, stocks: [mk("00T01", 20, 1), mk("00T02", 35, 2), mk("00T03", 48, 3),
+    mk("00T04", 27, 1), mk("00T05", 31, 2), mk("00T06", 42, 3)] });
+}
+function feedMock(etf) {
+  return async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/market-feed.json")) return okResponse(marketFeed());
+    if (href.startsWith("/data/etf-feed.json")) return etf();
+    throw new Error(`unavailable: ${href}`);
+  };
+}
+async function autoPanel(mock) {
+  const loaded = await loadMarket(mock || feedMock(() => okResponse(richEtfFeed())));
+  await loaded.app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = loaded.elements.get(id) || loaded.document.getElementById(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  const result = () => loaded.elements.get("suggestResult").innerHTML;
+  return { ...loaded, set, result };
+}
+
+test("no preference is preselected, and the amount alone asks for one", async () => {
+  const { html, set, result } = await autoPanel();
+  assert.doesNotMatch(html, /class="mode-card on" id="pfIntent/, "預設值不可被當成使用者已經選好");
+  assert.doesNotMatch(html, /id="pfRun"/, "每個輸入都會自己重算，計算鈕已無作用");
+  set("simTotal", "100000");
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.match(result(), /配息優先.*累積資產優先|選一種方式/, "只填金額時要說下一步是什麼，不可留白");
+});
+
+test("picking a preference card shows suggestions straight away", async () => {
+  const { elements, set, result } = await autoPanel();
+  set("simTotal", "100000");
+  elements.get("pfIntentIncome").fire("click");
+  assert.match(result(), /pick-card/, "點了卡片就要看到組合，不必再找按鈕");
+  assert.equal(elements.get("gMonthly").className, "btn on");
+});
+
+test("changing a questionnaire condition recomputes on its own", async () => {
+  const { elements, document, set } = await autoPanel();
+  set("simTotal", "100000");
+  elements.get("pfIntentIncome").fire("click");
+  const loss = document.getElementById("pfLoss");
+  loss.value = "10";
+  loss.fire("change");
+  assert.match(elements.get("pfNote").innerHTML, /淺於 10%/, "改了忍受跌幅卻沒重算＝畫面寫著舊條件");
+});
+
+test("each suggested fund says what the money actually buys", async () => {
+  const { elements, set, result, app } = await autoPanel();
+  set("simTotal", "100000");
+  elements.get("pfIntentIncome").fire("click");
+  const html = result();
+  for (const label of ["參考價", "可買股數", "投入金額", "剩餘現金", "估計手續費"]) {
+    assert.ok(html.includes("<b>" + label + "</b>"), `每張結果卡都要有「${label}」`);
+  }
+  assert.match(html, /2026-07-27/, "參考價要附資料日期");
+  // 股數必須與模擬器同一個引擎算出來：預算 × 權重 ÷ 收盤，向下取整到 1 股
+  const card = html.match(/<b>可買股數<\/b>([\d,]+) 股/);
+  assert.ok(card, "可買股數要是數字");
+  const first = html.match(/pick-top[\s\S]*?pick-pct">(\d+)%/);
+  const code = html.match(/pick-top[\s\S]*?(00T0\d)/)[1];
+  const close = { "00T01": 20, "00T02": 35, "00T03": 48, "00T04": 27, "00T05": 31, "00T06": 42 }[code];
+  assert.equal(Number(card[1].replace(/,/g, "")), Math.floor(100000 * Number(first[1]) / 100 / close));
+  assert.ok(app.helpers.simulate, "要沿用 simulate()，不另寫一套");
+});
+
+test("the backtest warning matches the goal it is shown under", async () => {
+  const { elements, set, result } = await autoPanel();
+  set("simTotal", "100000");
+  set("simNetIncome", "800000");
+  elements.get("pfIntentIncome").fire("click");
+  assert.doesNotMatch(result(), /買去年表現最好的/, "配息優先不是以總報酬為目標，那句不成立");
+  assert.match(result(), /配息/);
+  elements.get("pfIntentGrowth").fire("click");
+  assert.match(result(), /買去年表現最好的/);
+});
+
+test("a feed that is still loading or has failed is named, not passed off as no match", async () => {
+  // 載入中：feed 永遠不回來
+  const pending = await autoPanel(feedMock(() => new Promise(() => {})));
+  pending.set("simTotal", "100000");
+  pending.elements.get("pfIntentIncome").fire("click");
+  assert.match(pending.result(), /正在載入/);
+  assert.doesNotMatch(pending.result(), /沒有符合/);
+
+  // 失敗後可重試
+  let fail = true;
+  const failing = await autoPanel(feedMock(() => (fail
+    ? { ok: false, status: 503, headers: new Headers({}), json: async () => ({}) }
+    : okResponse(richEtfFeed()))));
+  failing.set("simTotal", "100000");
+  failing.elements.get("pfIntentIncome").fire("click");
+  assert.match(failing.result(), /載入失敗/);
+  assert.match(failing.result(), /HTTP 503/, "要貼出錯誤原文");
+  assert.match(failing.result(), /id="suggestRetry"/, "要給重新嘗試的路");
+  fail = false;
+  failing.elements.get("suggestRetry").fire("click");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.match(failing.result(), /pick-card/, "重試成功後要直接出結果");
 });

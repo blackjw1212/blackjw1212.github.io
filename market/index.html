@@ -460,11 +460,12 @@
     </div>
     <h3 style="font-size:14px;margin-top:14px" id="suggestHeading">幫我挑標的<span class="hint" style="margin:0 0 0 8px;font-weight:400">從全市場 ETF 挑，按「套用到下方試算」才會換掉你下面的清單</span></h3>
     <div class="profile-form">
-      <div class="profile-head">先選你要哪一種，目標與約束會自動設定</div>
+      <!-- 兩張都不預選：自動推薦之後，預選一張等於替使用者做了決定還照著算 -->
+      <div class="profile-head">選一種方式就會開始篩選；下面的條件改了也會自動重算</div>
       <div class="mode-cards">
         <button class="mode-card" id="pfIntentIncome" type="button" aria-pressed="false">
           <b>配息優先</b><span>要領現金：先讓每個月都有配息入帳，再墊高最薄的那個月</span></button>
-        <button class="mode-card on" id="pfIntentGrowth" type="button" aria-pressed="true">
+        <button class="mode-card" id="pfIntentGrowth" type="button" aria-pressed="false">
           <b>累積資產優先</b><span>不要求配息：看近一年稅後總報酬（價差＋配息−稅−健保）</span></button>
       </div>
       <div class="profile-note">累積資產優先<b>不等於只挑不配息的 ETF</b>：本站沒有「設計上不配息」的欄位，這裡只是不把配息當條件。
@@ -501,7 +502,6 @@
              上面這個仍顯示未勾，但設定其實已生效。合併成一個，放在使用者會看到的這一列。 -->
         <label class="fld" style="cursor:pointer" title="經理人選股，費用率較高；預設不含，且一律不列為核心"><input type="checkbox" id="gActive" style="accent-color:var(--amber)" /> 納入主動型 ETF</label>
         <label class="fld" style="cursor:pointer" title="正向槓桿（代碼 L 結尾）。反向 ETF 恆不納入。回撤閘門仍優先——00631L 近一年回撤 −31.3%，忍受度選 30% 以內仍會被排除"><input type="checkbox" id="pfLeveraged" style="accent-color:var(--amber)" /> 納入槓桿正2</label>
-        <button class="btn" id="pfRun" type="button">依我的情況計算</button>
       </div>
       <div class="profile-note" id="pfNote"></div>
       <div class="profile-note">
@@ -1063,6 +1063,7 @@ const LS_SIM = "bjkw-market-sim-v1";
 let activeTab = "sim";
 let allEtfs = [];
 let etfLoaded = false;
+let etfLoadError = null;
 let etfViewRows = [];
 let etfShown = 0;
 let etfSortKey = "code";
@@ -1086,6 +1087,8 @@ function normalizeEtfFeed(payload){
       market:row.market === "tpex" ? "tpex" : "twse",
       type:String(row.type || "主題型"),
       close:parseNumber(row.close),
+      // 收盤的資料日：推薦卡片的「參考價」要附上它。列上沒有就退回 feed 的交易日
+      date:row.date || (payload && payload.tradeDate) || null,
       change:parseNumber(row.change),
       nav:parseNumber(row.nav),
       // 成交股數：流動性評分要用（成交額＝收盤×股數）。原本沒帶進來，
@@ -1532,6 +1535,7 @@ async function loadEtf(){
   // 並說明原因——**絕不可退回 0**，那會把超額報酬灌成全額報酬。
   riskFree = (payload && payload.riskFree && payload.riskFree.rate > 0) ? payload.riskFree : null;
     etfLoaded = true;
+    etfLoadError = null;
     recomputeEtf();
     renderOvList();
     // 原本這裡印 payload.divHistoryStart（＝全部 350 檔的最早事件日），但配息歷史是
@@ -1542,6 +1546,8 @@ async function loadEtf(){
     return "etf feed ok";
   } catch (error) {
     if (stamp) stamp.textContent = "ETF 清單載入失敗：" + error.message;
+    // 那行 stamp 在 ETF 分頁，「我能領多少」看不到；推薦區要自己講，不能說成「沒有符合門檻」
+    etfLoadError = error.message;
     return "etf feed failed";
   }
 }
@@ -3782,26 +3788,56 @@ let suggestGoal = "netTotal";
 // 問卷算出來的約束。null＝使用者還沒用問卷，走目標按鈕的原行為。
 // 按任一個目標按鈕會清掉它——否則使用者以為自己換了目標，實際上被問卷蓋回去。
 let activeProfile = null;
-// 問卷的「配息優先」卡片；預設是「累積資產優先」，與 HTML 裡亮著的那張一致
-let pfNeedCashflow = false;
+// 問卷的偏好卡片：true＝配息優先、false＝累積資產優先、null＝還沒選（兩張都不預選）
+let pfNeedCashflow = null;
+// bind() 裡的問卷計算，讓 ETF feed 載入完成、或重試成功時能接著算
+let profileRunner = null;
 let suggestTimer = null;
+// 按過「自己選目標」＝離開問卷；金額變動時照那個目標重算，不要被問卷蓋回去
+let suggestManual = false;
 
 function runSuggest(){
   const box = $("suggestResult");
   if (!box) return;
   const total = Number(($("simTotal") || {}).value) || 0;
   if (!total) { box.innerHTML = '<p class="hint">請先在上方輸入投入總額。</p>'; return; }
+  // feed 還沒回來或載入失敗時，allEtfs 是空的——那時跑最佳化器會得到「沒有符合基本門檻」，
+  // 把載入問題講成沒有合格標的。兩種狀態要各自講出來，失敗要給重試的路。
+  if (!etfLoaded) {
+    if (etfLoadError) {
+      box.innerHTML = '<p class="hint">ETF 資料載入失敗（' + escapeHtml(etfLoadError) + '），所以還沒辦法篩選。'
+        + ' <button class="btn" id="suggestRetry" type="button">重新嘗試</button></p>';
+      const retry = $("suggestRetry");
+      if (retry) retry.addEventListener("click", function(){
+        box.innerHTML = '<p class="hint">正在載入 ETF 資料…</p>';
+        loadEtf().then(function(){ if (!suggestManual && profileRunner) profileRunner(); else runSuggest(); });
+      });
+    } else {
+      box.innerHTML = '<p class="hint">正在載入 ETF 資料，載入後會自動篩選…</p>';
+    }
+    return;
+  }
   const started = Date.now();
   const includeActive = Boolean(($("gActive") || {}).checked);
   // 稅後目標沿用模擬器那格「綜合所得淨額」，不另開一個輸入——兩格會分叉
   const netIncomeRaw = ($("simNetIncome") || {}).value;
-  // 問卷（若按過「依我的情況計算」）覆寫目標與約束；直接按目標按鈕則走原路。
+  // 問卷（選過偏好卡片）覆寫目標與約束；直接按目標按鈕則走原路。
   const base = {total:total, goal:suggestGoal, stress:simStress, nhi:NHI, includeActive:includeActive,
     netIncome:String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw), taxParams:taxParams};
   const out = optimizeAllocation(allEtfs, Object.assign(base, activeProfile || {}));
   const elapsed = Date.now() - started;
   if (!out.picks.length) { box.innerHTML = '<p class="hint">' + escapeHtml(out.reason || "找不到組合") + '</p>'; return; }
   const result = out.result;
+  // 這筆錢實際買得到什麼：跟模擬器同一個 simulate()，不另寫一套——
+  // 按「套用到下方試算」之後兩邊的股數必須一模一樣。手續費用標準費率估，
+  // simulate() 本身不扣買進手續費，所以剩餘現金也是「手續費另計」。
+  const buy = simulate({total:total, stress:simStress, nhi:NHI,
+    allocations:out.picks.map(function(pick){ return {code:pick.code, pct:pick.pct, security:lookupSecurity(pick.code)}; })});
+  const buyOf = {};
+  buy.holdings.forEach(function(h){ buyOf[h.code] = h; });
+  const feeOf = function(h){ return h ? Math.round(h.spent * DEFAULT_FEE_RATE) : 0; };
+  const buySpent = buy.holdings.reduce(function(sum, h){ return sum + h.spent; }, 0);
+  const buyFee = buy.holdings.reduce(function(sum, h){ return sum + feeOf(h); }, 0);
   const missing = [];
   result.monthlyNet.forEach(function(value, index){ if (!(value > 0)) missing.push(index + 1); });
   const cvText = function(etf){
@@ -3864,6 +3900,18 @@ function runSuggest(){
               ? '<span class="stale">—</span>'
               : '<span class="pick-ret ' + toneClass(totalRet) + '">' + signed(totalRet, 1) + '%</span>') + '</div></div>'
         + (totalRet == null ? '' : '<div class="pick-split">其中　價差 ' + signed(etf.priceReturn1y, 1) + '%　配息 ' + signed(divPart, 1) + '%</div>')
+        + (function(){
+            const h = buyOf[pick.code];
+            if (!h) return '';
+            // 獨立一格 grid：下面那組的 nth-child 斷點規則靠的是格子順序，不能插進去
+            return '<div class="pick-meta pick-buy">'
+              + cell("參考價", fmt(etf.close, 2) + ' 元' + (etf.date ? '（' + escapeHtml(etf.date) + ' 收盤）' : ''), true)
+              + cell("可買股數", fmt(h.shares, 0) + ' 股')
+              + cell("投入金額", fmt(Math.round(h.spent), 0) + ' 元')
+              + cell("剩餘現金", fmt(Math.round(h.leftover), 0) + ' 元')
+              + cell("估計手續費", fmt(feeOf(h), 0) + ' 元')
+              + '</div>';
+          })()
         + '<div class="pick-meta">'
           + cell("年化波動", etf.volatility1y == null ? "—" : fmt(etf.volatility1y, 1) + '%')
           + cell("最大回撤", tone(etf.maxDrawdown1y, etf.maxDrawdown1y == null ? "" : fmt(etf.maxDrawdown1y, 1) + '%'))
@@ -3877,12 +3925,24 @@ function runSuggest(){
         + '</article>';
     }).join("") + '</div>';
   };
-  box.innerHTML = '<div class="backtest-warn">近一年<b>回測</b>數字，不是預測。過去漲得多不代表接下來會漲——'
-      + '以總報酬為目標等於「買去年表現最好的」，請把它當成比較的起點而不是結論。</div>'
+  // 回測警語依目標分開寫：「買去年表現最好的」只對總報酬目標成立，
+  // 配息類目標的風險是另一件事——它只看配息、不看價差。
+  const dates = {};
+  out.picks.forEach(function(pick){ if (pick.etf.date) dates[pick.etf.date] = true; });
+  box.innerHTML = (suggestGoal === "netTotal"
+      ? '<div class="backtest-warn">近一年<b>回測</b>數字，不是預測。過去漲得多不代表接下來會漲——'
+        + '以總報酬為目標等於「買去年表現最好的」，請把它當成比較的起點而不是結論。</div>'
+      : '<div class="backtest-warn">配息金額來自<b>過去一年實際發過的配息</b>，不是預測，配息也可能減少或停發。'
+        + '這個目標<b>只看配息現金流、不含價差</b>——配息高不代表總報酬高，每檔的近 1 年總報酬列在下面。</div>')
+    + '<p class="hint" style="margin:8px 0 0">以投入 <b>' + fmt(total, 0) + ' 元</b>、'
+      + (Object.keys(dates).length ? Object.keys(dates).sort().join('／') + ' 收盤價' : '最近收盤價') + '計算：'
+      + '買進約 <b>' + fmt(Math.round(buySpent), 0) + ' 元</b>、估計手續費 ' + fmt(buyFee, 0) + ' 元、'
+      + '零股取整後剩餘現金 ' + fmt(Math.round(buy.cashPool), 0) + ' 元。'
+      + '手續費以標準費率 ' + fmt(DEFAULT_FEE_RATE * 100, 4) + '% 估算，未計券商折扣與最低收費；剩餘現金未扣手續費。</p>'
     + leverageWarn
     + pickCardsHtml()
     + '<div class="table-scroll pick-table" style="margin-top:10px"><table style="min-width:860px"><thead><tr>'
-      + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th>'
+      + '<th style="text-align:left">代碼</th><th style="text-align:left">名稱</th><th>類型</th><th>最佳化權重%</th><th>參考價</th><th>可買股數</th><th>投入金額</th>'
       + '<th>近1年總報酬</th><th>其中價差</th><th>其中配息</th><th>年化波動</th><th>最大回撤</th>'
       + '<th title="相對於候選池其他標的的百分位，0~10；管理費優勢無資料來源故不評分">六維評分</th>'
       + '<th>近12月殖利率%</th><th>近24月配息波動</th><th>折溢價%</th><th>規模(億)</th><th>發放月</th></tr></thead><tbody>'
@@ -3891,6 +3951,9 @@ function runSuggest(){
             + '<td style="text-align:left"><span class="nm">' + escapeHtml(pick.name) + '</span></td>'
             + '<td class="num">' + escapeHtml(pick.etf.type) + '</td>'
             + '<td class="num"><b>' + pick.pct + '%</b></td>'
+            + '<td class="num">' + fmt(pick.etf.close, 2) + '</td>'
+            + '<td class="num">' + (buyOf[pick.code] ? fmt(buyOf[pick.code].shares, 0) : '—') + '</td>'
+            + '<td class="num">' + (buyOf[pick.code] ? fmt(Math.round(buyOf[pick.code].spent), 0) : '—') + '</td>'
             + retCell(pick.etf)
             + '<td class="num">' + (pick.etf.volatility1y == null ? "—" : fmt(pick.etf.volatility1y, 1) + "%") + '</td>'
             + '<td class="num ' + toneClass(pick.etf.maxDrawdown1y) + '">' + (pick.etf.maxDrawdown1y == null ? "—" : fmt(pick.etf.maxDrawdown1y, 1) + "%") + '</td>'
@@ -4000,7 +4063,11 @@ function showTab(name){
   }
   if (name === "etf" || name === "sim") {
     Promise.all([loadEtf(), name === "sim" ? loadTaxParams() : Promise.resolve()])
-      .then(function(){if (name === "sim") { renderSimRows(); runSim(); }});
+      .then(function(){if (name === "sim") {
+        renderSimRows(); runSim();
+        // 在 feed 回來之前就選了偏好的人，結果區正寫著「正在載入」——接著算完它
+        if (profileRunner && pfNeedCashflow != null) profileRunner();
+      }});
   }
 }
 
@@ -4129,7 +4196,8 @@ function bind(){
     renderEtf();
   });
   // 「配息優先／累積資產優先」兩張卡片取代原本的「需要月月有現金流」勾選框——同一個設定，
-  // 只是換成第一眼就看得懂的二選一。已經算過一次時，換卡片就照新目標重算，不留舊結果。
+  // 只是換成第一眼就看得懂的二選一。**點了就算**：實測舊版點卡片後結果區全程空白，
+  // 要再找到另一顆「依我的情況計算」才會出結果——那顆按鈕已移除，每個輸入都自己重算。
   const setIntent = function(needCashflow){
     pfNeedCashflow = needCashflow;
     for (const pair of [["pfIntentIncome", true], ["pfIntentGrowth", false]]) {
@@ -4138,13 +4206,28 @@ function bind(){
       card.className = pair[1] === needCashflow ? "mode-card on" : "mode-card";
       if (card.setAttribute) card.setAttribute("aria-pressed", pair[1] === needCashflow ? "true" : "false");
     }
-    if (activeProfile) runProfile();
+    runProfile();
+  };
+  // 手機上結果區在問卷下方約 1,300px（實測 375px），點了卡片還要自己往下捲才看得到。
+  // 只在「點卡片」這個明確的動作後捲，而且只在結果大半落在畫面外時——改其他條件不捲。
+  const revealResult = function(){
+    const box = $("suggestResult");
+    if (!box || !box.getBoundingClientRect || !box.scrollIntoView) return;
+    if (box.getBoundingClientRect().top > (ROOT.innerHeight || 0) * 0.6) box.scrollIntoView({behavior:"smooth", block:"start"});
   };
   const pfIncome = $("pfIntentIncome");
-  if (pfIncome) pfIncome.addEventListener("click", function(){setIntent(true);});
+  if (pfIncome) pfIncome.addEventListener("click", function(){setIntent(true); revealResult();});
   const pfGrowth = $("pfIntentGrowth");
-  if (pfGrowth) pfGrowth.addEventListener("click", function(){setIntent(false);});
+  if (pfGrowth) pfGrowth.addEventListener("click", function(){setIntent(false); revealResult();});
   const runProfile = function(){
+    // 還沒選偏好：說下一步是什麼，不留白，也不拿預設值替使用者決定
+    if (pfNeedCashflow == null) {
+      const box = $("suggestResult");
+      if (box) box.innerHTML = '<p class="hint">' + (Number(($("simTotal") || {}).value) > 0 ? '' : '填上「投入總額」，')
+        + '選「<b>配息優先</b>」或「<b>累積資產優先</b>」就會開始篩選。</p>';
+      return;
+    }
+    suggestManual = false;
     const val = function(id){ const n = $(id); return n ? n.value : ""; };
     activeProfile = profileToConstraints({
       horizonYears: val("pfHorizon"),
@@ -4174,8 +4257,12 @@ function bind(){
     }
     runSuggest();
   };
-  const pfRun = $("pfRun");
-  if (pfRun) pfRun.addEventListener("click", runProfile);
+  profileRunner = runProfile;
+  // 問卷其餘的條件改了也直接重算——改了「最多能忍受跌」畫面卻還寫著舊的那個，是假的
+  for (const id of ["pfHorizon", "pfLoss", "pfMaxW", "pfLeveraged"]) {
+    const node = $(id);
+    if (node) node.addEventListener("change", function(){ if (pfNeedCashflow != null) runProfile(); });
+  }
 
   for (const pair of [["pd1y", "1y"], ["pd3y", "3y"], ["pd5y", "5y"]]) {
     const node = $(pair[0]);
@@ -4286,11 +4373,10 @@ function bind(){
     runSim();
     // 總額變了，最佳權重也可能變（零股 floor 讓門檻附近的最佳解會跳）
     autoAllocate();
-    // 已經顯示過的組合也要跟著金額走；窮舉每一鍵都跑太浪費，等打字停下來再算
-    if ($("suggestResult") && $("suggestResult").innerHTML) {
-      clearTimeout(suggestTimer);
-      suggestTimer = setTimeout(runSuggest, 300);
-    }
+    // 組合也要跟著金額走；窮舉每一鍵都跑太浪費，等打字停下來再算。
+    // 走問卷（含還沒選偏好時的提示）用 runProfile；按過「自己選目標」的人走原路。
+    clearTimeout(suggestTimer);
+    suggestTimer = setTimeout(suggestManual ? runSuggest : runProfile, 300);
   });
 
   /* --- 配置產生器 --- */
@@ -4306,6 +4392,7 @@ function bind(){
       // 直接按目標按鈕＝放棄問卷的約束。不清掉的話使用者以為換了目標，
       // 實際上仍被問卷的 goal 蓋回去，畫面與行為對不上。
       activeProfile = null;
+      suggestManual = true;
       // **但問卷的六個欄位仍顯示使用者剛才選的值。** 舊版把 pfNote 清成空白，
       // 於是畫面上寫著「最多能忍受跌 10%」而那條件其實已經沒在套用——
       // 唯一的線索是一行字消失，沒有人會注意到。改成明講作廢了什麼、怎麼要回來。
@@ -4314,7 +4401,7 @@ function bind(){
         note.innerHTML = hadProfile
           ? '已改用「<b>' + escapeHtml(GOAL_LABEL[pair[1]] || pair[1]) + '</b>」為目標，'
             + '<b>上面問卷的條件不再套用</b>（回撤上限、單檔上限、最少檔數）。'
-            + '要用回你的條件，再按一次「依我的情況計算」。'
+            + '要用回你的條件，點一下上面的偏好卡片。'
           : "";
       }
       for (const entry of goalButtons) {
@@ -4325,7 +4412,8 @@ function bind(){
     });
   }
   const gActive = $("gActive");
-  if (gActive) gActive.addEventListener("change", runSuggest);
+  // 用著問卷時要走問卷：activeProfile 帶著上一次的 includeActive，只跑 runSuggest 會被它蓋回去
+  if (gActive) gActive.addEventListener("change", function(){ if (activeProfile) runProfile(); else runSuggest(); });
 }
 
 async function init(){
