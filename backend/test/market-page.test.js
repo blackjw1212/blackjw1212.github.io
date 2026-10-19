@@ -1656,6 +1656,17 @@ test("profileToConstraints maps a profile to real constraints and asks nothing i
   // 「不設限」要真的不設限，不可偷偷塞一個預設值
   assert.equal(profileToConstraints({ horizonYears: "15", maxLossPct: "" }).maxDrawdownPct, undefined);
 
+  // 期限決定回撤閘門要求的最短歷史（2026-10-19）。在那之前「3–10 年」與「10 年以上」
+  // 產生完全相同的約束——三個選項裡有一個是裝飾。
+  assert.equal(profileToConstraints({ horizonYears: "2", maxLossPct: "30" }).minDrawdownYears, undefined,
+    "3 年以內不額外要求歷史");
+  assert.equal(profileToConstraints({ horizonYears: "5", maxLossPct: "30" }).minDrawdownYears, 3);
+  assert.equal(longTerm.minDrawdownYears, 5);
+  const keyOf = (c) => JSON.stringify(c);
+  assert.notEqual(keyOf(profileToConstraints({ horizonYears: "5", maxLossPct: "30", maxWeightPct: "30" })),
+    keyOf(profileToConstraints({ horizonYears: "15", maxLossPct: "30", maxWeightPct: "30" })),
+    "期限三個選項必須產生三組不同的約束");
+
   // 不履行的問題不得產生約束——收集了卻不影響輸出就是裝飾
   const noisy = profileToConstraints({
     horizonYears: "15", age: 42, monthlyAmount: 30000,
@@ -1673,7 +1684,8 @@ test("a tighter loss tolerance actually removes deep-drawdown funds", async () =
   await app.init();
   const mk = (code, dd, tr) => mkFund(code, {
     totalReturn1y: tr, priceReturn1y: tr - 3, volatility1y: Math.abs(dd),
-    maxDrawdown1y: dd, yield: 5, dps: [{ m: 3, a: 0.25 }, { m: 9, a: 0.25 }],
+    // 問卷選「10 年以上」時閘門要求 5 年資料（2026-10-19），fixture 要有那一欄才進得了池
+    maxDrawdown1y: dd, maxDrawdown5y: dd, yield: 5, dps: [{ m: 3, a: 0.25 }, { m: 9, a: 0.25 }],
   });
   const universe = [
     mk("00WILD", -45, 120), mk("00WILD2", -40, 110),
@@ -1689,6 +1701,37 @@ test("a tighter loss tolerance actually removes deep-drawdown funds", async () =
   assert.ok(tight.rejected.drawdown >= 2, "被回撤閘門擋掉的檔數要記錄下來供 UI 揭露");
   // 兩份問卷給出不同答案——若一樣就代表問卷沒作用
   assert.notDeepEqual(loose.picks.map((p) => p.code).sort(), tight.picks.map((p) => p.code).sort());
+});
+
+// 一檔只有一年歷史的標的，「最深回撤」只是一年的回撤；拿它跟有五年資料的標的比，
+// 等於讓新上市的基金用最樂觀的窗過關。期限長就要求對應長度的資料。
+test("a long horizon requires drawdown history of matching length", async () => {
+  const { app } = await loadMarket(dualFeedMock());
+  await app.init();
+  const mk = (code, extra) => mkFund(code, Object.assign({
+    totalReturn1y: 20, priceReturn1y: 17, volatility1y: 10, maxDrawdown1y: -8,
+    yield: 5, dps: [{ m: 3, a: 0.25 }, { m: 9, a: 0.25 }],
+  }, extra));
+  const universe = [
+    mk("00NEW"),                                             // 只有 1 年
+    mk("00MID", { maxDrawdown3y: -12 }),                     // 有 3 年
+    mk("00OLD", { maxDrawdown3y: -12, maxDrawdown5y: -18 }), // 有 5 年
+  ];
+  const pool = (years) => app.helpers.buildCandidatePool(universe,
+    { goal: "netTotal", maxDrawdownPct: 30, minDrawdownYears: years }).map((r) => r.code).sort();
+
+  assert.deepEqual(pool(undefined), ["00MID", "00NEW", "00OLD"]);
+  assert.deepEqual(pool(3), ["00MID", "00OLD"], "3 年期限要有 3 年資料");
+  assert.deepEqual(pool(5), ["00OLD"], "10 年以上要有 5 年資料");
+
+  const rejected = app.helpers.buildCandidatePool(universe,
+    { goal: "netTotal", maxDrawdownPct: 30, minDrawdownYears: 5 }).rejected;
+  assert.equal(rejected.history, 2, "因歷史不足被排除的檔數要另外記，UI 才講得出來");
+  assert.equal(rejected.drawdown, 0, "歷史不足不是「跌太深」，不可混進回撤計數");
+
+  // 沒有回撤閘門（不設限）就沒有東西要檢驗，也就不要求歷史
+  assert.equal(app.helpers.buildCandidatePool(universe,
+    { goal: "netTotal", minDrawdownYears: 5 }).length, 3);
 });
 
 // 正向槓桿（L）改為可選：報酬不差——00631L 近一年 +208.9%、是 0050 的 2.04 倍——

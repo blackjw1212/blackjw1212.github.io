@@ -2386,6 +2386,11 @@ function profileToConstraints(profile){
   if (Number.isFinite(tolerance) && tolerance > 0) out.maxDrawdownPct = tolerance;
   // 期限很短時再收緊一階：一年的回撤在三年內很可能重演，時間不夠攤平
   if (Number.isFinite(years) && years < 3 && out.maxDrawdownPct == null) out.maxDrawdownPct = 15;
+  // 期限決定回撤閘門要求的最短歷史：只有一年資料的標的，「最深回撤」只是一年的回撤，
+  // 拿它跟有五年資料的標的比，等於讓新上市的基金用最樂觀的窗過關。
+  // 在這條之前「3–10 年」與「10 年以上」產生完全相同的約束。
+  if (Number.isFinite(years) && years >= 10) out.minDrawdownYears = 5;
+  else if (Number.isFinite(years) && years >= 3) out.minDrawdownYears = 3;
 
   if (p.includeActive) out.includeActive = true;
   if (p.includeLeveraged) out.includeLeveraged = true;
@@ -2406,7 +2411,7 @@ function buildCandidatePool(etfs, options){
   const opts = options || {};
   const minAum = opts.minAum == null ? 50 : opts.minAum;
   const cap = opts.poolCap || 9;
-  const rejected = {cv:0, premium:0, active:0, drawdown:0, leveraged:0};
+  const rejected = {cv:0, premium:0, active:0, drawdown:0, leveraged:0, history:0};
   // 正向槓桿（代碼 L 結尾）改為可選：報酬不差——00631L 近一年 +208.9%，是 0050
   // 的 2.04 倍——原本被 type 一刀切掉。真正該把關的是回撤（−31.3%），而問卷的
   // 「可接受虧損」閘門已經在做那件事，不需要再用身分標籤擋一次。
@@ -2417,6 +2422,8 @@ function buildCandidatePool(etfs, options){
   // 使用者說了能忍受多少，就不該把「不知道跌多深」的標的塞給他。
   const maxDrawdownPct = Number(opts.maxDrawdownPct);
   const hasDrawdownGate = Number.isFinite(maxDrawdownPct) && maxDrawdownPct > 0;
+  // 期限要求的最短歷史只在有回撤閘門時才有意義——不設限就沒有東西要檢驗
+  const historyField = {3:"maxDrawdown3y", 5:"maxDrawdown5y"}[Number(opts.minDrawdownYears)] || null;
   // 主動型預設不納入：經理人風險與較高費用率，性質與被動指數 ETF 不同
   const includeActive = Boolean(opts.includeActive);
   const base = (etfs || []).filter(function(row){
@@ -2438,6 +2445,11 @@ function buildCandidatePool(etfs, options){
     const cv = etfCv(row);
     if (cv != null && cv > QUALITY.maxCv) { rejected.cv += 1; return false; }
     if (row.discountPremium != null && row.discountPremium > QUALITY.maxPremium) { rejected.premium += 1; return false; }
+    // 歷史不足不是「跌太深」，分開計數，UI 才講得出各擋了幾檔
+    if (hasDrawdownGate && historyField && row[historyField] == null) {
+      rejected.history += 1;
+      return false;
+    }
     if (hasDrawdownGate && !(worstDrawdown(row) != null && worstDrawdown(row) >= -maxDrawdownPct)) {
       rejected.drawdown += 1;
       return false;
@@ -2567,7 +2579,8 @@ function optimizeAllocation(etfs, options){
   }
 
   const pool = buildCandidatePool(etfs, {goal:goal, minAum:opts.minAum, poolCap:opts.poolCap,
-    includeActive:opts.includeActive, includeLeveraged:opts.includeLeveraged, maxDrawdownPct:opts.maxDrawdownPct});
+    includeActive:opts.includeActive, includeLeveraged:opts.includeLeveraged, maxDrawdownPct:opts.maxDrawdownPct,
+    minDrawdownYears:opts.minDrawdownYears});
   if (!pool.length) return {picks:[], reason:"沒有符合基本門檻的 ETF（需滿一年配息歷史、規模 ≥50 億、非槓反/期貨）"};
   // 應稅比例在這裡算一次就好；放進內圈會讓正規表示式跑數十萬次
   if (taxCtx) pool.forEach(function(row){ row.taxableRatio = etfTaxableRatio(row).ratio; });
@@ -3941,6 +3954,7 @@ function runSuggest(){
         // 回撤閘門是問卷唯一真正在過濾標的的條件，擋掉幾檔一定要講——
         // 不講的話使用者不知道自己的「可接受虧損」把多少選項排除了
         + (out.rejected.drawdown ? '、超過可接受虧損 ' + out.rejected.drawdown + ' 檔' : '')
+        + (out.rejected.history ? '、歷史短於投資期限要求 ' + out.rejected.history + ' 檔' : '')
         + (out.rejected.leveraged ? '、未勾選槓桿 ' + out.rejected.leveraged + ' 檔' : '') + '）'
         + '<span style="display:block">恆不納入：反向 ETF（方向性放空，不適合長期配置）、期貨型（轉倉成本）、外幣計價（規模與流動性極低）。'
         + '正向槓桿需在上方問卷明確勾選，且仍受可接受虧損閘門限制。</span></span></div>';
@@ -4154,7 +4168,9 @@ function bind(){
       note.innerHTML = '<b>已套用</b>：目標 ' + escapeHtml(suggestGoal === "monthly" ? "補滿 12 個月現金流" : "稅後總報酬最大化")
         + '　·　單檔上限 ' + activeProfile.maxW + '%　·　至少 ' + activeProfile.minPicks + ' 檔'
         // worstDrawdown() 取 1／3／5 年中最深的那個——這裡曾寫成「近一年」，與程式不符
-        + (activeProfile.maxDrawdownPct != null ? '　·　只收已知最深回撤（1／3／5 年中取最深）淺於 ' + activeProfile.maxDrawdownPct + '% 的標的' : '　·　回撤不設限');
+        + (activeProfile.maxDrawdownPct != null ? '　·　只收已知最深回撤（1／3／5 年中取最深）淺於 ' + activeProfile.maxDrawdownPct + '% 的標的'
+          + (activeProfile.minDrawdownYears ? '，且須有 ' + activeProfile.minDrawdownYears + ' 年以上的資料（配合投資期限，新上市的標的因此不納入）' : '')
+          : '　·　回撤不設限');
     }
     runSuggest();
   };
