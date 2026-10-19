@@ -843,6 +843,33 @@ test("rows fall back to 待更新 when no closing data is available", async () =
   assert.match(document.getElementById("dataSource").textContent, /收盤資料待更新|收盤來源/);
 });
 
+// 頂端兩張大盤卡片原本要排在個股報價（正式站實測 3.8 秒）與 market feed 之後才去抓，
+// 打開頁面好幾秒都寫「待更新」。兩者互不相依，指數不必等。
+test("market indices are requested without waiting for the stock quotes", async () => {
+  const calls = [];
+  let releaseEod;
+  const eodGate = new Promise((resolve) => { releaseEod = resolve; });
+  const { context } = await loadApp(async (url) => {
+    const href = String(url);
+    calls.push(href);
+    if (href.endsWith("/eod")) {
+      await eodGate;
+      return response([{ code: "2330", name: "台積電", close: 2410, change: 10 }], { "X-Data-Source": "Worker mock EOD" });
+    }
+    if (href.includes("/quote?indices=taiex,tpex")) return response({ indices: [] }, {}, { status: 502 });
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unexpected: ${href}`);
+  }, {
+    location: { href: "https://blackjw1212.github.io/", hostname: "blackjw1212.github.io", search: "" },
+  });
+  const done = context.window.PortfolioConsoleApp.init();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.ok(calls.some((href) => href.includes("/quote?indices=taiex,tpex")),
+    "個股報價還沒回來，指數請求就該已經發出去");
+  releaseEod();
+  await done;
+});
+
 test("page uses Worker EOD and market indices on GitHub Pages default proxy", async () => {
   const calls = [];
   const { context, document } = await loadApp(async (url) => {

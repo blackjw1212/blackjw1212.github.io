@@ -107,7 +107,7 @@ const okResponse = (data) => ({ ok: true, status: 200, headers: new Headers({}),
 
 test("market page ships the screener contract and stays non-advisory", async () => {
   const { html, app } = await loadMarket(async () => okResponse(marketFeed()));
-  assert.match(html, /<title>全市場個股清單｜BJKW<\/title>/);
+  assert.match(html, /<title>ETF 推薦與全市場清單｜BJKW<\/title>/);
   assert.match(html, /MARKET_FEED_URL\s*=\s*"\/data\/market-feed\.json"/);
   assert.match(html, /不是投資建議/);
   assert.doesNotMatch(html, /買進訊號|賣出訊號|保證/);
@@ -126,6 +126,26 @@ test("loading the feed populates rows, stamp and 52w footnote", async () => {
   const body = elements.get("mktBody").innerHTML;
   assert.match(body, /台積電/);
   assert.match(body, /觀測中/, "watchlist codes should be badged");
+});
+
+// 「觀測中」原本比對的是寫死在這頁的 13 檔，不是使用者在 /stocks/ 存的清單——
+// 在那邊加減過標的，這邊照樣標原本那 13 檔（2026-10-19 審查）。兩頁同網域，讀得到同一份。
+test("the watch badge follows the list saved on /stocks/, not a hardcoded copy", async () => {
+  const backing = new Map([["bjkw-portfolio-console-v2", JSON.stringify({ watchlist: [{ code: "2357" }, { code: "4523" }] })]]);
+  const store = { getItem: (k) => (backing.has(k) ? backing.get(k) : null), setItem: (k, v) => backing.set(k, String(v)) };
+  const { app } = await loadMarket(async () => okResponse(marketFeed()), { localStorage: store });
+  await app.init();
+  const watched = app.getAll().filter((row) => row.watch).map((row) => row.code).sort();
+  assert.deepEqual(watched, ["2357", "4523"], "要標使用者自己的清單");
+
+  // 沒自訂過（watchlist: null）或存檔壞掉，就退回 /stocks/ 的預設 13 檔
+  for (const raw of [JSON.stringify({ watchlist: null }), "{not json"]) {
+    backing.set("bjkw-portfolio-console-v2", raw);
+    const fallback = await loadMarket(async () => okResponse(marketFeed()), { localStorage: store });
+    await fallback.app.init();
+    assert.ok(fallback.app.getAll().find((row) => row.code === "2330").watch, "預設清單裡的台積電要標");
+    assert.ok(!fallback.app.getAll().find((row) => row.code === "2357").watch);
+  }
 });
 
 // 上市未滿一年時 feed 不發布 hi52，改帶 w52Months。畫面必須說「累積中」而不是「—」——

@@ -139,12 +139,11 @@
 <header>
   <div class="wrap header-shell">
     <div class="header-main">
-      <div class="kick">Stock Observation Console · AI Supply Chain · v0.5</div>
+      <div class="kick">Watchlist · TWSE + TPEx</div>
       <h1>股票觀測</h1>
       <div class="profile">
         <span class="tagp">定位 <b>自訂觀察清單</b></span>
-        <span class="tagp">圖表 <b>TradingView</b></span>
-        <a href="/market/">全市場個股清單 →</a>
+        <a href="/market/">ETF 推薦與全市場清單 →</a>
       </div>
     </div>
     <aside id="headerMarketQuotes" class="header-markets" aria-label="市場指數" aria-live="polite">
@@ -169,7 +168,8 @@
   <section aria-labelledby="scoreHeading">
     <h2 id="scoreHeading">股票觀察清單 <em>WATCHLIST</em></h2>
     <p class="hint">欄位與<a href="/market/">全市場清單</a>一致，點表頭可排序；點代碼開 TradingView。
-      收盤與漲跌%取自當日 13:30 快照或收盤資料，PE／PB／殖利率／距一年高／成交額取自全市場 feed。</p>
+      收盤與漲跌%取自當日 13:30 快照或收盤資料，PE／PB／殖利率／距一年高／成交額取自全市場 feed；
+      距一年高已還原配股、面額變更與減資，現金股利不還原。</p>
     <div class="watch-editor">
       <div class="watch-row">
         <span class="fld">加入代碼 <input id="watchAdd" type="text" inputmode="numeric" maxlength="6" style="width:92px" placeholder="如 2454" aria-label="要加入觀察清單的股票代碼" /></span>
@@ -220,20 +220,23 @@ const LS = "bjkw-portfolio-console-v2";
 // 內建的預設清單。唯一的人工欄位是 role（一句話說明），其餘全部來自 feed。
 // 數字一律不寫死——PE／PB／殖利率／距一年高都取自 market-feed，
 // 寫死的靜態值只會過期，而 feed 對全市場 1900+ 檔都有。
+// **role 只寫公司在做什麼，不寫估值或位階。** 2026-10-19 審查時原本的說明有兩句已經是錯的
+// （「緯創估值為全清單最低」實為第 4 低、「廣達殖利率為清單最高」實為第 2 高），
+// 還有「首選」「等待估值回到可觀察區」這種操作建議語氣——那些判斷交給表格裡即時算的欄位。
 const BUILT_INS = [
-  {code:"2330",name:"台積電",role:"先進製程與封裝，AI 供應鏈核心底座；估值合理，但目前位階偏高、回檔最淺。"},
-  {code:"2317",name:"鴻海",role:"AI 伺服器與整機平台；估值偏低、股價淨值比貼近淨值，核心裡估值最扎實的一檔。"},
-  {code:"2382",name:"廣達",role:"AI 伺服器 ODM 與雲端大客戶；估值便宜、殖利率為清單最高，前段衛星首選。"},
-  {code:"3231",name:"緯創",role:"AI 伺服器 ODM；估值為全清單最低、營收動能強，與廣達並列前段衛星。"},
-  {code:"6669",name:"緯穎",role:"高 beta AI 伺服器 ODM；估值最便宜，但近期自低點大幅反彈、波動要控管。"},
-  {code:"3017",name:"奇鋐",role:"散熱主線，受 AI 平台與液冷升級拉動；惟估值已墊高、波動較高。"},
-  {code:"3324",name:"雙鴻",role:"液冷散熱衛星，題材明確但估值中性偏高、觀察位置敏感、波動大。"},
-  {code:"3661",name:"世芯-KY",role:"ASIC／客製晶片設計，對應 GPU+ASIC 雙主流，但估值偏高、波動大。"},
-  {code:"2356",name:"英業達",role:"AI 伺服器 ODM，估值便宜、距高檔回檔深，但毛利薄、題材純度中等。"},
-  {code:"2376",name:"技嘉",role:"AI 伺服器與板卡，AI 槓桿高、估值偏低，遊戲＋伺服器雙引擎、波動中等。"},
-  {code:"6239",name:"力成",role:"記憶體／HBM 封測測試，受 AI 記憶體需求拉動；惟估值偏高、殖利率低，且受記憶體循環波動影響大。"},
-  {code:"1519",name:"華城",role:"電力建設長線，但估值與籌碼需等冷卻。"},
-  {code:"2308",name:"台達電",role:"電源、散熱與電動化品質高，等待估值回到可觀察區。"},
+  {code:"2330",name:"台積電",role:"先進製程與封裝，AI 晶片的製造底座。"},
+  {code:"2317",name:"鴻海",role:"AI 伺服器與整機組裝平台。"},
+  {code:"2382",name:"廣達",role:"AI 伺服器 ODM，主要客戶是雲端業者。"},
+  {code:"3231",name:"緯創",role:"AI 伺服器 ODM。"},
+  {code:"6669",name:"緯穎",role:"雲端資料中心伺服器 ODM。"},
+  {code:"3017",name:"奇鋐",role:"散熱模組，含 AI 平台的液冷方案。"},
+  {code:"3324",name:"雙鴻",role:"液冷散熱。"},
+  {code:"3661",name:"世芯-KY",role:"ASIC／客製晶片設計服務。"},
+  {code:"2356",name:"英業達",role:"AI 伺服器 ODM。"},
+  {code:"2376",name:"技嘉",role:"AI 伺服器與主機板、顯示卡。"},
+  {code:"6239",name:"力成",role:"記憶體與 HBM 封裝測試，受記憶體景氣循環影響。"},
+  {code:"1519",name:"華城",role:"變壓器等電力設備。"},
+  {code:"2308",name:"台達電",role:"電源、散熱與電動化零組件。"},
 ];
 
 const BUILT_IN_BY_CODE = {};
@@ -1266,11 +1269,17 @@ function sayDataStatus(text){
 }
 
 async function refresh(){
-  await loadEod();
-  // market-feed 要排在 loadEod 之後：它只補「還沒有價格」的代碼，
-  // 不覆蓋 13:30 快照那份較精準的資料
-  await loadMarketFeed();
-  await loadMarketIndices();
+  // 大盤指數跟個股報價互不相依，同時抓。原本排在個股報價（正式站實測 3.8 秒）與
+  // market feed 之後，頂端兩張卡片要寫好幾秒「待更新」。
+  await Promise.all([
+    (async function(){
+      await loadEod();
+      // market-feed 要排在 loadEod 之後：它只補「還沒有價格」的代碼，
+      // 不覆蓋 13:30 快照那份較精準的資料
+      await loadMarketFeed();
+    })(),
+    loadMarketIndices(),
+  ]);
   renderWatchEditor();
   renderScore();
 }

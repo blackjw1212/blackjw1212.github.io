@@ -311,7 +311,7 @@ if (has("stocks/index.html")) {
 if (has("market/index.html")) {
   const html = await read("market/index.html");
   assertMatch("market/index.html", html, /<html lang="zh-Hant">/, "market document language");
-  assertMatch("market/index.html", html, /<title>全市場個股清單｜BJKW<\/title>/, "market title");
+  assertMatch("market/index.html", html, /<title>ETF 推薦與全市場清單｜BJKW<\/title>/, "market title");
   assertMatch("market/index.html", html, /rel="canonical" href="\/market\/"/, "market canonical");
   assertMatch("market/index.html", html, /rel="manifest" href="\/assets\/images\/site\.webmanifest"/, "market manifest");
   assertMatch("market/index.html", html, /name="theme-color" content="#101418"/, "market theme color");

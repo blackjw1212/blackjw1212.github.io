@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>全市場個股清單｜BJKW</title>
+<title>ETF 推薦與全市場清單｜BJKW</title>
 <meta name="description" content="台股全市場（上市＋上櫃）個股每日收盤與估值清單，可搜尋、排序並以本益比、股價淨值比、殖利率、距一年高自動篩選低基期候選。" />
 <link rel="canonical" href="/market/">
 <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
@@ -35,7 +35,6 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:"Noto Sans TC",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding:0 0 56px;-webkit-font-smoothing:antialiased}
-  .mono{font-family:"Roboto Mono",monospace}
   .wrap{max-width:1180px;margin:0 auto;padding:0 18px}
   a{color:var(--teal);text-decoration:none}a:hover{text-decoration:underline}
   header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#151b20,#101418);padding:24px 0 18px}
@@ -70,7 +69,6 @@
   th{font-family:"Roboto Mono",monospace;font-size:10px;font-weight:600;color:var(--faint);text-align:right;padding:8px 6px;border-bottom:1px solid var(--line2);white-space:nowrap;cursor:pointer;user-select:none}
   th:first-child,th:nth-child(2){text-align:left}
   th:hover{color:var(--amber)}
-  th .ar{color:var(--amber)}
   td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;vertical-align:middle;white-space:nowrap}
   td:first-child,td:nth-child(2){text-align:left}
   tr:last-child td{border-bottom:0}
@@ -101,9 +99,6 @@
   .mode-card.on{border-color:var(--teal);box-shadow:inset 3px 0 0 var(--teal)}
   .mode-card b{display:block;font-size:15px}
   .mode-card span{display:block;margin-top:3px;color:var(--faint);font-size:12px;line-height:1.5}
-  .verdict{border:1px solid var(--line);border-radius:10px;background:var(--panel2);padding:16px 18px;margin-top:12px}
-  .verdict .big{font-size:clamp(20px,4.5vw,30px);font-weight:900;line-height:1.25}
-  .verdict .sub{margin-top:8px;color:var(--soft);font-size:13px;line-height:1.6}
   .need{border:1px solid var(--amber);border-radius:10px;padding:12px 14px;margin-top:10px;color:var(--amber);font-size:13px;line-height:1.6}
   /* 主視覺：三條主線並列——現金流／投資總報酬／風險 */
   .hero-group{margin-top:14px}
@@ -285,12 +280,12 @@
 
 <header>
   <div class="wrap">
-    <div class="kick">Market Screener · TWSE + TPEx · v0.1</div>
-    <h1>全市場個股清單</h1>
+    <div class="kick">ETF Picker · Market Screener · TWSE + TPEx</div>
+    <h1>ETF 推薦與全市場清單</h1>
     <div class="profile">
       <span class="tagp">範圍 <b>上市＋上櫃</b></span>
       <span class="tagp">資料 <b>每日自動更新</b></span>
-      <span class="tagp">篩選 <b>本益比／淨值比／殖利率</b></span>
+      <span class="tagp">內容 <b>ETF 推薦·ETF 篩選·全股票</b></span>
       <a href="/stocks/">← 回股票觀測</a>
     </div>
   </div>
@@ -648,6 +643,8 @@
     資料來源：<b>TWSE OpenAPI</b>（上市收盤／本益比）與 <b>TPEx OpenAPI</b>（上櫃收盤／本益比），每交易日收盤後自動更新。
     一年高低由本站每日快照<b>以月為單位</b>滾動累積，窗口是當月回推 12 個完整月（<span id="hiSince"></span>起），
     因此可能略多於 52 週——月桶做不出剛好一年，最舊那個月會含到月初。
+    配股、面額變更、減資造成的股數變動<b>已依證交所／櫃買中心的參考價還原</b>（上櫃的面額變更尚未涵蓋；上市「權息」同日的現金部分會一併還原），
+    <b>現金股利不還原</b>，所以高低點仍是實際成交價。
     累積未滿 12 個月的個股不發布高低點，該欄顯示「累積中」。上游延遲或暫時中斷時會保留前一份資料並標示。
 ETF 殖利率為<b>滾動 12 個月已除息配息 ÷ 當日收盤</b>，與他站常用的「年度殖利率（年度配息 ÷ 年均價）」定義不同，數字不可直接互比；配息歷史逐檔保留近 13 個月。
     成交額為<b>當日</b>收盤價 × 成交股數，只是流動性的粗略代理，單日可能因事件而失真。
@@ -662,7 +659,23 @@ const ROOT = typeof window !== "undefined" ? window : (typeof globalThis !== "un
 const DOC = typeof document !== "undefined" ? document : null;
 const MARKET_FEED_URL = "/data/market-feed.json";
 const PAGE_SIZE = 100;
+// /stocks/ 的預設 13 檔。只在讀不到使用者自己的清單時用——「觀測中」原本只比對這份，
+// 使用者在 /stocks/ 加減過標的，這邊照樣標這 13 檔（2026-10-19 審查）。
 const WATCHLIST = ["2330","2317","2382","3231","6669","3017","3324","3661","2356","2376","6239","1519","2308"];
+const STOCKS_LS = "bjkw-portfolio-console-v2";
+// 與 /stocks/ 的 sanitizeWatchlist 同一套代碼格式；watchlist 為 null 代表沒自訂過、用預設
+function watchCodes(){
+  try {
+    const store = ROOT.localStorage;
+    const saved = store ? JSON.parse(store.getItem(STOCKS_LS) || "null") : null;
+    const list = saved && Array.isArray(saved.watchlist) ? saved.watchlist : null;
+    const codes = (list || []).map(function(item){ return String((item && item.code) || item || "").trim().toUpperCase(); })
+      .filter(function(code){ return /^\d{4}[A-Z]?$/.test(code); });
+    return codes.length ? codes : WATCHLIST;
+  } catch (error) {
+    return WATCHLIST;
+  }
+}
 
 let allStocks = [];
 let viewRows = [];
@@ -862,6 +875,8 @@ function rescaleValuation(row){
 function normalizeFeed(payload){
   const rows = Array.isArray(payload && payload.stocks) ? payload.stocks : [];
   const adjustable = valuationAdjustable(payload);
+  // 每列都要比對，先讀一次就好
+  const watched = watchCodes();
   return rows.map(function(row){
     const clean = {
       code:String(row.code || ""),
@@ -886,7 +901,7 @@ function normalizeFeed(payload){
     clean.turnover = (clean.close != null && clean.volume != null)
       ? Math.round(clean.close * clean.volume / 1e6) / 100
       : null;
-    clean.watch = WATCHLIST.indexOf(clean.code) >= 0;
+    clean.watch = watched.indexOf(clean.code) >= 0;
     return clean;
   }).filter(function(row){return row.code && row.close != null;});
 }
