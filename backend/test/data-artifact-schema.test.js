@@ -56,6 +56,24 @@ test("market-52w.json holds well-formed buckets inside the retention window", as
   }
 });
 
+// 股數事件（配股、面額變更、減資）的套用紀錄。它是「不重複乘」的唯一依據：
+// 格式壞掉或比例離譜，下一班就會把同一個除權再乘一次、或乘一個錯的數。
+test("market-52w.json's corporate-action log is well formed and inside the window", async () => {
+  const { validFactor } = await import("../../scripts/corporate-actions.mjs");
+  const acc = await readJson("../../data/market-52w.json");
+  const feed = await readJson("../../data/market-feed.json");
+  if (acc.seededThrough != null) assert.match(acc.seededThrough, ISO_DATE, "seededThrough 必須是 ISO 日期");
+  const floor = retentionFloor(feed.tradeDate);
+  for (const [key, value] of Object.entries(acc.adjusted || {})) {
+    const match = key.match(/^([0-9A-Z]+)@(\d{4}-\d{2}-\d{2})$/);
+    assert.ok(match, `套用紀錄的鍵 ${key} 格式異常`);
+    assert.ok(match[2] <= feed.tradeDate, `${key}: 事件日在 feed 交易日之後，那是還沒發生的事件`);
+    assert.ok(match[2].slice(0, 7) >= floor, `${key}: 窗口外的紀錄該被剪掉`);
+    assert.ok(validFactor(value && value.f), `${key}: 比例 ${value && value.f} 不像一次真的股數變動`);
+    assert.ok(["stock", "par", "reduction"].includes(value.k), `${key}: 未知的事件類別 ${value.k}`);
+  }
+});
+
 // 定義性檢查：hi52／lo52 的意義就是「窗口內所有月桶的極值」。
 // 兩張表分叉時肉眼完全看不出來，但畫面上每一個距高百分比都會是錯的。
 // 同 tax-params 那條「累進差額在級距交界處必須相等」。

@@ -6,6 +6,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { field, parseNumber, roundNumber } from "./update-stock-risk-feed.mjs";
+import { pruneAdjusted, syncCorporateActions } from "./corporate-actions.mjs";
 
 const FEED_FILE = new URL("../data/market-feed.json", import.meta.url);
 const ACC_FILE = new URL("../data/market-52w.json", import.meta.url);
@@ -226,7 +227,12 @@ export function retentionFloor(tradeDate) {
 export function accumulate52w(accumulator, stocks, tradeDate) {
   const acc = accumulator && typeof accumulator === "object" ? accumulator : {};
   const store = acc.stocks && typeof acc.stocks === "object" ? acc.stocks : {};
-  if (!monthKey(tradeDate)) return { start: acc.start || tradeDate, stocks: store };
+  // 股數事件的套用紀錄（corporate-actions.mjs）要一路帶著走：弄丟了，下一班會把
+  // 同一個除權再乘一次。seededThrough 是 Yahoo 回填的截止日，回填前的事件不重複縮放。
+  const carry = {};
+  if (acc.adjusted && typeof acc.adjusted === "object") carry.adjusted = acc.adjusted;
+  if (acc.seededThrough) carry.seededThrough = acc.seededThrough;
+  if (!monthKey(tradeDate)) return { start: acc.start || tradeDate, stocks: store, ...carry };
   const minMonth = retentionFloor(tradeDate);
 
   for (const row of stocks) {
@@ -269,7 +275,8 @@ export function accumulate52w(accumulator, stocks, tradeDate) {
       if (key < minMonth || !Array.isArray(bucket) || !(bucket[0] > 0) || !(bucket[1] > 0)) delete months[key];
     }
   }
-  return { start: acc.start || tradeDate, stocks: store };
+  pruneAdjusted(carry, minMonth);
+  return { start: acc.start || tradeDate, stocks: store, ...carry };
 }
 
 // 覆蓋不足時**不得發布高低點**。新上市股只有 1 個月的資料卻標成「一年高低」是
@@ -404,11 +411,32 @@ async function main() {
   }
 
   // 52 週累積：只有在本次抓到「新鮮」資料時才累積（保留模式下不重複灌同一天）。
-  const accumulatorRaw = await readJsonOr(ACC_FILE, {});
+  const accumulatorLoaded = await readJsonOr(ACC_FILE, {});
+  // 股數事件（配股、面額變更、減資）的還原要排在「灌今天的行情」**之前**：
+  // 今天的價格已經是事件後的基準，先灌再還原會把它也乘上比例。
+  // 每班回看 40 天；已套用的記在 adjusted 裡，重複看到同一筆不會再乘。
+  let accumulatorRaw = accumulatorLoaded;
+  const marketByCode = {};
+  for (const s of stocks) marketByCode[s.code] = s.market;
+  try {
+    const from = new Date(tradeDate + "T00:00:00Z");
+    from.setUTCDate(from.getUTCDate() - 40);
+    const sync = await syncCorporateActions(accumulatorLoaded, {
+      fromDate: from.toISOString().slice(0, 10), tradeDate, floorMonth: retentionFloor(tradeDate),
+      marketOf: (code) => marketByCode[code], fetchJson,
+    });
+    accumulatorRaw = sync.accumulator;
+    errors.push(...sync.errors);
+    if (sync.applied.length) console.log(`corporate actions applied: ${sync.applied.join(", ")}`);
+  } catch (error) {
+    errors.push({ source: "corporate-actions", message: error.message });
+  }
   const freshRows = [...(twse.preserved ? [] : twse.rows), ...(tpex.preserved ? [] : tpex.rows)];
   const accumulator = freshRows.length
     ? accumulate52w(accumulatorRaw, freshRows, tradeDate)
-    : { start: accumulatorRaw.start || tradeDate, stocks: accumulatorRaw.stocks || {} };
+    : { start: accumulatorRaw.start || tradeDate, stocks: accumulatorRaw.stocks || {},
+      ...(accumulatorRaw.adjusted ? { adjusted: accumulatorRaw.adjusted } : {}),
+      ...(accumulatorRaw.seededThrough ? { seededThrough: accumulatorRaw.seededThrough } : {}) };
 
   const { preserved: valuationPreserved } = applyValuation(stocks, valuation, prevValByCode);
   for (const row of stocks) {
@@ -459,7 +487,8 @@ async function main() {
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   // minified：全市場 ~2,200 列，縮排會讓體積翻倍
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
-  await writeFile(ACC_FILE, JSON.stringify({ start: accumulator.start, updatedAt: now, stocks: accumulator.stocks }), "utf8");
+  await writeFile(ACC_FILE, JSON.stringify({ start: accumulator.start, updatedAt: now,
+    seededThrough: accumulator.seededThrough, adjusted: accumulator.adjusted || {}, stocks: accumulator.stocks }), "utf8");
   console.log(`market-feed: ${stocks.length} rows, tradeDate ${tradeDate}, valuationDate ${valuationDate || "未取得"}, errors ${errors.length}`);
   if (errors.length) console.warn(JSON.stringify(errors, null, 2));
 }

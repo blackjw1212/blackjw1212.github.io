@@ -84,7 +84,9 @@ async function main() {
     return;
   }
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
-  await writeFile(ACC_FILE, JSON.stringify({ start: accumulator.start, updatedAt: accumulatorRaw.updatedAt, stocks: accumulator.stocks }), "utf8");
+  // adjusted／seededThrough 要一起寫回：丟了，下一班會把已還原的股數事件再乘一次
+  await writeFile(ACC_FILE, JSON.stringify({ start: accumulator.start, updatedAt: accumulatorRaw.updatedAt,
+    seededThrough: accumulator.seededThrough, adjusted: accumulator.adjusted || {}, stocks: accumulator.stocks }), "utf8");
   console.log("\n已寫回 data/market-feed.json 與 data/market-52w.json。");
 }
 
