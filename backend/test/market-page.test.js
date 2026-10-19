@@ -2044,262 +2044,6 @@ test("preserved upstream data is disclosed in the stamp", async () => {
   assert.match(elements.get("stamp").textContent, /前次保留資料/);
 });
 
-// ── 多年期：累積型（不配息）vs 配息再投資 ──────────────────────
-// 反事實孿生：同一組配置，比較「配息並再投資」與「總報酬完全相同但不配息」的
-// 假想版本。差額 100% 歸因於稅務與手續費摩擦——所以零摩擦時兩者必須完全相等，
-// 那條測試不過的話，後面所有差額都不可信。
-
-// 造一檔殖利率 y、股價 p 的 ETF。events 拆成 n 筆，用來測二代健保的單筆門檻。
-function fundSec(code, price, yieldPct, payouts = 2, extra = {}) {
-  const annual = price * yieldPct / 100;
-  const events = Array.from({ length: payouts }, (_, i) => ({ m: i * 3 + 2, a: annual / payouts }));
-  return Object.assign({ code, name: code, kind: "etf", price, events, type: "高股息" }, extra);
-}
-const alloc = (security, pct) => ({ code: security.code, pct, security });
-
-async function projector() {
-  const { app } = await loadMarket(dualFeedMock());
-  await app.init();
-  return app.helpers.projectMultiYear;
-}
-
-// 這是整組功能的地基。價格成長若寫成 R − y 而不是 (1+R)/(1+y) − 1，
-// 零摩擦下兩邊會差一個 y(R−y) 的二階項（R=8%、y=5% 時十年約 1.5%），
-// 那個差額與稅費無關卻會被讀成摩擦成本。
-test("with zero friction the two models must land on exactly the same number", async () => {
-  const project = await projector();
-  for (const years of [5, 10]) {
-    const out = project({
-      total: 1000000, years, rTotal: 8, stress: 1,
-      allocations: [alloc(fundSec("00AA", 50, 5), 60), alloc(fundSec("00BB", 20, 9), 40)],
-      netIncome: null,                                  // 無所得 → 不課綜所稅
-      nhi: { rate: 0, threshold: 20000, cap: null },     // 健保歸零
-      feeRate: 0, sellTaxRate: 0,                        // 手續費與證交稅歸零
-    });
-    const gap = Math.abs(out.accEnd - out.distEnd);
-    assert.ok(gap < out.accEnd * 1e-9,
-      `${years} 年零摩擦下兩模型必須相等，實差 ${gap.toFixed(2)}（占 ${(gap / out.accEnd * 100).toFixed(4)}%）` +
-      "——價格成長可能誤用了 R − y 而不是 (1+R)/(1+y) − 1");
-    // 而且要等於單純複利，證明迴圈本身沒有多算或少算一期
-    assert.ok(Math.abs(out.accEnd - 1000000 * Math.pow(1.08, years)) < 1e-6, "累積型必須就是 (1+R)^Y");
-  }
-});
-
-test("friction shows up as a deficit that reconciles item by item", async () => {
-  const project = await projector();
-  const out = project({
-    total: 5000000, years: 10, rTotal: 8, stress: 1,
-    allocations: [alloc(fundSec("00AA", 50, 6), 100)],
-    netIncome: 2000000,                     // 高所得 → 稅為正
-    taxParams: null, nhi: undefined,
-    feeRate: 0.001425, sellTaxRate: 0.001,
-  });
-  assert.ok(out.taxTotal > 0, `高所得應課到稅，實得 ${out.taxTotal}`);
-  assert.ok(out.nhiTotal > 0, "單筆過門檻應扣二代健保");
-  assert.ok(out.accEnd > out.distEnd, "有稅時累積型必勝");
-  // 只比大小不夠——差額必須真的來自那三項的複利，不是別處的計算漏洞。
-  // 摩擦金額在中途被抽走，之後不再複利，所以終值差額必然大於摩擦本身的面額。
-  assert.ok(out.delta > out.frictionSaved,
-    `差額 ${Math.round(out.delta)} 應大於摩擦面額 ${Math.round(out.frictionSaved)}（被抽走的錢少賺了後續複利）`);
-  // 上界：全部摩擦若都發生在第 1 年，最多長成 (1+R)^10 倍
-  assert.ok(out.delta < out.frictionSaved * Math.pow(1.08, 10),
-    "差額不該超過「摩擦全發生在第一年」的極限，超過代表重複計算");
-});
-
-// 使用者原本的驗收標準寫「累積型必須 ≥ 配息型」。低所得時會反過來：
-// 合併計稅的 8.5% 股利抵減（上限 8 萬）可能大於應納稅額而退稅。
-// 這條鎖住那個反直覺但正確的行為——它是這個功能最有價值的輸出。
-test("a dividend tax refund can flip the result in favour of distributing", async () => {
-  const project = await projector();
-  const out = project({
-    total: 1000000, years: 10, rTotal: 6, stress: 1,
-    allocations: [alloc(fundSec("00AA", 50, 6), 100)],
-    netIncome: 100000,                       // 低所得 → 8.5% 抵減大於應納稅額
-    nhi: { rate: 0, threshold: 20000, cap: null },
-    feeRate: 0, sellTaxRate: 0,
-  });
-  assert.ok(out.refundYears > 0, `低所得應出現退稅年度，實得 ${out.refundYears}`);
-  assert.ok(out.taxTotal < 0, `累計稅應為負（退稅），實得 ${out.taxTotal}`);
-  assert.ok(out.distEnd > out.accEnd,
-    "退稅情境下配息型應勝出——「累積型永遠比較好」是錯的，這是本功能最該講出來的結論");
-});
-
-// 二代健保是「單筆」≥ 2 萬。多年模型才看得出來的動態：
-// 第 1 年單筆不到門檻，隨再投資複利在某一年跨過去，從那年起才開始扣。
-test("the NHI threshold is crossed partway through, not from year one", async () => {
-  const project = await projector();
-  // 單筆 = 100 萬 × 4% ÷ 1 次 = 40,000 → 一開始就過門檻
-  const over = project({
-    total: 1000000, years: 5, rTotal: 8, stress: 1,
-    allocations: [alloc(fundSec("00AA", 50, 4, 1), 100)],
-    netIncome: null, feeRate: 0, sellTaxRate: 0,
-  });
-  assert.equal(over.nhiFirstYear, 1, "一開始就超過門檻的應從第 1 年扣");
-
-  // 單筆 = 30 萬 × 4% ÷ 1 次 = 12,000 → 要複利幾年才會跨過 20,000
-  const later = project({
-    total: 300000, years: 15, rTotal: 8, stress: 1,
-    allocations: [alloc(fundSec("00AA", 50, 4, 1), 100)],
-    netIncome: null, feeRate: 0, sellTaxRate: 0,
-  });
-  assert.ok(later.nhiFirstYear > 1 && later.nhiFirstYear <= 15,
-    `門檻應在中途跨過，實得第 ${later.nhiFirstYear} 年`);
-  const before = later.rows[later.nhiFirstYear - 2];
-  const after = later.rows[later.nhiFirstYear - 1];
-  assert.equal(before.nhi, 0, "跨過門檻之前不該扣費");
-  assert.ok(after.nhi > 0, "跨過門檻那年起才開始扣費");
-});
-
-test("the exit cost is charged to both sides, never only one", async () => {
-  const project = await projector();
-  const base = { total: 1000000, years: 10, rTotal: 8, stress: 1,
-    allocations: [alloc(fundSec("00AA", 50, 5), 100)], netIncome: 1000000, feeRate: 0.001425 };
-  const withTax = project(Object.assign({}, base, { sellTaxRate: 0.001 }));
-  const noTax = project(Object.assign({}, base, { sellTaxRate: 0 }));
-  assert.ok(noTax.accEnd > withTax.accEnd, "取消證交稅應抬高累積型");
-  assert.ok(noTax.distEnd > withTax.distEnd, "也必須同時抬高配息型——只抬一邊就是偏袒");
-  assert.ok(withTax.accExit > withTax.distExit,
-    "累積型資產較大，出場成本的絕對金額必然較高");
-});
-
-test("dividends per unit grow with price so the yield does not silently decay", async () => {
-  const project = await projector();
-  const out = project({
-    total: 1000000, years: 10, rTotal: 10, stress: 1,
-    allocations: [alloc(fundSec("00AA", 50, 5), 100)],
-    netIncome: null, nhi: { rate: 0, threshold: 20000, cap: null }, feeRate: 0, sellTaxRate: 0,
-  });
-  // 若每單位配息釘死在第 0 年，第 10 年的配息總額會遠低於資產成長幅度，
-  // 稅基被系統性低估、摩擦成本被算得太小
-  const first = out.rows[0].gross;
-  const last = out.rows[9].gross;
-  assert.ok(last > first * 2,
-    `第 10 年配息 ${Math.round(last)} 應隨資產成長（第 1 年 ${Math.round(first)}），` +
-    "否則殖利率會機械式衰減、摩擦被低估");
-});
-
-test("the page says out loud when distributing wins, instead of burying it", async () => {
-  const { app, elements } = await loadMarket(dualFeedMock());
-  await app.init();
-  await app.showTab("sim");
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const set = (id, value) => {
-    const node = elements.get(id);
-    node.value = value;
-    if (node.listeners.get("input")) node.listeners.get("input")();
-  };
-  set("simTotal", "600000");
-  set("simNetIncome", "150000");     // 低所得 → 8.5% 抵減 > 應納稅額
-  app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
-  set("pmReturn", "8");
-  const detail = elements.get("pmDetail").innerHTML;
-  assert.match(detail, /配息型反而勝出/, "翻轉時必須明講，否則使用者會照著「累積型比較好」做決定");
-  assert.match(detail, /8\.5% 股利抵減/, "要說得出原因是股利抵減，不能只說結果");
-});
-
-test("a missing net income is disclosed rather than silently treated as tax-free", async () => {
-  const { app, elements } = await loadMarket(dualFeedMock());
-  await app.init();
-  await app.showTab("sim");
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const set = (id, value) => {
-    const node = elements.get(id);
-    node.value = value;
-    if (node.listeners.get("input")) node.listeners.get("input")();
-  };
-  set("simTotal", "5000000");
-  set("simNetIncome", "");            // 沒填
-  app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
-  set("pmReturn", "8");
-  assert.match(elements.get("pmDetail").innerHTML, /沒有計入所得稅/,
-    "沒填所得就不能讓人以為免稅——摩擦會被低估");
-});
-
-// ── 新手介面：結論卡的方向不可寫死 ──────────────────────────────
-// 新手看不出「累積型是假想商品」，也看不出自己的所得級距會讓結論翻轉。
-// 這幾條鎖住的是「不會把人帶往錯的方向」，不是「畫得好不好看」。
-async function beginnerPanel(overrides = {}) {
-  const { app, elements } = await loadMarket(dualFeedMock());
-  await app.init();
-  await app.showTab("sim");
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const set = (id, value) => {
-    const node = elements.get(id);
-    node.value = value;
-    if (node.listeners.get("input")) node.listeners.get("input")();
-  };
-  set("simTotal", overrides.total == null ? "5000000" : overrides.total);
-  if (overrides.salary != null) set("simSalary", overrides.salary);
-  set("simNetIncome", overrides.netIncome == null ? "2500000" : overrides.netIncome);
-  app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
-  set("pmReturn", overrides.rTotal == null ? "8" : overrides.rTotal);
-  return { app, elements, set };
-}
-
-test("the verdict names whichever side actually wins, in both directions", async () => {
-  const high = await beginnerPanel({ netIncome: "2500000" });
-  const highText = high.elements.get("pmVerdict").innerHTML;
-  assert.match(highText, /不配息的版本多留住/, "高所得：不配息勝出");
-  assert.doesNotMatch(highText, /反而退稅/);
-
-  const low = await beginnerPanel({ total: "600000", netIncome: "150000" });
-  const lowText = low.elements.get("pmVerdict").innerHTML;
-  assert.match(lowText, /領股息反而退稅/,
-    "低所得：領股息反而退稅。寫死方向會把這個族群帶往錯的決定，而新手看不出來");
-  assert.match(lowText, /有配息的版本多留住/, "要明說是哪一邊比較多");
-});
-
-test("the verdict never tells the beginner to buy something that does not exist", async () => {
-  const { elements } = await beginnerPanel();
-  const verdict = elements.get("pmVerdict").innerHTML;
-  assert.doesNotMatch(verdict, /推薦|建議選|該選/, "非投顧：不下指令");
-  assert.match(verdict, /台灣沒有這種商品/, "必須點明不配息版本在台灣買不到");
-  assert.match(verdict, /影響你要不要偏好高股息/, "要導向真的可執行的那件事");
-});
-
-test("the months-of-salary comparison only appears when a salary was entered", async () => {
-  const without = await beginnerPanel();
-  assert.doesNotMatch(without.elements.get("pmVerdict").innerHTML, /個月/,
-    "沒填年薪就不可換算月薪——不用臆測的數字說話");
-  const withSalary = await beginnerPanel({ salary: "1200000" });
-  const text = withSalary.elements.get("pmVerdict").innerHTML;
-  assert.match(text, /個月/);
-  assert.match(text, /家庭薪水/, "simSalary 是家庭合計，換算後要標明");
-});
-
-test("an empty field is named out loud instead of leaving the panel blank", async () => {
-  const noMoney = await beginnerPanel({ total: "" });
-  assert.match(noMoney.elements.get("pmNeed").innerHTML, /投入總額/, "要指名是哪一格");
-  const noIncome = await beginnerPanel({ netIncome: "" });
-  const need = noIncome.elements.get("pmNeed").innerHTML;
-  assert.match(need, /年薪/, "新手不知道「綜合所得淨額」，要引導他填年薪");
-  assert.match(need, /算不出所得稅/, "要說出不填的後果，否則他會直接略過");
-  const filled = await beginnerPanel({ salary: "1200000" });
-  assert.equal(filled.elements.get("pmNeed").innerHTML, "", "都填好了就不該再提示");
-});
-
-// 摺疊只能是視覺上的。若把進階輸入停用，使用者改了卻沒反應會以為壞掉。
-test("collapsing the advanced box does not stop its inputs from feeding the model", async () => {
-  const { elements, set } = await beginnerPanel({ rTotal: "8" });
-  const before = elements.get("pmVerdict").innerHTML;
-  set("pmReturn", "15");
-  const after = elements.get("pmVerdict").innerHTML;
-  assert.notEqual(before, after, "改了年化報酬，結論必須跟著變");
-});
-
-test("the shaded band flips colour and wording with the direction", async () => {
-  const high = await beginnerPanel({ netIncome: "2500000" });
-  const highChart = high.elements.get("pmChart").innerHTML;
-  assert.match(highChart, /data-gap="friction"/);
-  assert.match(highChart, /被稅與手續費摩擦掉的錢/);
-
-  const low = await beginnerPanel({ total: "600000", netIncome: "150000" });
-  const lowChart = low.elements.get("pmChart").innerHTML;
-  assert.match(lowChart, /data-gap="refund"/, "翻轉時陰影的語意也翻轉");
-  assert.match(lowChart, /多拿到的退稅/, "不可固定寫「被摩擦掉的錢」");
-  assert.doesNotMatch(lowChart, /被稅與手續費摩擦掉的錢/);
-});
-
 // ── 主視覺：結論先講 ──────────────────────────────────────────
 // 這一組守的是「簡化沒有簡化掉誠實」，不是「排版好不好看」。
 // 自備一份帶多窗報酬的 feed：共用 fixture 沒有報酬欄位，而其他測試靠「沒有」來驗「—」，
@@ -2392,25 +2136,15 @@ test("a fold with nothing to report falls back to its static subtitle", async ()
 // 收合的 <details> 其 innerText 是空字串，用它做斷言會全部假通過。
 test("hierarchy changes moved information, they did not delete it", async () => {
   const { html } = await loadMarket(dualFeedMock());
+  // 證交稅條例、0.1425% 標準費率那三句屬於「配息分析」的多年期投影，
+  // 2026-10-19 使用者決定整塊刪除，三句跟著功能一起走；
+  // 頁底「這些數字是怎麼算的」併進「▸ 計算方法」，它的稅務揭露改由下面三句守著
   for (const kept of [
-    "證券交易稅條例第 2 條第 2 款", "第 2-1 條第 2 項只到 2026-12-31",
-    "0.1425% 為券商公告標準費率",
+    "發放時不扣繳所得稅", "應稅比例是推定的", "個股無公開配息日曆",
     "滾動 12 個月已除息配息", "保送規模前 3 大的合格標的入池", "不判斷配息可持續性",
     "刻意不問的事", "再平衡頻率",
   ]) {
     assert.ok(html.includes(kept), `「${kept}」在層級化過程中被刪掉了——只能移位，不能移除`);
-  }
-});
-
-test("the projection's annual table sits behind a disclosure, its warnings do not", async () => {
-  const { html } = await loadMarket(dualFeedMock());
-  assert.match(html, /▸ 查看年度明細與費用依據/, "逐年 10 列是佐證，不該擋在結論前面");
-  // 警語不可跟著被收進去：它們是「這個數字有多可信」，收起來等於沒講
-  const notes = html.slice(html.indexOf("function projectionNotes"));
-  const detailsAt = notes.indexOf("▸ 查看年度明細");
-  for (const warn of ["沒有計入所得稅", "配息型反而勝出"]) {
-    assert.ok(notes.indexOf(warn) < detailsAt && notes.indexOf(warn) > -1,
-      `「${warn}」被收進折疊區了——警語必須常駐`);
   }
 });
 
@@ -2589,73 +2323,6 @@ test("the non-paying holdings note appears only when there actually are any", as
 // 直接跳過沒資料的檔、對剩下那一檔取平均，回傳 43.2%，
 // 等於拿 20% 資產的報酬率套到 100% 的組合——投影十年把 150 萬變成 5,347 萬。
 // 主視覺早就修好了（涵蓋率門檻），這支函式寫在更早、沒跟著補。
-test("the projection default rate goes through the same coverage gate as the hero", async () => {
-  const panel = await heroPanel([
-    { code: "00NEW", pct: 80, shares: null, month: null },   // 只有 1Y
-    { code: "0050", pct: 20, shares: null, month: null },    // 有 1/3/5Y
-  ]);
-  const { defaultProjectionReturn, adaptiveReturnWindow } = panel.app.helpers;
-  const win = adaptiveReturnWindow([
-    { code: "00NEW", pct: 80, shares: null, month: null },
-    { code: "0050", pct: 20, shares: null, month: null },
-  ]);
-  // 5Y 只有 0050（20%）→ 涵蓋率不足；必須退回 1Y（兩檔都有 → 100%）
-  assert.equal(win.years, 1, "長窗涵蓋率不足要退回短窗");
-  assert.equal(win.coverage, 100);
-  const rate = defaultProjectionReturn();
-  // 1Y 加權總報酬 = 30×0.8 + 20×0.2 = 28；一年期的年化就是它本身
-  assert.ok(Math.abs(rate - 28) < 0.2,
-    `預設報酬率應為 28%（1Y 加權），實得 ${rate}——` +
-    "若只對有 cagr5y 的檔取平均會得到 0050 一檔的 17%，那是 20% 資產代表 100% 組合");
-});
-
-test("the projection default is annualised from the window, not a raw total return", async () => {
-  const panel = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
-  const rate = panel.app.helpers.defaultProjectionReturn();
-  // 5Y 總報酬 120% → 年化 = 1.2^(1/5) 之於 2.2 開五次方 − 1 = 17.1%
-  const expected = (Math.pow(2.2, 1 / 5) - 1) * 100;
-  assert.ok(Math.abs(rate - expected) < 0.2,
-    `五年總報酬 120% 的年化應為 ${expected.toFixed(1)}%，實得 ${rate}——` +
-    "直接把總報酬當年化會讓十年投影暴衝");
-  assert.ok(rate < 20, "年化值必須遠小於五年總報酬 120%");
-});
-
-test("the assumption warning is visible, not buried in a collapsed box", async () => {
-  const { html } = await loadMarket(dualFeedMock());
-  const noteAt = html.indexOf('id="pmAssumeNote"');
-  assert.ok(noteAt > 0);
-  // 數一數這個節點被包在幾層 details 裡：整段投影都建立在那個報酬率上，
-  // 而它是回測外推。原本埋在兩層 details（配息分析 → 進階設定）裡，等於沒寫。
-  const before = html.slice(0, noteAt);
-  const opens = (before.match(/<details/g) || []).length;
-  const closes = (before.match(/<\/details>/g) || []).length;
-  assert.equal(opens - closes, 1,
-    `假設說明只能在「配息分析」那一層，實際被包了 ${opens - closes} 層——` +
-    "再往裡收使用者就看不到「這是回測外推」了");
-});
-
-test("switching mode visibly changes the chart, not just one hidden label", async () => {
-  const panel = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
-  const chart = () => panel.elements.get("pmChart").innerHTML;
-  const before = chart();
-  panel.elements.get("pmAcc").listeners.get("click")();
-  const after = chart();
-  assert.notEqual(before, after, "切換模式圖表必須有反應");
-  // 選中的線要粗、沒選中的要淡，否則使用者按了看不出差別
-  assert.match(after, /stroke="var\(--teal\)" stroke-width="3"/, "選中不配息時該線要加粗");
-  assert.match(after, /stroke-opacity="0\.35"/, "沒選中的線要壓淡");
-  assert.match(after, /你目前看的是<b>不配息<\/b>/, "圖說要講明你在看哪一條");
-});
-
-test("the thin friction band carries its value as a number", async () => {
-  const panel = await heroPanel([{ code: "0050", pct: 100, shares: null, month: null }]);
-  const chart = panel.elements.get("pmChart").innerHTML;
-  // 差距通常只有總資產的 1~2%，在零基準軸上就是幾個像素（實測 4.35px）。
-  // 不縮放縱軸去放大它，改成把金額標在旁邊。
-  assert.match(chart, /差 [\d,]+ 元/, "細到看不見的色帶要有數字說明它是多少錢");
-  assert.match(chart, /縱軸從 0 起算、沒有縮放/, "要解釋它為什麼看起來這麼薄");
-});
-
 // ── 控制項要在它所改的數字上方 ──────────────────────────────────
 // 起因：上一版把壓力測試與年薪收進折疊，實測它們落在主視覺下方 469~885px，
 // 按下去受影響的數字已經捲出畫面。用 DOM 順序斷言，不靠像素（像素會隨字型變）。
@@ -2797,19 +2464,7 @@ test("adding a row puts the cursor in it, and the cursor survives the re-render"
 // 反過來也要守：輸出就在旁邊的控制項不可被「一律搬到最上面」而離開它的結果。
 test("controls whose output is adjacent stay next to that output", async () => {
   const { html } = await loadMarket(dualFeedMock());
-  const pairs = [
-    ["pmAcc", "pmChart"], ["pmDist", "pmChart"], ["pm5", "pmChart"], ["pm10", "pmChart"],
-    ["pmReturn", "pmChart"], ["pmFee", "pmChart"],
-  ];
-  const heroAt = html.indexOf('id="simHero"');
-  for (const [control, output] of pairs) {
-    const c = html.indexOf('id="' + control + '"');
-    const o = html.indexOf('id="' + output + '"');
-    assert.ok(c > 0 && o > 0, `${control}／${output} 應該存在`);
-    assert.ok(c < o, `${control} 應該在它的輸出 ${output} 之前`);
-    assert.ok(c > heroAt,
-      `${control} 的輸出就在自己旁邊，不該被搬到主視覺上方——那會讓它離開結果`);
-  }
+  // 原本這裡還有配息分析（pm*）六組控制項；那塊 2026-10-19 整塊刪除。
   // 2026-10-19 起「幫我挑標的」整區搬到主視覺之前（它是主入口），所以 gNetTotal 不再
   // 要求排在主視覺之後；這條規則真正守的「控制項與輸出之間不得夾進別的區塊」照舊。
   const g = html.indexOf('id="gNetTotal"');
@@ -2848,45 +2503,6 @@ test("moving the controls out of the folds did not drop any of them", async () =
 // 測試反而把**已經過時的文案固定住**：畫面叫使用者「展開」一個不再收合的區塊，
 // 名字也對不上。改成結構性斷言——指路提到的名稱必須真的出現在頁面上，
 // 而且不得叫人展開沒有收合的東西。這樣下次版面再動，測試會抓到而不是幫忙掩蓋。
-test("the pointer to the salary field names something that actually exists on the page", async () => {
-  const { app, elements, html } = await loadMarket(dualFeedMock());
-  await app.init();
-  await app.showTab("sim");
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const set = (id, value) => {
-    const node = elements.get(id);
-    node.value = value;
-    if (node.listeners.get("input")) node.listeners.get("input")();
-  };
-  set("simTotal", "5000000");
-  set("simNetIncome", "");
-  app.setSimAllocations([{ code: "0056", pct: 100, shares: null, month: null }]);
-  set("pmReturn", "8");
-  const need = elements.get("pmNeed").innerHTML;
-  assert.match(need, /算不出所得稅/);
-
-  // 指路裡用「」框起來的每個名稱，都必須是頁面上找得到的標籤
-  const named = [...need.matchAll(/「<b>([^<]+)<\/b>」/g)].map((m) => m[1]);
-  assert.ok(named.length > 0, "指路必須指名一個具體的控制項，不能只說「上面」");
-  for (const label of named) {
-    assert.ok(html.includes(">" + label + "<") || html.includes(label + " <input"),
-      `指路提到「${label}」，但頁面上沒有這個標籤——指了也找不到`);
-  }
-  // 2026-10-19 起年薪欄搬到「幫我挑標的」那一列（預設目標沒有它就拒算），
-  // 指路要點名那一格本身，而不是它已經不在的「稅務設定」
-  assert.ok(named.includes("年薪（含獎金）"),
-    "指路要點名年薪那一格的標籤");
-  assert.ok(html.indexOf("年薪（含獎金） <input") < html.indexOf('id="simSalary"') &&
-    html.indexOf('id="simSalary"') - html.indexOf("年薪（含獎金） <input") < 40,
-    "被點名的標籤必須就是 simSalary 那一格");
-
-  // 稅務欄位在 5dd083e6 之後是平鋪的，不可再叫人「展開」
-  assert.doesNotMatch(need, /展開/,
-    "稅務欄位已平鋪展開，叫使用者去展開它會讓人在畫面上找不到那個動作");
-  assert.ok(!/id="simAdvanced"/.test(html),
-    "simAdvanced 已移除；若它回來了，上面那條「不可寫展開」的判斷就要重新檢討");
-});
-
 // ── 配置方式：不給選項，由輸入行為推斷 ────────────────────────
 // optimizeSimAllocations() 是破壞性覆寫，所以「什麼時候該讓它跑」必須有明確判準。
 // 判準不是使用者按了哪顆（模式切換器已移除），而是他有沒有自己填過。
