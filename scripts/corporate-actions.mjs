@@ -37,6 +37,9 @@ function num(value) {
   return Number.isFinite(n) ? n : null;
 }
 function key(event) { return `${event.code}@${event.date}`; }
+// 日資料去哪個市場抓，由事件的來源決定，不看 feed 的 market 欄位：實測 8908 欣雄在 feed
+// 標成上市，日資料卻只在櫃買；3085 新零售不在 feed 裡，查不到市場就一直待補
+const SOURCE_MARKET = { TWT49U: "twse", TWTB8U: "twse", TWTAUU: "twse", exDailyQ: "tpex", revivt: "tpex" };
 
 // 上游四種寫法：「115年09月02日」「114/11/17」「115/9/1」「1150630」
 export function rocDateToIso(value) {
@@ -194,7 +197,7 @@ export function neededDaily(accumulator, events, { floorMonth, tradeDate }) {
     const id = `${event.code}@${month}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push({ code: event.code, month });
+    out.push({ code: event.code, month, market: SOURCE_MARKET[event.source] || null });
   }
   return out;
 }
@@ -317,7 +320,7 @@ export async function syncCorporateActions(accumulator, { fromDate, tradeDate, f
 
   const dailyByKey = {};
   for (const need of neededDaily(accumulator, events, { floorMonth, tradeDate })) {
-    const market = marketOf(need.code);
+    const market = need.market || (marketOf ? marketOf(need.code) : null);
     if (market !== "twse" && market !== "tpex") continue;
     const url = market === "twse" ? SOURCE_URLS.twseDaily(need.code, need.month) : SOURCE_URLS.tpexDaily(need.code, need.month);
     try {
