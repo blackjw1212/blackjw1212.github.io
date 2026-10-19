@@ -2757,7 +2757,6 @@ test("controls whose output is adjacent stay next to that output", async () => {
   const pairs = [
     ["pmAcc", "pmChart"], ["pmDist", "pmChart"], ["pm5", "pmChart"], ["pm10", "pmChart"],
     ["pmReturn", "pmChart"], ["pmFee", "pmChart"],
-    ["gNetTotal", "suggestResult"],
   ];
   const heroAt = html.indexOf('id="simHero"');
   for (const [control, output] of pairs) {
@@ -2767,6 +2766,15 @@ test("controls whose output is adjacent stay next to that output", async () => {
     assert.ok(c < o, `${control} 應該在它的輸出 ${output} 之前`);
     assert.ok(c > heroAt,
       `${control} 的輸出就在自己旁邊，不該被搬到主視覺上方——那會讓它離開結果`);
+  }
+  // 2026-10-19 起「幫我挑標的」整區搬到主視覺之前（它是主入口），所以 gNetTotal 不再
+  // 要求排在主視覺之後；這條規則真正守的「控制項與輸出之間不得夾進別的區塊」照舊。
+  const g = html.indexOf('id="gNetTotal"');
+  const r = html.indexOf('id="suggestResult"');
+  assert.ok(g > 0 && r > g, "gNetTotal 應該在它的輸出 suggestResult 之前");
+  for (const intruder of ["simAdd", "simRows", "simHero", "s100", "simNetIncome"]) {
+    assert.ok(!html.slice(g, r).includes('id="' + intruder + '"'),
+      `${intruder} 夾在目標按鈕與它的結果之間，會把兩者推開`);
   }
 });
 
@@ -2821,8 +2829,13 @@ test("the pointer to the salary field names something that actually exists on th
     assert.ok(html.includes(">" + label + "<") || html.includes(label + " <input"),
       `指路提到「${label}」，但頁面上沒有這個標籤——指了也找不到`);
   }
-  assert.ok(named.includes("稅務設定"),
-    "年薪欄位目前在「稅務設定」這一組底下，指路要講得出是哪一組");
+  // 2026-10-19 起年薪欄搬到「幫我挑標的」那一列（預設目標沒有它就拒算），
+  // 指路要點名那一格本身，而不是它已經不在的「稅務設定」
+  assert.ok(named.includes("年薪（含獎金）"),
+    "指路要點名年薪那一格的標籤");
+  assert.ok(html.indexOf("年薪（含獎金） <input") < html.indexOf('id="simSalary"') &&
+    html.indexOf('id="simSalary"') - html.indexOf("年薪（含獎金） <input") < 40,
+    "被點名的標籤必須就是 simSalary 那一格");
 
   // 稅務欄位在 5dd083e6 之後是平鋪的，不可再叫人「展開」
   assert.doesNotMatch(need, /展開/,
@@ -3050,9 +3063,12 @@ test("every top control lives in one flat panel, nothing folded away", async () 
   const { html } = await loadMarket(dualFeedMock());
   assert.doesNotMatch(html, /id="simAdvanced"/, "稅務折疊已合併進同一個版面");
   const heroAt = html.indexOf('id="simHero"');
-  // 主視覺之前不可再有任何 details——那代表控制項又被收起來了
+  // 模擬器區塊（標題到主視覺）不可再有任何 details——那代表控制項又被收起來了。
+  // 2026-10-19 起上方多了「幫我挑標的」一區，它有自己的方法說明折疊；
+  // 那些折疊不影響主視覺，所以範圍從模擬器標題起算，不再從頁首起算。
   const before = html.slice(0, heroAt);
-  assert.equal((before.match(/<details/g) || []).length, 0,
+  const simBlock = html.slice(html.indexOf('id="simHeading"'), heroAt);
+  assert.equal((simBlock.match(/<details/g) || []).length, 0,
     "主視覺上方的控制項一律平鋪，不再有折疊");
   for (const id of ["simTotal", "simAdd", "s100", "s80", "s60", "simOptimize",
                     "simSalary", "simFiling", "simDependents", "simNetIncome"]) {
@@ -3073,7 +3089,8 @@ test("the two allocation actions are named apart and say what they change", asyn
   assert.match(topRow, /不會換掉你的標的/, "上方要講明它只動比例");
   // 下方要講明「會換標的」——原本寫「窮舉出配息最高的權重組合」，沒提會換掉清單
   const lowerRow = html.slice(html.indexOf('id="suggestHeading"'), html.indexOf('id="suggestHeading"') + 200);
-  assert.match(lowerRow, /換掉你上面的清單/, "下方要講明套用後會換掉標的");
+  // 2026-10-19 起挑標的區在模擬器上方，清單在它下面
+  assert.match(lowerRow, /換掉你下面的清單/, "挑標的區要講明套用後會換掉標的");
 });
 
 // 它加總所有有股數的列（含優化器算出來的），在自動配置後按下去會把總額
@@ -3184,4 +3201,112 @@ test("the discard notice does not appear for someone who never used the question
   elements.get("gYield").fire("click");
   assert.equal(elements.get("pfNote").innerHTML.trim(), "",
     "沒填過問卷卻說「你的條件不再套用」，是憑空捏造一個使用者沒做過的動作");
+});
+
+// ── 2026-10-19 改版：「幫我挑標的」從頁底的折疊搬到分頁最上面 ──────────
+// 舊版要拿到組合得捲過整個模擬器、展開「進階分析」才碰得到問卷；
+// 第一次來、手上沒有代碼的人，第一屏只看到一個要他先填代碼的清單。
+test("the questionnaire comes first, the hand-built simulator second", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const at = (id) => html.indexOf('id="' + id + '"');
+  assert.ok(at("simTotal") < at("pfRun"), "金額是兩條路共用的第一步");
+  for (const id of ["pfIntentIncome", "pfIntentGrowth", "pfHorizon", "pfLoss", "simSalary", "pfRun", "suggestResult"]) {
+    assert.ok(at(id) > 0, `${id} 應該存在`);
+    assert.ok(at(id) < at("simAdd") && at(id) < at("simHero"),
+      `${id} 要排在手動清單與主視覺之前——它是主入口`);
+  }
+  // 不得再藏在折疊裡：從頁首到 pfRun 之間不可有 details
+  const lead = html.slice(html.indexOf('id="simPanel"'), at("pfRun"));
+  assert.equal((lead.match(/<details/g) || []).length, 0, "問卷又被收進折疊了");
+  // 套用按鈕要講對方向：清單現在在下面
+  assert.match(html, /套用到下方試算/);
+  assert.doesNotMatch(html, /套用到上方試算/);
+});
+
+test("the two intent cards drive the goal, and only one is pressed", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const income = elements.get("pfIntentIncome");
+  const growth = elements.get("pfIntentGrowth");
+  assert.ok(income && growth, "兩張卡片都要綁事件");
+
+  income.fire("click");
+  assert.match(income.className, /\bon\b/);
+  assert.doesNotMatch(growth.className, /\bon\b/, "兩張卡片不可同時亮");
+  elements.get("pfRun").fire("click");
+  assert.equal(elements.get("gMonthly").className, "btn on", "配息優先＝補滿 12 個月的現金流目標");
+
+  growth.fire("click");
+  assert.match(growth.className, /\bon\b/);
+  assert.doesNotMatch(income.className, /\bon\b/);
+  elements.get("pfRun").fire("click");
+  assert.equal(elements.get("gNetTotal").className, "btn on", "累積資產優先＝稅後總報酬目標，不要求配息");
+});
+
+// 累積型需要的三項資料本站都沒有（設計上不配息的旗標、費用率、追蹤誤差）。
+// 選項可以做，但畫面要講出它**沒有**看哪些東西。
+test("the growth option says what it does not look at", async () => {
+  const { html } = await loadMarket(dualFeedMock());
+  const card = html.slice(html.indexOf('id="pfIntentGrowth"'), html.indexOf('id="pfRun"'));
+  for (const phrase of ["費用率", "追蹤誤差", "未納入", "主題型"]) {
+    assert.ok(card.includes(phrase), `累積選項附近要揭露「${phrase}」`);
+  }
+});
+
+test("the recommender names the salary field when it cannot compute tax, and recovers once it is filled", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  set("simTotal", "1000000");
+  set("simNetIncome", "");
+  elements.get("pfIntentGrowth").fire("click");
+  elements.get("pfRun").fire("click");
+  const refused = elements.get("suggestResult").innerHTML;
+  assert.match(refused, /年薪/, "拒算時要指向同一列就有的年薪欄，而不是叫人去找下面的稅務設定");
+  assert.doesNotMatch(refused, /上方模擬器/, "模擬器現在在下方");
+
+  set("simSalary", "1200000");
+  assert.ok(elements.get("simNetIncome").value !== "", "年薪要換算成淨額");
+  assert.doesNotMatch(elements.get("suggestResult").innerHTML, /需要「綜合所得淨額」/,
+    "填了年薪之後，畫面上不可留著剛才那句拒算");
+});
+
+test("a shown suggestion follows a change of the amount", async () => {
+  const { app, elements } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const set = (id, value) => {
+    const node = elements.get(id);
+    node.value = value;
+    if (node.listeners.get("input")) node.listeners.get("input")();
+  };
+  set("simTotal", "1000000");
+  set("simNetIncome", "800000");
+  elements.get("pfRun").fire("click");
+  const before = elements.get("suggestResult").innerHTML;
+  assert.ok(before.length > 0);
+  assert.doesNotMatch(before, /輸入投入總額/);
+  // fixture 裡沒有合格 ETF，結果本身與金額無關；清空金額是唯一必定改變輸出的動作
+  set("simTotal", "");
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  assert.match(elements.get("suggestResult").innerHTML, /輸入投入總額/,
+    "金額改了、組合結果還停在舊金額＝舊結果殘留");
+});
+
+// worstDrawdown() 取 1／3／5 年中最深的那個；畫面曾寫「只收近一年最大回撤」，與程式不符。
+test("the applied note describes the drawdown gate the code actually uses", async () => {
+  const { app, elements, document } = await loadMarket(dualFeedMock());
+  await app.init();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  document.getElementById("pfLoss").value = "20";
+  elements.get("pfRun").fire("click");
+  const note = elements.get("pfNote").innerHTML;
+  assert.doesNotMatch(note, /近一年最大回撤/);
+  assert.match(note, /最深/);
 });

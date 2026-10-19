@@ -60,6 +60,8 @@
   .grow{flex:1;min-width:180px}
   .fld{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--soft)}
   .fld input{width:74px}
+  /* 上一條連勾選框也撐成 74px，方塊與文字之間空一大段；手機斷點另有 20px 的覆寫 */
+  .fld input[type=checkbox]{width:auto}
   .presets{display:flex;flex-wrap:wrap;gap:8px}
   .count{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--soft);margin-left:auto}
 
@@ -441,12 +443,115 @@
   </div>
 
   <div id="simPanel">
+  <!-- 2026-10-19：「幫我挑標的」從頁底「進階分析」的第二個折疊搬到這裡當主入口。
+       舊版要拿到組合得先捲過整個模擬器、再展開折疊才碰得到問卷；第一次來、
+       手上沒有代碼的人，第一屏只看到一個要他先填代碼的清單。模擬器降為第二步。
+       這一區的輸出是 #suggestResult 不是主視覺，所以排在主視覺之前是對的——
+       「控制項緊貼自己的輸出」那條規則沒有放寬。 -->
+  <section aria-labelledby="pickHeading">
+    <h2 id="pickHeading">投入多少、想怎麼投 <em>START</em></h2>
+    <p class="hint">填金額、選方式，從全市場 ETF 挑出符合條件的組合；已經有想買的標的，就直接用下面的「你的標的」。
+      這是<b>試算不是預測</b>，用的是各檔過去實際發過的配息與近一年的報酬；
+      <b>不是投資或稅務建議</b>，算法與稅制假設都在最下面的「這些數字是怎麼算的」。</p>
+    <div class="toolbar">
+      <div class="toolrow">
+        <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
+      </div>
+    </div>
+    <h3 style="font-size:14px;margin-top:14px" id="suggestHeading">幫我挑標的<span class="hint" style="margin:0 0 0 8px;font-weight:400">從全市場 ETF 挑，按「套用到下方試算」才會換掉你下面的清單</span></h3>
+    <div class="profile-form">
+      <div class="profile-head">先選你要哪一種，目標與約束會自動設定</div>
+      <div class="mode-cards">
+        <button class="mode-card" id="pfIntentIncome" type="button" aria-pressed="false">
+          <b>配息優先</b><span>要領現金：先讓每個月都有配息入帳，再墊高最薄的那個月</span></button>
+        <button class="mode-card on" id="pfIntentGrowth" type="button" aria-pressed="true">
+          <b>累積資產優先</b><span>不要求配息：看近一年稅後總報酬（價差＋配息−稅−健保）</span></button>
+      </div>
+      <div class="profile-note">累積資產優先<b>不等於只挑不配息的 ETF</b>：本站沒有「設計上不配息」的欄位，這裡只是不把配息當條件。
+        費用率與追蹤誤差本站沒有可靠資料，<b>未納入</b>比較；符合門檻、近一年沒配過息的候選多為主題型與海外指數型。</div>
+      <div class="profile-row">
+        <span class="fld">投資期限
+          <select id="pfHorizon" aria-label="投資期限">
+            <option value="2">3 年以內</option>
+            <option value="5">3–10 年</option>
+            <option value="15" selected>10 年以上</option>
+          </select>
+        </span>
+        <span class="fld">最多能忍受跌
+          <select id="pfLoss" aria-label="最大可接受虧損">
+            <option value="10">10%</option>
+            <option value="20">20%</option>
+            <option value="30" selected>30%</option>
+            <option value="">不設限</option>
+          </select>
+        </span>
+        <span class="fld">單一標的最多
+          <select id="pfMaxW" aria-label="單一標的權重上限">
+            <option value="20">20%</option>
+            <option value="25">25%</option>
+            <option value="30" selected>30%</option>
+            <option value="40">40%</option>
+          </select>
+        </span>
+        <!-- 預設目標（稅後總報酬）沒有所得淨額就拒算，所以年薪放在按鈕旁邊。
+             這是唯一一格年薪，下方「稅務設定」的申報方式與扶養人數一起參與換算。 -->
+        <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
+        <!-- 這裡原本是 pfActive，與下方目標區的 gActive 是同一個設定卻各有一個勾選框，
+             而且只有「按下依我的情況計算」時 pf→g 單向同步：實測直接勾下面那個，
+             上面這個仍顯示未勾，但設定其實已生效。合併成一個，放在使用者會看到的這一列。 -->
+        <label class="fld" style="cursor:pointer" title="經理人選股，費用率較高；預設不含，且一律不列為核心"><input type="checkbox" id="gActive" style="accent-color:var(--amber)" /> 納入主動型 ETF</label>
+        <label class="fld" style="cursor:pointer" title="正向槓桿（代碼 L 結尾）。反向 ETF 恆不納入。回撤閘門仍優先——00631L 近一年回撤 −31.3%，忍受度選 30% 以內仍會被排除"><input type="checkbox" id="pfLeveraged" style="accent-color:var(--amber)" /> 納入槓桿正2</label>
+        <button class="btn" id="pfRun" type="button">依我的情況計算</button>
+      </div>
+      <div class="profile-note" id="pfNote"></div>
+      <div class="profile-note">
+        <details>
+        <summary style="cursor:pointer"><b>刻意不問的事</b></summary>
+        年齡（只是投資期限的代理，問了會重複計數）、每月投入金額（最佳化器算的是權重，定期定額不改變權重）、
+        既有其他資產（本站沒有那些資料）、再平衡頻率（沒有回測再平衡的能力，給建議等於編造）。
+        槓桿與反向 ETF 恆不納入，不提供開關。收集了卻不影響結果的問題，問了只是裝飾。
+        </details>
+      </div>
+    </div>
+    <!-- 這六段是方法論與限制，全部要留（多處受測試鎖定）。原文只改了「上方模擬器」
+         這類位置用語——模擬器現在在下方。 -->
+    <details style="margin-top:10px">
+    <summary style="cursor:pointer;font-size:13px;color:var(--faint)">▸ 計算方法、殖利率定義與限制</summary>
+    <p class="hint" style="margin-top:8px">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
+      <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
+      <strong>配息波動改看近 24 個月</strong>（殖利率仍是近 12 個月）：只看 12 個月的季配標的僅有 4 筆，會系統性低估波動——實測 006208 配息由 0.989 漲到 4.75，12 月窗算出 0.16、24 月窗才是 0.65。水準跳升對「用近 12 月配息推估未來」正是最該標出來的風險。
+      <strong>稅後總報酬最大化（預設）</strong>：目標為<strong>價差＋配息−所得稅−二代健保</strong>。價差取 Yahoo adjclose 近一年、已自行校正分割；台股個人證所稅停徵，因此價差免稅而配息要課稅，兩者的稅負待遇不同會實質改變最佳解。候選池改依總報酬排序並排除總報酬為負者，需先填年薪或綜合所得淨額。<strong>這一段全部是近一年回測，不是預測</strong>——以總報酬為目標等於「買去年表現最好的」，請當成比較的起點而非結論。滿一年歷史不足或價格有無法解釋跳動的標的不發布報酬，也不會進入這個目標的候選池。
+      <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息，需先填年薪或綜合所得淨額。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>。
+      注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。<strong>「最高配息」「補滿 12 個月」「分散類型」「稅後配息」四個目標只看配息現金流、不含資本利得</strong>——一檔配 10% 卻跌 12% 的標的在那些目標下會排很前面，但它在賠錢；要看實際賺多少請用預設的總報酬目標。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
+    </details>
+    <!-- 目標按鈕是第二條入口，做的事跟上面的問卷一樣。兩條都攤在明面上時，
+         新手不知道該用哪一條，而且按了下面這排會**靜默作廢**問卷的所有約束。
+         問卷是主路徑，這排降為進階。gNetTotal 仍在 suggestResult 之前。
+         「（計算）」五顆都有，等於沒講——拿掉。 -->
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--faint)">▸ 自己選目標（進階，會蓋掉上面問卷的條件）</summary>
+      <div class="toolbar" style="margin-top:8px">
+        <div class="toolrow">
+          <div class="presets">
+            <button class="btn on" id="gNetTotal" type="button" title="以近一年稅後總報酬（價差＋配息−稅−健保）為目標；價差在台股個人免證所稅。需先填年薪或綜合所得淨額">稅後總報酬最大化</button>
+            <button class="btn" id="gYield" type="button">最高配息</button>
+            <button class="btn" id="gMonthly" type="button">補滿 12 個月</button>
+            <button class="btn" id="gLowOverlap" type="button">分散類型</button>
+            <button class="btn" id="gAfterTax" type="button" title="以扣費並扣掉估算所得稅後的年配息為目標；需先填年薪或綜合所得淨額">稅後配息最大化</button>
+          </div>
+        </div>
+      </div>
+    </details>
+    <div id="suggestResult"></div>
+    <p class="hint" style="margin-top:12px">二代健保補充保費以「單一標的單次給付 ≥ 20,000 元 × 2.11%」全額估算；配息中非股利成分（收益平準金、資本利得、境外債息）之適用規則未查證，實際扣費可能較低。稅負、匯費與健保細部規則不在本模擬範圍。</p>
+  </section>
+
   <section aria-labelledby="simHeading">
     <h2 id="simHeading">你這樣買，一年能領多少？ <em>SIMULATOR</em></h2>
-    <p class="hint">填金額、挑幾檔 ETF 就會算。這是<b>試算不是預測</b>，用的是各檔過去實際發過的配息；
-      <b>不是投資或稅務建議</b>，算法與稅制假設都在最下面的「這些數字是怎麼算的」。</p>
+    <p class="hint">已經有想買的標的，就在這裡挑幾檔 ETF 直接試算，金額沿用上方的「投入總額」；
+      上方挑出的組合按「套用到下方試算」也會帶進這裡。</p>
     <!-- 版面依**任務**分組，不依控制項類型：
-         【你買什麼】投入總額 → ＋加入標的 → 你的標的清單 → 重算比例
+         【你買什麼】＋加入標的 → 你的標的清單 → 重算比例（投入總額在上一區，兩條路共用）
          【假設】配息打折 → 稅務設定
          【結果】主視覺
          關鍵在於 simAdd 與 simOptimize 的**主要輸出是 #simRows，不是主視覺**。
@@ -457,7 +562,6 @@
          下面十個控制項全部仍在 #simHero 之前，只是不再全擠在最頂端。 -->
     <div class="toolbar">
       <div class="toolrow">
-        <span class="fld">投入總額 <input id="simTotal" type="number" step="10000" inputmode="numeric" style="width:130px" aria-label="投入總金額（元）" /> 元</span>
         <button class="btn" id="simAdd" type="button">＋ 加入標的</button>
         <span class="count" id="simPctSum"></span>
       </div>
@@ -486,10 +590,9 @@
       </div>
       <div class="toolrow" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px">
         <span class="fld" style="font-weight:700">稅務設定</span>
-        <span class="hint" style="margin:0">填了才算得出所得稅；不填只估二代健保</span>
+        <span class="hint" style="margin:0">填了才算得出所得稅；不填只估二代健保。年薪在上方「幫我挑標的」那一列</span>
       </div>
       <div class="sim-taxgrid">
-        <span class="fld">年薪（含獎金） <input id="simSalary" type="number" step="10000" inputmode="numeric" style="width:120px" aria-label="家庭年薪合計（元）" placeholder="家庭合計" /> 元</span>
         <span class="fld">申報方式
           <select id="simFiling" aria-label="申報方式">
             <option value="single">單身</option>
@@ -566,87 +669,6 @@
     </div>
   </details>
 
-  <details class="fold">
-    <summary id="suggestHeading">幫我挑標的<span>從全市場挑，按「套用到上方試算」才會換掉你上面的清單</span></summary>
-    <div class="fold-body">
-    <!-- 這六段是方法論與限制，全部要留（多處受測試鎖定），但它們擋在問卷前面，
-         等於逼使用者先讀完六段才碰得到第一個控制項。原文一字不改，只降一層。 -->
-    <details>
-    <summary style="cursor:pointer;font-size:13px;color:var(--faint)">▸ 計算方法、殖利率定義與限制</summary>
-    <p class="hint" style="margin-top:8px">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
-      <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
-      <strong>配息波動改看近 24 個月</strong>（殖利率仍是近 12 個月）：只看 12 個月的季配標的僅有 4 筆，會系統性低估波動——實測 006208 配息由 0.989 漲到 4.75，12 月窗算出 0.16、24 月窗才是 0.65。水準跳升對「用近 12 月配息推估未來」正是最該標出來的風險。
-      <strong>稅後總報酬最大化（預設）</strong>：目標為<strong>價差＋配息−所得稅−二代健保</strong>。價差取 Yahoo adjclose 近一年、已自行校正分割；台股個人證所稅停徵，因此價差免稅而配息要課稅，兩者的稅負待遇不同會實質改變最佳解。候選池改依總報酬排序並排除總報酬為負者，需先在上方模擬器填綜合所得淨額。<strong>這一段全部是近一年回測，不是預測</strong>——以總報酬為目標等於「買去年表現最好的」，請當成比較的起點而非結論。滿一年歷史不足或價格有無法解釋跳動的標的不發布報酬，也不會進入這個目標的候選池。
-      <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息，需先在上方模擬器填綜合所得淨額。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>。
-      注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。<strong>「最高配息」「補滿 12 個月」「分散類型」「稅後配息」四個目標只看配息現金流、不含資本利得</strong>——一檔配 10% 卻跌 12% 的標的在那些目標下會排很前面，但它在賠錢；要看實際賺多少請用預設的總報酬目標。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
-    </details>
-    <div class="profile-form">
-      <div class="profile-head">先描述你的情況，下面的目標與約束會自動設定</div>
-      <div class="profile-row">
-        <span class="fld">投資期限
-          <select id="pfHorizon" aria-label="投資期限">
-            <option value="2">3 年以內</option>
-            <option value="5">3–10 年</option>
-            <option value="15" selected>10 年以上</option>
-          </select>
-        </span>
-        <span class="fld">最多能忍受跌
-          <select id="pfLoss" aria-label="最大可接受虧損">
-            <option value="10">10%</option>
-            <option value="20">20%</option>
-            <option value="30" selected>30%</option>
-            <option value="">不設限</option>
-          </select>
-        </span>
-        <span class="fld">單一標的最多
-          <select id="pfMaxW" aria-label="單一標的權重上限">
-            <option value="20">20%</option>
-            <option value="25">25%</option>
-            <option value="30" selected>30%</option>
-            <option value="40">40%</option>
-          </select>
-        </span>
-        <label class="fld" style="cursor:pointer"><input type="checkbox" id="pfCashflow" style="accent-color:var(--amber)" /> 需要月月有現金流</label>
-        <!-- 這裡原本是 pfActive，與下方目標區的 gActive 是同一個設定卻各有一個勾選框，
-             而且只有「按下依我的情況計算」時 pf→g 單向同步：實測直接勾下面那個，
-             上面這個仍顯示未勾，但設定其實已生效。合併成一個，放在使用者會看到的這一列。 -->
-        <label class="fld" style="cursor:pointer" title="經理人選股，費用率較高；預設不含，且一律不列為核心"><input type="checkbox" id="gActive" style="accent-color:var(--amber)" /> 納入主動型 ETF</label>
-        <label class="fld" style="cursor:pointer" title="正向槓桿（代碼 L 結尾）。反向 ETF 恆不納入。回撤閘門仍優先——00631L 近一年回撤 −31.3%，忍受度選 30% 以內仍會被排除"><input type="checkbox" id="pfLeveraged" style="accent-color:var(--amber)" /> 納入槓桿正2</label>
-        <button class="btn" id="pfRun" type="button">依我的情況計算</button>
-      </div>
-      <div class="profile-note" id="pfNote"></div>
-      <div class="profile-note">
-        <details>
-        <summary style="cursor:pointer"><b>刻意不問的事</b></summary>
-        年齡（只是投資期限的代理，問了會重複計數）、每月投入金額（最佳化器算的是權重，定期定額不改變權重）、
-        既有其他資產（本站沒有那些資料）、再平衡頻率（沒有回測再平衡的能力，給建議等於編造）。
-        槓桿與反向 ETF 恆不納入，不提供開關。收集了卻不影響結果的問題，問了只是裝飾。
-        </details>
-      </div>
-    </div>
-    <!-- 目標按鈕是第二條入口，做的事跟上面的問卷一樣。兩條都攤在明面上時，
-         新手不知道該用哪一條，而且按了下面這排會**靜默作廢**問卷的所有約束。
-         問卷是主路徑（它自己就寫著「下面的目標與約束會自動設定」），這排降為進階。
-         文件順序不變：gNetTotal 仍在 suggestResult 之前、simHero 之後。
-         「（計算）」五顆都有，等於沒講——拿掉。 -->
-    <details style="margin-top:10px">
-      <summary style="cursor:pointer;font-size:13px;color:var(--faint)">▸ 自己選目標（進階，會蓋掉上面問卷的條件）</summary>
-      <div class="toolbar" style="margin-top:8px">
-        <div class="toolrow">
-          <div class="presets">
-            <button class="btn on" id="gNetTotal" type="button" title="以近一年稅後總報酬（價差＋配息−稅−健保）為目標；價差在台股個人免證所稅。需先在上方模擬器填入綜合所得淨額">稅後總報酬最大化</button>
-            <button class="btn" id="gYield" type="button">最高配息</button>
-            <button class="btn" id="gMonthly" type="button">補滿 12 個月</button>
-            <button class="btn" id="gLowOverlap" type="button">分散類型</button>
-            <button class="btn" id="gAfterTax" type="button" title="以扣費並扣掉估算所得稅後的年配息為目標；需先在上方模擬器填綜合所得淨額">稅後配息最大化</button>
-          </div>
-        </div>
-      </div>
-    </details>
-    <div id="suggestResult"></div>
-    <p class="hint" style="margin-top:12px">二代健保補充保費以「單一標的單次給付 ≥ 20,000 元 × 2.11%」全額估算；配息中非股利成分（收益平準金、資本利得、境外債息）之適用規則未查證，實際扣費可能較低。稅負、匯費與健保細部規則不在本模擬範圍。</p>
-    </div>
-  </details>
   <details class="fold">
     <summary>這些數字是怎麼算的<span>稅制、應稅比例與各項假設</span></summary>
     <div class="fold-body"><p class="hint">ETF 依實際配息的發放月自動分攤（不需自行填月份），非年收益÷12；個股無公開配息日曆，以歷史殖利率推估、發放月預設 8 月可自行修改。扣費為簡化估算之保守上限，僅供參考，不是投資建議。
@@ -2391,7 +2413,7 @@ function buildCandidatePool(etfs, options){
   // 反向（R 結尾）維持恆排除：那是方向性放空，結構上不適合長期配置，
   // 不能靠「反正它報酬會輸」來擋。實測 21 檔 L／19 檔 R，後綴分得乾淨無例外。
   const includeLeveraged = Boolean(opts.includeLeveraged);
-  // 問卷的「可接受虧損」：用近一年最大回撤當閘門。缺回撤資料的標的一併排除——
+  // 問卷的「可接受虧損」：用 worstDrawdown()（1／3／5 年中最深）當閘門。缺回撤資料的標的一併排除——
   // 使用者說了能忍受多少，就不該把「不知道跌多深」的標的塞給他。
   const maxDrawdownPct = Number(opts.maxDrawdownPct);
   const hasDrawdownGate = Number.isFinite(maxDrawdownPct) && maxDrawdownPct > 0;
@@ -2532,14 +2554,14 @@ function optimizeAllocation(etfs, options){
   if (goal === "netTotal") {
     const rawNet = opts.netIncome;
     if (rawNet == null || rawNet === "" || !Number.isFinite(Number(rawNet)) || Number(rawNet) < 0) {
-      return {picks:[], reason:"稅後總報酬最大化需要「綜合所得淨額」，請先在上方模擬器填入"};
+      return {picks:[], reason:"稅後總報酬最大化需要「綜合所得淨額」：在「幫我挑標的」那一列填年薪會自動換算，或在下方「稅務設定」直接填淨額"};
     }
     taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
   }
   if (goal === "afterTax") {
     const rawNet = opts.netIncome;
     if (rawNet == null || rawNet === "" || !Number.isFinite(Number(rawNet)) || Number(rawNet) < 0) {
-      return {picks:[], reason:"稅後配息最大化需要「綜合所得淨額」，請先在上方模擬器填入"};
+      return {picks:[], reason:"稅後配息最大化需要「綜合所得淨額」：在「幫我挑標的」那一列填年薪會自動換算，或在下方「稅務設定」直接填淨額"};
     }
     taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
   }
@@ -3424,7 +3446,7 @@ function runProjection(){
     if (!(total > 0)) missing.push('先在上面的「<b>投入總額</b>」填你打算投入多少錢。');
     // 指路必須指得到畫面上真的有的東西。稅務欄位已在 5dd083e6 平鋪展開、
     // 標籤改為「稅務設定」，舊文案叫人「展開」一個不再收合的區塊、名字也對不上。
-    if (netIncome == null) missing.push('在上面的「<b>稅務設定</b>」填年薪，就會自動換算所得；不填的話<b>算不出所得稅</b>，差距會被低估。');
+    if (netIncome == null) missing.push('在最上面「幫我挑標的」那一列的「<b>年薪（含獎金）</b>」填年薪，就會自動換算所得；不填的話<b>算不出所得稅</b>，差距會被低估。');
     need.innerHTML = missing.length ? '<div class="need">還差一步：' + missing.join(' ') + '</div>' : "";
   }
 
@@ -3747,6 +3769,9 @@ let suggestGoal = "netTotal";
 // 問卷算出來的約束。null＝使用者還沒用問卷，走目標按鈕的原行為。
 // 按任一個目標按鈕會清掉它——否則使用者以為自己換了目標，實際上被問卷蓋回去。
 let activeProfile = null;
+// 問卷的「配息優先」卡片；預設是「累積資產優先」，與 HTML 裡亮著的那張一致
+let pfNeedCashflow = false;
+let suggestTimer = null;
 
 function runSuggest(){
   const box = $("suggestResult");
@@ -3909,7 +3934,7 @@ function runSuggest(){
     // 集中度與邊際貢獻要跟結果放在一起，否則使用者看到的是 4 個好數字、
     // 而不是一個組合。
     + suggestExposureHtml(out.picks)
-    + '<div class="decision-tools" style="margin-top:10px"><button class="btn" id="applySuggest" type="button">套用到上方試算</button>'
+    + '<div class="decision-tools" style="margin-top:10px"><button class="btn" id="applySuggest" type="button">套用到下方試算</button>'
       + '<span class="stamp">已計算 ' + fmt(out.evaluated, 0) + ' 個組合（' + elapsed + 'ms）· 候選池 ' + out.poolSize + ' 檔'
         + '（品質門檻已排除 配息波動過大 ' + out.rejected.cv + ' 檔、溢價過高 ' + out.rejected.premium + ' 檔'
         + (out.rejected.active ? '、主動型 ' + out.rejected.active + ' 檔' : '')
@@ -3924,6 +3949,9 @@ function runSuggest(){
     simAllocations = out.picks.map(function(pick){return {code:pick.code, pct:pick.pct, month:null};});
     renderSimRows();
     runSim();
+    // 清單在這顆按鈕下方，不捲過去的話按了看不到任何事發生
+    const heading = $("simHeading");
+    if (heading && heading.scrollIntoView) heading.scrollIntoView({behavior:"smooth", block:"start"});
   });
 }
 
@@ -4086,14 +4114,29 @@ function bind(){
     etfShown = Math.min(PAGE_SIZE, etfViewRows.length);
     renderEtf();
   });
-  const pfRun = $("pfRun");
-  if (pfRun) pfRun.addEventListener("click", function(){
+  // 「配息優先／累積資產優先」兩張卡片取代原本的「需要月月有現金流」勾選框——同一個設定，
+  // 只是換成第一眼就看得懂的二選一。已經算過一次時，換卡片就照新目標重算，不留舊結果。
+  const setIntent = function(needCashflow){
+    pfNeedCashflow = needCashflow;
+    for (const pair of [["pfIntentIncome", true], ["pfIntentGrowth", false]]) {
+      const card = $(pair[0]);
+      if (!card) continue;
+      card.className = pair[1] === needCashflow ? "mode-card on" : "mode-card";
+      if (card.setAttribute) card.setAttribute("aria-pressed", pair[1] === needCashflow ? "true" : "false");
+    }
+    if (activeProfile) runProfile();
+  };
+  const pfIncome = $("pfIntentIncome");
+  if (pfIncome) pfIncome.addEventListener("click", function(){setIntent(true);});
+  const pfGrowth = $("pfIntentGrowth");
+  if (pfGrowth) pfGrowth.addEventListener("click", function(){setIntent(false);});
+  const runProfile = function(){
     const val = function(id){ const n = $(id); return n ? n.value : ""; };
     activeProfile = profileToConstraints({
       horizonYears: val("pfHorizon"),
       maxLossPct: val("pfLoss"),
       maxWeightPct: val("pfMaxW"),
-      needCashflow: Boolean(($("pfCashflow") || {}).checked),
+      needCashflow: pfNeedCashflow,
       // 主動型只剩 gActive 一個勾選框（原本 pfActive／gActive 兩個、單向同步）
       includeActive: Boolean(($("gActive") || {}).checked),
       includeLeveraged: Boolean(($("pfLeveraged") || {}).checked),
@@ -4110,10 +4153,13 @@ function bind(){
     if (note) {
       note.innerHTML = '<b>已套用</b>：目標 ' + escapeHtml(suggestGoal === "monthly" ? "補滿 12 個月現金流" : "稅後總報酬最大化")
         + '　·　單檔上限 ' + activeProfile.maxW + '%　·　至少 ' + activeProfile.minPicks + ' 檔'
-        + (activeProfile.maxDrawdownPct != null ? '　·　只收近一年最大回撤淺於 ' + activeProfile.maxDrawdownPct + '% 的標的' : '　·　回撤不設限');
+        // worstDrawdown() 取 1／3／5 年中最深的那個——這裡曾寫成「近一年」，與程式不符
+        + (activeProfile.maxDrawdownPct != null ? '　·　只收已知最深回撤（1／3／5 年中取最深）淺於 ' + activeProfile.maxDrawdownPct + '% 的標的' : '　·　回撤不設限');
     }
     runSuggest();
-  });
+  };
+  const pfRun = $("pfRun");
+  if (pfRun) pfRun.addEventListener("click", runProfile);
 
   for (const pair of [["pd1y", "1y"], ["pd3y", "3y"], ["pd5y", "5y"]]) {
     const node = $(pair[0]);
@@ -4181,8 +4227,9 @@ function bind(){
   const afterNetIncomeChanged = function(){
     saveSimState();
     runSim();
-    // 稅後目標的結果直接取決於這個數字，改了就要重算，否則畫面停在舊稅率下的組合
-    if (suggestGoal === "afterTax" && $("suggestResult") && $("suggestResult").innerHTML) runSuggest();
+    // 兩個稅後目標的結果直接取決於這個數字，改了就要重算，否則畫面停在舊稅率下的組合、
+    // 或停在「需要綜合所得淨額」那句拒算（年薪欄就在問卷同一列，填完不該還要再按一次）
+    if ((suggestGoal === "afterTax" || suggestGoal === "netTotal") && $("suggestResult") && $("suggestResult").innerHTML) runSuggest();
   };
   if (simNetIncome) simNetIncome.addEventListener("input", function(){
     // 手動改淨額就視為使用者自己決定，清掉換算列避免兩個數字互相打架
@@ -4223,6 +4270,11 @@ function bind(){
     runSim();
     // 總額變了，最佳權重也可能變（零股 floor 讓門檻附近的最佳解會跳）
     autoAllocate();
+    // 已經顯示過的組合也要跟著金額走；窮舉每一鍵都跑太浪費，等打字停下來再算
+    if ($("suggestResult") && $("suggestResult").innerHTML) {
+      clearTimeout(suggestTimer);
+      suggestTimer = setTimeout(runSuggest, 300);
+    }
   });
 
   /* --- 配置產生器 --- */
