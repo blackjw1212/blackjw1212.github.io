@@ -6,6 +6,7 @@ import {
   parseTwseResumption,
   parseTpexExRights,
   parseTpexReduction,
+  parseTpexParChange,
   parseDailyRows,
   neededDaily,
   applyCorporateActions,
@@ -122,6 +123,28 @@ test("TPEX ex-rights: stock part only, gated by the definitional reference-price
   // 上櫃有拆開的現金股利與每仟股配股：參考價 ＝ (前收 − 現金) ÷ (1 + 配股率)，比例只取配股那段
   assert.ok(Math.abs(events[0].factor - 1 / 1.05069287189) < 1e-9);
   assert.deepEqual(rejected.map((r) => r.code), ["9999"]);
+});
+
+// 上櫃面額變更（pvChgRslt，2026-10-20 從櫃買「變更股票面額恢復交易參考價」頁抓到的端點）。
+// 官方定義是比例調整：合騏 8937 面額 10 → 2.5 元，參考價「為舊股票最後交易日收盤價的四分之一」。
+// 這一類沒涵蓋時，寶雅 5904（8/10，10 → 1 元）畫面寫「距一年高 −90.5%」，還原後約 −5%。
+test("TPEX par-value changes scale by reference ÷ last close", () => {
+  const events = parseTpexParChange({
+    tables: [{
+      fields: ["恢復買賣日期", "證券代號", "證券名稱", "最後交易日之收盤價格", "恢復買賣開始參考價", "漲停價格", "跌停價格", "開始交易基準價", "詳細資料"],
+      data: [
+        ["1150413", "8937", "合騏*            ", "145.50", "36.38", "40.00", "32.75", "36.40", ""],
+        ["1150810", "5904", "寶雅*", "720.00", "72.00", "79.20", "64.80", "72.00", ""],
+      ],
+    }],
+  });
+  assert.deepEqual(events.map((e) => [e.code, e.date, e.kind, e.source]),
+    [["8937", "2026-04-13", "par", "pvChgRslt"], ["5904", "2026-08-10", "par", "pvChgRslt"]]);
+  assert.ok(Math.abs(events[0].factor - 36.38 / 145.5) < 1e-9);
+  assert.ok(Math.abs(events[1].factor - 0.1) < 1e-9);
+  // 日資料要去櫃買抓
+  const archive = { stocks: { "5904": { m: { "2026-08": [767, 73.6] }, lastSeen: "2026-10-19" } } };
+  assert.equal(neededDaily(archive, events.slice(1), { floorMonth: "2025-10", tradeDate: "2026-10-19" })[0].market, "tpex");
 });
 
 test("TPEX capital reductions parse the compact ROC date", () => {

@@ -14,6 +14,7 @@
 //
 //   node scripts/migrate-52w-corporate-actions.mjs            預演，只印報告不寫檔
 //   node scripts/migrate-52w-corporate-actions.mjs --write    實際寫回兩個檔案
+//   加 --only=pvChgRslt（逗號分隔）只抓指定的來源——新增一類事件時用，已套用的不必再抓一次
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { fetchJson, retentionFloor } from "./update-market-feed.mjs";
@@ -40,6 +41,8 @@ function monthWindows(floorMonth, tradeDate) {
 
 async function main() {
   const write = process.argv.includes("--write");
+  const onlyArg = process.argv.find((a) => a.startsWith("--only="));
+  const only = onlyArg ? onlyArg.slice(7).split(",").filter(Boolean) : null;
   const feed = JSON.parse(await readFile(FEED_FILE, "utf8"));
   const accRaw = JSON.parse(await readFile(ACC_FILE, "utf8"));
   if (!accRaw.seededThrough) accRaw.seededThrough = SEEDED_THROUGH;
@@ -51,7 +54,7 @@ async function main() {
   // 一個月一個請求：一次要一年的話上游會不會截斷沒驗證過，逐月拿比較保險
   const all = { events: [], rejected: [], errors: [] };
   for (const [from, to] of monthWindows(floorMonth, tradeDate)) {
-    const got = await fetchCorporateActionEvents(from, to, { fetchJson });
+    const got = await fetchCorporateActionEvents(from, to, { fetchJson, only });
     all.events.push(...got.events);
     all.rejected.push(...got.rejected);
     all.errors.push(...got.errors);

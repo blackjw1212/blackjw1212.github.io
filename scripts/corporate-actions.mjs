@@ -22,8 +22,8 @@ const SOURCE_URLS = {
   twseReduction: (from, to) => `https://www.twse.com.tw/rwd/zh/reducation/TWTAUU?startDate=${ymd(from)}&endDate=${ymd(to)}&response=json`,
   tpexExRights: (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/exDailyQ?startDate=${slash(from)}&endDate=${slash(to)}&response=json`,
   tpexReduction: (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/revivt?startDate=${slash(from)}&endDate=${slash(to)}&response=json`,
-  // 上櫃的面額變更表找不到端點（2026-10-19 試過 parValueChange／parvalchg 都 302）——
-  // 這一類目前不涵蓋，揭露句寫明。
+  // 上櫃面額變更：2026-10-20 從櫃買「變更股票面額恢復交易參考價」頁的網路請求找到（POST 與 GET 都通）
+  tpexParChange: (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/pvChgRslt?startDate=${slash(from)}&endDate=${slash(to)}&response=json`,
   twseDaily: (code, month) => `https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=${month.replace("-", "")}01&stockNo=${code}&response=json`,
   tpexDaily: (code, month) => `https://www.tpex.org.tw/www/zh-tw/afterTrading/tradingStock?code=${code}&date=${month.replace("-", "%2F")}%2F01&response=json`,
 };
@@ -41,7 +41,7 @@ function key(event) { return `${event.code}@${event.date}`; }
 // 事件要的是「當時」的市場。實測 8908 欣雄 9/3 除權時還在櫃買、10/16 才轉上市，
 // feed 標上市是對的，但照它去證交所抓 9 月日資料只會拿到「沒有符合條件」；
 // 3085 新零售不在 feed 裡，查不到市場就一直待補
-const SOURCE_MARKET = { TWT49U: "twse", TWTB8U: "twse", TWTAUU: "twse", exDailyQ: "tpex", revivt: "tpex" };
+const SOURCE_MARKET = { TWT49U: "twse", TWTB8U: "twse", TWTAUU: "twse", exDailyQ: "tpex", revivt: "tpex", pvChgRslt: "tpex" };
 
 // 上游四種寫法：「115年09月02日」「114/11/17」「115/9/1」「1150630」
 export function rocDateToIso(value) {
@@ -151,6 +151,21 @@ export function parseTpexReduction(payload) {
     const date = rocDateToIso(pick(fields, row, "恢復買賣日期"));
     if (!(before > 0) || !(ref > 0) || !date) continue;
     out.push({ code: String(pick(fields, row, "股票代號")).trim(), date, kind: "reduction", factor: ref / before, source: "revivt" });
+  }
+  return out;
+}
+
+// 上櫃面額變更（pvChgRslt）。官方定義是比例調整：合騏 8937 面額 10 → 2.5 元，
+// 參考價「為舊股票最後交易日收盤價的四分之一」——所以比例就是參考價 ÷ 最後收盤，跟上市的 TWTB8U 同一式
+export function parseTpexParChange(payload) {
+  const { fields, rows } = tpexTable(payload);
+  const out = [];
+  for (const row of rows) {
+    const before = num(pick(fields, row, "最後交易日之收盤價格"));
+    const ref = num(pick(fields, row, "恢復買賣開始參考價"));
+    const date = rocDateToIso(pick(fields, row, "恢復買賣日期"));
+    if (!(before > 0) || !(ref > 0) || !date) continue;
+    out.push({ code: String(pick(fields, row, "證券代號")).trim(), date, kind: "par", factor: ref / before, source: "pvChgRslt" });
   }
   return out;
 }
@@ -288,7 +303,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // 抓事件 → 抓需要的日資料 → 套用。任何一步失敗都只記進 errors，不丟出去：
 // 還原是加分項，不可以讓整份 feed 因為除權表抓不到而停更。
 // marketOf(code) 回 "twse"／"tpex"；fetchJson 由呼叫端注入（沿用 feed 那支的重試）。
-export async function fetchCorporateActionEvents(fromDate, toDate, { fetchJson, delayMs = 2500 }) {
+// only：只抓指定的來源（例：新增一類事件時只回補那一類，不必把已套用的再全部抓一次）
+export async function fetchCorporateActionEvents(fromDate, toDate, { fetchJson, delayMs = 2500, only = null }) {
   const errors = [];
   const events = [];
   const rejected = [];
@@ -302,8 +318,10 @@ export async function fetchCorporateActionEvents(fromDate, toDate, { fetchJson, 
       return parsed.events;
     })],
     ["revivt", () => fetchJson(SOURCE_URLS.tpexReduction(fromDate, toDate)).then(parseTpexReduction)],
+    ["pvChgRslt", () => fetchJson(SOURCE_URLS.tpexParChange(fromDate, toDate)).then(parseTpexParChange)],
   ];
   for (const [name, run] of sources) {
+    if (only && !only.includes(name)) continue;
     try {
       events.push(...await run());
     } catch (error) {
