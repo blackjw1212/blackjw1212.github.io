@@ -126,7 +126,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add $FILES
           git commit -m "Update market and ETF feeds"
-          git push
+          # 推送前先跟上遠端：stock-risk 交易時段每 30 分鐘 commit 一次、market 一天四班，
+          # 再加上手動推版，直接 push 會互撞——實測 2026-10-19 15:13（stock-risk）與
+          # 2026-10-20 01:35（market）各掉了一班資料，錯誤都是 rejected (fetch first)。
+          # 兩支動的檔案不重疊，rebase 不會衝突；失敗就先退出 rebase 再重試。
+          pushed=""
+          for attempt in 1 2 3; do
+            if git pull --rebase --quiet && git push; then pushed=1; break; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 15))
+          done
+          [ -n "$pushed" ] || { echo "push failed after 3 attempts"; exit 1; }
           # **這一步是資料能不能上線的關鍵。** 以 GITHUB_TOKEN 推出的 commit
           # 依 GitHub 規則不會觸發 on:push 的 workflow，所以 pages-deploy 收不到，
           # 資料進得了 repo 卻上不了線——實測線上曾停在 3 天前的 tradeDate，

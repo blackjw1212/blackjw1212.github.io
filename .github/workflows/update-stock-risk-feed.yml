@@ -35,7 +35,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/stock-risk-feed.json
           git commit -m "Update stock risk feed"
-          git push
+          # 推送前先跟上遠端：stock-risk 交易時段每 30 分鐘 commit 一次、market 一天四班，
+          # 再加上手動推版，直接 push 會互撞——實測 2026-10-19 15:13（stock-risk）與
+          # 2026-10-20 01:35（market）各掉了一班資料，錯誤都是 rejected (fetch first)。
+          # 兩支動的檔案不重疊，rebase 不會衝突；失敗就先退出 rebase 再重試。
+          pushed=""
+          for attempt in 1 2 3; do
+            if git pull --rebase --quiet && git push; then pushed=1; break; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 15))
+          done
+          [ -n "$pushed" ] || { echo "push failed after 3 attempts"; exit 1; }
           # 見 update-market-feed.yml 的同一段：GITHUB_TOKEN 推的 commit
           # 不會觸發 on:push，不顯式派工的話這份資料永遠上不了線。
           gh workflow run pages-deploy.yml --ref main
