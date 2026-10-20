@@ -524,8 +524,8 @@
     <p class="hint" style="margin-top:8px">對「選哪些檔 × 各配多少 %」<strong>窮舉計算</strong>後取最佳：目標為扣費後年配息（含零股、發放月與二代健保單筆門檻規則）。候選池需有滿一年配息史、規模≥50億，並排除槓反／期貨型、配息波動過大（變異係數&gt;0.6）與溢價&gt;1% 者；另<strong>保送規模前 3 大的合格標的入池</strong>，避免 0056 這類大型穩配標的被小型高息擠出搜尋空間。
       <strong>殖利率定義</strong>：本站一律為<strong>滾動 12 個月已除息配息 ÷ 當日收盤</strong>。其他網站多用「年度殖利率」（該日曆年度配息 ÷ 年均價），年中比較時分子少算尚未除息的季別，數字會低於本站——例如 2026-07-29 的 00888，本站 13.47%（近 4 次共 3.813 元／收盤 28.31），年度基準則為 11.80%（2026 年 3 次共 3.31 元／年均價 28.08）。兩者都對，<strong>但不可混用</strong>。
       <strong>配息波動改看近 24 個月</strong>（殖利率仍是近 12 個月）：只看 12 個月的季配標的僅有 4 筆，會系統性低估波動——實測 006208 配息由 0.989 漲到 4.75，12 月窗算出 0.16、24 月窗才是 0.65。水準跳升對「用近 12 月配息推估未來」正是最該標出來的風險。
-      <strong>稅後總報酬最大化（預設）</strong>：目標為<strong>價差＋配息−所得稅−二代健保</strong>。價差取 Yahoo adjclose 近一年、已自行校正分割；台股個人證所稅停徵，因此價差免稅而配息要課稅，兩者的稅負待遇不同會實質改變最佳解。候選池改依總報酬排序並排除總報酬為負者，需先填年薪或綜合所得淨額。<strong>這一段全部是近一年回測，不是預測</strong>——以總報酬為目標等於「買去年表現最好的」，請當成比較的起點而非結論。滿一年歷史不足或價格有無法解釋跳動的標的不發布報酬，也不會進入這個目標的候選池。
-      <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息，需先填年薪或綜合所得淨額。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>。
+      <strong>稅後總報酬最大化（預設）</strong>：目標為<strong>價差＋配息−所得稅−二代健保</strong>。價差取 Yahoo adjclose 近一年、已自行校正分割；台股個人證所稅停徵，因此價差免稅而配息要課稅，兩者的稅負待遇不同會實質改變最佳解。候選池改依總報酬排序並排除總報酬為負者；要算稅需填年薪或綜合所得淨額，沒填會先以稅前（價差＋配息−二代健保）排序並標明。<strong>這一段全部是近一年回測，不是預測</strong>——以總報酬為目標等於「買去年表現最好的」，請當成比較的起點而非結論。滿一年歷史不足或價格有無法解釋跳動的標的不發布報酬，也不會進入這個目標的候選池。
+      <strong>稅後配息最大化</strong>：目標改為「扣費並扣掉估算所得稅後」的年配息；要算稅需填年薪或綜合所得淨額，沒填時等同「最高配息」並標明。因為債券型與投資海外的標的配息推定為海外所得（走最低稅負制、實質免稅），這個目標通常會把權重推向它們——<strong>那是稅務效果，不代表這些標的的風險或報酬比較好</strong>。
       注意：<strong>高殖利率常伴隨配息不穩或規模偏小</strong>；本工具只做機械篩選，<strong>不判斷配息可持續性</strong>（收益平準金占比等資料本站無來源）。<strong>「最高配息」「補滿 12 個月」「分散類型」「稅後配息」四個目標只看配息現金流、不含資本利得</strong>——一檔配 10% 卻跌 12% 的標的在那些目標下會排很前面，但它在賠錢；要看實際賺多少請用預設的總報酬目標。候選池<strong>含債券型（包括非投資等級債）</strong>，而模型不衡量信用風險，殖利率高低不代表風險相當。<strong>不是投資建議</strong>。</p>
     <!-- 原本在頁底的「這些數字是怎麼算的」折疊，2026-10-19 併進來；三句被靜態契約釘住的稅務揭露原文不改 -->
     <p class="hint" style="margin-top:8px">ETF 依實際配息的發放月自動分攤（不需自行填月份），非年收益÷12；個股無公開配息日曆，以歷史殖利率推估、發放月預設 8 月可自行修改。扣費為簡化估算之保守上限，僅供參考，不是投資建議。
@@ -541,11 +541,11 @@
       <div class="toolbar" style="margin-top:8px">
         <div class="toolrow">
           <div class="presets">
-            <button class="btn on" id="gNetTotal" type="button" title="以近一年稅後總報酬（價差＋配息−稅−健保）為目標；價差在台股個人免證所稅。需先填年薪或綜合所得淨額">稅後總報酬最大化</button>
+            <button class="btn on" id="gNetTotal" type="button" title="以近一年稅後總報酬（價差＋配息−稅−健保）為目標；價差在台股個人免證所稅。沒填年薪會先算稅前並標明">稅後總報酬最大化</button>
             <button class="btn" id="gYield" type="button">最高配息</button>
             <button class="btn" id="gMonthly" type="button">補滿 12 個月</button>
             <button class="btn" id="gLowOverlap" type="button">分散類型</button>
-            <button class="btn" id="gAfterTax" type="button" title="以扣費並扣掉估算所得稅後的年配息為目標；需先填年薪或綜合所得淨額">稅後配息最大化</button>
+            <button class="btn" id="gAfterTax" type="button" title="以扣費並扣掉估算所得稅後的年配息為目標；沒填年薪時等同最高配息並標明">稅後配息最大化</button>
           </div>
         </div>
       </div>
@@ -2442,9 +2442,12 @@ function optimizeAllocation(etfs, options){
   if (goal === "afterTax") {
     const rawNet = opts.netIncome;
     if (rawNet == null || rawNet === "" || !Number.isFinite(Number(rawNet)) || Number(rawNet) < 0) {
-      return {picks:[], reason:"稅後配息最大化需要「綜合所得淨額」：在「幫我挑標的」那一列填年薪會自動換算，或在下方「稅務設定」直接填淨額"};
+      // 沒年薪時同「稅後總報酬」那條：要求了就先算稅前。沒算稅的「稅後配息」就是扣費後年配息，
+      // 等同「最高配息」——畫面要照實講，不可以印一個「稅後年配息」的數字
+      if (opts.preTaxFallback) preTax = true;
+      else return {picks:[], reason:"稅後配息最大化需要「綜合所得淨額」：在「幫我挑標的」那一列填年薪會自動換算，或在下方「稅務設定」直接填淨額"};
     }
-    taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
+    if (!preTax) taxCtx = {netIncome:Number(rawNet), params:opts.taxParams || taxParams || TAX_FALLBACK};
   }
 
   const pool = buildCandidatePool(etfs, {goal:goal, minAum:opts.minAum, poolCap:opts.poolCap,
@@ -2470,7 +2473,7 @@ function optimizeAllocation(etfs, options){
       if (candidate.minMonth !== incumbent.minMonth) return candidate.minMonth > incumbent.minMonth;
     }
     if (goal === "netTotal") return preTax ? candidate.preTaxTotal > incumbent.preTaxTotal : candidate.afterTaxTotal > incumbent.afterTaxTotal;
-    if (goal === "afterTax") return candidate.afterTaxNet > incumbent.afterTaxNet;
+    if (goal === "afterTax") return preTax ? candidate.totalNet > incumbent.totalNet : candidate.afterTaxNet > incumbent.afterTaxNet;
     return candidate.totalNet > incumbent.totalNet;
   };
 
@@ -2535,7 +2538,7 @@ function optimizeAllocation(etfs, options){
     gainVsEqual:goal === "netTotal"
       ? (preTax ? best.result.preTaxTotal - baseline.preTaxTotal : best.result.afterTaxTotal - baseline.afterTaxTotal)
       : (goal === "afterTax"
-        ? best.result.afterTaxNet - baseline.afterTaxNet
+        ? (preTax ? best.result.totalNet - baseline.totalNet : best.result.afterTaxNet - baseline.afterTaxNet)
         : best.result.totalNet - baseline.totalNet),
     evaluated:evaluated,
     poolSize:pool.length,
@@ -3481,8 +3484,9 @@ function runSuggest(){
   // 問卷（選過偏好卡片）覆寫目標與約束；直接按目標按鈕則走原路。
   const base = {total:total, goal:suggestGoal, stress:simStress, nhi:NHI, includeActive:includeActive,
     netIncome:String(netIncomeRaw || "").trim() === "" ? null : Number(netIncomeRaw), taxParams:taxParams,
-    // 只有問卷那條路允許「沒年薪就先算稅前」；手動目標鈕照舊拒算
-    preTaxFallback:Boolean(activeProfile)};
+    // 沒年薪就先算稅前並講明——問卷與「自己選目標」兩條路一致。原本只開給問卷，
+    // 使用者回報（2026-10-20）「稅後配息最大化」按了不會自己算出來
+    preTaxFallback:true};
   // 「幫我比較」：同一組條件、同一個引擎，兩個目標各跑一次
   if (pfNeedCashflow === "compare" && activeProfile && !suggestManual) {
     const run = function(needCashflow){
@@ -3613,7 +3617,9 @@ function runSuggest(){
       + '手續費以標準費率 ' + fmt(DEFAULT_FEE_RATE * 100, 4) + '% 估算，未計券商折扣與最低收費；剩餘現金未扣手續費。'
       + escapeHtml(SUGGEST_RANGE_NOTE) + '</p>'
     // 沒年薪時退回稅前：要講明，也要講出它會偏向哪邊
-    + (out.preTax ? '<p class="hint" style="margin:6px 0 0;color:var(--amber)">未計所得稅（會稍偏向配息多的標的）；在上面填「年薪（含獎金）」就改算稅後。</p>' : '')
+    + (out.preTax ? '<p class="hint" style="margin:6px 0 0;color:var(--amber)">'
+      + (suggestGoal === "afterTax" ? '未計所得稅，所以這一版等同「最高配息」' : '未計所得稅（會稍偏向配息多的標的）')
+      + '；在上面填「年薪（含獎金）」就改算稅後。</p>' : '')
     + leverageWarn
     + pickCardsHtml()
     + '<div class="table-scroll pick-table" style="margin-top:10px"><table style="min-width:860px"><thead><tr>'
@@ -3656,7 +3662,10 @@ function runSuggest(){
             + fmt(result.totalNet / total * 100, 2) + 'pp</span></div>'
         : '')
       + '<div class="sim-kpi"><b>扣費後年配息（壓力 ×' + simStress + '）</b><span>' + fmt(Math.round(result.totalNet), 0) + '</span></div>'
-      + (suggestGoal === "afterTax"
+      + (suggestGoal === "afterTax" && out.preTax
+        ? '<div class="sim-kpi"><b>稅後年配息</b><span class="stale">未計所得稅</span>'
+            + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">沒填年薪，這一版等同「最高配息」</span></div>'
+        : suggestGoal === "afterTax"
         ? '<div class="sim-kpi"><b>估算所得稅（' + escapeHtml(result.taxRegime || "無應稅所得") + '）</b>'
             + '<span class="' + (result.tax < 0 ? "pos" : "neg") + '">' + (result.tax == null ? "0" : (result.tax < 0 ? "+" : "−") + fmt(Math.abs(result.tax), 0)) + '</span>'
             + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">應稅配息 ' + fmt(Math.round(result.taxableGross), 0) + '</span></div>'
@@ -3674,6 +3683,9 @@ function runSuggest(){
         ? '<div class="sim-kpi"><b>最弱月（扣費後）</b><span class="pos">' + fmt(Math.round(result.minMonth), 0) + '</span>'
           + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重最弱月 ' + fmt(Math.round(out.baselineMinMonth), 0)
           + (out.gainVsEqual < 0 ? '；為墊高最弱月，年總額較等權少 ' + fmt(Math.round(-out.gainVsEqual), 0) : '') + '</span></div>'
+        : suggestGoal === "afterTax" && out.preTax
+        ? '<div class="sim-kpi"><b>較等權重多（未計所得稅）</b><span' + (out.gainVsEqual > 0 ? ' class="pos"' : '') + '>+' + fmt(Math.round(out.gainVsEqual), 0) + ' /年</span>'
+          + '<span style="display:block;font-size:11px;color:var(--faint);font-family:inherit">同組合等權重為 ' + fmt(Math.round(out.baselineNet), 0) + '</span></div>'
         : suggestGoal === "afterTax"
         // 稅後目標的等權基準也要用稅後，否則比的是兩個不同的東西
         ? '<div class="sim-kpi"><b>較等權重多（稅後）</b><span' + (out.gainVsEqual > 0 ? ' class="pos"' : '') + '>+' + fmt(Math.round(out.gainVsEqual), 0) + ' /年</span>'

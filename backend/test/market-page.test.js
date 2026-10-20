@@ -3168,3 +3168,36 @@ test("you can find a holding by name, not only by code", async () => {
   assert.equal(resolveCode("00t03"), "00T03");
   assert.equal(resolveCode("找不到的名字"), "找不到的名字", "對不上就原樣保留，不猜");
 });
+
+// 使用者回報（2026-10-20）：「自己選目標 → 稅後配息最大化」還是不會自己算出來。
+// 原因同「想讓資產長大」那一輪：沒年薪先算稅前並講明的做法只開給了問卷那條路，
+// 手動目標鈕仍然拒算。沒算稅的「稅後配息」就是「扣費後年配息」——等同「最高配息」，要照實講。
+test("the after-tax dividend goal without a salary equals the highest-dividend goal, said out loud", async () => {
+  const { app } = await autoPanel();
+  const { optimizeAllocation, normalizeEtfFeed } = app.helpers;
+  const feedRows = normalizeEtfFeed(richEtfFeed());
+  assert.ok(feedRows.length >= 5, "fixture 要真的有候選，否則比的是兩個空陣列");
+  const opts = { total: 100000, maxW: 30, minPicks: 4 };
+  const fallback = optimizeAllocation(feedRows, { ...opts, goal: "afterTax", preTaxFallback: true });
+  const highest = optimizeAllocation(feedRows, { ...opts, goal: "netYield" });
+  assert.equal(fallback.preTax, true);
+  assert.deepEqual(fallback.picks.map((p) => p.code + ":" + p.pct), highest.picks.map((p) => p.code + ":" + p.pct),
+    "沒算稅時兩個目標是同一件事，挑出來的組合必須一模一樣");
+  assert.equal(optimizeAllocation(feedRows, { ...opts, goal: "afterTax" }).picks.length, 0, "沒要求就照舊拒算");
+});
+
+test("clicking the after-tax dividend goal computes right away, then switches to after-tax once a salary is in", async () => {
+  const { elements, set, result } = await autoPanel();
+  set("simTotal", "100000");
+  set("simNetIncome", "");
+  elements.get("gAfterTax").fire("click");
+  const preTax = result();
+  assert.match(preTax, /pick-card/, "沒填年薪也要直接算出來");
+  assert.match(preTax, /等同「最高配息」/, "要講明沒算稅時它跟最高配息是同一件事");
+  assert.doesNotMatch(preTax, /需要「綜合所得淨額」/);
+  assert.doesNotMatch(preTax, /<b>稅後年配息<\/b><span class="pos">/, "沒算稅就不可以印出一個稅後年配息的數字");
+
+  set("simSalary", "1200000");
+  assert.doesNotMatch(result(), /等同「最高配息」/, "填了年薪就改算稅後");
+  assert.match(result(), /<b>稅後年配息<\/b><span class="pos">[\d,]+/);
+});
