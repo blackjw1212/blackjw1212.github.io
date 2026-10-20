@@ -37,8 +37,10 @@ function num(value) {
   return Number.isFinite(n) ? n : null;
 }
 function key(event) { return `${event.code}@${event.date}`; }
-// 日資料去哪個市場抓，由事件的來源決定，不看 feed 的 market 欄位：實測 8908 欣雄在 feed
-// 標成上市，日資料卻只在櫃買；3085 新零售不在 feed 裡，查不到市場就一直待補
+// 日資料去哪個市場抓，由事件的來源決定，不看 feed 的 market 欄位：feed 是「現在」的市場，
+// 事件要的是「當時」的市場。實測 8908 欣雄 9/3 除權時還在櫃買、10/16 才轉上市，
+// feed 標上市是對的，但照它去證交所抓 9 月日資料只會拿到「沒有符合條件」；
+// 3085 新零售不在 feed 裡，查不到市場就一直待補
 const SOURCE_MARKET = { TWT49U: "twse", TWTB8U: "twse", TWTAUU: "twse", exDailyQ: "tpex", revivt: "tpex" };
 
 // 上游四種寫法：「115年09月02日」「114/11/17」「115/9/1」「1150630」

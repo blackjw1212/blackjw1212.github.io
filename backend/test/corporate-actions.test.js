@@ -174,7 +174,7 @@ test("without the event month's daily rows nothing is touched and the event wait
   assert.deepEqual(applied, []);
   assert.deepEqual(pending, ["6669@2026-09-02"]);
   assert.equal(JSON.stringify(accumulator.stocks), before, "只還原一半比不還原更糟");
-  // 市場由事件來源決定（TWT49U＝上市），不看 feed：實測 8908 在 feed 標成上市、日資料卻只在櫃買
+  // 市場由事件來源決定（TWT49U＝上市），不看 feed：8908 欣雄 9/3 除權時在櫃買、10/16 才轉上市
   assert.deepEqual(neededDaily(wiwynnArchive(), [wiwynnEvent], { floorMonth: "2025-10", tradeDate: "2026-10-19" }), [{ code: "6669", month: "2026-09", market: "twse" }]);
   assert.equal(neededDaily(wiwynnArchive(), [{ ...wiwynnEvent, source: "revivt" }], { floorMonth: "2025-10", tradeDate: "2026-10-19" })[0].market, "tpex");
 });
