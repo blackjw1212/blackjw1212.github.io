@@ -537,8 +537,34 @@ test("page renders the watchlist table, cards, and source labels from static fal
   assert.doesNotMatch(cardHtml, /data-watch-tier|tier-pick/);
   assert.match(document.getElementById("dataSource").textContent, /靜態 stock-risk-feed\.json/);
   assert.match(document.getElementById("watchCount").textContent, /13 檔/);
-  assert.ok(calls.includes("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"));
+  // 證交所 openapi 不回 Access-Control-Allow-Origin（2026-10-20 以正式站網域實測），
+  // 從瀏覽器直接打必定被擋——那一步在正式站從來沒成功過，只留下一筆 CORS 錯誤
+  assert.ok(!calls.some((href) => href.includes("openapi.twse.com.tw")), "不可以再從瀏覽器直接打證交所");
   assert.ok(calls.some((href) => href.startsWith("/data/stock-risk-feed.json")));
+});
+
+// 取代那條死路徑的是同源的 market-feed.json：CI 每天四班用 MI_INDEX 產生，
+// 跟 STOCK_DAY_ALL 同一類官方收盤，而且當天就到位（STOCK_DAY_ALL 會落後一天）。
+// 它排在靜態 stock-risk-feed 之後——那份交易時段每 30 分鐘更新，比較新——所以只在兩者都拿不到時補位。
+test("when the Worker and the static feed are both down, closing prices come from the market feed", async () => {
+  const calls = [];
+  const { context, document } = await loadApp(async (url) => {
+    const href = String(url);
+    calls.push(href);
+    if (href.includes("workers.dev")) return response({}, {}, { status: 502 });
+    if (href.startsWith("/data/market-feed.json")) {
+      return response({ tradeDate: "2026-10-19", updatedAt: "2026-10-19T09:00:00.000Z",
+        stocks: [{ code: "2330", name: "台積電", market: "twse", close: 2420, change: 15, high: 2430, low: 2400 }] });
+    }
+    if (href.startsWith("/data/stock-risk-feed.json")) return response({}, {}, { status: 503 });
+    throw new Error(`unexpected: ${href}`);
+  }, {
+    location: { href: "https://blackjw1212.github.io/stocks/", hostname: "blackjw1212.github.io", search: "" },
+  });
+  await context.window.PortfolioConsoleApp.init();
+  assert.match(document.getElementById("scoreBody").innerHTML, /2,420/);
+  assert.match(document.getElementById("dataSource").textContent, /全市場 feed/, "來源要講是 market feed，不是靜態備援");
+  assert.ok(!calls.some((href) => href.includes("openapi.twse.com.tw")));
 });
 
 test("the watchlist is user-definable and defaults to the built-in list", async () => {

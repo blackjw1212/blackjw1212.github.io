@@ -213,7 +213,6 @@ const ROOT = typeof window !== "undefined" ? window : (typeof globalThis !== "un
 const DOC = typeof document !== "undefined" ? document : null;
 const DEFAULT_PROXY_BASE = "https://taiwan-risk-tracker-proxy.a0926043323.workers.dev";
 const ALLOWED_PROXIES = new Set([DEFAULT_PROXY_BASE]);
-const DIRECT_TWSE_EOD = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
 const STATIC_STOCK_FEED_URL = "/data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
 
@@ -799,16 +798,23 @@ async function loadEod(){
     });
   }
   attempts.push(async function(){
-    const result = await fetchJson(DIRECT_TWSE_EOD);
-    const rows = normalizeEodPayload(result.data);
-    if (!rows.length) throw new Error("TWSE EOD returned no rows");
-    return {rows:rows,source:"TWSE OpenAPI STOCK_DAY_ALL",delay:"官方收盤資料",updatedAt:new Date().toISOString()};
-  });
-  attempts.push(async function(){
     const feed = await loadStaticFeed();
     const rows = normalizeEodPayload(feed && (feed.eod || feed.eodRows || feed));
     if (!rows.length) throw new Error("Static feed has no EOD rows");
     return {rows:rows,source:"GitHub Pages 靜態 stock-risk-feed.json",delay:"同源靜態備援收盤資料",updatedAt:(feed && (feed.eodUpdatedAt || feed.updatedAt)) || "",tradingDate:(feed && feed.eodTradingDate) || ""};
+  });
+  // 排在靜態 stock-risk-feed 之後：那份在交易時段每 30 分鐘更新一次，比一天四班的 market feed 新。
+  // 原本這一步直接從瀏覽器打證交所 openapi 的 STOCK_DAY_ALL。那個端點不回
+  // Access-Control-Allow-Origin（2026-10-20 以正式站網域實測），瀏覽器必定擋下——
+  // 這一步在正式站從來沒成功過，只留下一筆 CORS 錯誤。改讀同源的 market-feed.json：
+  // CI 每天四班用 MI_INDEX 產生，同一類官方收盤，而且當天就到位（STOCK_DAY_ALL 會落後一天）。
+  attempts.push(async function(){
+    const result = await fetchJson(MARKET_FEED_URL + "?v=" + encodeURIComponent(new Date().toISOString().slice(0,10)));
+    const payload = result.data || {};
+    const rows = normalizeEodPayload(payload.stocks);
+    if (!rows.length) throw new Error("market feed has no rows");
+    return {rows:rows,source:"全市場 feed（TWSE MI_INDEX／TPEx 收盤）",delay:"官方收盤資料，交易日 " + (payload.tradeDate || "未知"),
+      updatedAt:payload.updatedAt || "",tradingDate:payload.tradeDate || ""};
   });
   attempts.push(async function(){return loadEodCache();});
 
