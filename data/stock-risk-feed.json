@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-20T13:42:33.413Z",
+  "updatedAt": "2026-10-21T00:36:45.514Z",
   "eodUpdatedAt": "2026-10-20T13:42:33.413Z",
   "eodTradingDate": "2026-10-20",
   "holdings": [
@@ -113,57 +113,57 @@
   "valuation": {
     "1519": {
       "code": "1519",
-      "pe": 42.15,
-      "dividendYield": 1.86,
-      "pbRatio": 22.1
+      "pe": 41.3,
+      "dividendYield": 1.9,
+      "pbRatio": 21.65
     },
     "2308": {
       "code": "2308",
-      "pe": 52.2,
-      "dividendYield": 0.71,
-      "pbRatio": 14.5
+      "pe": 51.08,
+      "dividendYield": 0.72,
+      "pbRatio": 14.19
     },
     "2317": {
       "code": "2317",
-      "pe": 15.79,
-      "dividendYield": 2.99,
-      "pbRatio": 1.76
+      "pe": 15.92,
+      "dividendYield": 2.97,
+      "pbRatio": 1.78
     },
     "2330": {
       "code": "2330",
-      "pe": 28.05,
+      "pe": 27.88,
       "dividendYield": 0.91,
-      "pbRatio": 9.76
+      "pbRatio": 9.7
     },
     "2356": {
       "code": "2356",
-      "pe": 19.06,
-      "dividendYield": 3.38,
-      "pbRatio": 2.73
+      "pe": 19.35,
+      "dividendYield": 3.33,
+      "pbRatio": 2.77
     },
     "2376": {
       "code": "2376",
-      "pe": 13.17,
-      "dividendYield": 3.41,
-      "pbRatio": 3.54
+      "pe": 13.29,
+      "dividendYield": 3.38,
+      "pbRatio": 3.58
     },
     "2382": {
       "code": "2382",
-      "pe": 13.7,
-      "dividendYield": 4.96,
-      "pbRatio": 4.98
+      "pe": 13.97,
+      "dividendYield": 4.87,
+      "pbRatio": 5.07
     },
     "3017": {
       "code": "3017",
-      "pe": 44.25,
+      "pe": 44.32,
       "dividendYield": 0.63,
-      "pbRatio": 23.62
+      "pbRatio": 23.65
     },
     "3231": {
       "code": "3231",
-      "pe": 14.3,
-      "dividendYield": 3.06,
-      "pbRatio": 2.95
+      "pe": 15.01,
+      "dividendYield": 2.91,
+      "pbRatio": 3.1
     },
     "3324": {
       "code": "3324",
@@ -173,28 +173,37 @@
     },
     "3661": {
       "code": "3661",
-      "pe": 54.49,
-      "dividendYield": 0.88,
-      "pbRatio": 5.31
+      "pe": 53.39,
+      "dividendYield": 0.89,
+      "pbRatio": 5.2
     },
     "6239": {
       "code": "6239",
-      "pe": 26.04,
-      "dividendYield": 1.71,
-      "pbRatio": 3.4
+      "pe": 25.35,
+      "dividendYield": 1.76,
+      "pbRatio": 3.31
     },
     "6669": {
       "code": "6669",
-      "pe": 6.04,
-      "dividendYield": 8.71,
-      "pbRatio": 2.57
+      "pe": 6.17,
+      "dividendYield": 8.53,
+      "pbRatio": 2.62
     }
   },
   "yield10y": {
-    "date": "2026-10-16",
-    "value": 5.09,
-    "updatedAt": "2026-10-16T22:00:00.000Z",
+    "date": "2026-10-19",
+    "value": 5.15,
+    "updatedAt": "2026-10-19T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": []
+  "errors": [
+    {
+      "source": "TPEX OpenAPI daily close quotes",
+      "message": "terminated"
+    },
+    {
+      "source": "feed-preservation",
+      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
+    }
+  ]
 }
