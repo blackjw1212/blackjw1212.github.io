@@ -141,12 +141,15 @@ function normalizeValuation(rows) {
   return out;
 }
 
-function parseFredDgs10(csv) {
+export function parseFredDgs10(csv) {
+  // FRED 會回 HTTP 200 的 HTML 頁；不擋的話整頁會被當成 CSV 讀出一個假殖利率，
+  // 而且因為不是 null，Treasury 備援與沿用上一份都不會觸發
+  if (!/^\s*(observation_date|DATE),DGS10/i.test(String(csv || ""))) throw new Error("FRED response is not the DGS10 CSV (got HTML or an error page)");
   const rows = String(csv || "").trim().split(/\r?\n/).slice(1);
   for (let index = rows.length - 1; index >= 0; index -= 1) {
-    const [date, value] = rows[index].split(",");
+    const [date, value, ...rest] = rows[index].split(",");
     const parsed = Number(value);
-    if (date && Number.isFinite(parsed)) {
+    if (rest.length === 0 && /^\d{4}-\d{2}-\d{2}$/.test(date || "") && Number.isFinite(parsed) && parsed > 0 && parsed < 25) {
       return {
         date,
         value: parsed,

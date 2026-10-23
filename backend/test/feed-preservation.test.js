@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeFeed, normalizeEod, parseTradingDate, fetchMisQuotes } from "../../scripts/update-stock-risk-feed.mjs";
+import { mergeFeed, normalizeEod, parseTradingDate, fetchMisQuotes, parseFredDgs10 } from "../../scripts/update-stock-risk-feed.mjs";
 import { preserveMarketRows, fetchJson as marketFetchJson } from "../../scripts/update-market-feed.mjs";
 import { preserveEtfMarketRows, fetchJson as etfFetchJson } from "../../scripts/update-etf-feed.mjs";
 
@@ -243,3 +243,25 @@ for (const [label, fetchJson] of [["market", marketFetchJson], ["etf", etfFetchJ
     assert.equal(calls, 1, "a 4xx will not improve on retry");
   });
 }
+
+// FRED 會回 HTTP 200 的 HTML 頁（2026-10-22 #537、#538）。舊解析器把
+// `<link href="…Open+Sans:300,400…">` 用逗號切開，得到「日期＝HTML 片段、殖利率＝400」。
+// 那不是 null，所以 Treasury 備援與沿用上一份都沒觸發，最後由 schema 測試擋下整班。
+test("parseFredDgs10 rejects an HTML page instead of reading a yield out of it", () => {
+  const html = [
+    "<!DOCTYPE html>",
+    "<html>",
+    "  <head>",
+    '    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600" rel="stylesheet">',
+    "  </head>",
+    "</html>",
+  ].join("\n");
+  assert.throws(() => parseFredDgs10(html), /not the DGS10 CSV/);
+});
+
+test("parseFredDgs10 takes the latest numeric row under either header and skips '.'", () => {
+  const latest = parseFredDgs10("observation_date,DGS10\n2026-10-20,4.05\n2026-10-21,.\n");
+  assert.equal(latest.date, "2026-10-20", "'.' 是 FRED 的缺值，要往前找");
+  assert.equal(latest.value, 4.05);
+  assert.equal(parseFredDgs10("DATE,DGS10\r\n2026-10-20,4.05\r\n").value, 4.05);
+});

@@ -9,6 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { retentionFloor, MIN_WINDOW_MONTHS } from "../../scripts/update-market-feed.mjs";
+import { roundNumber } from "../../scripts/update-stock-risk-feed.mjs";
 import { MIN_SPAN_DAYS } from "../../scripts/update-etf-returns.mjs";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -74,6 +75,17 @@ test("market-52w.json's corporate-action log is well formed and inside the windo
   }
 });
 
+// 捨入要用產生端同一個 roundNumber（update-market-feed.mjs 的 hi52/lo52/fromHi 都是它算的）。
+// 另寫一套 Math.round 的話，落在 .x5 邊界的值兩邊會各捨各的，CI 就擋掉一班正確的資料。
+function assertHiLoMatchBuckets(row, hi, lo) {
+  assert.equal(row.hi52, roundNumber(hi, 2), `${row.code}: hi52 與月桶極值不符`);
+  assert.equal(row.lo52, roundNumber(lo, 2), `${row.code}: lo52 與月桶極值不符`);
+  if (row.close != null && row.hi52 > 0) {
+    const expected = roundNumber((row.close - row.hi52) / row.hi52 * 100, 1);
+    assert.equal(row.fromHi, expected, `${row.code}: fromHi 與 close/hi52 算不出來的值不符`);
+  }
+}
+
 // 定義性檢查：hi52／lo52 的意義就是「窗口內所有月桶的極值」。
 // 兩張表分叉時肉眼完全看不出來，但畫面上每一個距高百分比都會是錯的。
 // 同 tax-params 那條「累進差額在級距交界處必須相等」。
@@ -88,15 +100,18 @@ test("market-feed hi52/lo52 are exactly the extremes of that code's buckets", as
     const hi = Math.max(...buckets.map((b) => b[0]));
     const lo = Math.min(...buckets.map((b) => b[1]));
     if (row.hi52 == null) continue;
-    assert.equal(row.hi52, Math.round(hi * 100) / 100, `${row.code}: hi52 與月桶極值不符`);
-    assert.equal(row.lo52, Math.round(lo * 100) / 100, `${row.code}: lo52 與月桶極值不符`);
-    if (row.close != null && row.hi52 > 0) {
-      const expected = Math.round((row.close - row.hi52) / row.hi52 * 1000) / 10;
-      assert.equal(row.fromHi, expected, `${row.code}: fromHi 與 close/hi52 算不出來的值不符`);
-    }
+    assertHiLoMatchBuckets(row, hi, lo);
     checked += 1;
   }
   assert.ok(checked > 1000, `只驗到 ${checked} 列，這條斷言等於沒跑`);
+});
+
+// 上面那條讀的是真資料，當天沒有任何一檔落在 .x5 邊界時它什麼都證明不了。
+// 這筆照 #256（2026-10-22）的 log 重建：產生端寫出 −27.8，舊的驗算算成 −27.7，
+// 2026-10-20～22 連續 8 班因此擋下 commit，10/20、10/21 兩個交易日沒上線。
+test("the fromHi check agrees with the generator's rounding at a .x5 boundary", () => {
+  const row = { code: "2030", close: 28.9, hi52: 40, lo52: 13.65, fromHi: -27.8 };
+  assert.doesNotThrow(() => assertHiLoMatchBuckets(row, 40, 13.65));
 });
 
 // 上市未滿一年不得宣稱一年高低。沒有這條，新上市股會用 1 個月的資料
