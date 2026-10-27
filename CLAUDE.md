@@ -616,6 +616,71 @@ node scripts/float-source-audit.mjs --only tw-neio   只處理一個來源
 4. **320 與 375 兩個寬度都要看。** 橫捲只該發生在 `.table-wrap` 內，body 不可橫捲。
 5. 走訪**三個分頁**都要量——切過去之前那些控制項是 `display:none`，整批會被當成不可見跳過。
 
+### 自製浮標的 3D 列印（FDM / Bambu Studio）
+
+使用者自己做標，逆向的是 **SHIMANO ZERO-PIT TYPE-D 0号 M**。列印端的規格寫在
+`float/PRINT.md`（體例照 `convert/AUDIT.md`，放在它描述的那一頁旁邊）。
+這裡只記會害人重做一次的事。
+
+- **Fusion 的 `.f3d` 是 ZIP，但用 compression method 93 ＝ Zstandard**（ZIP 規格 6.3.7+）。
+  Python 的 `zipfile` 會丟 `NotImplementedError: That compression method is not supported`
+  ——那不是檔案壞了。要自己走 local file header（offset +26 讀檔名長與 extra 長）
+  再把 payload 丟給 zstd 解。實測 111 個 entry、66 個非空，全解得開。
+- **`.smb`／`.smbh` 是 ASM BinaryFile4（Autodesk Neutron），沒有公開 parser。**
+  撈得到零散座標（tag `0x13` ＝ 三個 double，單位 cm，而且是漂亮的整數 mm），
+  **但拓樸解不出來，不可以據此宣稱整體尺寸**——實測撈到的 bbox 混進了草圖與建構幾何，
+  不同 body 的「半徑」互相矛盾。要量幾何一律請使用者匯出 STL；STEP 一樣解不了。
+  設計意圖倒是讀得到：`Previews/big.png` 是渲染圖、`Images.BlobParts/*.jpg` 是描圖底圖、
+  `FusionDesignSegmentType1/BulkStream.dat` 的字串裡有完整的特徵型別清單
+  （`DcRevolveFeature`／`DcOffsetFaces`／`DcFilletEdge`…）。
+- **密閉空腔裡的支撐拿不出來，這是這顆標列印方向的第一約束。**
+  CAD 端抽殼的中空體，STL 會**包含內表面**，空腔頂部的內側就是懸空面。
+  所以挑方向要看的是「內外兩側的近水平面積」，不是外觀。
+- **CAD 殼厚決定牆層數的上限。** 殼厚 1.2 mm 配 0.42 mm 線寬就只放得下兩圈牆，
+  在切片器裡把牆層數調到 4 不會變厚、只會讓那個設定沒作用。要加厚回 Fusion 改 OffsetFaces。
+  連帶的：**這種部件的質量主要由 CAD 殼厚決定，不是由填充密度決定**，與一般直覺相反。
+- **水密性是後續浮力工作的前提，不是外觀問題。** 會滲水的標餘浮力每次下水都不一樣，
+  配鉛試算給出的每一個數字都會是錯的。判定式是「泡 24 小時後重秤，Δ質量＝進水量」。
+  而 **FDM 不會因為參數調對就變水密**，那是製程性質，封層要靠外塗。
+- **LW-PLA（發泡）在這裡是陷阱**：發泡率隨溫度變 → 同一份切片印兩次質量不同 →
+  質量不可重現 → 後續浮力工作沒有基準；而且多孔，不可能水密。
+
+#### 量幾何 `scripts/float-print-geom.mjs`
+
+人工執行，吃一份 STL，回報體積／表面積／外廓，以及**六個列印方向各自的懸空面積佔比
+與貼板面積**。**刻意不進 `verify.sh` 與 CI**，理由同 `float-source-audit.mjs`：
+它吃的是 repo 外的使用者檔案，CI 上沒有那個檔，放進閘門只會變成永遠跳過的空轉。
+純函式由 `backend/test/float-print-geom.test.js` 蓋著（12 條，不碰檔案系統，
+fixture 在記憶體裡生），**所以那支工具必須有 isMain guard**。
+
+```
+node scripts/float-print-geom.mjs model.stl            六個方向都比一遍
+node scripts/float-print-geom.mjs model.stl --axis +z   只看一個方向
+```
+
+寫進判準裡的事：
+
+- **它不算質量、不算浮力。** 體積是幾何，質量是材料與切片參數的結果——
+  Bambu Studio 自己會預估、磅秤會定案。同「不要為了 UI 完整性製造不可驗證的連續數值」那條。
+  有一條測試用 `doesNotMatch` 釘住報告裡不得出現克數與浮力字樣。
+- **二進位的判法是長度等式**（`84 + 50 × count === byteLength`），不是「開頭不是 solid」
+  ——有些工具產出的二進位 STL，那 80 bytes 的 header 裡也寫著 solid。
+- **檔案自述的法向量一律不採用**，由頂點繞向自己算。很多檔案那裡是 0 或與繞向矛盾，
+  採用它的話「繞向翻了」就反映不到體積的正負號上。
+- **不閉合不回報體積、有號體積是負的要明講**，不可以靜靜 `Math.abs`。兩條都做過反向測試
+  （把邊計數放寬成 `n < 1`、把 `meshVolume` 改成取絕對值），各自確認會紅後還原。
+- **懸空角的定義**：`asin(−dot(n,u))`，垂直牆 0°、45° 倒角 45°、水平天花板 90°，
+  與切片器「支撐門檻 45°」比的是同一個角。
+- **球面 fixture 驗的是收斂階數不是門檻值**：內接多面體誤差是單邊的，「有沒有變小」太鬆。
+  每細分一層誤差應掉成約 1/4（實測 2→5 層：8.86%／2.32%／0.587%／0.147%）。
+  叉積係數寫錯時體積照樣隨細分變大，只有收斂比會露餡。
+- **STL 不自述單位，工具不猜**，同時印 mm 與 cm 兩種讀法由人對照 Fusion 確認。
+- **抽殼件的體積是「材料體積」，不是「排水體積」。** 這是最容易拿錯的一個數字：
+  抽殼後的標身匯出成 STL，圍出來的是殼本身（實測一顆 24 × 32 mm、殼厚 1.2 mm
+  的蛋形標是 2.1 cm³），中空腔不算在內。材料體積估質量是對的，**排水體積要另外
+  匯出一份未抽殼的外形**。後續算浮力時用錯哪一個會差好幾倍，所以報告每次都講一次，
+  也有一條測試釘住那句話一定要出現。
+
 ## data/ 是 CI 寫的
 
 **每一份會上線的 CI 產出都要有一支讀它的測試，而且要掛在該 workflow 的 commit 閘門上。**
