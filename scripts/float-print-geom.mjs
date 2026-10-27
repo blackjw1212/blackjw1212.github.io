@@ -192,24 +192,60 @@ export function overhangHistogram(triangles, axis, sign) {
   return { bins, upright, total, needsSupport, supportRatio: total ? needsSupport / total : 0 };
 }
 
-// 貼板面積：落在最低平面附近、且朝下的面。蛋形標很可能幾乎為 0——那本身就是結論
-// （沒有可貼的平面＝要 brim／raft／支撐），所以回 0 也要照實印出來。
-export function firstLayerFootprint(triangles, axis, sign, relTol = 1e-4) {
+// 貼板面積：離床面 band 以內、而且朝下的面，投影到床面上的面積。
+// 第一版只認「完全落在最低平面上」的面，實測一顆真的阿波報 0.00——它兩端都是圓角，
+// 沒有任何一個面是精確的平面，但第一層高度（0.2 mm）內其實有一圈 17 mm² 的接觸環。
+// 0.00 的結論（要 brim）雖然沒錯，量級卻是錯的；所以改量「第一層會壓到的那一圈」。
+// band 以 STL 單位計，預設 0.2——那是假設單位是 mm，報告會把這個假設印出來。
+// 只算朝下的面：band 夠大時頂面也會落進來，但頂面不會貼床。
+export function firstLayerFootprint(triangles, axis, sign, band = 0.2) {
   const box = boundingBox(triangles);
-  if (!box) return { area: 0, planeTol: 0 };
-  const extent = box.size[axis] || 1;
-  const tol = extent * relTol;
+  if (!box) return { area: 0, band };
   const floor = sign > 0 ? box.min[axis] : -box.max[axis];
   let area = 0;
   for (const t of triangles) {
     const h = [0, 1, 2].map((v) => sign * t[v * 3 + axis]);
-    if (Math.max(...h) - floor > tol) continue;
+    if (Math.max(...h) - floor > band) continue;
     const [ax, ay, az, bx, by, bz, cx, cy, cz] = t;
-    const [nx, ny, nz] = cross(bx - ax, by - ay, bz - az, cx - ax, cy - ay, cz - az);
+    const n = cross(bx - ax, by - ay, bz - az, cx - ax, cy - ay, cz - az);
+    if (sign * n[axis] >= 0) continue;
     // 叉積長度是面積的兩倍，所以投影到垂直於列印軸的平面上就是該分量的一半。
-    area += Math.abs([nx, ny, nz][axis]) / 2;
+    area += Math.abs(n[axis]) / 2;
   }
-  return { area, planeTol: tol };
+  return { area, band };
+}
+
+// 拆成彼此不相連的零件。Fusion 匯出組合件時，所有 body 會擠在同一份 STL 裡
+// （實測：標身與中通管兩件），而兩件不會用同一個方向上板——混在一起算方向比較，
+// 中通管的面積會把標身的懸空佔比稀釋掉（實測 +z 從 11.8% 被拉成 9.7%）。
+// 頂點量化規則與 edgeAudit 相同。
+export function splitComponents(triangles, quantum = 1e-6) {
+  const q = (v) => Math.round(v / quantum);
+  const key = (t, i) => `${q(t[i * 3])},${q(t[i * 3 + 1])},${q(t[i * 3 + 2])}`;
+  const parent = new Map();
+  const find = (x) => {
+    while (parent.get(x) !== x) {
+      parent.set(x, parent.get(parent.get(x)));
+      x = parent.get(x);
+    }
+    return x;
+  };
+  for (const t of triangles) {
+    const k = [key(t, 0), key(t, 1), key(t, 2)];
+    for (const v of k) if (!parent.has(v)) parent.set(v, v);
+    for (const [a, b] of [[k[0], k[1]], [k[1], k[2]]]) {
+      const ra = find(a);
+      const rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    }
+  }
+  const groups = new Map();
+  for (const t of triangles) {
+    const root = find(key(t, 0));
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(t);
+  }
+  return [...groups.values()].sort((a, b) => b.length - a.length);
 }
 
 // --- 報告 -----------------------------------------------------------------
@@ -261,23 +297,40 @@ export function formatReport(parsed, mode) {
     }
   }
 
-  const axes = mode.axis ? AXES.filter((a) => a.key === mode.axis) : AXES;
-  lines.push("");
-  lines.push("列印方向比較（懸空角＝面與垂直的夾角；> 45° 是一般支撐門檻）");
-  lines.push("  朝上軸   需支撐面積佔比   0–30°    30–45°   45–60°   60–80°   80–90°   貼板面積");
-  for (const a of axes) {
-    const h = overhangHistogram(triangles, a.axis, a.sign);
-    const f = firstLayerFootprint(triangles, a.axis, a.sign);
-    const pct = (v) => `${((h.total ? v / h.total : 0) * 100).toFixed(1)}%`.padStart(7);
-    lines.push(
-      `  ${a.key.padEnd(8)} ${`${(h.supportRatio * 100).toFixed(1)}%`.padStart(13)}   ` +
-        `${pct(h.bins[0])}  ${pct(h.bins[1])}  ${pct(h.bins[2])}  ${pct(h.bins[3])}  ${pct(h.bins[4])}  ` +
-        `${n2(f.area).padStart(8)}`
-    );
+  const parts = splitComponents(triangles);
+  if (parts.length > 1) {
+    lines.push("");
+    lines.push(`這份 STL 有 ${parts.length} 個彼此不相連的零件（Fusion 匯出組合件時會擠在一起）。`);
+    lines.push("方向比較逐件做——不同零件不會用同一個方向上板，混算會互相稀釋。");
+    parts.forEach((part, i) => {
+      const b = boundingBox(part);
+      const closed = edgeAudit(part).closed;
+      const v = closed ? `體積 ${n3(meshVolume(part))} 單位³` : "不閉合，不回報體積";
+      lines.push(`  零件 #${i + 1}：${part.length} 個三角形，外廓 ${b.size.map(n2).join(" × ")}，${v}`);
+    });
   }
+
+  const axes = mode.axis ? AXES.filter((a) => a.key === mode.axis) : AXES;
+  parts.forEach((part, i) => {
+    lines.push("");
+    const label = parts.length > 1 ? `零件 #${i + 1} ` : "";
+    lines.push(`${label}列印方向比較（懸空角＝面與垂直的夾角；> 45° 是一般支撐門檻）`);
+    lines.push("  朝上軸   需支撐面積佔比   0–30°    30–45°   45–60°   60–80°   80–90°   貼板面積");
+    for (const a of axes) {
+      const h = overhangHistogram(part, a.axis, a.sign);
+      const f = firstLayerFootprint(part, a.axis, a.sign);
+      const pct = (v) => `${((h.total ? v / h.total : 0) * 100).toFixed(1)}%`.padStart(7);
+      lines.push(
+        `  ${a.key.padEnd(8)} ${`${(h.supportRatio * 100).toFixed(1)}%`.padStart(13)}   ` +
+          `${pct(h.bins[0])}  ${pct(h.bins[1])}  ${pct(h.bins[2])}  ${pct(h.bins[3])}  ${pct(h.bins[4])}  ` +
+          `${n2(f.area).padStart(8)}`
+      );
+    }
+  });
   lines.push("");
+  lines.push("  貼板面積＝離床 0.2 單位以內、朝下的面的投影（假設單位是 mm，即第一層高度）。");
   lines.push("  「需支撐面積佔比」最小的那一列是懸空最少的方向，但不是唯一判準：");
-  lines.push("  貼板面積太小會黏不住（要 brim／raft），而接縫落在哪裡要另外看。");
+  lines.push("  貼板面積太小會黏不住（要 brim／raft），支撐落在哪一面、接縫落在哪裡要另外看。");
 
   return lines.join("\n");
 }

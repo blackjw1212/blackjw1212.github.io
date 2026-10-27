@@ -14,6 +14,7 @@ import {
   overhangHistogram,
   parseStl,
   resolveMode,
+  splitComponents,
 } from "../../scripts/float-print-geom.mjs";
 
 // 這支測試刻意不碰檔案系統：fixture 全部在記憶體裡生。
@@ -196,6 +197,49 @@ test("報告：單位不猜，兩種讀法都印；而且不產生任何質量�
   // 這支工具刻意不算質量／浮力——同 CLAUDE.md 不得製造不可驗證數值那條。
   assert.doesNotMatch(report, /\d\s*(?:g|公克|克)\b/);
   assert.doesNotMatch(report, /浮力|餘浮力|配鉛/);
+});
+
+const shift = (tris, dx) => tris.map((t) => t.map((v, k) => (k % 3 === 0 ? v + dx : v)));
+
+test("組合件：拆成不相連的零件，各自體積正確", () => {
+  // Fusion 匯出組合件時所有 body 擠在同一份 STL（實測：標身＋中通管）。
+  const two = [...unitCube(), ...shift(unitCube(), 5)];
+  const parts = splitComponents(two);
+  assert.equal(parts.length, 2);
+  for (const part of parts) {
+    assert.equal(part.length, 12);
+    assert.ok(Math.abs(meshVolume(part) - 1) < 1e-12);
+  }
+  assert.equal(splitComponents(unitCube()).length, 1);
+});
+
+test("組合件：報告逐件列出，方向比較也逐件做", () => {
+  const two = [...unitCube(), ...shift(unitCube(), 5)];
+  const report = formatReport({ format: "binary", triangles: two }, { axis: "+z" });
+  assert.match(report, /2 個彼此不相連的零件/);
+  assert.match(report, /零件 #1 列印方向比較/);
+  assert.match(report, /零件 #2 列印方向比較/);
+  // 單件時不印零件編號，避免多一層無意義的標籤。
+  assert.doesNotMatch(formatReport({ format: "binary", triangles: unitCube() }, { axis: "+z" }), /零件 #/);
+});
+
+test("貼板面積只算朝下的面：band 大到涵蓋頂面時，頂面仍不算", () => {
+  // 第一版只認精確落在最低平面上的面，對兩端都是圓角的真實阿波報 0.00。
+  // 改成 band 之後要確認：band 再大，朝上的頂面也不會被當成貼床。
+  const cube = unitCube();
+  assert.ok(Math.abs(firstLayerFootprint(cube, 2, 1, 0.2).area - 1) < 1e-9);
+  assert.ok(Math.abs(firstLayerFootprint(cube, 2, 1, 5).area - 1) < 1e-9, "頂面朝上，不可以算進貼板面積");
+});
+
+test("貼板面積：圓角底部在第一層高度內仍量得到接觸環", () => {
+  // 球的最低點附近沒有任何精確平面，舊版會報 0；band 版必須量得到東西，
+  // 而且量級要對：半徑 1 的球，離底 h 以內的球冠投影面積 = π(2h − h²)。
+  const ball = sphere(5);
+  const h = 0.2;
+  const expected = Math.PI * (2 * h - h * h);
+  const got = firstLayerFootprint(ball, 2, 1, h).area;
+  assert.ok(got > 0, "圓底在第一層高度內一定有接觸面積");
+  assert.ok(Math.abs(got - expected) / expected < 0.2, `應接近 ${expected.toFixed(3)}，實得 ${got.toFixed(3)}`);
 });
 
 test("空網格不會爆，也不會假裝量得到東西", () => {
