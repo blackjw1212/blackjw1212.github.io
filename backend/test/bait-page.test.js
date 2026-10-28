@@ -1316,7 +1316,7 @@ test("味精：品項庫留著味王 味精，但 T17 不加（同種試驗中�
   assert.ok(!tilapia.stocks.some((x) => x.id === "MSG"), "原料表不列沒有組在用的味精");
   assert.match(item.notes, /不加/, "品項備註要說出已經不加");
   const ev = tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多");
-  assert.deepEqual(ev.sources, ["X2", "X3", "X17"], "近緣種的兩篇＋同種中性那篇（2026-10-09）");
+  assert.deepEqual(ev.sources, ["X2", "X3", "X17", "X29"], "近緣種的兩篇＋同種中性的兩篇（2026-10-09；X29 於 2026-10-28 補上）");
   assert.ok(tilapia.sources.some((x) => x.id === "X2" && x.seenVia === "opened"));
 });
 
