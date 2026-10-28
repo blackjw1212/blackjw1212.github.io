@@ -1497,3 +1497,26 @@ test("添加劑證據：色胺酸、麩胺酸同種味覺中性；黑鯛的嗅�
   assert.deepEqual(ev(bream, "甘胺酸的嗅覺反應弱、丙胺酸強（近緣種）").sources, ["X19"]);
   assert.doesNotMatch(bream.sources.find((x) => x.id === "C32").title, /書評/);
 });
+
+test("福壽魚證據：2026-10-28 核對過全文的五篇（蝦萃液、膽汁、有機酸、兩篇水解物）", async () => {
+  const { app } = await loadPage();
+  const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
+  const ev = (claim) => tilapia.evidence.find((e) => e.claim === claim);
+  const src = (id) => tilapia.sources.find((x) => x.id === id);
+  for (const id of ["X24", "X25", "X26", "X27", "X28"]) assert.equal(src(id).seenVia, "opened", id + " 是讀過全文的");
+  // 蝦萃液：開口那一層，不是誘魚；上清液裡還有水溶性蛋白，不可以寫成「不需要蛋白質」
+  assert.deepEqual(ev("蝦、紅蟲的水萃液讓吳郭魚吞下去").sources, ["X24"]);
+  assert.match(ev("蝦、紅蟲的水萃液讓吳郭魚吞下去").text, /不是誘魚/);
+  assert.match(ev("蝦、紅蟲的水萃液讓吳郭魚吞下去").text, /吃慣/, "魚每天餵活紅蟲，要說出來");
+  assert.doesNotMatch(ev("蝦、紅蟲的水萃液讓吳郭魚吞下去").text, /不需要蛋白質/);
+  // 膽汁那篇與蝦萃液那篇共用對照、有機酸那篇很可能跟 X17 是同一批魚：都不算獨立重複
+  assert.match(ev("膽汁成分讓吳郭魚吐掉").text, /不算獨立重複/);
+  assert.match(ev("山梨酸鉀、草酸讓吳郭魚吞下去").text, /不算第二次獨立驗證/);
+  assert.match(ev("山梨酸鉀、草酸讓吳郭魚吞下去").text, /山梨酸（游離酸）41\.7%/);
+  // 水解物：以表格為準（摘要把 12.27% 掛錯組）；水解物不等於肝粉
+  assert.deepEqual(ev("豬肝水解物沒有比魚粉好吃").sources, ["X27", "X28"]);
+  assert.match(ev("豬肝水解物沒有比魚粉好吃").text, /以表格為準/);
+  assert.match(ev("豬肝水解物沒有比魚粉好吃").text, /水解物不等於肝粉/);
+  // 這次只補證據，配方不動
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18"]);
+});
