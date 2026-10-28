@@ -1520,3 +1520,22 @@ test("福壽魚證據：2026-10-28 核對過全文的五篇（蝦萃液、膽汁
   // 這次只補證據，配方不動
   assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18"]);
 });
+
+test("福壽魚證據：2026-10-28 第二輪（異構體、研討會摘要、香料與塗層）", async () => {
+  const { app } = await loadPage();
+  const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
+  const ev = (claim) => tilapia.evidence.find((e) => e.claim === claim);
+  // 只有摘要、沒有吞食率的不可以標成文獻支持
+  assert.equal(ev("砂糖、葡萄糖等多種糖讓幼魚多吃（只有摘要）").grade, "claimed");
+  assert.equal(ev("多種有機酸讓成魚多吃（另一批魚，只有摘要）").grade, "claimed");
+  // 甘胺酸：摘要說有效、全文說中性，要寫成分歧，而且以全文為準
+  assert.equal(ev("甘胺酸讓成魚多吃嗎").grade, "conflicting");
+  assert.match(ev("甘胺酸讓成魚多吃嗎").text, /全文比摘要可信/);
+  // 異構體那篇跟有機酸那篇共用空白與魚
+  assert.match(ev("L 型、D 型胺基酸都沒有讓吳郭魚多吃").text, /不算獨立重複/);
+  // 誘魚：沒有任何買得到的東西有只靠氣味的行為證據
+  assert.match(ev("市售香料、魚油塗層沒有讓吳郭魚更快過來或多吃").text, /只靠氣味/);
+  assert.match(ev("市售香料、魚油塗層沒有讓吳郭魚更快過來或多吃").text, /不能算香料的效果/);
+  // 配方不動
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18"]);
+});
