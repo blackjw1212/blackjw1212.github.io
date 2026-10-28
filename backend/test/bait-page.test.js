@@ -1561,3 +1561,17 @@ test("T19：山梨酸鉀（己二烯酸鉀）0.1 M 單獨一組跟 T1 比（使�
   // 每公斤欄：以拌餌水起點 150 g 計，9 g × 150／600 ＝ 2.25 g 進到 200 g 乾料
   assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).KSO), "主餌乾料 11.25 g");
 });
+
+test("實驗組編號不可以跟任何魚種、任何頁的來源編號撞名（臭肚來源 T1–T6 改為 R1–R6，2026-10-28）", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const sourceIds = new Set([
+    ...plain(h.FISH_REF).flatMap((f) => f.sources.map((s) => s.id)),
+    ...plain(h.ADDITIVES).flatMap((p) => p.sources.map((s) => s.id))
+  ]);
+  for (const plan of plain(h.ADDITIVES)) {
+    for (const g of plan.groups) assert.ok(!sourceIds.has(g.id), plan.species + " 的 " + g.id + " 跟來源編號撞名");
+  }
+  const chou = plain(h.FISH_REF).find((f) => f.species === "臭肚");
+  assert.deepEqual(chou.sources.map((s) => s.id), ["R1", "R2", "R3", "R4", "R5", "R6"]);
+});
