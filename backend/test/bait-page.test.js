@@ -977,7 +977,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.equal(effective.TRP, undefined);
   assert.equal(effective.MSG, undefined);
   // 基準組＝兩份預設配方原樣，實驗組 T17（使用者指定，2026-10-08）＋T18 半胱胺酸單獨一組（使用者指定，2026-10-10）
-  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18"]);
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19"]);
   // G5（沿用舊 G5＝底餌加半胱胺酸的編號；G2 是紅蟲萃取，不准回來）：底餌拌餌水加半胱胺酸鹽酸鹽，跟 T18 同一個濃度（16.7 g／1000 g 水 ＝ 10 g／600 g），跟 G1 比（使用者指定，2026-10-11）
   const g5 = tilapia.groups.find((g) => g.id === "G5");
   assert.equal(g5.stage, "attract");
@@ -1022,7 +1022,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
   // 只放使用者買了、而且有研究支持的原料（2026-09-27）：鳳梨精、糖精鈉、蘋果酸、香精、奶甜液、原報告果酸液不得回來
   // T17 用到的四樣＋T18 的半胱胺酸鹽酸鹽（2026-10-10）；南極蝦粉沒有任何組在用，不列
-  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "SOR"]);
+  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "KSO", "SOR"]);
   // T18：半胱胺酸單獨一組跟 T1 比，照 X17 有效的 0.1 M——10 g 溶進 600 g 水，無水物或一水合物都在 0.1 M 附近
   const t18 = tilapia.groups.find((g) => g.id === "T18");
   assert.deepEqual(t18.doses, [["CYS", 10]]);
@@ -1423,7 +1423,7 @@ test("T17：檸檬酸 0.1 M＋另三樣各 3 g 跟 T1 比；第二段固定 600 
   assert.match(bite.base, /拌餌水起點 150 g、分次加到成團/);
   assert.match(bite.base, /最多加到 200 g/);
   assert.match(bite.base, /照原料特性估的/, "150 g 沒有來源，要說出來");
-  assert.match(bite.base, /三組都照那個量加/, "水量每組都要一樣");
+  assert.match(bite.base, /四組都照那個量加/, "水量每組都要一樣");
   assert.match(bite.base, /未驗證/, "溶液能放多久沒有資料，要說出來");
   assert.match(bite.base, /一杯 600 g 每次用 150～200 g，可以用 3～4 次/, "用剩的留到下次（使用者，2026-10-08／10-11）");
   assert.doesNotMatch(bite.base, /正好用三次/, "每次 200 g 的舊說法不得退回");
@@ -1517,8 +1517,8 @@ test("福壽魚證據：2026-10-28 核對過全文的五篇（蝦萃液、膽汁
   assert.deepEqual(ev("豬肝水解物沒有比魚粉好吃").sources, ["X27", "X28"]);
   assert.match(ev("豬肝水解物沒有比魚粉好吃").text, /以表格為準/);
   assert.match(ev("豬肝水解物沒有比魚粉好吃").text, /水解物不等於肝粉/);
-  // 這次只補證據，配方不動
-  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18"]);
+  // 實驗組清單（2026-10-28 加 T19）
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19"]);
 });
 
 test("福壽魚證據：2026-10-28 第二輪（異構體、研討會摘要、香料與塗層）", async () => {
@@ -1536,6 +1536,28 @@ test("福壽魚證據：2026-10-28 第二輪（異構體、研討會摘要、香
   // 誘魚：沒有任何買得到的東西有只靠氣味的行為證據
   assert.match(ev("市售香料、魚油塗層沒有讓吳郭魚更快過來或多吃").text, /只靠氣味/);
   assert.match(ev("市售香料、魚油塗層沒有讓吳郭魚更快過來或多吃").text, /不能算香料的效果/);
-  // 配方不動
-  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18"]);
+  // 實驗組清單（2026-10-28 加 T19）
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19"]);
+});
+
+test("T19：山梨酸鉀（己二烯酸鉀）0.1 M 單獨一組跟 T1 比（使用者指定，2026-10-28）", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
+  const t19 = tilapia.groups.find((g) => g.id === "T19");
+  assert.equal(t19.stage, "bite");
+  assert.deepEqual(t19.doses, [["KSO", 9]]);
+  assert.deepEqual(t19.compare, ["T1"]);
+  // 0.1 M：9.0 g ÷ 150.22（PubChem）÷ 0.6 L
+  assert.ok(Math.abs(9 / 150.22 / 0.6 - 0.1) < 0.001);
+  const kso = tilapia.stocks.find((x) => x.id === "KSO");
+  assert.match(kso.name, /己二烯酸鉀/);
+  assert.match(kso.note, /不是「己二烯酸」/, "買錯成酸形式會反效果，要說出來");
+  assert.match(kso.note, /還沒買/);
+  assert.match(kso.made, /單獨一杯/);
+  // 證據只有一批魚、共用空白，要說出來
+  assert.match(t19.purpose, /只有一批成魚/);
+  assert.ok(tilapia.summary.some((row) => row.stocks.includes("KSO")));
+  // 每公斤欄：以拌餌水起點 150 g 計，9 g × 150／600 ＝ 2.25 g 進到 200 g 乾料
+  assert.equal(h.stockPerKgText(plain(h.stockPerKg(tilapia)).KSO), "主餌乾料 11.25 g");
 });
