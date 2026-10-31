@@ -1316,7 +1316,7 @@ test("味精：品項庫留著味王 味精，但 T17 不加（同種試驗中�
   assert.ok(!tilapia.stocks.some((x) => x.id === "MSG"), "原料表不列沒有組在用的味精");
   assert.match(item.notes, /不加/, "品項備註要說出已經不加");
   const ev = tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多");
-  assert.deepEqual(ev.sources, ["X2", "X3", "X17", "X29"], "近緣種的兩篇＋同種中性的兩篇（2026-10-09；X29 於 2026-10-28 補上）");
+  assert.deepEqual(ev.sources, ["X2", "X3", "X17", "X29", "X26"], "近緣種的兩篇＋同種中性的兩篇＋酸與鹽味道相反的那篇（2026-10-09；X29 於 2026-10-28、X26 於 2026-10-31 補上）");
   assert.ok(tilapia.sources.some((x) => x.id === "X2" && x.seenVia === "opened"));
 });
 
@@ -1613,4 +1613,19 @@ test("證據強弱排名：兩個魚種都有、開口與靠過來分開、來�
   for (const row of bream.ranking.layers[0].rows) assert.match(row.level, /近緣種真鯛/, row.name);
   // 品項庫欄位照當下的品項庫判斷，所以品項一變要重畫添加劑頁
   assert.match(html, /function renderItems\(\) \{\s*\/\*[^*]*\*\/\s*renderAdditives\(\);/);
+});
+
+test("排名表與證據等級不能各說各話：濃度、分歧、酸與鈉鹽都要交代（2026-10-31）", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  const tilapia = plans.find((p) => p.species === "福壽魚");
+  const bream = plans.find((p) => p.species === "黑鯛");
+  const neutral = tilapia.ranking.layers[0].rows.find((r) => r.rank === "中性");
+  assert.match(neutral.result, /只測過 0\.01 M/, "色胺酸、麩胺酸的中性只在 0.01 M");
+  assert.match(neutral.result, /甘胺酸另有一份研討會摘要說有效/);
+  assert.ok(neutral.sources.includes("X31"));
+  // 味精是麩胺酸鈉，研究測的是麩胺酸：三個地方都要說
+  assert.match(neutral.result, /味精是麩胺酸鈉/);
+  assert.match(tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多").text, /味精本身沒有人測過/);
+  assert.match(bream.ranking.layers[0].rows.find((r) => r.name === "L-麩胺酸").result, /味精本身沒有人測過/);
 });
