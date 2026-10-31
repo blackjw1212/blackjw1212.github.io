@@ -21,7 +21,7 @@
 | S8 | （已撤）漁庫 中國羅非魚配方 | 網址未留存 | — | 2026-09-15 審查：無法覆核它到底講了什麼，從頁面資料移除，編號保留不重用 |
 | S9 | 池釣狂熱 商品清單 | https://gofish.qdm.tw/ | 開過 | 2026-09-25 重開首頁只有粒子與「清水福冷凍餌」，先前記的「冷凍純肝」找不到，頁面已不用它撐「肝」 |
 | S10 | 頭城東區釣具 釣卡多 141 肝粒 | https://mall.iopenmall.tw/044538/index.php?action=product_detail&prod_no=P4453806699791 | 開過 | 2026-09-25 重開：只讀得到商品名稱（肝粒、粒子），成分內文是動態載入 |
-| S11 | Yahoo 知識＋／天闊釣魚網 | https://tw.answers.yahoo.com/question/index?qid=20111013000010KK08520 ／ https://www.fishingtw.com/tqyuxing/yuxing/2012-08-26/13214.html | 開過 | 2026-09-25 重開：Yahoo 知識＋已失效（導向入口網）；天闊那篇經 Wayback 2015 存檔讀到「蕃薯＋香料＋蝦粉」、用酸是為了防小魚盜餌；全文沒有季節與肝，頁面已拿掉那些引用 |
+| S11 | 天闊釣魚網《吳郭魚吃什麼》（Wayback 存檔）／Yahoo 知識＋（已失效） | https://tw.answers.yahoo.com/question/index?qid=20111013000010KK08520 ／ https://www.fishingtw.com/tqyuxing/yuxing/2012-08-26/13214.html | 開過 | 2026-09-25 重開：Yahoo 知識＋已失效（導向入口網）；天闊那篇經 Wayback 2015 存檔讀到「蕃薯＋香料＋蝦粉」、用酸是為了防小魚盜餌；全文沒有季節與肝，頁面已拿掉那些引用 |
 | S12 | 老百王 福壽紅餌 包裝成分表 | — | 使用者提供 | |
 | S13 | 狂電 2 號 包裝成分表 | — | 使用者提供 | |
 | S14 | 誠誠《福壽淺談（下）釣技剖析》 | https://n67666.pixnet.net/blog/posts/10025532917 | 開過 | 粒子＝飼料成分＋添加劑；玉米釣法 |
