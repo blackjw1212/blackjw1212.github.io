@@ -1575,3 +1575,16 @@ test("實驗組編號不可以跟任何魚種、任何頁的來源編號撞名�
   const chou = plain(h.FISH_REF).find((f) => f.species === "臭肚");
   assert.deepEqual(chou.sources.map((s) => s.id), ["R1", "R2", "R3", "R4", "R5", "R6"]);
 });
+
+test("證據等級的標題講的是研究結果，不是購買建議；每公斤欄要說出用哪個水量算（2026-10-31）", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  // 頁面自稱「不給任何開餌建議」，證據標題不可以寫成「不必買」這種結論
+  for (const p of plans) for (const e of p.evidence) assert.doesNotMatch(e.claim, /不必買|該買|必買/, p.species + "：" + e.claim);
+  const tilapia = plans.find((p) => p.species === "福壽魚");
+  assert.ok(tilapia.evidence.some((e) => e.claim === "DMPT、甜菜鹼沒有讓吳郭魚多吃（一篇摘要）"));
+  // 拌餌水是「起點、分次加」，每公斤欄只能用起點算，要說出來
+  assert.match(tilapia.stages.find((s) => s.id === "attract").base, /每公斤欄以起點 650 g 計/);
+  assert.match(tilapia.stages.find((s) => s.id === "bite").base, /原料表的每公斤欄算的就是這個量/);
+  assert.match(plans.find((p) => p.species === "黑鯛").stages.find((s) => s.id === "attract").base, /每公斤欄以這個起點計/);
+});
