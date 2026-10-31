@@ -1588,3 +1588,29 @@ test("證據等級的標題講的是研究結果，不是購買建議；每公�
   assert.match(tilapia.stages.find((s) => s.id === "bite").base, /原料表的每公斤欄算的就是這個量/);
   assert.match(plans.find((p) => p.species === "黑鯛").stages.find((s) => s.id === "attract").base, /每公斤欄以這個起點計/);
 });
+
+test("證據強弱排名：兩個魚種都有、開口與靠過來分開、來源與品項都對得上（2026-10-31）", async () => {
+  const { app, html } = await loadPage();
+  const h = app.helpers;
+  const seedIds = new Set(plain(h.seed()).items.map((i) => i.id));
+  for (const plan of plain(h.ADDITIVES)) {
+    assert.ok(plan.ranking, plan.species + " 要有排名");
+    assert.deepEqual(plan.ranking.layers.map((l) => l.layer), ["開口（味覺）", "靠過來（嗅覺）"], plan.species + " 兩層要分開");
+    assert.match(plan.ranking.note, /不是使用建議/, "排名不可以變成建議");
+    const srcIds = new Set(plan.sources.map((s) => s.id));
+    for (const layer of plan.ranking.layers) {
+      assert.ok(layer.rows.length > 0);
+      for (const row of layer.rows) {
+        assert.ok(row.sources.length > 0, plan.species + " " + row.name + " 沒有來源");
+        for (const id of row.sources) assert.ok(srcIds.has(id), plan.species + " " + row.name + " 引用了不存在的來源 " + id);
+        for (const id of row.itemIds) assert.ok(seedIds.has(id), plan.species + " " + row.name + " 指向不存在的品項 " + id);
+      }
+    }
+  }
+  // 黑鯛開口那一層全部是真鯛的資料，要說出來
+  const bream = plain(h.ADDITIVES).find((p) => p.species === "黑鯛");
+  assert.match(bream.ranking.note, /沒有任何單一物質的吞食數據/);
+  for (const row of bream.ranking.layers[0].rows) assert.match(row.level, /近緣種真鯛/, row.name);
+  // 品項庫欄位照當下的品項庫判斷，所以品項一變要重畫添加劑頁
+  assert.match(html, /function renderItems\(\) \{\s*\/\*[^*]*\*\/\s*renderAdditives\(\);/);
+});
