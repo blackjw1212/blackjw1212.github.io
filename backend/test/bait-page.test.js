@@ -865,8 +865,9 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   assert.equal(generations.length, 3);
   // 備註多兩代：2026-09-25 來源核對改了出處標注、2026-10-07 去掉跟組成列與證據等級重複的句子（組成都沒變）；
   // 2026-10-08 改成 150 g 時水量跟著減半；2026-10-11 水量改成照原料特性估、從 75 ml 分次加；
-  // 2026-11-02 證據等級不在頁面上顯示，拿掉「出處見證據等級」與來源編號
-  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 7);
+  // 2026-11-02 證據等級不在頁面上顯示，拿掉「出處見證據等級」與來源編號；
+  // 同日複查：「沒有來源給過」是錯的（蝦粉：麵粉跟日本教學頁同比例），改寫
+  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 8);
   const pasteOf = (state) => state.recipes.find((r) => r.id === PASTE);
   for (const gen of generations) {
     const oldPaste = plain(h.sanitizeState(seed));
@@ -1717,7 +1718,49 @@ test("添加劑頁可見文字與預設備註不引用已不顯示的組別、�
   // 已存過的裝置靠 SEED_FIXES 換過去：每一筆新更正的 from 都是上一版的預設值
   const fixes = plain(h.SEED_FIXES);
   for (const id of ["item-cysteine-noah", "item-glycine-noah", "recipe-main-allpowder", "recipe-blackbream-paste"]) {
-    const latest = fixes.filter((f) => (f.itemId || f.recipeId) === id && f.field === "notes").pop();
-    assert.ok(latest.from.some((old) => CODE.test(old) || HIDDEN.test(old)), id + " 的最新更正要能接住帶代號的舊備註");
+    const mine = fixes.filter((f) => (f.itemId || f.recipeId) === id && f.field === "notes");
+    assert.ok(mine.some((f) => f.from.some((old) => CODE.test(old) || HIDDEN.test(old))), id + " 要有一筆更正接得住帶代號的舊備註");
   }
+});
+
+// 2026-11-02 複查：排名表的每一列都要放在對的層、效果欄講的是同一種量
+test("排名表複查：魚粉蝦粉是近距離吞食不是誘魚、纈胺酸排在丙胺酸前、弱的不列", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
+  const [tBite, tSmell] = tilapia.ranking.layers, [bBite, bSmell] = bream.ranking.layers;
+  // X20 自己說只能當近距離偏好、不是遠距誘魚證據，所以不在「靠過來」
+  assert.ok(!tSmell.rows.some((r) => /魚粉/.test(r.name)));
+  const meal = tBite.rows.find((r) => r.name === "魚粉、蝦粉");
+  assert.match(meal.effect, /對照飼料約 8 顆/, "要說出比的是什麼");
+  assert.match(meal.effect, /不是百分點/);
+  assert.match(tilapia.ranking.note, /魚粉、蝦粉那列是雙選擇試驗的顆數/);
+  // 本種全文排在本種摘要前面
+  const idx = (name) => tBite.rows.findIndex((r) => r.name.startsWith(name));
+  assert.ok(idx("魚粉") < idx("糖精鈉") && idx("檸檬酸") < idx("魚粉"));
+  // 效果欄是「比空白高多少」，絕對吞食率不能當效果大小
+  assert.doesNotMatch(tBite.rows.find((r) => r.name.startsWith("糖精鈉")).effect, /^超過 85%/);
+  // 排名數字連續
+  for (const L of [...tilapia.ranking.layers, ...bream.ranking.layers]) {
+    const nums = L.rows.map((r) => r.rank).filter((r) => /^\d+$/.test(r));
+    // 從 1 起、不跳號（同一級可以並列，例如黑鯛的丙胺酸與纈胺酸都是 2）
+    assert.equal(nums[0], "1", L.layer);
+    for (let i = 1; i < nums.length; i += 1) assert.ok(+nums[i] - +nums[i - 1] <= 1 && +nums[i] >= +nums[i - 1], L.layer + " 跳號：" + nums.join(","));
+  }
+  // 纈胺酸讀圖 45 次、濃度更低就有效：同一級裡排在丙胺酸前面
+  assert.ok(bBite.rows.findIndex((r) => r.name === "L-纈胺酸") < bBite.rows.findIndex((r) => r.name === "L-丙胺酸"));
+  // 精胺酸（原文 −～±）、甘胺酸的嗅覺（近緣種最弱的一群）都是弱，照「弱的不列」拿掉；資料仍在證據等級
+  assert.ok(!bBite.rows.some((r) => r.name === "L-精胺酸"));
+  assert.ok(!bSmell.rows.some((r) => r.name === "甘胺酸"));
+  assert.ok(bream.evidence.some((e) => e.claim === "甘胺酸的嗅覺反應弱、丙胺酸強（近緣種）"));
+  // 練餌備註：蝦粉：麵粉跟日本教學頁同比例，不可以寫成沒有來源
+  const paste = plain(app.helpers.seed()).recipes.find((r) => r.id === "recipe-blackbream-paste");
+  assert.doesNotMatch(paste.notes, /沒有來源給過/);
+  assert.match(paste.notes, /75：55（1：0\.73）/);
+  assert.ok(Math.abs(55 / 75 - 0.733) < 0.001);
+  // 魚種對照原本叫人去添加劑頁看比例，那些段落已不在頁面上；改指向開餌頁的預設配方，名稱要真的存在
+  const fishText = JSON.stringify(plain(app.helpers.FISH_REF));
+  assert.doesNotMatch(fishText, /見添加劑頁/);
+  const titles = plain(app.helpers.seed()).recipes.map((r) => r.title);
+  for (const [, title] of fishText.matchAll(/預設配方「([^」]+)」/g)) assert.ok(titles.includes(title), title);
 });
