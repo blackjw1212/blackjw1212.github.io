@@ -135,6 +135,8 @@ davidluo23《福壽釣史》DNS 失敗。
 
 ## 添加劑（第五頁）
 
+2026-11-02 起添加劑頁不再顯示實驗組、證據等級與來源清單（使用者指定），這張表與頁面程式碼裡的 `ADDITIVES` 資料仍完整保留、測試照樣檢查；頁面上可見的文字也不再引用 X 編號與組別代號。
+
 | 編號 | 來源 | 網址 | 讀取方式 | 備註 |
 |---|---|---|---|---|
 | X1 | Levina、Mikhailova、Kasumyan 2021《Taste preferences and feeding behaviour in the facultative herbivorous fish, Nile tilapia Oreochromis niloticus》J Fish Biol 98(5):1385–1400，DOI 10.1111/jfb.14675 | https://pubmed.ncbi.nlm.nih.gov/33448377/ | 開過 | **摘要原文**（2026-10-10 以 NCBI E-utilities 重抓）；全文付費、Europe PMC 標示 Subscription required，未取得。摘要原文：38 種物質（4 種基本味、21 種 L-胺基酸、12 種糖與糖精鈉，0.1–0.0001 M），單尾魚、標準洋菜丸粒；21 種好吃；>85% 被吞下的是檸檬酸、L-半胱胺酸、L-正纈胺酸、L-異白胺酸、L-纈胺酸、糖精鈉、D-山梨醇；L-半胱胺酸降到 0.01 M、L-正纈胺酸降到 0.001 M 失去效果（每顆低於 242.3 μg 與 23.4 μg）。沒測蘋果酸。未核實：半胱胺酸的化學形式、各物質實際濃度、丸粒體積——摘要的 μg 數與 X17 寫的丸粒體積（12.56 mm³）對不上，不要從摘要反推丸粒大小 |

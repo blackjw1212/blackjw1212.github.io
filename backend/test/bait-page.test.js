@@ -807,7 +807,7 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const seed = plain(h.seed());
   const fixes = plain(h.SEED_FIXES).filter((f) => f.recipeId === "recipe-blackbream-groundbait");
   // 兩代：沒有玉米碎的第一版 → 含蝦磚的第二版 → 3 kg 只算粉料的現在這一版
-  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4", "recipe-blackbream-groundbait:notes:5", "recipe-blackbream-groundbait:notes:6", "recipe-blackbream-groundbait:notes:7"]);
+  assert.deepEqual(fixes.map((f) => f.id).sort(), ["recipe-blackbream-groundbait:items:1", "recipe-blackbream-groundbait:items:2", "recipe-blackbream-groundbait:items:3", "recipe-blackbream-groundbait:notes:1", "recipe-blackbream-groundbait:notes:2", "recipe-blackbream-groundbait:notes:3", "recipe-blackbream-groundbait:notes:4", "recipe-blackbream-groundbait:notes:5", "recipe-blackbream-groundbait:notes:6", "recipe-blackbream-groundbait:notes:7", "recipe-blackbream-groundbait:notes:8"]);
   const oldItems = fixes.find((f) => f.id.endsWith(":items:1")).from[0];
   const oldNotes = fixes.find((f) => f.id.endsWith(":notes:1")).from[0];
   const ESA = "recipe-blackbream-groundbait";
@@ -864,8 +864,9 @@ test("預設配方更正：黑格 A 撒加玉米碎送得到已存過的裝置�
   const generations = pasteFixes.filter((f) => f.field === "items");
   assert.equal(generations.length, 3);
   // 備註多兩代：2026-09-25 來源核對改了出處標注、2026-10-07 去掉跟組成列與證據等級重複的句子（組成都沒變）；
-  // 2026-10-08 改成 150 g 時水量跟著減半；2026-10-11 水量改成照原料特性估、從 75 ml 分次加
-  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 6);
+  // 2026-10-08 改成 150 g 時水量跟著減半；2026-10-11 水量改成照原料特性估、從 75 ml 分次加；
+  // 2026-11-02 證據等級不在頁面上顯示，拿掉「出處見證據等級」與來源編號
+  assert.equal(pasteFixes.filter((f) => f.field === "notes").length, 7);
   const pasteOf = (state) => state.recipes.find((r) => r.id === PASTE);
   for (const gen of generations) {
     const oldPaste = plain(h.sanitizeState(seed));
@@ -1392,7 +1393,9 @@ test("品項庫第二輪去重複：添加劑品項不重抄添加劑頁的加�
   const items = plain(app.helpers.seed()).items;
   for (const item of items.filter((i) => i.kind === "additive")) {
     assert.doesNotMatch(item.notes, /直接秤|依據：|攪溶/, item.name + " 的加法與依據在添加劑頁");
-    assert.match(item.notes, /見添加劑頁/, item.name + " 要指得到添加劑頁");
+    // 已經不加的（色胺酸、味精）不在添加劑頁上了，不能再叫人去那裡找（2026-11-02）
+    if (/起不加/.test(item.notes)) assert.doesNotMatch(item.notes, /添加劑頁/, item.name + " 已不加，不得指向添加劑頁");
+    else assert.match(item.notes, /見添加劑頁/, item.name + " 要指得到添加劑頁");
   }
   for (const item of items) assert.doesNotMatch(item.notes, /\d ?(公斤|kg) ?裝/, item.name + " 的重量卡片上已經有");
 });
@@ -1443,9 +1446,9 @@ test("T17：檸檬酸 0.1 M＋另三樣各 3 g 跟 T1 比；第二段固定 600 
     assert.match(tilapia.evidence.find((e) => e.claim === claim).text, /600 g 水/);
   }
   const items = plain(h.seed()).items;
-  for (const id of ["item-sorbitol-noah", "item-tryptophan-noah", "item-citric-noah", "item-msg-vewong"]) {
-    assert.match(items.find((i) => i.id === id).notes, /T17/, id + " 要列出 T17");
-  }
+  // 實驗組不在頁面上顯示了（2026-11-02），備註不再寫組別代號，改說跟誰溶在同一杯／已經不加
+  for (const id of ["item-sorbitol-noah", "item-citric-noah"]) assert.match(items.find((i) => i.id === id).notes, /同一杯/, id);
+  for (const id of ["item-tryptophan-noah", "item-msg-vewong"]) assert.match(items.find((i) => i.id === id).notes, /起不加/, id);
 });
 
 test("主餌 全乾粉版：整包版（3001 g）的舊裝置換得到 200 g 版，改過的不動", async () => {
@@ -1678,10 +1681,43 @@ test("排名表只列有效果的原料：中性、拒吃、無效、弱都不�
   const { app } = await loadPage();
   for (const p of plain(app.helpers.ADDITIVES)) {
     for (const L of p.ranking.layers) for (const r of L.rows) assert.ok(!["中性", "拒吃", "無效", "弱"].includes(r.rank), p.species + " 排名表還有「" + r.rank + "」列");
-    assert.match(p.ranking.note, /研究結果留在證據等級/);
+    // 證據等級區塊不在頁面上顯示了（2026-11-02），說明不得再指向它
+    assert.match(p.ranking.note, /沒有效果或會拒吃的原料不列在這裡。/);
+    assert.doesNotMatch(p.ranking.note, /留在證據等級/);
   }
   // 拿掉的研究結果仍在證據等級
   const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
   assert.ok(tilapia.evidence.some((e) => e.claim === "膽汁成分讓吳郭魚吐掉"));
   assert.match(tilapia.evidence.find((e) => e.claim === "山梨酸鉀、草酸讓吳郭魚吞下去").text, /山梨酸（游離酸）41\.7%/);
+});
+
+// 實驗組、證據等級、來源三種區塊不在頁面上顯示之後（2026-11-02），畫面上與存進裝置的文字
+// 都不得再引用只在那些區塊裡才查得到的東西：組別代號（T17、M4…）、來源編號（X1、B3…）、
+// 「見證據等級」「第二段」。查得到的對象不在畫面上，留著只會讓人找不到。
+test("添加劑頁可見文字與預設備註不引用已不顯示的組別、來源、證據等級", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const CODE = /(?<![A-Za-z0-9])(?:[TGMK]\d{1,2}|X\d{1,2}|[BCRS]\d{1,2})(?![0-9])/;
+  const HIDDEN = /證據等級|第[一二]段|實驗組/;
+  for (const p of plain(h.ADDITIVES)) {
+    const visible = [p.base, p.ranking.note];
+    for (const r of p.summary || []) visible.push(r.use, r.evidence);
+    for (const L of p.ranking.layers) for (const r of L.rows) visible.push(r.name, r.result, r.effect || "", r.level);
+    for (const s of p.stocks) visible.push(s.name, s.smell || "", s.made, s.note || "");
+    for (const text of visible) {
+      assert.doesNotMatch(text, CODE, p.species + "：" + text.slice(0, 40));
+      assert.doesNotMatch(text.replace(/先比證據強弱/, ""), /見證據等級|留在證據等級|第[一二]段/, p.species + "：" + text.slice(0, 40));
+    }
+  }
+  const seed = plain(h.seed());
+  for (const o of [...seed.items, ...seed.recipes]) {
+    assert.doesNotMatch(o.notes, CODE, o.id + " 備註還有代號");
+    assert.doesNotMatch(o.notes, HIDDEN, o.id + " 備註還指向不顯示的區塊");
+  }
+  // 已存過的裝置靠 SEED_FIXES 換過去：每一筆新更正的 from 都是上一版的預設值
+  const fixes = plain(h.SEED_FIXES);
+  for (const id of ["item-cysteine-noah", "item-glycine-noah", "recipe-main-allpowder", "recipe-blackbream-paste"]) {
+    const latest = fixes.filter((f) => (f.itemId || f.recipeId) === id && f.field === "notes").pop();
+    assert.ok(latest.from.some((old) => CODE.test(old) || HIDDEN.test(old)), id + " 的最新更正要能接住帶代號的舊備註");
+  }
 });
