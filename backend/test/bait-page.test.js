@@ -1662,3 +1662,19 @@ test("排名表的評級寫法一致：一律用文字，原文符號放括號�
   const tilapia = plans.find((p) => p.species === "福壽魚");
   assert.ok(tilapia.ranking.layers[0].rows.every((r) => !/麩胺酸（味精）/.test(r.name)), "研究測的是麩胺酸，名稱不標味精");
 });
+
+test("排名表有效果大小一欄，每一列都要填，吳郭魚的數字要算得回來（2026-11-02）", async () => {
+  const { app, html } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  for (const p of plans) for (const L of p.ranking.layers) for (const r of L.rows) assert.ok(r.effect && r.effect.length > 0, p.species + " " + r.name + " 沒有效果大小");
+  assert.match(html, /stackTable\(\["排名", "原料", "研究結果", "效果大小", "依據", "品項庫"\]/);
+  const t = plans.find((p) => p.species === "福壽魚").ranking.layers[0].rows;
+  const eff = (n) => t.find((r) => r.name === n || r.rank === n).effect;
+  // 吞下率減空白組，四捨五入到整數百分點
+  assert.match(eff("蝦、紅蟲的水萃液"), new RegExp("\\+" + Math.round(100 - 45.2)));
+  assert.match(eff("L-半胱胺酸 0.1 M"), new RegExp("幼魚 \\+" + Math.round(99 - 63.5) + "、成魚 \\+" + Math.round(91 - 63)));
+  assert.match(eff("山梨酸鉀（己二烯酸鉀）0.1 M"), new RegExp("\\+" + Math.round(97.1 - 63)));
+  assert.match(eff("檸檬酸 0.1 M"), /幼魚 \+25、成魚 \+14/);
+  assert.match(eff("中性"), /不顯著/, "中性不是 0，是差距不顯著");
+  assert.match(eff("拒吃"), new RegExp("山梨酸 −" + Math.round(63 - 41.7)));
+});
