@@ -1764,3 +1764,29 @@ test("排名表複查：魚粉蝦粉是近距離吞食不是誘魚、纈胺酸�
   const titles = plain(app.helpers.seed()).recipes.map((r) => r.title);
   for (const [, title] of fishText.matchAll(/預設配方「([^」]+)」/g)) assert.ok(titles.includes(title), title);
 });
+
+// 2026-11-02 原料資料複查：成分照若亞方舟商品頁（開過）的小包裝規格寫，0.1% 菊苣纖維不能漏
+test("原料資料：若亞方舟品項的成分、效期與還沒買的己二烯酸鉀規格照商品頁", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const items = plain(h.seed()).items;
+  const ing = (id) => items.find((i) => i.id === id).ingredients;
+  for (const id of ["item-sorbitol-noah", "item-tryptophan-noah", "item-cysteine-noah", "item-alanine-noah", "item-glycine-noah"]) {
+    assert.match(ing(id), /99\.9%.*菊苣纖維 0\.1%/, id + " 的成分要寫出 0.1% 菊苣纖維");
+  }
+  assert.match(ing("item-citric-noah"), /菊苣纖維（商品頁沒標比例）/);
+  assert.match(items.find((i) => i.id === "item-sorbitol-noah").notes, /效期只有 1 年/);
+  const tilapia = plain(h.ADDITIVES).find((p) => p.species === "福壽魚");
+  const stock = (id) => tilapia.stocks.find((s) => s.id === id);
+  assert.match(stock("CIT").note, /沒標比例/);
+  assert.match(stock("KSO").note, /1 kg \$266（顆粒/);
+  // 舊裝置：成分還是舊預設值就換，檸檬酸原本沒成分、靠補空欄位帶過去
+  const seed = plain(h.seed());
+  const old = plain(h.sanitizeState(seed));
+  old.appliedFixes = [];
+  old.items.find((i) => i.id === "item-sorbitol-noah").ingredients = "D-山梨糖醇";
+  old.items.find((i) => i.id === "item-citric-noah").ingredients = "";
+  h.mergeSeed(old, seed);
+  assert.equal(old.items.find((i) => i.id === "item-sorbitol-noah").ingredients, ing("item-sorbitol-noah"));
+  assert.equal(old.items.find((i) => i.id === "item-citric-noah").ingredients, ing("item-citric-noah"));
+});
