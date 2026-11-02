@@ -1620,12 +1620,11 @@ test("排名表與證據等級不能各說各話：濃度、分歧、酸與鈉�
   const plans = plain(app.helpers.ADDITIVES);
   const tilapia = plans.find((p) => p.species === "福壽魚");
   const bream = plans.find((p) => p.species === "黑鯛");
-  const neutral = tilapia.ranking.layers[0].rows.find((r) => r.rank === "中性");
-  assert.match(neutral.result, /只測過 0\.01 M/, "色胺酸、麩胺酸的中性只在 0.01 M");
-  assert.match(neutral.result, /甘胺酸另有一份研討會摘要說有效/);
-  assert.ok(neutral.sources.includes("X31"));
-  // 味精是麩胺酸鈉，研究測的是麩胺酸：三個地方都要說
-  assert.match(neutral.result, /味精是麩胺酸鈉/);
+  // 2026-11-02 起排名表不列沒效果的原料（使用者指定）；中性的細節留在證據等級
+  const ev = (c) => tilapia.evidence.find((e) => e.claim === c);
+  assert.match(ev("色胺酸、麩胺酸入口的味道是中性").text, /0\.01 M/, "色胺酸、麩胺酸的中性只在 0.01 M");
+  assert.equal(ev("甘胺酸讓成魚多吃嗎").grade, "conflicting");
+  // 味精是麩胺酸鈉，研究測的是麩胺酸：證據等級與黑鯛排名都要說
   assert.match(tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多").text, /味精本身沒有人測過/);
   assert.match(bream.ranking.layers[0].rows.find((r) => r.name === "L-麩胺酸").result, /味精本身沒有人測過/);
 });
@@ -1675,6 +1674,16 @@ test("排名表有效果大小一欄，每一列都要填，吳郭魚的數字�
   assert.match(eff("L-半胱胺酸 0.1 M"), new RegExp("幼魚 \\+" + Math.round(99 - 63.5) + "、成魚 \\+" + Math.round(91 - 63)));
   assert.match(eff("山梨酸鉀（己二烯酸鉀）0.1 M"), new RegExp("\\+" + Math.round(97.1 - 63)));
   assert.match(eff("檸檬酸 0.1 M"), /幼魚 \+25、成魚 \+14/);
-  assert.match(eff("中性"), /不顯著/, "中性不是 0，是差距不顯著");
-  assert.match(eff("拒吃"), new RegExp("山梨酸 −" + Math.round(63 - 41.7)));
+});
+
+test("排名表只列有效果的原料：中性、拒吃、無效、弱都不放（使用者指定，2026-11-02）", async () => {
+  const { app } = await loadPage();
+  for (const p of plain(app.helpers.ADDITIVES)) {
+    for (const L of p.ranking.layers) for (const r of L.rows) assert.ok(!["中性", "拒吃", "無效", "弱"].includes(r.rank), p.species + " 排名表還有「" + r.rank + "」列");
+    assert.match(p.ranking.note, /研究結果留在證據等級/);
+  }
+  // 拿掉的研究結果仍在證據等級
+  const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
+  assert.ok(tilapia.evidence.some((e) => e.claim === "膽汁成分讓吳郭魚吐掉"));
+  assert.match(tilapia.evidence.find((e) => e.claim === "山梨酸鉀、草酸讓吳郭魚吞下去").text, /山梨酸（游離酸）41\.7%/);
 });
