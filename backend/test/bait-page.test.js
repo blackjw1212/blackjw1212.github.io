@@ -1041,14 +1041,13 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.doesNotMatch(html, /fish-table|min-width:220px/);
   const renderFishBody = html.slice(html.indexOf("function renderFish("), html.indexOf("function renderLog("));
   assert.match(renderFishBody, /stackTable\(\["餌料類別"/);
-  // 實驗組與證據等級收合，收合列要看得出幾組、各等級幾條
-  assert.match(renderAdd, /<details class="src-fold"><summary>' \+ esc\(stage\.title\)/, "每一段的實驗組各自收合");
-  assert.match(renderAdd, /title: "實驗組", baseGrams: 200, baseLabel: "基礎餌"/, "沒分段的魚種仍是一個實驗組收合，基準 200 g");
-  assert.match(renderAdd, /evidenceSummary\(plan\.evidence\)/);
+  // 實驗組（第一段／第二段）、證據等級、來源三種區塊不再顯示在頁面上（使用者指定，2026-11-02）：
+  // 「我也沒在看」。資料仍留在 ADDITIVES，上面與下面的斷言照樣逐條檢查。
+  assert.doesNotMatch(renderAdd, /esc\(stage\.title\)|plan\.evidence|plan\.sources|stackTable\(\["組"|stackTable\(\["命題"/);
+  assert.doesNotMatch(html, /function (doseText|evidenceSummary)\(/, "沒有呼叫者的函式一起刪掉");
+  assert.match(renderAdd, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）"\]/, "原料表留著");
   assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
-  // 實驗組主表只留四欄，變數與比較對象收成小字；同一魚種的收合區塊同名（同時只開一個）
-  // 每公斤只在原料表出現一次，實驗組表不重複（2026-10-07）
-  assert.match(renderAdd, /stackTable\(\["組", "加什麼", "看什麼"\]/);
+  // 同一魚種的收合區塊同名（同時只開一個）
   assert.doesNotMatch(renderAdd, /加法（|activeText/);
   assert.match(renderAdd, /setAttribute\("name", "add-fold-" \+ c\)/);
   // 0.01 M 是 L-半胱胺酸失效的濃度，不可以再被寫成檸檬酸的閾值
@@ -1428,8 +1427,7 @@ test("T17：檸檬酸 0.1 M＋另三樣各 3 g 跟 T1 比；第二段固定 600 
   assert.match(bite.base, /一杯 600 g 每次用 150～200 g，可以用 3～4 次/, "用剩的留到下次（使用者，2026-10-08／10-11）");
   assert.doesNotMatch(bite.base, /正好用三次/, "每次 200 g 的舊說法不得退回");
   assert.match(plain(h.seed()).recipes.find((r) => r.id === "recipe-main-allpowder").notes, /拌餌水起點 150 g/, "預設配方的備註要跟添加劑頁一致");
-  // 「加什麼」欄要說出溶進多少水、每次取多少，不然 3 g、6 g 會被讀成全部加進去
-  assert.match(html, /"，溶進 " \+ stage\.solutionG \+ " g 水、每次取 " \+ stage\.useG \+ " g"/);
+  // 實驗組表已不在頁面上顯示（2026-11-02），溶液量只留在資料裡，由上面幾條斷言檢查。
   const t17 = tilapia.groups.find((g) => g.id === "T17");
   assert.equal(t17.stage, "bite");
   assert.deepEqual(t17.doses.map(([id]) => id).sort(), ["CIT", "SOR"]);
