@@ -1648,3 +1648,17 @@ test("黑鯛 2026-11-02 複查：真鯛 18 種胺基酸表、味覺與嗅覺的�
   const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
   assert.match(tilapia.evidence.find((e) => e.claim.startsWith("釣獲量主要看釣點")).text, /不是餌料對照試驗/);
 });
+
+test("排名表的評級寫法一致：一律用文字，原文符號放括號；麩胺酸不再標成味精（2026-11-02）", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  const bream = plans.find((p) => p.species === "黑鯛");
+  const rows = bream.ranking.layers[0].rows;
+  const row = (n) => rows.find((r) => r.name === n);
+  assert.match(row("L-丙胺酸").result, /^最強一級（原文「卅」）/);
+  assert.match(row("L-纈胺酸").result, /^最強一級（原文「卅」）/, "同一級不可以一個寫卅、一個寫 +++");
+  assert.match(bream.ranking.note, /卅（＝\+\+\+）/, "要有符號對照");
+  for (const r of rows) assert.doesNotMatch(r.result, /^[+±−]|（\+\+\+）/, r.name + " 不可以只寫符號");
+  const tilapia = plans.find((p) => p.species === "福壽魚");
+  assert.ok(tilapia.ranking.layers[0].rows.every((r) => !/麩胺酸（味精）/.test(r.name)), "研究測的是麩胺酸，名稱不標味精");
+});
