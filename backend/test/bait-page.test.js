@@ -1629,3 +1629,22 @@ test("排名表與證據等級不能各說各話：濃度、分歧、酸與鈉�
   assert.match(tilapia.evidence.find((e) => e.claim === "麩胺酸（味精）讓吳郭魚吃得多").text, /味精本身沒有人測過/);
   assert.match(bream.ranking.layers[0].rows.find((r) => r.name === "L-麩胺酸").result, /味精本身沒有人測過/);
 });
+
+test("黑鯛 2026-11-02 複查：真鯛 18 種胺基酸表、味覺與嗅覺的相關、同一原料不得在排名表出現兩次", async () => {
+  const { app } = await loadPage();
+  const bream = plain(app.helpers.ADDITIVES).find((p) => p.species === "黑鯛");
+  const ev = (c) => bream.evidence.find((e) => e.claim === c);
+  for (const id of ["X43", "X44", "X45", "X46", "X47", "X48"]) assert.ok(bream.sources.some((s) => s.id === id && s.seenVia === "opened"), id);
+  assert.match(ev("18 種胺基酸裡只有 4 種讓真鯛咬餌（近緣種）").text, /脯胺酸、麩胺酸、甲硫胺酸/);
+  assert.match(ev("真鯛吃不吃跟味覺相關，跟嗅覺幾乎無關（近緣種）").text, /原文沒讀到/, "二手轉述要說出來");
+  assert.match(ev("被釣過的真鯛從吞下改成只咬（近緣種）").text, /未經同儕審查/);
+  // 排名表：同一種胺基酸只能出現在一列，研究結果相反時寫在那一列裡
+  const names = bream.ranking.layers[0].rows.flatMap((r) => r.name.replace(/等$/, "").split("、"));
+  for (const aa of ["L-脯胺酸", "L-麩胺酸", "L-色胺酸"]) {
+    const n = names.filter((x) => x.trim() === aa).length;
+    assert.ok(n <= 1 || aa !== "L-麩胺酸", aa + " 出現 " + n + " 次");
+  }
+  assert.match(bream.ranking.layers[0].rows.find((r) => r.name === "L-麩胺酸").result, /兩份研究相反/);
+  const tilapia = plain(app.helpers.ADDITIVES).find((p) => p.species === "福壽魚");
+  assert.match(tilapia.evidence.find((e) => e.claim.startsWith("釣獲量主要看釣點")).text, /不是餌料對照試驗/);
+});
