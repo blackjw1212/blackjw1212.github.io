@@ -222,9 +222,6 @@
      不是可以略過的附註。 */
   .cost-note{margin-top:6px;font-size:12px;color:var(--amber)}
 
-  .notes{margin-top:20px;border-top:1px solid var(--line);padding-top:14px;color:var(--faint);font-size:12px}
-  .notes ul{margin:8px 0 0 18px;display:grid;gap:5px}
-  .notes li::marker{color:var(--amber)}
 
   @media (max-width:820px){
     /* minmax(0,1fr) 而不是 1fr：grid item 的 min-width 預設是 auto，
@@ -391,19 +388,6 @@
     <div id="addRows"></div>
   </div>
 
-  <footer class="notes">
-    <ul>
-      <li>這是一本紀錄簿，不給任何開餌建議：味型、組成與釣果都照你填的原樣存著。唯一會算的是錢。</li>
-      <li>主餌還是 A 撒是配方層的事，開完那鍋再選；品項本身不預先分類。</li>
-      <li>勾了水域之後，魚種清單只留那個水域釣得到的——礁區的海水魚不會出現在淡水的選單裡。已經勾起來的一律保留，才不會有取消不掉的殘留。</li>
-      <li>沒有加水量與熟成時間的欄位：那兩個現場依狀況調整，寫進固定欄位只會記到一個不準的數字。要記就寫進備註。</li>
-      <li>每 100 克單價＝購買價格 ÷ 包裝重量，兩欄都填了才算得出來。</li>
-      <li>整鍋總重與總價只加得起用「克」或「包」記的那幾列。<strong>杯與匙沒有可靠的換算</strong>——同一個量杯裝紅餌與裝魔粒差很多——那幾列不列入總價，並在卡片上點名少算了哪些。</li>
-      <li>整鍋的每 100 克成本＝總價 ÷ <strong>算得出價格的那幾列的重量</strong>，不是除以總重。有重量卻沒填價格的料若算進分母，那個單價會被稀釋成偏低的數字。</li>
-      <li>第一次開啟會帶入一組預設的品項與配方，可以直接改或整批刪掉。之後每次開啟會自動把<strong>新增的</strong>預設項補進來，只補缺的、只填空的欄位——你自己建的品項與存的配方都不會被動到。預設值本身改過時（例如換成實付價、實際重量），只有你那一欄<strong>還是舊的預設值</strong>才會換成新的；你改過的欄位不動，而且每一筆更正只做一次。<strong>刪掉的預設項不會復活</strong>，按「補齊預設資料」也不會，因為刪除是你的決定。要拿回來請匯入之前的備份。</li>
-      <li>整頁在瀏覽器裡運算，不上傳任何東西，也沒有帳號。</li>
-    </ul>
-  </footer>
 
   <div class="sheet-backdrop" id="itemSheet" hidden>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
@@ -1909,13 +1893,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     return String(Math.round(value * Math.pow(10, digits)) / Math.pow(10, digits));
   }
 
-  function doseText(plan, doses) {
-    if (!doses.length) return "不加";
-    return doses.map(function (pair) {
-      var stock = stockOf(plan, pair[0]);
-      return stock.name + " " + trimNum(pair[1], 2) + (stock.kind === "powder" ? " g" : " ml");
-    }).join("＋");
-  }
 
   /* 原料表的「每公斤（乾粉）」由下面的實驗組算出來，不另外寫一份：組的加量改了，這欄自動跟著變。
      同一樣原料在不同段（底餌／主餌、A 撒／練餌）各列一次，同一段有幾種量就全列。 */
@@ -1967,13 +1944,6 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
     return html + "</tbody></table></div>";
   }
 
-  function evidenceSummary(evidence) {
-    var counts = {};
-    for (var i = 0; i < evidence.length; i += 1) counts[evidence[i].grade] = (counts[evidence[i].grade] || 0) + 1;
-    var parts = [];
-    for (var key in GRADE_LABEL) if (counts[key]) parts.push(GRADE_LABEL[key] + " " + counts[key]);
-    return "證據等級 " + evidence.length + " 條（" + parts.join("、") + "）";
-  }
 
   function renderAdditives() {
     var node = $("addRows");
@@ -2003,7 +1973,7 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
           var layer = plan.ranking.layers[li];
           html += "<h4>" + esc(layer.layer) + "</h4>" + stackTable(["排名", "原料", "研究結果", "效果大小", "依據", "品項庫"], layer.rows.map(function (rk) {
             var have = rk.itemIds.some(function (id) { return owned[id]; });
-            return [esc(rk.rank), esc(rk.name), esc(rk.result), esc(rk.effect || "—"), esc(rk.level) + '<span class="cell-sub">' + (srcRefs(rk.sources) || "—") + "</span>", have ? "有" : "沒有"];
+            return [esc(rk.rank), esc(rk.name), esc(rk.result), esc(rk.effect || "—"), esc(rk.level), have ? "有" : "沒有"];
           }));
         }
         html += "</details>";
@@ -2013,33 +1983,9 @@ var SEED_FIXES = [{"id":"item-krill-phoenix:name:1","itemId":"item-krill-phoenix
         return [esc(stock.name), esc(stock.smell || "—"), esc(stock.made) + (stock.note ? '<div class="stock-note">' + esc(stock.note) + "</div>" : ""), esc(stockPerKgText(perKg[stock.id]))];
       })) + "</div>";
 
-      /* 實驗組與證據等級預設收合：手機上兩個魚種攤開有八千多 px。收合時的那一行要講得出內容多少。 */
-      var stageList = plan.stages || [{ id: "", title: "實驗組", baseGrams: 200, baseLabel: "基礎餌" }];
-      for (var st = 0; st < stageList.length; st += 1) {
-        var stage = stageList[st];
-        var inStage = plan.groups.filter(function (group) { return (group.stage || "") === stage.id; });
-        var base = stage.baseGrams || 200;
-        html += '<details class="src-fold"><summary>' + esc(stage.title) + (stage.sense ? "・" + esc(stage.sense) : "") + "（每 " + base + " g " + esc(stage.baseLabel || "") + "，" + inStage.length + " 組）</summary>"
-          + (stage.base ? '<p class="stage-note">' + esc(stage.base) + " " + esc(stage.metric) + "</p>" : "")
-          /* 主表只留三欄：每公斤看上面的原料表；變數與比較對象收成各格底下的小字。 */
-          + stackTable(["組", "加什麼", "看什麼"], inStage.map(function (group) {
-            return [esc(group.id) + '<span class="cell-sub">' + esc(group.variable) + "</span>",
-              esc(doseText(plan, group.doses) + (stage.solutionG && group.doses.length ? "，溶進 " + stage.solutionG + " g 水、每次取 " + stage.useG + " g" : "")),
-              esc(group.purpose) + (group.compare.length ? '<span class="cell-sub">跟 ' + esc(group.compare.join("、")) + " 比</span>" : "")];
-          })) + "</details>";
-      }
-
-      html += '<details class="src-fold"><summary>' + esc(evidenceSummary(plan.evidence)) + "</summary>" + stackTable(["命題", "等級", "說明", "來源"], plan.evidence.map(function (ev) {
-        return [esc(ev.claim), '<span class="grade ' + esc(ev.grade) + '">' + esc(GRADE_LABEL[ev.grade]) + "</span>",
-          esc(ev.text), srcRefs(ev.sources) || "—"];
-      })) + "</details>";
-
-      html += '<details class="src-fold"><summary>' + esc(sourceSummary(plan.sources)) + '</summary><ol class="src">';
-      for (var r = 0; r < plan.sources.length; r += 1) {
-        var ref = plan.sources[r];
-        html += "<li>" + esc(ref.id) + "　" + esc(ref.title) + ' <span class="tag">' + esc(SEEN_VIA_LABEL[ref.seenVia] || ref.seenVia) + "</span></li>";
-      }
-      html += "</ol></details></section>";
+      /* 實驗組、證據等級、來源三種區塊不在頁面上顯示（使用者指定，2026-11-02）：
+         資料仍完整留在 ADDITIVES 與 bait/SOURCES.md，測試照樣檢查它們。 */
+      html += "</section>";
     }
     node.innerHTML = html;
     /* 同一個魚種裡同時只展開一個區塊。同名的 details 是瀏覽器原生的互斥手風琴，

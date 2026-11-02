@@ -568,26 +568,16 @@ if (has("bait/index.html")) {
   assertMatch("bait/index.html", html, /name="theme-color" content="#101418"/, "bait theme color");
   assertMatch("bait/index.html", html, /navigator\.serviceWorker\.register\("\/sw\.js"\)/, "bait service worker registration");
 
-  // 這一頁沒有後端也沒有帳號，資料只存在使用者自己的瀏覽器裡。下面三條把那句話
+  // 這一頁沒有後端也沒有帳號，資料只存在使用者自己的瀏覽器裡。下面兩條把那件事
   // 變成可驗證的東西：沒有跨來源網址、沒有自己發出的請求。
-  assertMatch("bait/index.html", html, /整頁在瀏覽器裡運算，不上傳任何東西/, "bait local-only disclosure");
+  // 頁尾的說明清單（含「整頁在瀏覽器裡運算」「杯與匙沒有可靠的換算」等句）依使用者要求
+  // 整段刪除（2026-11-02），原本釘那些句子的斷言一起拿掉；本地運算這件事由下面兩條守著。
   assertNoMatch("bait/index.html", html.slice(html.indexOf("<body")), /https?:\/\//, "bait external endpoints");
   assertNoMatch("bait/index.html", html, /\bfetch\s*\(|XMLHttpRequest|sendBeacon/, "bait outbound request paths");
-
-  // 這頁不給開餌建議，唯一會算的是錢。而錢只算得出用「克」或「包」記的那幾列——
-  // 杯與匙沒有可靠的換算（同一個量杯裝紅餌與裝魔粒差很多），把那些當 0 加進去
-  // 等於謊報一個偏低的總價。所以「算不出來要說出來」是契約的一部分。
-  assertMatch("bait/index.html", html, /不給任何開餌建議/, "bait must not advise, only record");
-  assertMatch("bait/index.html", html, /杯與匙沒有可靠的換算/, "bait must disclose which units cannot be costed");
-  assertMatch("bait/index.html", html, /那幾列不列入總價/, "bait must disclose that uncostable rows are excluded");
-  // 整鍋單價的分母是「算得出價格的重量」而不是總重。兩個數字對不起來時看起來像
-  // 算錯，所以頁面必須說得出分母是什麼。
-  assertMatch("bait/index.html", html, /算得出價格的那幾列的重量<\/strong>，不是除以總重/, "bait must disclose the per-100g denominator");
   // 分頁鈕的 class 是 scripts/mobile-audit.html 走訪非預設分頁的依據。改名的話
   // 「品項庫」與「紀錄」兩個分頁的觸控目標整批量不到，而報告仍然是綠的。
   assertMatch("bait/index.html", html, /<div class="tabbar"/, "bait tab bar class drives the mobile audit walker");
-  // 魚種對照與添加劑頁頂的說明卡依使用者要求移除（2026-09-27）；「不是建議」由頁尾的
-  // 「這是一本紀錄簿，不給任何開餌建議」承擔
+  // 魚種對照與添加劑頁頂的說明卡（2026-09-27）與頁尾說明（2026-11-02）都依使用者要求移除
   // 前端測試靠「最後一個 <script> 緊貼 </body>」抓主程式，插東西進去會讓整批測試失效
   assertMatch("bait/index.html", html, /<script>(?:(?!<\/script>)[\s\S])*<\/script>\s*<\/body>/, "bait main script must sit right before </body>");
 }
