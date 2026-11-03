@@ -1837,14 +1837,21 @@ function monthDayKey(mmdd, baseDate) {
 }
 
 /* ─── 蒲福風級 ────────────────────────────────────────────── */
+// 中央氣象署「蒲福風級表」各級下限（m/s），0–17 級。舊版 8 級封頂，颱風時 30 m/s 會寫成「8 級大風」
+// 出處：https://www.cwa.gov.tw/V8/C/K/Encyclopedia/nous/overview-09.txt
+const BEAUFORT_MIN_MS = [0, 0.3, 1.6, 3.4, 5.5, 8.0, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7, 37.0, 41.5, 46.2, 51.0, 56.1];
 function bft(ms) {
   const v = parseFloat(ms);
   if (isNaN(v) || v < 0) return null;
-  if (v < 0.3)  return 0; if (v < 1.6)  return 1; if (v < 3.4)  return 2;
-  if (v < 5.5)  return 3; if (v < 8.0)  return 4; if (v < 10.8) return 5;
-  if (v < 13.9) return 6; if (v < 17.2) return 7; return 8;
+  let b = 0;
+  for (let i = 1; i < BEAUFORT_MIN_MS.length; i++) if (v >= BEAUFORT_MIN_MS[i]) b = i;
+  return b;
 }
-function bftLabel(b) { return ["無風","軟風","輕風","微風","和風","清風","強風","疾風","大風"][b] || "—"; }
+function bftLabel(b) {
+  const names = ["無風","軟風","輕風","微風","和風","清風","強風","疾風","大風","烈風","狂風","暴風","颶風"];
+  if (names[b]) return names[b];
+  return b >= 13 && b <= 17 ? "致災性強風" : "—"; // 13–17 級氣象署表上沒有稱謂，敘述欄寫「致災性強風」
+}
 function bftBadge(b) {
   if (b == null) return `<span class="badge b-gray">—</span>`;
   const cls = b <= 3 ? "b-ok" : b <= 4 ? "b-caution" : "b-danger";
@@ -1867,10 +1874,20 @@ function tideNowState(events, now) {
 }
 
 /* 潮差：相鄰滿潮與乾潮之間的最大落差（官方只給大／中／小潮的分類） */
+/* 潮高（TWVD，cm）。缺值回 null——舊版 parseInt(... || 0) 會把缺值印成「0 cm」 */
+function tideHeight(ev) {
+  const v = parseInt(ev?.TideHeights?.AboveTWVD, 10);
+  return Number.isFinite(v) ? v : null;
+}
+function fmtTideHeight(h) {
+  return h == null ? "— cm" : `${h > 0 ? "+" : ""}${h} cm`;
+}
+
 function maxTideRange(events) {
   let best = null;
   for (let i = 1; i < events.length; i++) {
     if (events[i].isHi === events[i - 1].isHi) continue;
+    if (events[i].h == null || events[i - 1].h == null) continue;
     const r = Math.abs(events[i].h - events[i - 1].h);
     if (best == null || r > best) best = r;
   }
@@ -2085,14 +2102,15 @@ function windDirText(v) {
   const dirs = ["北","東北","東","東南","南","西南","西","西北"];
   return dirs[Math.round(deg / 45) % 8];
 }
-function fmtTime(dt) { return dt.toTimeString().slice(0, 5); }
+// 一律以臺灣時間顯示；toTimeString() 用的是裝置時區
+const TIME_FMT = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+function fmtTime(dt) { return TIME_FMT.format(dt); }
 function fmtDate(s)  { return s.slice(5); }
 
 /* ─── 取整點時刻（往下取整到當前整點）───────────────────── */
 function floorHour(dt) {
-  const r = new Date(dt);
-  r.setMinutes(0, 0, 0);
-  return r;
+  // 臺灣是 UTC+8 整點時差，直接對 UTC 取整；setMinutes 用的是裝置時區，在 +5:30 之類的地方會偏半小時
+  return new Date(Math.floor(new Date(dt).getTime() / 3600000) * 3600000);
 }
 
 /* ─── 預報解析 ───────────────────────────────────────────── */
@@ -2102,7 +2120,8 @@ function parseForecast(data, target) {
   try {
     for (const loc of normalizeForecastGroups(data)) {
       for (const l of asArray(loc.Location)) {
-        if (l.LocationName.includes(target)) {
+        // 名稱要完全相等：「南區」是「安南區」的子字串，用 includes 時臺南市南區拿到的是安南區的預報
+        if (l.LocationName === target) {
           for (const e of asArray(l.WeatherElement)) {
             const name = e.ElementName; res[name] = {};
             for (const t of asArray(e.Time)) {
@@ -2110,6 +2129,12 @@ function parseForecast(data, target) {
               if (!dtk) continue;
               const key = dtk.slice(0,10) + "_" + parseInt(dtk.slice(11,13));
               res[name][key] = firstElementValue(t);
+              // 區間型元素（降雨機率、天氣現象）記下結束時間，查詢時要用「包含」而不是「最近起點」
+              if (t.StartTime && t.EndTime) {
+                if (!FORECAST_INTERVAL_ENDS.has(res)) FORECAST_INTERVAL_ENDS.set(res, {});
+                const ends = FORECAST_INTERVAL_ENDS.get(res);
+                (ends[name] ||= {})[key] = new Date(t.EndTime).getTime();
+              }
             }
           }
         }
@@ -2119,12 +2144,6 @@ function parseForecast(data, target) {
     console.warn("預報解析失敗", target, e);
   }
   return res;
-}
-
-function waveKeyLabel(key) {
-  const [date, hour] = String(key || "").split("_");
-  if (!date || hour == null) return "";
-  return `${date.slice(5).replace("-", "/")} ${String(hour).padStart(2, "0")}:00`;
 }
 
 function cwaShortTime(v) {
@@ -2146,11 +2165,25 @@ function coastTimeInfo(data) {
    00:00 開始，「現在」那列就整列變成「—」。改成跨日期比絕對時間差，但超過
    3 小時就不取——預報是每 3 小時一筆，再遠就不是「這個時段」的數字了。 */
 const NEAREST_MAX_MS = 3 * 3600000;
+const FORECAST_INTERVAL_ENDS = new WeakMap();
+function forecastKeyDate(key) {
+  const [date, hh] = String(key).split("_");
+  return new Date(`${date}T${String(hh).padStart(2, "0")}:00:00+08:00`);
+}
 function nearestEntry(data, field, dt) {
+  // 區間型（3 小時降雨機率、天氣現象）：取「包含」這個時刻的那一段；
+  // 起點最近的那段在每段的最後一小時會是下一段（實測 48 個整點錯 16 個）
+  const ends = FORECAST_INTERVAL_ENDS.get(data)?.[field];
+  if (ends) {
+    for (const [key, value] of Object.entries(data[field] || {})) {
+      const start = forecastKeyDate(key).getTime();
+      if (start <= dt.getTime() && dt.getTime() < ends[key]) return { key, value };
+    }
+    return null;
+  }
   let best = null;
   for (const [key, value] of Object.entries(data[field] || {})) {
-    const [date, hh] = key.split("_");
-    const diff = Math.abs(new Date(`${date}T${String(hh).padStart(2, "0")}:00:00+08:00`) - dt);
+    const diff = Math.abs(forecastKeyDate(key) - dt);
     if (Number.isFinite(diff) && (!best || diff < best.diff)) best = { key, value, diff };
   }
   return best && best.diff <= NEAREST_MAX_MS ? { key: best.key, value: best.value } : null;
@@ -2205,10 +2238,8 @@ function daylightBarHtml(sunrise, sunset, n) {
   // 解析時間字串為今天的 Date 物件
   function parseTime(str) {
     if (!str || str === "—") return null;
-    const [h, m] = str.split(":").map(Number);
-    const d = new Date(n);
-    d.setHours(h, m, 0, 0);
-    return d;
+    const d = new Date(`${twDateKey(n)}T${str.slice(0, 5)}:00+08:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
   }
 
   const srDt = parseTime(sunrise);
@@ -2369,6 +2400,7 @@ async function loadAll() {
 
     /* ── 觀測站 ────────────────────────────────────────────── */
     let obsRows = "";
+    let latestObsAt = null;
     if (obs?.records?.Station) {
       const stations = nearestObservationStations(obs, selectedCoast, 3);
       for (const s of stations) {
@@ -2377,7 +2409,10 @@ async function loadAll() {
         const wspd = valid(we.WindSpeed);
         const wdir = valid(we.WindDirection);
         const temp = valid(we.AirTemperature);
-        const rain = validRain(we.Now?.Precipitation);
+        const rain = validRain(we.Now?.Precipitation); // 當日降水量（O-A0001-001 說明文件），不是即時雨量
+        const obsAt = new Date(s.ObsTime?.DateTime);
+        if (!Number.isNaN(obsAt.getTime()) && (!latestObsAt || obsAt > latestObsAt)) latestObsAt = obsAt;
+        const staleObs = !Number.isNaN(obsAt.getTime()) && n - obsAt > 90 * 60000;
         const wx   = valid(we.Weather) || "—";
         const b    = bft(wspd);
         if (b != null && (maxObsBft == null || b > maxObsBft)) maxObsBft = b;
@@ -2391,7 +2426,7 @@ async function loadAll() {
           <span class="row-name">${esc(name)}</span>
           <span class="row-detail">
             <span class="row-main">${wxIcon(wx)} ${esc(wx)} · ${esc(dirStr)}風 ${show(wspd, "m/s")}</span>
-            <span class="row-meta">${show(temp, "°C")} · 雨量 ${showRain(rain)}${extraMeta}</span>
+            <span class="row-meta">${show(temp, "°C")} · 今日雨量 ${showRain(rain)}${extraMeta}${staleObs ? ` · ${fmtTime(obsAt)} 觀測` : ""}</span>
           </span>
           ${bftBadge(b)}
         </div>`;
@@ -2446,39 +2481,43 @@ async function loadAll() {
       </div>`;
     }
 
-    /* ── 海風與浪高概況（未來 6 小時）──────────────────────── */
+    /* ── 海風與浪高概況（未來 6 小時）──────────────────────────
+       沿海預報本身就是每 3 小時一筆，直接列出「目前這一段」到 6 小時後的每一段，
+       時間標的是該筆資料自己的時段。舊版標「現在、+2、+4、+6 小時」再去找最近的預報點，
+       兩列常是同一筆資料、標成不同時間。 */
     let windRows = "";
-    for (let i = 0; i <= 6; i++) {
-      const t    = new Date(baseHour.getTime() + i * 3600000);
-      const spd  = nearest(sea, "風速", t);
-      const wdir = nearest(sea, "風向", t);
-      const waveHit = nearestEntry(sea, "浪高", t);
-      const wave = waveHit?.value;
-      const waveDir = nearest(sea, "浪向", t);
-      const wavePeriod = nearest(sea, "浪週期", t);
-      const cur = oceanCurrent(nearest(sea, "流速", t), nearest(sea, "流向", t));
+    const seaSlots = Object.keys(sea["風速"] || {})
+      .map(k => ({ k, dt: forecastKeyDate(k) }))
+      .filter(({ dt }) => !Number.isNaN(dt.getTime()))
+      .sort((a, b) => a.dt - b.dt);
+    const curSlot = seaSlots.findLastIndex(({ dt }) => dt <= n);
+    const marineSlots = seaSlots.slice(Math.max(0, curSlot))
+      .filter(({ dt }) => dt.getTime() <= n.getTime() + 6 * 3600000);
+    for (const { k, dt } of marineSlots) {
+      const spd  = sea["風速"]?.[k];
+      const wdir = sea["風向"]?.[k];
+      const wave = sea["浪高"]?.[k];
+      const waveDir = sea["浪向"]?.[k];
+      const wavePeriod = sea["浪週期"]?.[k];
+      const cur = oceanCurrent(sea["流速"]?.[k], sea["流向"]?.[k]);
       const bftN = parseBftValue(spd?.BeaufortScale);
       if (bftN != null && (maxFcstBft == null || bftN > maxFcstBft)) maxFcstBft = bftN;
       const waveH = valid(wave?.WaveHeight);
       const waveN = waveH != null ? parseFloat(waveH) : null;
       if (waveN != null && !Number.isNaN(waveN) && (maxWaveHeight == null || waveN > maxWaveHeight)) maxWaveHeight = waveN;
-      const timeLabel = `${String(twHour(t)).padStart(2,'0')}:00`;
       const waveMeta = [
-        waveHit ? `浪高時段 ${waveKeyLabel(waveHit.key)}` : "浪高 —",
         valid(waveDir?.WaveDirection) ? `浪向 ${esc(waveDir.WaveDirection)}` : "",
         valid(wavePeriod?.WavePeriod) ? `週期 ${esc(wavePeriod.WavePeriod)}s` : "",
         cur.dir ? `流向 ${esc(cur.dir)}` : "",
       ].filter(Boolean).join(" · ");
-      if (i === 0 || i === 2 || i === 4 || i === 6) {
-        windRows += `<div class="row row-wave">
-          <span class="row-time">${timeLabel}</span>
+      windRows += `<div class="row row-wave">
+          <span class="row-time">${fmtTime(dt)}</span>
           <span class="row-detail">
-            <span class="row-main">${show(wdir?.WindDirection)} · ${show(spd?.WindSpeed, "m/s")} · 浪 ${showMeters(wave?.WaveHeight)} · 流 ${cur.speed == null ? "—" : `${cur.speed}m/s`}</span>
+            <span class="row-main">${show(valid(wdir?.WindDirection))} · ${show(valid(spd?.WindSpeed), "m/s")} · 浪 ${showMeters(waveH)} · 流 ${cur.speed == null ? "—" : `${cur.speed}m/s`}</span>
             <span class="row-meta">${waveMeta}</span>
           </span>
           ${bftBadge(bftN)}
         </div>`;
-      }
     }
 
     /* ── 未來 3 天風浪流：沿海預報原生就是每 3 小時一筆，照原樣排 ── */
@@ -2532,7 +2571,7 @@ async function loadAll() {
         let todayRangeEvents = [];
         for (const [dayIndex, day] of upcoming.entries()) {
           for (const ev of day.Time || []) {
-            allTideEvents.push({ dt: new Date(ev.DateTime), isHi: ev.Tide === "滿潮", h: parseInt(ev.TideHeights?.AboveTWVD || 0) });
+            allTideEvents.push({ dt: new Date(ev.DateTime), isHi: ev.Tide === "滿潮", h: tideHeight(ev) });
           }
           const date   = day.Date;
           const lunar  = day.LunarDate || "";
@@ -2554,7 +2593,7 @@ async function loadAll() {
           for (const { ev, sourceDate, isNextCycle } of displayEvents) {
             const evDt = new Date(ev.DateTime);
             const isHi = ev.Tide === "滿潮";
-            const h    = parseInt(ev.TideHeights?.AboveTWVD || 0);
+            const h    = tideHeight(ev);
             const tideIndex = tideCurveEvents.length;
             tideCurveEvents.push({ height: h, isHi });
             if (!isHi && sourceDate === today) dryTides.push({ dt: evDt, h });
@@ -2563,7 +2602,7 @@ async function loadAll() {
             dayCells += `<div class="tide-cell${cycleClass}" data-tide-height="${h}" data-tide-index="${tideIndex}">
               <div class="tide-type">${isHi ? "▲ 滿潮" : "▽ 乾潮"} ${cyclePeriod}</div>
               <div class="tide-tm">${fmtTime(evDt)}</div>
-              <div class="tide-ht ${isHi ? 'hi' : 'lo'}">${h > 0 ? "+" : ""}${h} cm</div>
+              <div class="tide-ht ${isHi ? 'hi' : 'lo'}">${fmtTideHeight(h)}</div>
             </div>`;
           }
           const dayHeader = `
@@ -2572,7 +2611,7 @@ async function loadAll() {
             <span class="day-pill">${esc(lunarStr)}</span>
             <span class="day-pill">${show(trange, "潮")}</span>`;
           if (isToday) {
-            todayRangeEvents = displayEvents.map(({ ev }) => ({ isHi: ev.Tide === "滿潮", h: parseInt(ev.TideHeights?.AboveTWVD || 0) }));
+            todayRangeEvents = displayEvents.map(({ ev }) => ({ isHi: ev.Tide === "滿潮", h: tideHeight(ev) }));
             todayTideHtml += `<details class="day-detail today-mode-detail day-today" data-mobile-open="true" open>
               <summary class="day-hdr">${dayHeader}</summary>
               ${tideGridHtml(dayCells, tideCurveEvents)}
@@ -2612,12 +2651,13 @@ async function loadAll() {
     for (const { dt, h } of dryTides) {
       const s   = new Date(dt.getTime() - 2 * 3600000);
       const e   = new Date(dt.getTime() + 2 * 3600000);
-      const cls = h < -40 ? "dot-g" : h < 0 ? "dot-y" : "dot-r";
-      const stars = h < -40 ? "★★★" : h < 0 ? "★★" : "★";
+      // 潮高缺值時不評星：拿 0 去比會被評成 ★ 而且說不出理由
+      const cls = h == null ? "dot-y" : h < -40 ? "dot-g" : h < 0 ? "dot-y" : "dot-r";
+      const stars = h == null ? "" : h < -40 ? "★★★" : h < 0 ? "★★" : "★";
       windowHtml += `<div class="window-row">
         <div class="dot ${cls}"></div>
         <span class="win-time">${fmtTime(s)} – ${fmtTime(e)}</span>
-        <span class="win-detail">乾潮 ${fmtTime(dt)}（${h > 0 ? "+" : ""}${h}cm）</span>
+        <span class="win-detail">乾潮 ${fmtTime(dt)}（${fmtTideHeight(h).replace(" ", "")}）</span>
         <span class="stars">${stars}</span>
       </div>`;
     }
@@ -2625,7 +2665,7 @@ async function loadAll() {
       ? `<div class="today-window-inline">
            <div class="inline-lbl">今日潮窗</div>
            <div class="window-list">${windowHtml}</div>
-           <div class="info-note">★ 依潮高估算，非官方流速資料</div>
+           <div class="info-note">★ 依潮高估算，非官方流速資料。潮高以臺灣高程基準（TWVD）計。</div>
          </div>`
       : "";
     const todayTideCardHtml = todayTideHtml
@@ -2788,7 +2828,7 @@ async function loadAll() {
           <details class="support-detail dash-block dash-station today-mode-detail" data-mobile-open="false">
             <summary class="collapse-summary">測站即時風</summary>
             <div class="card">${obsRows
-              ? `${obsRows}<div class="info-note">陣風只有少數測站提供，附近測站沒有回報時不顯示。</div>`
+              ? `${obsRows}<div class="info-note">${latestObsAt ? `觀測時間 ${fmtTime(latestObsAt)}。` : ""}陣風只有少數測站提供，附近測站沒有回報時不顯示。</div>`
               : '<div class="info-note">觀測資料無法取得</div>'}</div>
           </details>
         </div>
@@ -2839,7 +2879,7 @@ window.WeatherApp = { helpers: {
   readStoredFix, rememberFix, getGpsPosition,
   tideNowState, maxTideRange, oceanCurrent, stationExtras,
   countyHazards, activeTyphoonAlerts, warningFloor, applyWarningFloor,
-  nearestEntry,
+  nearestEntry, parseForecast, bft, bftLabel, fmtTime, floorHour, tideHeight,
 } };
 
 if (!window.__WEATHER_SKIP_AUTO_INIT__) loadAll();

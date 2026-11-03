@@ -346,3 +346,114 @@ test("if the location request fails, the stored fix is used and keeps its own ti
   assert.equal(pos.lat, FIX.lat);
   assert.equal(pos.at, at, "畫面要印出的是那筆舊定位的時間，不是現在");
 });
+
+// ─── 2026-11-03 資料審查：每一條都是用真實 CWA 資料量到的錯 ───────────────
+
+// 「南區」是「安南區」的子字串；舊版用 includes 比對，臺南市南區拿到的是安南區的預報
+test("forecast parsing matches the location name exactly, not as a substring", async () => {
+  const h = await loadHelpers({});
+  const el = (v) => ({ ElementName: "溫度", Time: [{ DataTime: "2026-11-03T06:00:00+08:00", ElementValue: [{ Temperature: v }] }] });
+  const data = { records: { Locations: [{ Location: [
+    { LocationName: "南區", WeatherElement: [el("25")] },
+    { LocationName: "安南區", WeatherElement: [el("24")] },
+  ] }] } };
+  assert.equal(h.parseForecast(data, "南區")["溫度"]["2026-11-03_6"].Temperature, "25");
+});
+
+// 降雨機率與天氣現象是 3 小時區間；舊版取「起點最近」的區間，每天有三分之一的整點取到下一段
+test("interval elements are looked up by containment, not by the nearest start", async () => {
+  const h = await loadHelpers({});
+  const data = { records: { Locations: [{ Location: [{ LocationName: "中西區", WeatherElement: [{ ElementName: "3小時降雨機率", Time: [
+    { StartTime: "2026-11-03T06:00:00+08:00", EndTime: "2026-11-03T09:00:00+08:00", ElementValue: [{ ProbabilityOfPrecipitation: "10" }] },
+    { StartTime: "2026-11-03T09:00:00+08:00", EndTime: "2026-11-03T12:00:00+08:00", ElementValue: [{ ProbabilityOfPrecipitation: "70" }] },
+  ] }] }] }] } };
+  const city = h.parseForecast(data, "中西區");
+  const pop = (hhmm) => h.nearestEntry(city, "3小時降雨機率", new Date(`2026-11-03T${hhmm}:00+08:00`))?.value?.ProbabilityOfPrecipitation;
+  assert.equal(pop("08:00"), "10", "08:00 屬於 06–09 那一段");
+  assert.equal(pop("08:59"), "10");
+  assert.equal(pop("09:00"), "70");
+  assert.equal(pop("05:00"), undefined, "沒有涵蓋該時刻的區間就不取");
+});
+
+// 中央氣象署「蒲福風級表」0–17 級（https://www.cwa.gov.tw/V8/C/K/Encyclopedia/nous/overview-09.txt）。舊版 8 級封頂
+test("Beaufort conversion follows the CWA table up to level 17", async () => {
+  const h = await loadHelpers({});
+  const lower = [0, 0.3, 1.6, 3.4, 5.5, 8.0, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7, 37.0, 41.5, 46.2, 51.0, 56.1];
+  lower.forEach((ms, b) => {
+    assert.equal(h.bft(ms), b, `${ms} m/s 應為 ${b} 級`);
+    if (b > 0) assert.equal(h.bft(+(ms - 0.1).toFixed(1)), b - 1, `${(ms - 0.1).toFixed(1)} m/s 應為 ${b - 1} 級`);
+  });
+  assert.equal(h.bftLabel(9), "烈風");
+  assert.equal(h.bftLabel(12), "颶風");
+  assert.equal(h.bftLabel(15), "致災性強風");
+});
+
+// fmtTime／floorHour 舊版用裝置時區；裝置不在 UTC+8（或時差不是整點）時潮汐時刻與逐時預報會整批偏移
+test("times are shown and floored in Asia/Taipei whatever the device time zone is", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const probe = `
+    const fs = require("fs"), vm = require("vm");
+    const html = fs.readFileSync(${JSON.stringify(join(ROOT, "weather", "index.html"))}, "utf8");
+    const script = html.match(/<script>((?:(?!<\\/script>)[\\s\\S])*)<\\/script>\\s*<\\/body>/)[1];
+    const noop = () => {}; const el = new Proxy({}, { get: () => noop, set: () => true });
+    const ls = { getItem: () => null, setItem: noop };
+    const ctx = vm.createContext({ console, window: { __WEATHER_SKIP_AUTO_INIT__: true, localStorage: ls, addEventListener: noop, matchMedia: () => ({ matches: false, addEventListener: noop }) }, localStorage: ls,
+      document: { readyState: "complete", addEventListener: noop, getElementById: () => el, querySelector: () => el, querySelectorAll: () => [], createElement: () => el, body: el, documentElement: el },
+      navigator: {}, location: { href: "", search: "" }, setTimeout, clearTimeout, URLSearchParams, fetch: async () => { throw 0; },
+      Math, Date, isFinite, parseFloat, parseInt, Number, String, Array, Object, JSON, Error, Promise, Intl, RegExp, Map, Set });
+    ctx.globalThis = ctx; vm.runInContext(script, ctx);
+    const h = ctx.window.WeatherApp.helpers;
+    const t = new Date("2026-11-03T13:10:00+08:00");
+    process.stdout.write(JSON.stringify({ time: h.fmtTime(t), floored: h.floorHour(t).toISOString() }));`;
+  for (const tz of ["UTC", "America/New_York", "Asia/Kolkata"]) {
+    const r = spawnSync(process.execPath, ["-e", probe], { env: { ...process.env, TZ: tz }, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.time, "13:10", `TZ=${tz}`);
+    assert.equal(out.floored, "2026-11-03T05:00:00.000Z", `TZ=${tz}：應取整到臺灣 13:00`);
+  }
+});
+
+// 海況列：舊版標的是「現在、+2、+4、+6 小時」，資料卻取最近的 3 小時預報點，
+// 兩列常是同一筆資料、標成不同時間（實測 6 種起始時刻全部中招）
+function coastFixture(nowMs) {
+  const H = 3600000;
+  const slot0 = Math.floor((nowMs + 8 * H) / (3 * H)) * 3 * H - 8 * H; // 臺灣時間 3 小時格點
+  const iso = (ms) => new Date(ms + 8 * H).toISOString().slice(0, 13) + ":00:00+08:00";
+  const slots = Array.from({ length: 12 }, (_, i) => slot0 + (i - 1) * 3 * H);
+  const el = (name, f) => ({ ElementName: name, Time: slots.map((ms, i) => ({ DataTime: iso(ms), ElementValue: [f(i)] })) });
+  return {
+    slots, iso,
+    data: { cwaopendata: { Dataset: { Locations: { Location: [{
+      LocationName: "東石鄉沿海", Geocode: "10010090", Latitude: "23.46", Longitude: "119.96",
+      WeatherElement: [
+        el("風速", (i) => ({ WindSpeed: String(i + 1), BeaufortScale: "2" })),
+        el("風向", () => ({ WindDirection: "東北風" })),
+        el("浪高", (i) => ({ WaveHeight: (0.1 * (i + 1)).toFixed(1) })),
+        el("流速", () => ({ OceanCurrentSpeed: "0.3" })),
+        el("流向", () => ({ OceanCurrentDirection: "偏南" })),
+      ],
+    }] } } } },
+  };
+}
+
+test("marine rows list each forecast slot once, labelled with that slot's own time", async () => {
+  const fx = coastFixture(Date.now());
+  const out = await renderWith({ "F-D0047-095": fx.data, "W-C0033-001": { records: { location: [] } }, "W-C0034-001": { records: { info: [] } } });
+  const card = out.slice(out.indexOf("dash-marine"), out.indexOf("dash-forecast"));
+  const rows = [...card.matchAll(/<span class="row-time">(\d\d:\d\d)<\/span>[\s\S]*?浪 ([\d.]+)m/g)].map((m) => [m[1], m[2]]);
+  assert.ok(rows.length >= 2 && rows.length <= 4, `列數 ${rows.length}`);
+  const times = rows.map(([t]) => t);
+  assert.equal(new Set(times).size, times.length, `時間重複：${times.join(",")}`);
+  for (const [t, wave] of rows) {
+    const i = fx.slots.findIndex((ms) => fx.iso(ms).slice(11, 16) === t);
+    assert.ok(i >= 0, `${t} 不是預報時段`);
+    assert.equal(wave, (0.1 * (i + 1)).toFixed(1), `${t} 那列的浪高應是該時段自己的值`);
+  }
+});
+
+// O-A0001-001 的 Now.Precipitation 是「當日降水量」（中央氣象署資料集說明 O-A0001-001.pdf），不是即時雨量
+test("station rainfall is labelled as today's accumulation", async () => {
+  const html = await readFile(join(ROOT, "weather", "index.html"), "utf8");
+  assert.match(html, /今日雨量 \$\{showRain\(rain\)\}/);
+});
