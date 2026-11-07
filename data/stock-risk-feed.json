@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-11-06T12:18:12.390Z",
-  "eodUpdatedAt": "2026-11-06T04:07:37.777Z",
-  "eodTradingDate": "2026-11-05",
+  "updatedAt": "2026-11-07T01:55:13.303Z",
+  "eodUpdatedAt": "2026-11-07T01:55:13.303Z",
+  "eodTradingDate": "2026-11-06",
   "holdings": [
     "2330",
     "2317",
@@ -21,149 +21,149 @@
     {
       "code": "1519",
       "name": "華城",
-      "close": 493.5,
-      "change": -11.5,
-      "date": "2026-11-05"
+      "close": 452,
+      "change": -41.5,
+      "date": "2026-11-06"
     },
     {
       "code": "2308",
       "name": "台達電",
-      "close": 1130,
-      "change": -90,
-      "date": "2026-11-05"
+      "close": 1055,
+      "change": -75,
+      "date": "2026-11-06"
     },
     {
       "code": "2317",
       "name": "鴻海",
-      "close": 225,
-      "change": -10,
+      "close": 224.5,
+      "change": -10.5,
       "date": "2026-11-06"
     },
     {
       "code": "2330",
       "name": "台積電",
-      "close": 2240,
-      "change": -20,
-      "date": "2026-11-05"
+      "close": 2135,
+      "change": -105,
+      "date": "2026-11-06"
     },
     {
       "code": "2356",
       "name": "英業達",
-      "close": 55,
-      "change": -1.4,
-      "date": "2026-11-05"
+      "close": 52.6,
+      "change": -2.4,
+      "date": "2026-11-06"
     },
     {
       "code": "2376",
       "name": "技嘉",
-      "close": 300,
-      "change": -13,
+      "close": 298,
+      "change": -15,
       "date": "2026-11-06"
     },
     {
       "code": "2382",
       "name": "廣達",
-      "close": 288.5,
-      "change": -11.5,
+      "close": 290.5,
+      "change": -9.5,
       "date": "2026-11-06"
     },
     {
       "code": "3017",
       "name": "奇鋐",
-      "close": 2565,
+      "close": 2310,
       "change": -255,
-      "date": "2026-11-05"
+      "date": "2026-11-06"
     },
     {
       "code": "3231",
       "name": "緯創",
-      "close": 168.5,
-      "change": -7.5,
-      "date": "2026-11-05"
+      "close": 160,
+      "change": -8.5,
+      "date": "2026-11-06"
     },
     {
       "code": "3324",
       "name": "雙鴻",
-      "close": 1170,
-      "change": -130,
-      "date": "2026-11-05"
+      "close": 1055,
+      "change": -115,
+      "date": "2026-11-06"
     },
     {
       "code": "3661",
       "name": "世芯-KY",
-      "close": 2960,
-      "change": -220,
-      "date": "2026-11-05"
+      "close": 2830,
+      "change": -130,
+      "date": "2026-11-06"
     },
     {
       "code": "6239",
       "name": "力成",
-      "close": 220,
-      "change": -20.5,
-      "date": "2026-11-05"
+      "close": 203.5,
+      "change": -16.5,
+      "date": "2026-11-06"
     },
     {
       "code": "6669",
       "name": "緯穎",
-      "close": 1650,
-      "change": -135,
-      "date": "2026-11-05"
+      "close": 1555,
+      "change": -95,
+      "date": "2026-11-06"
     }
   ],
   "valuation": {
     "1519": {
       "code": "1519",
-      "pe": 32.3,
-      "dividendYield": 2.43,
-      "pbRatio": 16.94
+      "pe": 29.58,
+      "dividendYield": 2.65,
+      "pbRatio": 15.51
     },
     "2308": {
       "code": "2308",
-      "pe": 33.93,
-      "dividendYield": 1.03,
-      "pbRatio": 9.22
+      "pe": 31.68,
+      "dividendYield": 1.1,
+      "pbRatio": 8.61
     },
     "2317": {
       "code": "2317",
-      "pe": 15.49,
-      "dividendYield": 3.05,
-      "pbRatio": 1.73
+      "pe": 14.8,
+      "dividendYield": 3.19,
+      "pbRatio": 1.65
     },
     "2330": {
       "code": "2330",
-      "pe": 25.96,
-      "dividendYield": 0.98,
-      "pbRatio": 9.03
+      "pe": 24.75,
+      "dividendYield": 1.03,
+      "pbRatio": 8.61
     },
     "2356": {
       "code": "2356",
-      "pe": 17.74,
-      "dividendYield": 3.64,
-      "pbRatio": 2.54
+      "pe": 16.97,
+      "dividendYield": 3.8,
+      "pbRatio": 2.43
     },
     "2376": {
       "code": "2376",
-      "pe": 11.71,
-      "dividendYield": 3.83,
-      "pbRatio": 3.15
+      "pe": 11.15,
+      "dividendYield": 4.03,
+      "pbRatio": 3
     },
     "2382": {
       "code": "2382",
-      "pe": 13.07,
-      "dividendYield": 5.2,
-      "pbRatio": 4.75
+      "pe": 12.66,
+      "dividendYield": 5.37,
+      "pbRatio": 4.6
     },
     "3017": {
       "code": "3017",
-      "pe": 34.19,
-      "dividendYield": 0.81,
-      "pbRatio": 18.25
+      "pe": 30.79,
+      "dividendYield": 0.9,
+      "pbRatio": 16.43
     },
     "3231": {
       "code": "3231",
-      "pe": 13.38,
-      "dividendYield": 3.26,
-      "pbRatio": 2.76
+      "pe": 12.71,
+      "dividendYield": 3.44,
+      "pbRatio": 2.62
     },
     "3324": {
       "code": "3324",
@@ -173,37 +173,28 @@
     },
     "3661": {
       "code": "3661",
-      "pe": 43.41,
-      "dividendYield": 1.1,
-      "pbRatio": 4.23
+      "pe": 41.51,
+      "dividendYield": 1.15,
+      "pbRatio": 4.04
     },
     "6239": {
       "code": "6239",
-      "pe": 21.78,
-      "dividendYield": 2.05,
-      "pbRatio": 2.84
+      "pe": 17.36,
+      "dividendYield": 2.21,
+      "pbRatio": 2.61
     },
     "6669": {
       "code": "6669",
-      "pe": 5.29,
-      "dividendYield": 9.95,
-      "pbRatio": 2.25
+      "pe": 4.99,
+      "dividendYield": 10.56,
+      "pbRatio": 2.12
     }
   },
   "yield10y": {
-    "date": "2026-11-04",
-    "value": 4.9,
-    "updatedAt": "2026-11-04T22:00:00.000Z",
+    "date": "2026-11-05",
+    "value": 4.84,
+    "updatedAt": "2026-11-05T22:00:00.000Z",
     "source": "FRED DGS10 CSV"
   },
-  "errors": [
-    {
-      "source": "TPEX OpenAPI daily close quotes",
-      "message": "terminated"
-    },
-    {
-      "source": "feed-preservation",
-      "message": "kept 1 eod row(s), 0 valuation entr(ies) from previous feed due to upstream gaps"
-    }
-  ]
+  "errors": []
 }
