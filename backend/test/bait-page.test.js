@@ -1657,7 +1657,8 @@ test("排名表的評級寫法一致：一律用文字，原文符號放括號�
   const rows = bream.ranking.layers[0].rows;
   const row = (n) => rows.find((r) => r.name === n);
   assert.match(row("L-丙胺酸").result, /^最強一級（原文「卅」）/);
-  assert.match(row("L-纈胺酸").result, /^最強一級（原文「卅」）/, "同一級不可以一個寫卅、一個寫 +++");
+  // 纈胺酸沒買，2026-11-08 起排名表只比品項庫裡有的原料，不再列它
+  assert.ok(!rows.some((r) => r.name === "L-纈胺酸"));
   assert.match(bream.ranking.note, /卅（＝\+\+\+）/, "要有符號對照");
   for (const r of rows) assert.doesNotMatch(r.result, /^[+±−]|（\+\+\+）/, r.name + " 不可以只寫符號");
   const tilapia = plans.find((p) => p.species === "福壽魚");
@@ -1668,14 +1669,15 @@ test("排名表有效果大小一欄，每一列都要填，吳郭魚的數字�
   const { app, html } = await loadPage();
   const plans = plain(app.helpers.ADDITIVES);
   for (const p of plans) for (const L of p.ranking.layers) for (const r of L.rows) assert.ok(r.effect && r.effect.length > 0, p.species + " " + r.name + " 沒有效果大小");
-  assert.match(html, /stackTable\(\["排名", "原料", "研究結果", "效果大小", "依據", "品項庫"\]/);
+  // 2026-11-08 起只畫品項庫裡有的列，「品項庫」那一欄每列都是「有」，拿掉
+  assert.match(html, /stackTable\(\["排名", "原料", "研究結果", "效果大小", "依據"\]/);
   const t = plans.find((p) => p.species === "福壽魚").ranking.layers[0].rows;
   const eff = (n) => t.find((r) => r.name === n || r.rank === n).effect;
   // 吞下率減空白組，四捨五入到整數百分點
-  assert.match(eff("蝦、紅蟲的水萃液"), new RegExp("\\+" + Math.round(100 - 45.2)));
+  assert.match(eff("蝦的水萃液"), new RegExp("\\+" + Math.round(100 - 45.2)));
   assert.match(eff("L-半胱胺酸 0.1 M"), new RegExp("幼魚 \\+" + Math.round(99 - 63.5) + "、成魚 \\+" + Math.round(91 - 63)));
-  assert.match(eff("山梨酸鉀（己二烯酸鉀）0.1 M"), new RegExp("\\+" + Math.round(97.1 - 63)));
-  assert.match(eff("檸檬酸 0.1 M"), /幼魚 \+25、成魚 \+14/);
+  assert.match(eff("檸檬酸 0.1 M"), /幼魚 \+25、成魚 \+14（另一篇成魚 \+15）/);
+  assert.equal(Math.round(78.1 - 63), 15);
 });
 
 test("排名表只列有效果的原料：中性、拒吃、無效、弱都不放（使用者指定，2026-11-02）", async () => {
@@ -1724,22 +1726,21 @@ test("添加劑頁可見文字與預設備註不引用已不顯示的組別、�
 });
 
 // 2026-11-02 複查：排名表的每一列都要放在對的層、效果欄講的是同一種量
-test("排名表複查：魚粉蝦粉是近距離吞食不是誘魚、纈胺酸排在丙胺酸前、弱的不列", async () => {
+test("排名表複查：蝦粉是近距離吞食不是誘魚、弱的不列", async () => {
   const { app } = await loadPage();
   const plans = plain(app.helpers.ADDITIVES);
   const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
   const [tBite, tSmell] = tilapia.ranking.layers, [bBite, bSmell] = bream.ranking.layers;
   // X20 自己說只能當近距離偏好、不是遠距誘魚證據，所以不在「靠過來」
   assert.ok(!tSmell.rows.some((r) => /魚粉/.test(r.name)));
-  const meal = tBite.rows.find((r) => r.name === "魚粉、蝦粉");
-  assert.match(meal.effect, /對照飼料約 8 顆/, "要說出比的是什麼");
+  // 2026-11-08 起只列品項庫裡有的：魚粉沒買，那一列只留蝦粉
+  const meal = tBite.rows.find((r) => r.name === "蝦粉（做成原料粒）");
+  assert.match(meal.effect, /對照飼料 8\.3 顆/, "要說出比的是什麼");
   assert.match(meal.effect, /不是百分點/);
-  assert.match(tilapia.ranking.note, /魚粉、蝦粉那列是雙選擇試驗的顆數/);
-  // 本種全文排在本種摘要前面
-  const idx = (name) => tBite.rows.findIndex((r) => r.name.startsWith(name));
-  assert.ok(idx("魚粉") < idx("糖精鈉") && idx("檸檬酸") < idx("魚粉"));
+  assert.equal(Math.round((37.5 / 8.3) * 10) / 10, 4.5);
+  assert.match(meal.result, /約是對照的 4\.5 倍/);
   // 效果欄是「比空白高多少」，絕對吞食率不能當效果大小
-  assert.doesNotMatch(tBite.rows.find((r) => r.name.startsWith("糖精鈉")).effect, /^超過 85%/);
+  assert.doesNotMatch(tBite.rows.find((r) => r.name === "D-山梨醇").effect, /^超過 85%/);
   // 排名數字連續
   for (const L of [...tilapia.ranking.layers, ...bream.ranking.layers]) {
     const nums = L.rows.map((r) => r.rank).filter((r) => /^\d+$/.test(r));
@@ -1747,8 +1748,8 @@ test("排名表複查：魚粉蝦粉是近距離吞食不是誘魚、纈胺酸�
     assert.equal(nums[0], "1", L.layer);
     for (let i = 1; i < nums.length; i += 1) assert.ok(+nums[i] - +nums[i - 1] <= 1 && +nums[i] >= +nums[i - 1], L.layer + " 跳號：" + nums.join(","));
   }
-  // 纈胺酸讀圖 45 次、濃度更低就有效：同一級裡排在丙胺酸前面
-  assert.ok(bBite.rows.findIndex((r) => r.name === "L-纈胺酸") < bBite.rows.findIndex((r) => r.name === "L-丙胺酸"));
+  // 纈胺酸沒買，2026-11-08 起不列（資料仍在證據等級）
+  assert.ok(!bBite.rows.some((r) => r.name === "L-纈胺酸"));
   // 精胺酸（原文 −～±）、甘胺酸的嗅覺（近緣種最弱的一群）都是弱，照「弱的不列」拿掉；資料仍在證據等級
   assert.ok(!bBite.rows.some((r) => r.name === "L-精胺酸"));
   assert.ok(!bSmell.rows.some((r) => r.name === "甘胺酸"));
@@ -1789,4 +1790,41 @@ test("原料資料：若亞方舟品項的成分、效期與還沒買的己二�
   h.mergeSeed(old, seed);
   assert.equal(old.items.find((i) => i.id === "item-sorbitol-noah").ingredients, ing("item-sorbitol-noah"));
   assert.equal(old.items.find((i) => i.id === "item-citric-noah").ingredients, ing("item-citric-noah"));
+});
+
+// 只比品項庫裡有的原料（使用者指定，2026-11-08）：不同研究的百分比不排名次
+test("排名表只比品項庫裡有的原料，名次只給同一篇、同一批魚可以比的列", async () => {
+  const { app, html } = await loadPage();
+  const h = app.helpers;
+  const plans = plain(h.ADDITIVES);
+  const seedIds = new Set(plain(h.seed()).items.map((i) => i.id));
+  for (const p of plans) for (const L of p.ranking.layers) for (const r of L.rows) {
+    assert.ok(r.itemIds.length && r.itemIds.every((id) => seedIds.has(id)), p.species + " " + r.name + " 不是品項庫裡有的原料");
+  }
+  const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
+  const numbered = (L) => L.rows.filter((r) => /^\d+$/.test(r.rank));
+  // 吳郭魚：有名次的兩列都出自同一篇（X17），其餘不同研究的一律「—」
+  const tN = numbered(tilapia.ranking.layers[0]);
+  assert.deepEqual(tN.map((r) => r.name), ["L-半胱胺酸 0.1 M", "檸檬酸 0.1 M"]);
+  for (const r of tN) assert.ok(r.sources.includes("X17"), r.name);
+  for (const r of tilapia.ranking.layers[0].rows.filter((r) => r.rank === "—")) assert.ok(!r.sources.includes("X17"), r.name);
+  assert.ok(!tilapia.ranking.layers[0].rows.some((r) => /己二烯酸鉀|纈胺酸|糖精|蔗糖/.test(r.name)), "沒買的不列");
+  assert.match(tilapia.ranking.note, /沒有兩者互比的檢定/);
+  assert.match(tilapia.ranking.layers[0].rows.find((r) => r.name === "蝦的水萃液").effect, /不能比/);
+  // 黑鯛：有名次的兩列都在伊奈研究室同一張表（X43）
+  const bN = numbered(bream.ranking.layers[0]);
+  assert.deepEqual(bN.map((r) => r.name), ["L-丙胺酸", "甘胺酸"]);
+  for (const r of bN) assert.ok(r.sources.includes("X43"), r.name);
+  for (const p of plans) {
+    assert.match(p.ranking.note, /只列你品項庫裡有的原料/);
+    assert.doesNotMatch(p.ranking.note, /品項庫那一欄/);
+  }
+  // 渲染：品項刪掉那一列就不畫，名次重新從 1 編、並列仍並列、「—」不動
+  const rows = [
+    { rank: "1", name: "a", itemIds: ["x"] }, { rank: "1", name: "b", itemIds: ["y"] },
+    { rank: "2", name: "c", itemIds: ["y"] }, { rank: "—", name: "d", itemIds: ["y"] }, { rank: "3", name: "e", itemIds: ["z"] }
+  ];
+  assert.deepEqual(plain(h.ownedRankingRows(rows, { y: true })).map((r) => r.name + r.rank), ["b1", "c2", "d—"]);
+  assert.deepEqual(plain(h.ownedRankingRows(rows, { x: true, z: true })).map((r) => r.name + r.rank), ["a1", "e2"]);
+  assert.match(html, /ownedRankingRows\(layer\.rows, owned\)/);
 });
