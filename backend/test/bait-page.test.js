@@ -101,19 +101,19 @@ test("品項分類：餌料／添加劑，品項庫分兩區", async () => {
   assert.equal(plain(h.sanitizeItem({ name: "x" })).kind, "bait", "沒填是餌料");
   assert.equal(plain(h.sanitizeItem({ name: "x", kind: "additive" })).kind, "additive");
   assert.equal(plain(h.sanitizeItem({ name: "x", kind: "ADDITIVE" })).kind, "bait", "對不上就退回預設");
-  // 預設資料裡的添加劑是若亞方舟那四樣、黑格用的甘胺酸與 L-丙胺酸，加上 T16 的味王 味精
+  // 預設資料裡的添加劑：若亞方舟最早那四樣、黑格用的甘胺酸與 L-丙胺酸、味王 味精，加上 2026-11-05 買的己二烯酸鉀與 L-纈胺酸
   const seed = plain(h.seed());
   const additives = seed.items.filter((i) => plain(h.sanitizeItem(i)).kind === "additive").map((i) => i.id).sort();
-  assert.equal(additives.join(","), "item-alanine-noah,item-citric-noah,item-cysteine-noah,item-glycine-noah,item-msg-vewong,item-sorbitol-noah,item-tryptophan-noah");
+  assert.equal(additives.join(","), "item-alanine-noah,item-citric-noah,item-cysteine-noah,item-glycine-noah,item-ksorbate-noah,item-msg-vewong,item-sorbitol-noah,item-tryptophan-noah,item-valine-noah");
   // 舊裝置：那四樣是在分類欄位出現前補進去的，讀回來是餌料；開一次要更正成添加劑
   const FIRST_FOUR = ["item-citric-noah", "item-cysteine-noah", "item-sorbitol-noah", "item-tryptophan-noah"];
   const old = plain(h.sanitizeState(seed));
   for (const i of old.items) if (FIRST_FOUR.includes(i.id)) i.kind = "bait";
   old.appliedFixes = old.appliedFixes.filter((id) => !id.endsWith(":kind:1"));
   h.mergeSeed(old, seed);
-  assert.equal(old.items.filter((i) => i.kind === "additive").length, 7);
+  assert.equal(old.items.filter((i) => i.kind === "additive").length, 9);
   // 分類要撐過存檔再讀回
-  assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 7);
+  assert.equal(plain(h.sanitizeState(old)).items.filter((i) => i.kind === "additive").length, 9);
   // 表單不給選分類（使用者要求移除）；品項庫用切換鈕一次顯示一類（左右並排太擠，使用者退回）
   assert.doesNotMatch(html, /id="itemKind"|name="itemKind"/);
   assert.match(html, /<div id="itemRows"><\/div>/);
@@ -1555,7 +1555,9 @@ test("T19：山梨酸鉀（己二烯酸鉀）0.1 M 單獨一組跟 T1 比（使�
   const kso = tilapia.stocks.find((x) => x.id === "KSO");
   assert.match(kso.name, /己二烯酸鉀/);
   assert.match(kso.note, /不是「己二烯酸」/, "買錯成酸形式會反效果，要說出來");
-  assert.match(kso.note, /還沒買/);
+  // 2026-11-05 買了、11-08 收貨（使用者確認）
+  assert.match(kso.note, /2026-11-05 向若亞方舟買了 1 kg \$266/);
+  assert.doesNotMatch(kso.note, /還沒買/);
   assert.match(kso.made, /單獨一杯/);
   // 證據只有一批魚、共用空白，要說出來
   assert.match(t19.purpose, /只有一批成魚/);
@@ -1657,8 +1659,8 @@ test("排名表的評級寫法一致：一律用文字，原文符號放括號�
   const rows = bream.ranking.layers[0].rows;
   const row = (n) => rows.find((r) => r.name === n);
   assert.match(row("L-丙胺酸").result, /^最強一級（原文「卅」）/);
-  // 纈胺酸沒買，2026-11-08 起排名表只比品項庫裡有的原料，不再列它
-  assert.ok(!rows.some((r) => r.name === "L-纈胺酸"));
+  // 纈胺酸 2026-11-05 買了，回到排名表；同一級不可以一個寫卅、一個寫 +++
+  assert.match(row("L-纈胺酸").result, /^最強一級（原文「卅」）/);
   assert.match(bream.ranking.note, /卅（＝\+\+\+）/, "要有符號對照");
   for (const r of rows) assert.doesNotMatch(r.result, /^[+±−]|（\+\+\+）/, r.name + " 不可以只寫符號");
   const tilapia = plans.find((p) => p.species === "福壽魚");
@@ -1740,7 +1742,7 @@ test("排名表複查：蝦粉是近距離吞食不是誘魚、弱的不列", as
   assert.equal(Math.round((37.5 / 8.3) * 10) / 10, 4.5);
   assert.match(meal.result, /約是對照的 4\.5 倍/);
   // 效果欄是「比空白高多少」，絕對吞食率不能當效果大小
-  assert.doesNotMatch(tBite.rows.find((r) => r.name === "D-山梨醇").effect, /^超過 85%/);
+  assert.doesNotMatch(tBite.rows.find((r) => r.name === "D-山梨醇、L-纈胺酸").effect, /^超過 85%/);
   // 排名數字連續
   for (const L of [...tilapia.ranking.layers, ...bream.ranking.layers]) {
     const nums = L.rows.map((r) => r.rank).filter((r) => /^\d+$/.test(r));
@@ -1748,8 +1750,10 @@ test("排名表複查：蝦粉是近距離吞食不是誘魚、弱的不列", as
     assert.equal(nums[0], "1", L.layer);
     for (let i = 1; i < nums.length; i += 1) assert.ok(+nums[i] - +nums[i - 1] <= 1 && +nums[i] >= +nums[i - 1], L.layer + " 跳號：" + nums.join(","));
   }
-  // 纈胺酸沒買，2026-11-08 起不列（資料仍在證據等級）
-  assert.ok(!bBite.rows.some((r) => r.name === "L-纈胺酸"));
+  // 纈胺酸與丙胺酸同為最強一級：並列第 1，纈胺酸排前面（同一張圖讀數 45 對 38 次）
+  const v = bBite.rows.find((r) => r.name === "L-纈胺酸"), a = bBite.rows.find((r) => r.name === "L-丙胺酸");
+  assert.equal(v.rank, "1"); assert.equal(a.rank, "1");
+  assert.ok(bBite.rows.indexOf(v) < bBite.rows.indexOf(a));
   // 精胺酸（原文 −～±）、甘胺酸的嗅覺（近緣種最弱的一群）都是弱，照「弱的不列」拿掉；資料仍在證據等級
   assert.ok(!bBite.rows.some((r) => r.name === "L-精胺酸"));
   assert.ok(!bSmell.rows.some((r) => r.name === "甘胺酸"));
@@ -1767,7 +1771,7 @@ test("排名表複查：蝦粉是近距離吞食不是誘魚、弱的不列", as
 });
 
 // 2026-11-02 原料資料複查：成分照若亞方舟商品頁（開過）的小包裝規格寫，0.1% 菊苣纖維不能漏
-test("原料資料：若亞方舟品項的成分、效期與還沒買的己二烯酸鉀規格照商品頁", async () => {
+test("原料資料：若亞方舟品項的成分、效期與己二烯酸鉀規格照商品頁", async () => {
   const { app } = await loadPage();
   const h = app.helpers;
   const items = plain(h.seed()).items;
@@ -1803,17 +1807,20 @@ test("排名表只比品項庫裡有的原料，名次只給同一篇、同一�
   }
   const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
   const numbered = (L) => L.rows.filter((r) => /^\d+$/.test(r.rank));
-  // 吳郭魚：有名次的兩列都出自同一篇（X17），其餘不同研究的一律「—」
+  // 吳郭魚：有名次的列都跟檸檬酸同一篇（半胱胺酸在 X17、己二烯酸鉀在 X26），兩者彼此沒比過所以並列；
+  // 其餘不同研究的一律「—」（2026-11-08 己二烯酸鉀收貨後加入）
   const tN = numbered(tilapia.ranking.layers[0]);
-  assert.deepEqual(tN.map((r) => r.name), ["L-半胱胺酸 0.1 M", "檸檬酸 0.1 M"]);
-  for (const r of tN) assert.ok(r.sources.includes("X17"), r.name);
-  for (const r of tilapia.ranking.layers[0].rows.filter((r) => r.rank === "—")) assert.ok(!r.sources.includes("X17"), r.name);
-  assert.ok(!tilapia.ranking.layers[0].rows.some((r) => /己二烯酸鉀|纈胺酸|糖精|蔗糖/.test(r.name)), "沒買的不列");
-  assert.match(tilapia.ranking.note, /沒有兩者互比的檢定/);
+  assert.deepEqual(tN.map((r) => r.name + r.rank), ["山梨酸鉀（己二烯酸鉀）0.1 M1", "L-半胱胺酸 0.1 M1", "檸檬酸 0.1 M2"]);
+  const citric = tN.find((r) => r.name === "檸檬酸 0.1 M");
+  for (const r of tN) assert.ok(r.sources.some((s) => citric.sources.includes(s)), r.name + " 要跟檸檬酸同一篇");
+  for (const r of tilapia.ranking.layers[0].rows.filter((r) => r.rank === "—")) assert.ok(!r.sources.some((s) => ["X17", "X26"].includes(s)), r.name);
+  assert.ok(!tilapia.ranking.layers[0].rows.some((r) => /糖精|蔗糖/.test(r.name)), "沒買的不列");
+  assert.match(tilapia.ranking.note, /兩樣沒有在同一篇比過，所以並列第 1/);
+  assert.match(tN[0].effect, new RegExp("\\+" + Math.round(97.1 - 63) + "（同一篇的檸檬酸 \\+" + Math.round(78.1 - 63) + "）"));
   assert.match(tilapia.ranking.layers[0].rows.find((r) => r.name === "蝦的水萃液").effect, /不能比/);
   // 黑鯛：有名次的兩列都在伊奈研究室同一張表（X43）
   const bN = numbered(bream.ranking.layers[0]);
-  assert.deepEqual(bN.map((r) => r.name), ["L-丙胺酸", "甘胺酸"]);
+  assert.deepEqual(bN.map((r) => r.name + r.rank), ["L-纈胺酸1", "L-丙胺酸1", "甘胺酸2"]);
   for (const r of bN) assert.ok(r.sources.includes("X43"), r.name);
   for (const p of plans) {
     assert.match(p.ranking.note, /只列你品項庫裡有的原料/);
