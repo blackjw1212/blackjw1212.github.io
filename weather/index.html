@@ -147,19 +147,6 @@ body {
   flex: 1 1 auto;
 }
 .title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--txt); }
-/* 行內按鈕：padding 撐出 ~44px 熱區，負 margin 吸收，標題列高度不變（同 .radar-link） */
-.relocate-btn {
-  font: inherit;
-  color: var(--link);
-  background: none;
-  border: 0;
-  cursor: pointer;
-  display: inline-block;
-  padding: 14px 6px;
-  margin: -14px -6px;
-  margin-left: 4px;
-}
-.relocate-btn:disabled { opacity: .5; cursor: default; }
 .meta  { font-size: 13px; color: var(--txt-3); margin-top: 4px; font-family: 'DM Mono', monospace; }
 .area-control {
   display: flex;
@@ -1277,7 +1264,7 @@ body {
   <div class="topbar">
     <div class="topbar-left">
       <div class="title">BJKW即時氣象報告</div>
-      <div class="meta"><span id="meta">資料載入中…</span> <button type="button" class="relocate-btn" id="relocateBtn">重新定位</button></div>
+      <div class="meta" id="meta">資料載入中…</div>
     </div>
     <div class="area-control">
       <label class="area-label" for="coastSelect">地區</label>
@@ -1648,11 +1635,10 @@ function radarPoint(weatherInfo, coastCfg) {
 // - 權限已經是允許：每次都重新定位（不會跳提示），快取只當失敗時的退路。
 // - 會跳提示：快取只沿用 30 分鐘（同 /sky/ 的 FIX_REFRESH_AFTER_MS），開車半小時就是另一個海域。
 // 先前一律沿用 12 小時，早上在湖內定位、中午回到臺南，整天都還顯示湖內與茄萣（2026-10-16 回報）。
-// 12 小時只保留給「定位失敗時的退路」，而且畫面會印出那筆定位的時間。
+// 12 小時只保留給「定位失敗時的退路」。定位失敗且沒有退路時，天氣卡標題會寫「東區天氣」。
 const FIX_STORAGE_KEY = "bjkw-weather-last-fix";
 const FIX_REUSE_MS = 30 * 60 * 1000;
 const FIX_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-let forceFreshFix = false;
 
 function readStoredFix(maxAgeMs = FIX_MAX_AGE_MS) {
   let raw = null;
@@ -1687,9 +1673,7 @@ async function geolocationPermission() {
 
 async function getGpsPosition() {
   if (!navigator.geolocation) return null;
-  const force = forceFreshFix;
-  forceFreshFix = false;
-  if (!force && (await geolocationPermission()) !== "granted") {
+  if ((await geolocationPermission()) !== "granted") {
     const cached = readStoredFix(FIX_REUSE_MS);
     if (cached) return cached;
   }
@@ -2320,8 +2304,6 @@ async function loadAll() {
   const content = document.getElementById("content");
   const meta    = document.getElementById("meta");
   if (select) select.disabled = true;
-  const relocateBtn = document.getElementById("relocateBtn");
-  if (relocateBtn) relocateBtn.disabled = true;
   meta.textContent = "資料載入中…";
 
   try {
@@ -2844,9 +2826,8 @@ async function loadAll() {
     syncTodayModeDetails();
     requestSyncTideCurves();
 
-    // 一律 24 小時制；印出定位的時間，沿用的是舊定位時看得出來
-    const fixAt = weatherInfo.gpsPos?.at;
-    meta.textContent = `更新 ${fmtTime(n)} · ${fixAt ? `定位 ${fmtTime(new Date(fixAt))}` : "未取得定位"}`;
+    // 一律 24 小時制。定位時間不另外印：一般情況與更新時間相同；定位失敗時天氣卡標題已寫「東區天氣」
+    meta.textContent = `更新 ${fmtTime(n)}`;
 
   } catch(err) {
     const errMsg = String(err?.message || err);
@@ -2857,19 +2838,11 @@ async function loadAll() {
   }
 
   if (select) select.disabled = false;
-  if (relocateBtn) relocateBtn.disabled = false;
 }
 
 document.getElementById("coastSelect")?.addEventListener("change", e => {
   fitCoastSelectWidth(e.target);
   manualCoastLabel = e.target.value;
-  loadAll();
-});
-
-// 重新定位：略過快取、要一筆新的定位；手動選的海域一併放掉，回到跟隨定位
-document.getElementById("relocateBtn")?.addEventListener("click", () => {
-  forceFreshFix = true;
-  manualCoastLabel = null;
   loadAll();
 });
 

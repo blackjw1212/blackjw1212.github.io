@@ -344,7 +344,7 @@ test("if the location request fails, the stored fix is used and keeps its own ti
   const h = await loadHelpers(store, nav);
   const pos = await h.getGpsPosition();
   assert.equal(pos.lat, FIX.lat);
-  assert.equal(pos.at, at, "畫面要印出的是那筆舊定位的時間，不是現在");
+  assert.equal(pos.at, at, "沿用的舊定位要保留它自己的時間，不可蓋成現在");
 });
 
 // ─── 2026-11-03 資料審查：每一條都是用真實 CWA 資料量到的錯 ───────────────
