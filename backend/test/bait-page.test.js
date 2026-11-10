@@ -1874,3 +1874,17 @@ test("每杯合計的水寫對：A 撒那杯是 1,200 cc 海水", async () => {
   const cups = plain(h.stockCupCost(bream, plain(h.seed()).items)).cups;
   assert.deepEqual(cups.map((c) => c.water), ["1,200 cc 海水", "600 g 水"]);
 });
+
+// 2026-11-10 複查：說明句講的列數要跟真正有名次的列數一致（己二烯酸鉀加入後變三列，「那兩列」沒跟著改）
+test("排名表說明的列數跟有名次的列一致；蝦粉列只對到乾粉；加乘列含纈胺酸", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
+  const ZH = ["零", "一", "兩", "三", "四", "五", "六"];
+  const tRows = tilapia.ranking.layers[0].rows;
+  const n = tRows.filter((r) => /^\d+$/.test(r.rank)).length;
+  assert.match(tilapia.ranking.note, new RegExp("排名次的那" + ZH[n] + "列"));
+  assert.match(tRows.find((r) => r.name === "蝦的水萃液").effect, new RegExp("上面" + ZH[n] + "列"));
+  assert.ok(!tRows.find((r) => r.name === "蝦粉（做成原料粒）").itemIds.includes("item-krill-block"), "冷凍蝦磚不是乾粉");
+  assert.match(bream.ranking.layers[0].rows.find((r) => r.rank === "加乘").result, /纈胺酸/);
+});
