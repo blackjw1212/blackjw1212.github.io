@@ -20,20 +20,32 @@ jobs:
   update-market-feed:
     runs-on: ubuntu-latest
     # 沒有這行，任何一步卡住都會讓 job 等到 GitHub 預設的 6 小時，當班資料跟著卡住。
+    # 每一步也各有上限（timeout-minutes），數字取自 2026-11-06～11-10 四班全跑的實測時間、
+    # 留兩到十幾倍餘裕。job 的上限要**不小於各步上限的總和**——否則每一步都還在自己的
+    # 上限內，整個 job 卻先被砍掉，commit 那一步根本輪不到（workflow-timeouts.test.js 釘住）。
+    # 有 continue-on-error 的步驟逾時只是那份參考資料沿用舊檔，行情照常 commit；
+    # 被砍時寫到一半的檔案會在「Validate feed schemas」被擋下，什麼都不推。
     # 正常最久的是手動派工（每日步驟全跑）：約 10 分鐘，2026-10-20 那次 25 分鐘。
-    timeout-minutes: 45
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 3
       - uses: actions/setup-node@v5
+        timeout-minutes: 3
         with:
           node-version: "24"
+      # 實測 33–54 秒。這一步沒有 continue-on-error：逾時就是整班失敗、什麼都不推，
+      # 跟上游掛掉一樣保留上一份好資料。
       - name: Generate market feed
+        timeout-minutes: 15
         run: node scripts/update-market-feed.mjs --emit-bulk /tmp/bulk.json
       # 成分股：官方無此資料，只能解析 MoneyDJ；每週一 18:15 那班才跑（成分股月頻變動，
       # 且這是最脆弱的一段）。放在 ETF feed 之前，讓當班就能把新成分股併進 feed。
       # 成功率低於 50% 時腳本自己會拒絕覆寫，避免上游改版洗掉好資料。
+      # 實測 4 分 57 秒～5 分 45 秒（358 檔逐一抓 MoneyDJ）。
       - name: Refresh ETF holdings (Mondays only)
         continue-on-error: true
+        timeout-minutes: 12
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$(date -u +%u)" = "1" ]; then
             node scripts/fetch-etf-holdings.mjs
@@ -46,8 +58,10 @@ jobs:
       # 那 112 檔的配息就凍結在最後一次手動執行、並隨 13 個月窗逐筆消失。
       # 一天跑一班（台灣 22:00）就夠——配息都是提前公告的。必須排在 ETF feed 之前，
       # 否則新事件要等下一班才會進 feed 的 dps/殖利率。
+      # 實測約 1 分 10 秒。每 100 檔存一次完整的檢查點，中途被砍也是一份能用的檔。
       - name: Refresh ETF dividend history (once daily)
         continue-on-error: true
+        timeout-minutes: 5
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
             node scripts/seed-etf-div-history.mjs --incremental
@@ -60,6 +74,7 @@ jobs:
       # 驗證不過或線上與現存衝突會 exit 1，但不擋 feed 更新（容錯），由 log 提醒。
       - name: Refresh tax brackets (once daily)
         continue-on-error: true
+        timeout-minutes: 2
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
             node scripts/update-tax-params.mjs
@@ -87,6 +102,7 @@ jobs:
       # 失敗容錯：拿不到就沿用上次的 etf-returns.json，ETF feed 照樣產生。
       - name: Refresh ETF 1-year returns (once daily)
         continue-on-error: true
+        timeout-minutes: 5
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
             node scripts/update-etf-returns.mjs
@@ -98,6 +114,7 @@ jobs:
       # 排在 ETF feed 之前，當班就併得進 feed。
       - name: Refresh risk-free rate (once daily)
         continue-on-error: true
+        timeout-minutes: 2
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
             node scripts/update-risk-free.mjs
@@ -108,6 +125,7 @@ jobs:
       # 下一步的 schema 驗證會檢查那份舊檔並通過，個股 feed 照常更新。
       - name: Generate ETF feed
         continue-on-error: true
+        timeout-minutes: 3
         run: node scripts/update-etf-feed.mjs --bulk /tmp/bulk.json
       # 驗證兩份 feed（含逐市場筆數下限）。原本 commit 步驟掛 if: always()，
       # 驗證失敗仍會把劣化資料推上去；改為驗證是 commit 的前置條件——
@@ -116,8 +134,11 @@ jobs:
       # market-52w（hi52/lo52 的定義性檢查與保留界線）、etf-returns、
       # industry-map、risk-free。它們同樣是這一班寫出來、直接上線的。
       - name: Validate feed schemas
+        timeout-minutes: 5
         run: node --test backend/test/etf-schema.test.js backend/test/data-artifact-schema.test.js
+      # 推送最多重試三次（中間各睡 15／30 秒），加上派工部署，最壞約一分半。
       - name: Commit feed updates
+        timeout-minutes: 5
         run: |
           # 只納入實際存在的檔案：holdings 首次執行前不存在，git diff 會報錯
           FILES=""

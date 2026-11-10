@@ -412,11 +412,16 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
 - **每個打外站的步驟都要有上限，job 也要有。** 2026-11-10 21:29 那班 ISIN（產業對照）上市頁
   抓了 9 分 37 秒、上櫃頁 2 分 56 秒，資料完整但整條管線停在那一步，行情晚 13 分鐘上線——
   而那張表一個月才變一次。`update-industry-map.mjs` 現在每頁 2 分鐘就放棄（兩頁同時抓）、
-  留著舊表；step 有 `timeout-minutes: 5` 當後備，job 有 `timeout-minutes: 45`（GitHub 預設是
+  留著舊表；step 有 `timeout-minutes: 5` 當後備，job 有 `timeout-minutes: 70`（GitHub 預設是
   6 小時）。兩個坑：**undici 預設的 `bodyTimeout` 攔不住慢慢滴進來的回應**（它量的是兩個區塊
   之間的間隔），要用 `AbortSignal` 蓋住整個 `arrayBuffer()`；**`AbortSignal.timeout()` 的計時器
   是 unref 的**，撐不住 event loop，要自己 `setTimeout` ＋ `AbortController`。測試用真的
-  HTTP 伺服器滴 body 驗證過。其他每日步驟（ETF 成分股、配息、報酬）目前只靠 job 上限擋。
+  HTTP 伺服器滴 body 驗證過。**現在每一步都有 `timeout-minutes`**（取自 2026-11-06～11-10 四班
+  全跑的實測、留兩到十幾倍餘裕），而 **job 的上限不可以小於各步上限的總和**——反過來的話每一步
+  都還在自己的上限內、job 卻先被砍，commit 輪不到。`workflow-timeouts.test.js` 釘住這兩件事，
+  新增一步忘了加上限就紅。有 continue-on-error 的步驟逾時＝那份參考資料沿用舊檔；被砍時寫到
+  一半的 JSON 會在 Validate 那步被擋下、什麼都不推。這些步驟的腳本本身仍沒有逐請求的逾時
+  （只有 industry map 有），慢的那天是整步放棄、不是部分成功。
 - **本機跑管線要 `NODE_USE_ENV_PROXY=1`**（cloud session 的出口代理；Node 內建 fetch
   不讀 `HTTPS_PROXY`，否則全部 `fetch failed`）。**證交所 www 的 WAF 會限速**：連打十幾個
   請求就回「因為安全性考量，您所執行的頁面無法呈現」的 HTML，要隔幾秒一個。
