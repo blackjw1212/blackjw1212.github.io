@@ -19,6 +19,14 @@ const SOURCES = {
   twseEodFast: "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=ALLBUT0999&response=json",
   twseEod: "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
   tpexEod: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
+  // 估值主來源是「指定日期」的逐日表，openapi 那兩支退為備援。實測 2026-11-03～11-10：
+  // openapi 的 BWIBBU_ALL 每天都要到次日早上才換日，四班裡有三班拿到的是前一交易日的估值，
+  // 頁面只好用 close/(close−change) 換算分母——那個換算假設 EPS 沒變，而 11-10 一天就有
+  // 99 檔上市股換了財報季（3017 奇鋐換算出 PE 37.19，證交所當日公布 30.84）。
+  // 逐日表同一天 18:44 就有當日資料，而且多帶「股利年度」「財報年/季」，配股後基準
+  // 不一致的判斷（shareBasisFlag）靠的就是這兩欄。
+  twseValuationDaily: (isoDate) => `https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json&date=${isoDate.replace(/-/g, "")}&selectType=ALL`,
+  tpexValuationDaily: (isoDate) => `https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date=${isoDate.replace(/-/g, "%2F")}&response=json`,
   twseValuation: "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
   tpexValuation: "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis",
 };
@@ -77,7 +85,7 @@ export function normalizeMiIndex(payload) {
   if (iCode < 0 || iClose < 0) return empty;
   const idx = {
     name: at("證券名稱"), open: at("開盤價"), high: at("最高價"), low: at("最低價"),
-    volume: at("成交股數"), sign: at("漲跌(+/-)"), diff: at("漲跌價差"),
+    volume: at("成交股數"), value: at("成交金額"), sign: at("漲跌(+/-)"), diff: at("漲跌價差"),
   };
   const num = (cell) => parseNumber(String(cell == null ? "" : cell).replace(/,/g, ""));
   // 日期在 payload 層（20260729），不在每一列。轉回民國年塞進列裡，
@@ -98,7 +106,7 @@ export function normalizeMiIndex(payload) {
     if (rocDate) entry.Date = rocDate;
     const change = idx.sign >= 0 ? parseMiChange(row[idx.sign], row[idx.diff]) : null;
     if (change != null) entry.Change = change;
-    for (const [key, label] of [["OpeningPrice", "open"], ["HighestPrice", "high"], ["LowestPrice", "low"], ["TradeVolume", "volume"]]) {
+    for (const [key, label] of [["OpeningPrice", "open"], ["HighestPrice", "high"], ["LowestPrice", "low"], ["TradeVolume", "volume"], ["TradeValue", "value"]]) {
       if (idx[label] < 0) continue;
       const value = num(row[idx[label]]);
       if (value != null) entry[key] = value;
@@ -131,10 +139,15 @@ export function normalizeMarketRows(rows, market) {
     const high = parseNumber(field(row, ["HighestPrice", "High", "high"]));
     const low = parseNumber(field(row, ["LowestPrice", "Low", "low"]));
     const volume = parseNumber(field(row, ["TradeVolume", "TradingShares", "volume"]));
+    // 成交金額（元）照上游原值。頁面原本用「收盤 × 成交股數」估成交額，那不是成交金額：
+    // 實測 2026-11-10 上市 1,089 檔與官方值的差距中位 0.74%、最大 7.19%。
+    // MI_INDEX 的「成交金額」、STOCK_DAY_ALL 的 TradeValue、TPEX 的 TransactionAmount 都是元。
+    const value = parseNumber(field(row, ["TradeValue", "TransactionAmount", "value"]));
     if (open != null) entry.open = roundNumber(open, 2);
     if (high != null) entry.high = roundNumber(high, 2);
     if (low != null) entry.low = roundNumber(low, 2);
     if (volume != null) entry.volume = Math.round(volume);
+    if (value != null) entry.value = Math.round(value);
     const date = rocToIso(field(row, ["Date", "date"]));
     if (date) entry.date = date;
     out.push(entry);
@@ -172,6 +185,164 @@ export function normalizeMarketValuation(rows) {
   return { entries, date };
 }
 
+// 逐日估值表（上市 BWIBBU_d、上櫃 peQryDate）。兩邊欄位名稱一致，只是外殼不同：
+// 上市是 {stat, date:"20261110", fields, data}，上櫃是 {tables:[{date:"115/11/10", fields, data}]}。
+// 以欄名錨定（同 normalizeMiIndex），找不到關鍵欄位就回空，讓呼叫端退回 openapi。
+// 「股利年度」是民國年整數（114）；「財報年/季」上市寫 "115/3"、上櫃寫 "115Q3"，統一成 "115/3"。
+function valuationTable(fields, data, isoDate) {
+  const empty = { entries: {}, date: null };
+  const names = (Array.isArray(fields) ? fields : []).map((f) => String(f).replace(/\s+/g, ""));
+  const at = (label) => names.indexOf(label);
+  const iCode = at("證券代號") >= 0 ? at("證券代號") : at("股票代號");
+  const iPe = at("本益比");
+  const iYield = at("殖利率(%)");
+  const iPb = at("股價淨值比");
+  if (iCode < 0 || iPe < 0 || iYield < 0 || iPb < 0 || !isoDate || !Array.isArray(data)) return empty;
+  const iYear = at("股利年度");
+  const iPeriod = at("財報年/季");
+  const entries = {};
+  for (const row of data) {
+    if (!Array.isArray(row)) continue;
+    const code = String(row[iCode] == null ? "" : row[iCode]).trim();
+    if (!/^\d{4,6}[A-Z]?$/.test(code) || entries[code]) continue;
+    const pe = parseNumber(row[iPe]);
+    const dividendYield = parseNumber(row[iYield]);
+    const pbRatio = parseNumber(row[iPb]);
+    if (pe == null && dividendYield == null && pbRatio == null) continue;
+    const entry = {};
+    if (pe != null) entry.pe = roundNumber(pe, 2);
+    if (dividendYield != null) entry.dividendYield = roundNumber(dividendYield, 2);
+    if (pbRatio != null) entry.pbRatio = roundNumber(pbRatio, 2);
+    const year = iYear >= 0 ? Number(String(row[iYear]).trim()) : NaN;
+    if (Number.isInteger(year) && year > 0) entry.divYear = year;
+    const period = iPeriod >= 0 ? /^(\d{2,3})\s*(?:\/|Q)\s*([1-4])$/i.exec(String(row[iPeriod] || "").trim()) : null;
+    if (period) entry.finPeriod = `${period[1]}/${period[2]}`;
+    entries[code] = entry;
+  }
+  return { entries, date: isoDate };
+}
+
+export function normalizeTwseValuationDaily(payload) {
+  if (!payload || typeof payload !== "object" || payload.stat !== "OK") return { entries: {}, date: null };
+  const ymd = /^(\d{4})(\d{2})(\d{2})$/.exec(String(payload.date || "").trim());
+  return valuationTable(payload.fields, payload.data, ymd ? `${ymd[1]}-${ymd[2]}-${ymd[3]}` : null);
+}
+
+export function normalizeTpexValuationDaily(payload) {
+  const table = payload && Array.isArray(payload.tables) ? payload.tables[0] : null;
+  if (!table) return { entries: {}, date: null };
+  const roc = /^(\d{2,3})\/(\d{2})\/(\d{2})$/.exec(String(table.date || "").trim());
+  return valuationTable(table.fields, table.data, roc ? `${Number(roc[1]) + 1911}-${roc[2]}-${roc[3]}` : null);
+}
+
+// ── 股數事件後的估值基準 ──────────────────────────────────────────────
+// 證交所與櫃買的本益比／殖利率／淨值比，分子分母來自不同時點：分母是當日收盤
+// （已經是事件後的股數），分子是「財報上的每股盈餘、淨值」與「股利年度的每股現金股利」
+// ——那是事件**之前**宣告的每股金額，配股與上市減資之後都不會重算（哪些會、哪些不會見下方）。
+// 實測（2026-05-04 與 11-10 兩份逐日表、加上 feed 的 git 歷史）：
+//   6669 緯穎 9/2 除權、股數約 ×2.98，每股股利 05-04 是 165.24、11-10 仍是 164.30，
+//        殖利率因此從 2.3% 跳到 9.98%；PE 從 25 掉到 7.4，直到 Q3 財報（115/3）上線才回到 14.5。
+//   2614 東森、9917 中保科、3706 神達、6874 倍力（上櫃）……每股股利在除權前後一分不差。
+//   1563 巧新 9/7 減資（股數 ×0.78）是反方向：每股股利還是 2.00，殖利率被低估。
+// 所以這不是個別離群值，是兩個交易所定義上的時間差。**只標示、不改數字**（同 payoutFlag
+// 與 CLAUDE.md「上游的估值離群值要標示，不是拿掉」）：比例取自除權參考價 ÷ 前收，
+// 「權息」同日時那個比例混著現金那一小段，換算出來的數字不會精確，標出來讓人知道就夠了。
+//
+// 判準只用資料自己說得出來的時點：
+//   殖利率 — 股利年度 Y 的每股股利，最晚在 Y+1912 年 6/30（股東會期限）前定案，
+//            之後的股數事件必然在宣告之後。配股（kind "stock"）要股東會通過才除權，
+//            所以從 Y+1912 年 1/1 起的配股都算——那一年的現金股利必定已經提案。
+//   PE／PB — 財報年/季的法定申報期限（Q1 5/15、Q2 8/14、Q3 11/14、年報次年 3/31）之後
+//            的事件，那份財報必定早於事件，每股數字是舊股數（IAS 33.64：事件發生在報表
+//            發布前才會回溯調整）。
+// 期限之前的事件留白不標——報表或宣告可能已經採用新股數，猜錯比不標更糟。
+//
+// **只有兩種事件確定不會被上游重算，標記只認這兩種**（同樣是 git 歷史逐日比對出來的）：
+//   配股（kind "stock"）  上市、上櫃都不重算：6669、2614、9917、3706、1519／6874、6590。
+//   減資（kind "reduction"）只有上市確定不重算：2321、3356、1441、6550 的每股淨值事件前後一分不差。
+// 上櫃的減資有的重算、有的沒有（3710、8277、6129 的淨值跟著比例變，8059 沒變），
+// 面額變更上櫃會重算（5904 寶雅、4747 強生的殖利率與淨值比都已換成新股數）。上市的面額變更
+// 存檔裡只有兩筆，都驗證不了：6949 事件前沒有淨值比可比、7780 的股利年度在事件之後才宣告。
+// 這幾種**不標**——標錯一列就等於教人忽略這個記號。
+//
+// 門檻看的是**同一欄累計的**股數變動，不是逐筆：兩次 5% 的配股加起來的偏差跟一次 10% 一樣，
+// 而方向相反的事件（配股後又減資）會互相抵銷、偏差真的變小。門檻 10%：上市 11-10 實算，
+// 5% 會標到 58 列殖利率，10% 是 32 列；標太多會讓人學會忽略記號。
+export const SHARE_EVENT_MIN = 0.1;
+export function shareEventUnadjusted(kind, market) {
+  return kind === "stock" || (kind === "reduction" && market === "twse");
+}
+
+export function filingDeadline(finPeriod) {
+  const match = /^(\d{2,3})\/([1-4])$/.exec(String(finPeriod || ""));
+  if (!match) return null;
+  const year = Number(match[1]) + 1911;
+  return { 1: `${year}-05-15`, 2: `${year}-08-14`, 3: `${year}-11-14`, 4: `${year + 1}-03-31` }[match[2]];
+}
+
+// market-52w.json 的 adjusted：{"6669@2026-09-02":{f,k}} → {"6669":[{date,f,k}]}
+export function shareEventsByCode(adjusted) {
+  const out = {};
+  for (const [key, value] of Object.entries(adjusted && typeof adjusted === "object" ? adjusted : {})) {
+    const at = key.lastIndexOf("@");
+    if (at <= 0 || !value || !(value.f > 0)) continue;
+    const code = key.slice(0, at);
+    (out[code] = out[code] || []).push({ date: key.slice(at + 1), f: value.f, k: value.k });
+  }
+  return out;
+}
+
+// 回傳逐欄的標記：{ pe:{date,kind,ratio[,events]}, dividendYield:{…} }，沒有就回 null。
+// 逐欄是因為三欄的判準時點不同（殖利率看股利年度、PE／PB 看財報申報期限），同一個事件
+// 可能只碰到其中一欄；兩個事件碰到不同欄時，共用一個比例會讓其中一欄的說明講錯倍數。
+export const SHARE_BASIS_FIELDS = ["pe", "pbRatio", "dividendYield"];
+export function shareBasisFlag(entry, events, valuationDate, market) {
+  if (!entry || !Array.isArray(events) || !events.length || !valuationDate) return null;
+  const deadline = filingDeadline(entry.finPeriod);
+  const hits = { pe: [], pbRatio: [], dividendYield: [] };
+  for (const event of events) {
+    if (!(event.f > 0) || !event.date || event.date > valuationDate) continue;
+    if (!shareEventUnadjusted(event.k, market)) continue;
+    if (entry.dividendYield > 0 && Number.isInteger(entry.divYear)) {
+      const year = entry.divYear + 1912;
+      if (event.date >= (event.k === "stock" ? `${year}-01-01` : `${year}-07-01`)) hits.dividendYield.push(event);
+    }
+    if (deadline && event.date > deadline) {
+      if (entry.pe != null) hits.pe.push(event);
+      if (entry.pbRatio != null) hits.pbRatio.push(event);
+    }
+  }
+  const out = {};
+  for (const key of SHARE_BASIS_FIELDS) {
+    const list = hits[key];
+    if (!list.length) continue;
+    // 門檻量的是股數比（＝畫面上那個數字偏離的倍數），不是參考價比：
+    // 兩次 5% 配股是參考價比 0.906、股數比 1.104，偏差已經過 10%
+    const ratio = 1 / list.reduce((product, event) => product * event.f, 1);
+    if (Math.abs(ratio - 1) < SHARE_EVENT_MIN) continue;
+    const latest = list.reduce((a, b) => (b.date > a.date ? b : a));
+    out[key] = { date: latest.date, kind: latest.k, ratio: roundNumber(ratio, 3) };
+    if (list.length > 1) out[key].events = list.length;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// 前一班的標記沿用到這一班：只留下這一列還有數字、而且事件還在 adjusted 裡的欄位。
+// 沿用時估值可能已經換了來源（例：PE 變成「-」），也可能事件剛被剪枝——
+// 指向不存在的數字或事件，schema 測試會擋下整份 feed。
+export function carryShareBasis(previous, row, adjusted) {
+  if (!previous || typeof previous !== "object" || !row) return null;
+  const out = {};
+  for (const key of SHARE_BASIS_FIELDS) {
+    const flag = previous[key];
+    if (!flag || typeof flag !== "object" || row[key] == null) continue;
+    if (key === "dividendYield" && !(row[key] > 0)) continue;
+    if (!adjusted || !adjusted[`${row.code}@${flag.date}`]) continue;
+    out[key] = flag;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 // 保留策略：新抓列數 < 前次 50% 視為上游劣化，沿用前次快照列。
 export function preserveMarketRows(previousStocks, fetchedRows) {
   const prev = Array.isArray(previousStocks) ? previousStocks : [];
@@ -200,6 +371,11 @@ export function applyValuation(stocks, valuation, previousByCode) {
     if (entry.pbRatio != null) row.pbRatio = entry.pbRatio;
   }
   return { preserved };
+}
+
+// 一個市場的收盤日：取該市場各列日期的最大值（同一份 bulk 本來就只有一天）
+export function marketDateOf(rows) {
+  return (Array.isArray(rows) ? rows : []).map((s) => s && s.date).filter(Boolean).sort().pop() || null;
 }
 
 export function monthKey(isoDate) {
@@ -364,19 +540,40 @@ async function main() {
   let valuation = {};
   const valuationDates = {};
   const prevValuationDates = (previousFeed.valuationDates && typeof previousFeed.valuationDates === "object") ? previousFeed.valuationDates : {};
-  try {
-    const twseVal = normalizeMarketValuation(await fetchJson(SOURCES.twseValuation));
-    valuation = twseVal.entries;
-    if (twseVal.date) valuationDates.twse = twseVal.date;
-  } catch (error) {
-    errors.push({ source: "TWSE OpenAPI BWIBBU_ALL", message: error.message });
-  }
-  try {
-    const tpexVal = normalizeMarketValuation(await fetchJson(SOURCES.tpexValuation));
-    for (const [code, entry] of Object.entries(tpexVal.entries)) if (!valuation[code]) valuation[code] = entry;
-    if (tpexVal.date) valuationDates.tpex = tpexVal.date;
-  } catch (error) {
-    errors.push({ source: "TPEX OpenAPI peratio analysis", message: error.message });
+  // 逐日表要指定日期，就用這一班抓到的收盤日——估值與收盤同一天，頁面就不必換算分母。
+  // 當日還沒發佈（14:30 那班常見）時回空表，退回 openapi 的前一日估值，跟以前一樣。
+  // 逐日表一次回完整一個市場，列數不到這一班收盤列數的一半視同劣化（門檻比照 preserveMarketRows）。
+  // 比的是收盤列數不是前一班的估值列數：估值表本來就涵蓋幾乎全部掛牌股（上市 1,087／1,089）。
+  const valuationSources = [
+    { market: "twse", rows: twse.rows, closeDate: twse.preserved ? null : marketDateOf(twse.rows),
+      daily: SOURCES.twseValuationDaily, normalizeDaily: normalizeTwseValuationDaily,
+      dailyLabel: "TWSE BWIBBU_d", fallback: SOURCES.twseValuation, fallbackLabel: "TWSE OpenAPI BWIBBU_ALL" },
+    { market: "tpex", rows: tpex.rows, closeDate: tpex.preserved ? null : marketDateOf(tpex.rows),
+      daily: SOURCES.tpexValuationDaily, normalizeDaily: normalizeTpexValuationDaily,
+      dailyLabel: "TPEX peQryDate", fallback: SOURCES.tpexValuation, fallbackLabel: "TPEX OpenAPI peratio analysis" },
+  ];
+  for (const source of valuationSources) {
+    let result = null;
+    if (source.closeDate) {
+      try {
+        const daily = source.normalizeDaily(await fetchJson(source.daily(source.closeDate)));
+        const floor = Math.max(50, source.rows.length * 0.5);
+        if (daily.date === source.closeDate && Object.keys(daily.entries).length >= floor) result = daily;
+        else if (daily.date) errors.push({ source: source.dailyLabel, message: `only ${Object.keys(daily.entries).length} rows for ${daily.date}; using ${source.fallbackLabel}` });
+      } catch (error) {
+        errors.push({ source: source.dailyLabel, message: error.message });
+      }
+    }
+    if (!result) {
+      try {
+        result = normalizeMarketValuation(await fetchJson(source.fallback));
+      } catch (error) {
+        errors.push({ source: source.fallbackLabel, message: error.message });
+      }
+    }
+    if (!result) continue;
+    for (const [code, entry] of Object.entries(result.entries)) if (!valuation[code]) valuation[code] = entry;
+    if (result.date) valuationDates[source.market] = result.date;
   }
   // 某個來源整個掛掉時，那個市場的估值會沿用前次值（applyValuation 逐檔保留），
   // 日期也必須跟著沿用——標成本次日期等於謊報新鮮度。
@@ -388,20 +585,21 @@ async function main() {
   }
   const stocks = [...twse.rows, ...tpex.rows].sort((a, b) => a.code.localeCompare(b.code));
   const prevValByCode = {};
+  const prevBasisByCode = {};
   for (const s of previousStocks) {
     if (s.pe != null || s.pbRatio != null || s.dividendYield != null) {
       prevValByCode[s.code] = { pe: s.pe, dividendYield: s.dividendYield, pbRatio: s.pbRatio };
     }
+    if (s.basis) prevBasisByCode[s.code] = s.basis;
   }
 
   // 交易日必須逐市場算。原本取「全體最大日期」，於是 TPEX 已到 07-29、TWSE 還停在
   // 07-28 時，整份 feed 被標成 07-29——1,083 檔上市股標著它們沒有的日期，
   // 而 errors 是空的。改為取兩市場的最小值（「這份清單至少完整到這一天」），
   // 並把各市場日期一起輸出，讓畫面能誠實說明落差。
-  const marketDate = (rows) => rows.map((s) => s.date).filter(Boolean).sort().pop() || null;
   const marketDates = {};
-  const twseDate = marketDate(twse.rows);
-  const tpexDate = marketDate(tpex.rows);
+  const twseDate = marketDateOf(twse.rows);
+  const tpexDate = marketDateOf(tpex.rows);
   if (twseDate) marketDates.twse = twseDate;
   if (tpexDate) marketDates.tpex = tpexDate;
   const known = [twseDate, tpexDate].filter(Boolean).sort();
@@ -439,6 +637,23 @@ async function main() {
       ...(accumulatorRaw.seededThrough ? { seededThrough: accumulatorRaw.seededThrough } : {}) };
 
   const { preserved: valuationPreserved } = applyValuation(stocks, valuation, prevValByCode);
+  // 股數事件後的估值基準標記（見 shareBasisFlag）。事件清單就是還原月桶用的那份 adjusted，
+  // 所以「距一年高已還原」與「這一列的 PE 還沒還原」講的是同一批事件。
+  // 這一班的估值若來自 openapi 備援（沒有股利年度／財報年季），判斷不了——沿用前次的標記，
+  // 不可因為來源降級就讓標記消失，那等於宣稱數字已經對齊了。
+  const eventsByCode = shareEventsByCode(accumulator.adjusted);
+  let basisCarried = 0;
+  for (const row of stocks) {
+    const entry = valuation[row.code];
+    const judgeable = entry && (entry.divYear != null || entry.finPeriod != null);
+    const flag = judgeable
+      ? shareBasisFlag({ ...entry, pe: row.pe, pbRatio: row.pbRatio, dividendYield: row.dividendYield },
+        eventsByCode[row.code], valuationDates[row.market], row.market)
+      : carryShareBasis(prevBasisByCode[row.code], row, accumulator.adjusted);
+    if (!judgeable && flag) basisCarried += 1;
+    if (flag) row.basis = flag;
+  }
+  if (basisCarried) errors.push({ source: "feed-preservation", message: `kept previous share-basis flag for ${basisCarried} row(s) (valuation source had no 股利年度/財報年季)` });
   for (const row of stocks) {
     const w = derive52w(accumulator.stocks[row.code]);
     if (w && w.months >= MIN_WINDOW_MONTHS) {

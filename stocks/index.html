@@ -169,7 +169,8 @@
     <h2 id="scoreHeading">股票觀察清單 <em>WATCHLIST</em></h2>
     <p class="hint">欄位與<a href="/market/">全市場清單</a>一致，點表頭可排序；點代碼開 TradingView。
       收盤與漲跌%取自當日 13:30 快照或收盤資料，PE／PB／殖利率／距一年高／成交額取自全市場 feed；
-      距一年高已還原配股、面額變更與減資，現金股利不還原。</p>
+      距一年高已還原配股、面額變更與減資，現金股利不還原。成交額是交易所公布的成交金額。
+      PE／PB／殖利率照交易所原值顯示；配股或減資之後交易所仍以舊股數的每股數字計算時，數字旁標 ⚠，原因在表格上指上去可看、手機卡片直接列在下方。</p>
     <div class="watch-editor">
       <div class="watch-row">
         <span class="fld">加入代碼 <input id="watchAdd" type="text" inputmode="numeric" maxlength="6" style="width:92px" placeholder="如 2454" aria-label="要加入觀察清單的股票代碼" /></span>
@@ -203,7 +204,7 @@
   </section>
 
   <footer>
-    本頁是決策輔助，<b>不是投資建議</b>。每一列都標出收盤資料的來源：Worker、TWSE 收盤、靜態備援或本機快取；延遲或快取資料不會標為即時。
+    本頁是決策輔助，<b>不是投資建議</b>。表格下方標出收盤資料的來源與交易日（TWSE MIS 13:30 快照、靜態備援、全市場 feed、Worker 或本機快取），不是同一個來源或同一天的列會另外列出；延遲或快取資料不會標為即時。
   </footer>
 </main>
 
@@ -215,6 +216,19 @@ const DEFAULT_PROXY_BASE = "https://taiwan-risk-tracker-proxy.a0926043323.worker
 const ALLOWED_PROXIES = new Set([DEFAULT_PROXY_BASE]);
 const STATIC_STOCK_FEED_URL = "/data/stock-risk-feed.json";
 const LS = "bjkw-portfolio-console-v2";
+
+// 每一筆收盤都記著自己的來源與交易日（state.today[code].src／.date）。以前整張表只記一個
+// eodMeta，於是自行加入的標的（只走全市場 feed）、主來源沒涵蓋的代碼（Worker /eod 沒有上櫃）
+// 都被標成主來源的名字，而且 localStorage 裡的舊價格永遠不會被換掉。
+const SOURCE_LABELS = {
+  mis:"TWSE MIS closing quote",
+  risk:"GitHub Pages 靜態 stock-risk-feed.json",
+  market:"全市場 feed（TWSE MI_INDEX／TPEx 收盤）",
+  worker:"Worker /eod",
+  cache:"本機快取",
+};
+// 必須宣告在 loadState() 之前：sanitizeState 會讀它，const 在宣告前是 TDZ，
+// 丟出的 ReferenceError 會被 loadState 的 catch 吞掉，整份存檔（含使用者的清單）靜靜變回預設值。
 
 // 內建的預設清單。唯一的人工欄位是 role（一句話說明），其餘全部來自 feed。
 // 數字一律不寫死——PE／PB／殖利率／距一年高都取自 market-feed，
@@ -364,6 +378,10 @@ function sanitizeState(raw){
       if (open != null) clean.open = roundNumber(open,2);
       if (previousClose != null) clean.previousClose = roundNumber(previousClose,2);
       if (row.time) clean.time = clampText(row.time, 48);
+      // 舊存檔沒有 date：從 time 推（MIS 是 ISO 時間、全市場 feed 補的是日期字串），推不出來就留白
+      const date = isoDateOf(row.date) || isoDateOf(row.time);
+      if (date) clean.date = date;
+      if (SOURCE_LABELS[row.src]) clean.src = row.src;
       next.today[code] = clean;
     }
   }
@@ -379,6 +397,7 @@ function sanitizeMeta(meta){
     delay:clampText(meta && meta.delay, 120),
     updatedAt:clampText(meta && meta.updatedAt, 48),
     cache:Boolean(meta && meta.cache),
+    src:SOURCE_LABELS[meta && meta.src] ? meta.src : "",
   };
 }
 
@@ -437,7 +456,9 @@ function formatDateTime(value){
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
-  return date.toLocaleString("zh-TW", {hour12:false});
+  // 收盤快照的時間是臺灣的交易時間，不是裝置所在地的時間——在國外開這頁，
+  // 「13:30 收盤」不該變成「05:30」或「00:30」
+  return date.toLocaleString("zh-TW", {hour12:false, timeZone:"Asia/Taipei"});
 }
 
 function field(row, keys){
@@ -445,6 +466,25 @@ function field(row, keys){
     if (row && row[key] != null && row[key] !== "") return row[key];
   }
   return null;
+}
+
+// 交易日統一成 YYYY-MM-DD：ISO 日期／時間（MIS 的 time 帶 +08:00，前 10 碼就是臺灣日期）、
+// 8 碼西元、7 碼民國都收。拿不到就回空字串，代表「不知道是哪一天」——不可以猜成今天。
+function isoDateOf(value){
+  const text = String(value == null ? "" : value).trim();
+  // 帶時間的 ISO 字串要換算成臺灣日期：前 10 碼只在 +08:00 時剛好是臺灣日期，
+  // "2026-11-09T22:30:00Z" 在臺灣已經是 11-10
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text) && /(?:Z|[+-]\d{2}:?\d{2})$/.test(text)) {
+    const t = Date.parse(text);
+    if (Number.isFinite(t)) return new Date(t + 8 * 3600000).toISOString().slice(0, 10);
+  }
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if (m) return m[1] + "-" + m[2] + "-" + m[3];
+  m = /^(\d{4})(\d{2})(\d{2})$/.exec(text);
+  if (m) return m[1] + "-" + m[2] + "-" + m[3];
+  m = /^(\d{2,3})(\d{2})(\d{2})$/.exec(text);
+  if (m) return (Number(m[1]) + 1911) + "-" + m[2] + "-" + m[3];
+  return "";
 }
 
 function normalizeEodPayload(payload){
@@ -467,6 +507,8 @@ function normalizeEodPayload(payload){
     if (high != null) out.high = roundNumber(high,2);
     if (low != null) out.low = roundNumber(low,2);
     if (open != null) out.open = roundNumber(open,2);
+    const date = isoDateOf(field(row, ["date","Date","tradeDate"]));
+    if (date) out.date = date;
     return out;
   }).filter(Boolean);
 }
@@ -551,21 +593,47 @@ async function loadStaticFeed(){
   return staticFeedPromise;
 }
 
-// 用已載入的 market-feed 補價格。只補「還沒有價格」的代碼，不覆蓋 13:30 快照那份較精準的資料。
+// 這次開頁時由即時來源（MIS 快照、靜態 feed、Worker）報過價的代碼。
+// 只有這些列的價格是「這一次」拿到的；其餘都是 localStorage 留下來的，可以被 feed 換掉。
+let liveCodes = {};
+
+// 全市場 feed 一列的交易日：逐市場，不是頂層 tradeDate（那是兩市場的最小值，
+// 上市已到 11-10、上櫃還在 11-09 時會讓上市股掛著舊日期）
+function marketRowDate(row){
+  if (!row) return "";
+  const market = row.market === "tpex" ? "tpex" : "twse";
+  return isoDateOf(marketFeedDates[market]) || isoDateOf(marketFeedTradeDate);
+}
+
+// 用已載入的 market-feed 補價格。不覆蓋 13:30 快照那份較精準的資料，但要換掉舊的：
+// 原本只補「還沒有價格」的代碼，而 state 會存進 localStorage——於是自行加入的標的
+// 從加入那天起價格就再也沒動過，PE／PB／殖利率還跟著被換算到那個舊價格。
+// 規則見迴圈裡的註解：即時來源剛報過價的列只在 feed 確定比較新時才換，localStorage 的舊值一律換。
 // 這支要能被單獨呼叫：使用者是在 feed 載入之後才加入標的，
 // 只在 loadMarketFeed 裡填會讓新加入的那檔永遠顯示「收盤待更新」。
 function fillFromMarketRows(){
   let filled = 0;
   for (const stock of STOCKS) {
-    if (state.today[stock.code] && state.today[stock.code].close != null) continue;
     const row = marketRows[stock.code];
     if (!row || row.close == null) continue;
-    const clean = {close:roundNumber(row.close,2), change:roundNumber(row.change,2)};
+    const feedDate = marketRowDate(row);
+    const current = state.today[stock.code];
+    if (current && current.close != null) {
+      const currentDate = current.date || "";
+      // 這次開頁剛報過價的列：只有兩邊日期都知道、而且 feed 確實比較新才換。
+      // 其餘（localStorage 留下的）：沒有日期、比 feed 舊、或同一天，一律換成 feed 的。
+      const replace = liveCodes[stock.code]
+        ? Boolean(feedDate && currentDate && feedDate > currentDate)
+        : Boolean(feedDate && (!currentDate || feedDate >= currentDate));
+      if (!replace) continue;
+    }
+    const clean = {close:roundNumber(row.close,2), change:roundNumber(row.change,2), src:"market"};
     if (row.open != null) clean.open = roundNumber(row.open,2);
     if (row.high != null) clean.high = roundNumber(row.high,2);
     if (row.low != null) clean.low = roundNumber(row.low,2);
     if (row.close != null && row.change != null) clean.previousClose = roundNumber(row.close - row.change, 2);
-    clean.time = marketFeedTradeDate;
+    clean.time = feedDate;
+    if (feedDate) clean.date = feedDate;
     state.today[stock.code] = clean;
     filled += 1;
   }
@@ -717,6 +785,7 @@ function loadEodCache(){
 function applyEod(result){
   const wanted = new Set(builtInCodes());
   const byCode = {};
+  const src = result.cache ? "cache" : (SOURCE_LABELS[result.src] ? result.src : "");
   for (const row of result.rows) {
     if (!wanted.has(row.code)) continue;
     const clean = {close:row.close,change:row.change};
@@ -725,9 +794,13 @@ function applyEod(result){
     if (row.open != null) clean.open = row.open;
     if (row.previousClose != null) clean.previousClose = row.previousClose;
     if (row.time) clean.time = row.time;
+    const date = row.date || isoDateOf(row.time) || isoDateOf(result.tradingDate);
+    if (date) clean.date = date;
+    if (src) clean.src = src;
     byCode[row.code] = clean;
   }
   if (!Object.keys(byCode).length) throw new Error("EOD result has no tracked stocks");
+  if (!result.cache) Object.keys(byCode).forEach(function(code){ liveCodes[code] = true; });
   state.today = Object.assign({}, state.today, byCode);
   state.eodMeta = sanitizeMeta(result);
   saveState();
@@ -754,6 +827,7 @@ function normalizeClosingQuoteRows(payload){
       close:roundNumber(close,2),
       change:roundNumber(change,2),
       time:time,
+      date:isoDateOf(time),
     };
     if (previousClose != null) out.previousClose = roundNumber(previousClose,2);
     if (high != null) out.high = roundNumber(high,2);
@@ -774,6 +848,7 @@ async function loadClosingQuotes(){
   const latest = rows.map(function(row){return row.time;}).filter(Boolean).sort().pop() || "";
   return {
     rows:rows,
+    src:"mis",
     source:"TWSE MIS closing quote",
     delay:"13:30 closing snapshot; final EOD OpenAPI may lag",
     updatedAt:latest || result.headers.get("X-Data-Updated-At") || new Date().toISOString(),
@@ -784,26 +859,16 @@ async function loadEod(){
   const decision = proxyDecision();
   const attempts = [];
   attempts.push(loadClosingQuotes);
-  if (decision.base) {
-    attempts.push(async function(){
-      const result = await fetchJson(decision.base + "/eod");
-      const rows = normalizeEodPayload(result.data);
-      if (!rows.length) throw new Error("Proxy EOD returned no rows");
-      return {
-        rows:rows,
-        source:result.headers.get("X-Data-Source") || "Worker /eod",
-        delay:result.headers.get("X-Data-Delay") || "收盤資料",
-        updatedAt:result.headers.get("X-Data-Updated-At") || new Date().toISOString(),
-      };
-    });
-  }
+  // 順序：MIS 13:30 快照 → 靜態 stock-risk-feed → 全市場 feed → Worker /eod → 本機快取。
+  // Worker /eod 原本排第二，但它背後是 openapi 的 STOCK_DAY_ALL：沒有上櫃（3324 永遠拿不到）、
+  // 每一列不帶交易日（畫面只能印抓取時間，看起來比實際新），而且收盤後要到深夜才換日。
+  // 兩份同源 feed 都帶交易日、涵蓋上市上櫃，所以 Worker 退到它們之後，只在 Pages 的資料拿不到時補位。
   attempts.push(async function(){
     const feed = await loadStaticFeed();
     const rows = normalizeEodPayload(feed && (feed.eod || feed.eodRows || feed));
     if (!rows.length) throw new Error("Static feed has no EOD rows");
-    return {rows:rows,source:"GitHub Pages 靜態 stock-risk-feed.json",delay:"同源靜態備援收盤資料",updatedAt:(feed && (feed.eodUpdatedAt || feed.updatedAt)) || "",tradingDate:(feed && feed.eodTradingDate) || ""};
+    return {rows:rows,src:"risk",source:"GitHub Pages 靜態 stock-risk-feed.json",delay:"同源靜態備援收盤資料",updatedAt:(feed && (feed.eodUpdatedAt || feed.updatedAt)) || "",tradingDate:(feed && feed.eodTradingDate) || ""};
   });
-  // 排在靜態 stock-risk-feed 之後：那份在交易時段每 30 分鐘更新一次，比一天四班的 market feed 新。
   // 原本這一步直接從瀏覽器打證交所 openapi 的 STOCK_DAY_ALL。那個端點不回
   // Access-Control-Allow-Origin（2026-10-20 以正式站網域實測），瀏覽器必定擋下——
   // 這一步在正式站從來沒成功過，只留下一筆 CORS 錯誤。改讀同源的 market-feed.json：
@@ -813,9 +878,28 @@ async function loadEod(){
     const payload = result.data || {};
     const rows = normalizeEodPayload(payload.stocks);
     if (!rows.length) throw new Error("market feed has no rows");
-    return {rows:rows,source:"全市場 feed（TWSE MI_INDEX／TPEx 收盤）",delay:"官方收盤資料，交易日 " + (payload.tradeDate || "未知"),
+    // feed 的列不帶日期（已提升到頂層），逐市場補回去
+    const dates = payload.marketDates || {};
+    const marketOf = {};
+    (Array.isArray(payload.stocks) ? payload.stocks : []).forEach(function(row){ if (row && row.code) marketOf[row.code] = row.market === "tpex" ? "tpex" : "twse"; });
+    rows.forEach(function(row){ const date = isoDateOf(dates[marketOf[row.code]]) || isoDateOf(payload.tradeDate); if (date) row.date = date; });
+    return {rows:rows,src:"market",source:"全市場 feed（TWSE MI_INDEX／TPEx 收盤）",delay:"官方收盤資料，交易日 " + (payload.tradeDate || "未知"),
       updatedAt:payload.updatedAt || "",tradingDate:payload.tradeDate || ""};
   });
+  if (decision.base) {
+    attempts.push(async function(){
+      const result = await fetchJson(decision.base + "/eod");
+      const rows = normalizeEodPayload(result.data);
+      if (!rows.length) throw new Error("Proxy EOD returned no rows");
+      return {
+        rows:rows,
+        src:"worker",
+        source:result.headers.get("X-Data-Source") || "Worker /eod",
+        delay:result.headers.get("X-Data-Delay") || "收盤資料",
+        updatedAt:result.headers.get("X-Data-Updated-At") || new Date().toISOString(),
+      };
+    });
+  }
   attempts.push(async function(){return loadEodCache();});
 
   const errors = [];
@@ -927,20 +1011,65 @@ function stockSnapshot(stock, rawState){
     low:parseNumber(today.low),
     open:parseNumber(today.open),
     previousClose:previousClose,
+    date:isoDateOf(today.date) || "",
+    src:today.src || "",
     hasPrice:close != null,
     dayPct:previous && previous !== 0 && change != null ? roundNumber(change / previous * 100, 2) : null,
   };
 }
 
+// 來源列：主來源（eodMeta）＋交易日，再把「不是主來源報的列」逐一講出來。
+// 主來源的 updatedAt 是抓取時間，不是交易日——靜態 feed 13:09 抓的是前一天的收盤，
+// 只印時間會讓那份資料看起來是今天的，所以交易日要另外寫。
 function dataLabel(){
   const meta = state.eodMeta;
-  if (!meta) return "收盤資料待更新";
-  const when = formatDateTime(meta.updatedAt);
-  return (meta.cache ? "本機快取" : meta.source || "收盤資料") + (when ? " / " + when : "");
+  const primary = meta ? (meta.cache ? "cache" : meta.src || "") : "";
+  const primaryDates = {};
+  let primaryCount = 0;
+  const others = {};
+  for (const stock of STOCKS) {
+    const entry = state.today[stock.code];
+    if (!entry || entry.close == null) continue;
+    const src = entry.src || "";
+    if (meta && src === primary) {
+      primaryCount += 1;
+      if (entry.date) primaryDates[entry.date] = true;
+      continue;
+    }
+    const bucket = others[src] || (others[src] = {count:0, dates:{}});
+    bucket.count += 1;
+    if (entry.date) bucket.dates[entry.date] = true;
+  }
+  const dateText = function(dates){
+    const list = Object.keys(dates).sort().reverse();
+    return list.length ? "交易日 " + list.join("、") : "";
+  };
+  let text = "";
+  // 主來源一列都沒留下（全被比較新的 feed 換掉）就不提它——講了等於把舊來源掛在新數字上
+  if (meta && primaryCount) {
+    const when = formatDateTime(meta.updatedAt);
+    const day = dateText(primaryDates);
+    text = (meta.cache ? "本機快取" : meta.source || "收盤資料") + (when ? " / " + when : "") + (day ? "（" + day + "）" : "");
+  }
+  const keys = Object.keys(others).sort();
+  const extra = keys.map(function(src){
+    const bucket = others[src];
+    const day = dateText(bucket.dates);
+    const name = SOURCE_LABELS[src] || "先前存在這台裝置的資料";
+    // 整張表只剩這一個來源時不必講檔數
+    return (text || keys.length > 1 ? bucket.count + " 檔取自" : "") + name + (day ? "（" + day + "）" : "");
+  });
+  if (!text && !extra.length) return meta ? "收盤資料未更新" : "收盤資料待更新";
+  return [text].concat(extra).filter(Boolean).join("；");
 }
 
+// 內建的 13 檔查表；自行加入的標的照全市場 feed 的市場別組出代號。原本只查表，
+// 於是說明裡「點代碼開 TradingView」對自行加入的每一檔都不成立。
 function tradingViewUrl(code){
-  const symbol = TRADINGVIEW_SYMBOLS[String(code)];
+  const key = String(code);
+  const row = marketRows[key];
+  const symbol = TRADINGVIEW_SYMBOLS[key]
+    || (row && /^\d{4}[A-Z]?$/.test(key) ? (row.market === "tpex" ? "TPEX:" : "TWSE:") + key : "");
   if (!symbol) return "";
   const url = new URL("https://tw.tradingview.com/chart/");
   url.searchParams.set("symbol", symbol);
@@ -958,9 +1087,8 @@ function stockTradingViewLink(stock, card){
   return '<a class="stock-tv-link" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer" aria-label="' + escapeHtml(label) + '">' + body + '</a>';
 }
 
-// 估值欄位與 /market/ 同源同算法（成交額＝收盤×成交股數／1e8），差別只在
-// 收盤與漲跌%：本頁優先用 13:30 快照／Worker 收盤，比全市場 feed 新一步，
-// 所以距一年高改用「本頁的收盤 vs feed 的 hi52」重算，不直接抄 feed 的 fromHi。
+// 估值欄位與 /market/ 同源同算法，差別只在收盤與漲跌%：本頁優先用 13:30 快照／Worker 收盤，
+// 比全市場 feed 新一步，所以距一年高改用「本頁的收盤 vs feed 的 hi52」重算，不直接抄 feed 的 fromHi。
 //
 // PE 以前有兩個來源（stock-risk-feed 的 valuation 優先、market-feed 墊底），
 // 兩邊會給出不同的數字而畫面說不出原因。實際上那不是兩個來源——兩者都出自
@@ -972,7 +1100,10 @@ function stockMetrics(stock, snapshot){
   const close = snapshot && snapshot.close != null ? snapshot.close : (row ? parseNumber(row.close) : null);
   const hi52 = row ? parseNumber(row.hi52) : null;
   const volume = row ? parseNumber(row.volume) : null;
+  const value = row ? parseNumber(row.value) : null;
   const market = row && row.market === "tpex" ? "tpex" : (row ? "twse" : "");
+  const feedDate = marketRowDate(row);
+  const snapDate = (snapshot && snapshot.date) || "";
 
   // 分母換算：把估值的分母換成本頁正在顯示的 close，PE／PB 同向、殖利率反向。
   // 分母已經等於顯示價時 k=1，不動；每次 render 都從 feed 原值重算，跑幾次都一樣。
@@ -991,18 +1122,92 @@ function stockMetrics(stock, snapshot){
     }
   }
 
+  // 距一年高：本頁收盤比 feed 新一天時（13:30 快照），feed 的 hi52 還不含今天，
+  // 今天的高點可能就是新的一年高。不併進來的話，創新高那天會印出「距一年高 +3.2%」——
+  // 依定義不可能是正的。
+  let hi = hi52;
+  if (hi != null && hi > 0 && close != null) {
+    const todayHigh = snapDate && feedDate && snapDate > feedDate ? parseNumber(snapshot.high) : null;
+    hi = Math.max(hi, close, todayHigh != null ? todayHigh : 0);
+  }
+
+  // 成交額＝交易所公布的成交金額（元 ÷ 1e8）。原本是「本頁收盤 × feed 的成交股數」：
+  // 一來那不是成交金額（2026-11-10 上市全體與官方值差距中位 0.74%、最大 7.19%），
+  // 二來本頁收盤比 feed 新一天時，那是今天的價格乘昨天的量——不對應任何一天的數字。
+  // 舊版 feed 沒有 value 時才退回估算，而且用 feed 自己那一天的收盤，並在畫面上標成估算。
+  let turnover = null;
+  let turnoverEstimated = false;
+  if (value != null) turnover = Math.round(value / 1e6) / 100;
+  else if (row && parseNumber(row.close) != null && volume != null) {
+    turnover = Math.round(parseNumber(row.close) * volume / 1e6) / 100;
+    turnoverEstimated = true;
+  }
+
+  const shareBasis = row && row.basis && typeof row.basis === "object" ? row.basis : null;
   return {
     market:market === "tpex" ? "上櫃" : (market ? "上市" : ""),
     pe:pe,
     pbRatio:pbRatio,
     dividendYield:dividendYield,
     valuationRescaled:rescaled,
-    fromHi:(close != null && hi52) ? roundNumber((close - hi52) / hi52 * 100, 1) : (row ? parseNumber(row.fromHi) : null),
+    notes:{
+      pe:shareBasisNote(shareBasis, "pe"),
+      pbRatio:shareBasisNote(shareBasis, "pbRatio"),
+      dividendYield:[shareBasisNote(shareBasis, "dividendYield"), (payoutFlag({pe:pe, dividendYield:dividendYield}) || {}).note]
+        .filter(Boolean).join(" ") || null,
+    },
+    fromHi:(close != null && hi) ? roundNumber((close - hi) / hi * 100, 1) : (row ? parseNumber(row.fromHi) : null),
     // 上市未滿一年時 feed 不發布 hi52，改帶 w52Months。少了這一欄，畫面只能顯示
     // 含糊的「—」，看起來跟「上游掛了」沒有分別。
     w52Months:row ? parseNumber(row.w52Months) : null,
-    turnover:(close != null && volume != null) ? Math.round(close * volume / 1e6) / 100 : null,
+    turnover:turnover,
+    turnoverEstimated:turnoverEstimated,
+    // 成交額屬於 feed 那一天；收盤已經是別天的就要講，不然同一列的兩個數字各說各話
+    turnoverDate:turnover != null && snapDate && feedDate && snapDate !== feedDate ? feedDate : "",
+    closeIsNewer:Boolean(snapDate && feedDate && snapDate > feedDate),
+    feedDate:feedDate,
   };
+}
+
+// 殖利率與 PE 說的是同一家公司的同一年：yield × PE ÷ 100 就是隱含的配發率。
+// 兩欄對不起來時這個數字會大得離譜（5314 世紀* 683%）。與 /market/ 同一套規則與門檻，
+// 由測試互驗兩份一致——說明寫「欄位與全市場清單一致」，這一欄原本卻少了這個標記。
+// **只標示，不拿掉。** 上游給的數字照印。
+var PAYOUT_FLAG_RATIO = 5;
+function payoutFlag(row){
+  if (!(row.pe > 0) || !(row.dividendYield > 0)) return null;
+  var ratio = row.dividendYield * row.pe / 100;
+  if (!(ratio > PAYOUT_FLAG_RATIO)) return null;
+  return {
+    ratio: ratio,
+    note: "這一列的殖利率與 PE 隱含配發率約 " + Math.round(ratio * 100) + "%，"
+      + "也就是配息遠超過當期每股盈餘。常見成因是減資、以資本公積配發，或上游資料異常。"
+      + "數字照上游原樣顯示，使用前請對照官方公告。",
+  };
+}
+
+// 配股或減資之後，交易所的 PE／PB／殖利率仍以「事件前」的每股盈餘、淨值、股利計算，
+// 分母卻是事件後的股價（實測 6669 緯穎 9/2 除權、股數約 ×2.98，殖利率 2.3% → 9.98%）。
+// 哪些欄位受影響由管線判斷（update-market-feed.mjs 的 shareBasisFlag），這裡只負責講清楚。
+// 與 /market/ 逐字相同，由測試互驗。**只標示，不換算**：比例取自除權參考價，混著現金那一小段，
+// 換算出來的數字不會精確。
+var SHARE_EVENT_KIND = {stock:"配股除權", reduction:"減資"};
+function shareBasisNote(basis, key){
+  var flag = basis && typeof basis === "object" ? basis[key] : null;
+  if (!flag || typeof flag !== "object") return null;
+  var ratio = Number(flag.ratio);
+  if (!(ratio > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(String(flag.date || ""))) return null;
+  var label = key === "dividendYield" ? "殖利率" : (key === "pe" ? "本益比" : "股價淨值比");
+  var perShare = key === "dividendYield" ? "每股現金股利" : (key === "pe" ? "每股盈餘" : "每股淨值");
+  // 殖利率的舊股數數字在分子：股數變多時偏高。PE／PB 的在分母：股數變多時偏低。
+  var high = key === "dividendYield" ? ratio > 1 : ratio < 1;
+  var count = Number(flag.events) > 1 ? "等 " + Number(flag.events) + " 次股數變動" : "";
+  // 不能說「照原樣顯示」：估值日比收盤早一天時，分母會換算到畫面上的收盤。
+  // 本站沒動的是每股數字的股數基準，這句只講那件事。
+  return flag.date + " " + (SHARE_EVENT_KIND[flag.kind] || "股數變動") + count + "後，股數約為原本的 "
+    + ratio.toFixed(2) + " 倍（依參考價推算）；交易所的" + label + "仍以變動前的" + perShare
+    + "計算，數字" + (high ? "偏高" : "偏低") + "。本站不另外換算股數，"
+    + (key === "dividendYield" ? "下一個股利年度" : "下一季財報") + "公布後會自行對齊。";
 }
 
 function toneClass(value){
@@ -1191,6 +1396,44 @@ function numCell(value, digits, suffix, tone){
   return '<td class="num' + (tone ? " " + toneClass(value) : "") + '">' + fmt(value, digits) + (suffix || "") + '</td>';
 }
 
+// 數字照印，有說明就加 ⚠ 並把原因放進 title（同 /market/ 的 yieldFlagCell）
+function flaggedText(value, digits, suffix, note){
+  if (value == null) return "—";
+  const text = fmt(value, digits) + (suffix || "");
+  if (!note) return text;
+  return '<span class="stale" title="' + escapeHtml(note) + '">' + text + ' ⚠</span>';
+}
+
+function flaggedCell(value, digits, note){
+  if (!note) return numCell(value, digits);
+  return '<td class="num">' + flaggedText(value, digits, "", note) + '</td>';
+}
+
+// 手機卡片：title 在觸控螢幕上看不到，⚠ 的原因要直接寫在卡片上
+function cardNotes(pairs){
+  const lines = pairs.filter(function(pair){ return pair[1]; }).map(function(pair){
+    return '<div class="data-line">⚠ <b>' + pair[0] + '</b> ' + escapeHtml(pair[1]) + '</div>';
+  });
+  return lines.join("");
+}
+
+function turnoverNote(m){
+  if (m.turnover == null) return null;
+  if (m.turnoverEstimated) return "全市場 feed 這一版沒有成交金額，暫以收盤×成交股數估算，與交易所公布的成交金額會有出入。";
+  if (m.turnoverDate) return "這是 " + m.turnoverDate + " 的成交金額；"
+    + (m.closeIsNewer ? "收盤已是較新的一天，全市場 feed 還沒更新到那一天。" : "收盤是比較舊的一天，兩者不是同一天的數字。");
+  return null;
+}
+
+// 收盤比全市場 feed 舊：通常是自行加入的標的當天沒有成交（feed 只收有成交的列），
+// 畫面上那個價格是先前存下來的。照印，但講出是哪一天的。
+function closeNote(stock, snapshot, m){
+  if (!snapshot || snapshot.close == null || !snapshot.date || !marketFeedMeta) return null;
+  const reference = m.feedDate || [marketFeedDates.twse, marketFeedDates.tpex].filter(Boolean).sort().pop() || "";
+  if (!reference || snapshot.date >= reference) return null;
+  return "這是 " + snapshot.date + " 的收盤" + (marketRows[stock.code] ? "" : "；全市場 feed 最新一版（" + reference + "）沒有這一檔，可能當天沒有成交") + "。";
+}
+
 function renderScore(){
   const tbody = $("scoreBody");
   const cards = $("stockCards");
@@ -1213,6 +1456,7 @@ function renderScore(){
     const snapshot = entry.snapshot;
     const m = entry.metrics;
     const close = snapshot.close;
+    const stale = closeNote(stock, snapshot, m);
 
     const tr = document.createElement("tr");
     tr.innerHTML = '<td>' + stockTradingViewLink(stock, false) + '</td>'
@@ -1220,14 +1464,14 @@ function renderScore(){
         + (m.market ? '<span class="mk" style="margin-left:6px">' + m.market + '</span>' : '')
         + (stock.custom ? '<span class="mk" style="margin-left:6px">自加</span>' : '')
         + '</td>'
-      + '<td class="px">' + (close != null ? fmt(close, 2) : '<span class="stale">待更新</span>') + '</td>'
+      + '<td class="px">' + (close != null ? flaggedText(close, 2, "", stale) : '<span class="stale">待更新</span>') + '</td>'
       + '<td class="num ' + toneClass(snapshot.dayPct) + '">' + (snapshot.dayPct == null ? "—" : signedFixed(snapshot.dayPct, 1) + "%") + '</td>'
-      + numCell(m.pe, 2)
-      + numCell(m.pbRatio, 2)
-      + numCell(m.dividendYield, 2)
+      + flaggedCell(m.pe, 2, m.notes.pe)
+      + flaggedCell(m.pbRatio, 2, m.notes.pbRatio)
+      + flaggedCell(m.dividendYield, 2, m.notes.dividendYield)
       + (fromHiText(m) ? '<td class="num flat"><span class="stale" title="上市未滿一年，快照只累積了 '
           + m.w52Months + ' 個月，不足以算出一年高低">累積中</span></td>' : numCell(m.fromHi, 1, "%", true))
-      + numCell(m.turnover, 2)
+      + flaggedCell(m.turnover, 2, turnoverNote(m))
       + '<td>' + removeBtnHtml(stock) + '</td>';
     tbody.appendChild(tr);
     bindRowControls(tr);
@@ -1235,22 +1479,22 @@ function renderScore(){
     const card = document.createElement("div");
     card.className = "stock-card";
     const cell = function(label, value){ return '<div><b>' + label + '</b>' + value + '</div>'; };
-    const num = function(value, digits, suffix){ return value == null ? "—" : fmt(value, digits) + (suffix || ""); };
     card.innerHTML = '<div class="stock-card-head"><div>' + stockTradingViewLink(stock, true)
         + (m.market ? '<span class="mk" style="margin-left:6px">' + m.market + '</span>' : '')
         + '</div>' + removeBtnHtml(stock) + '</div>'
-      + '<div class="stock-price"><span class="px">' + (close != null ? fmt(close, 2) : "待更新") + '</span>'
+      + '<div class="stock-price"><span class="px">' + (close != null ? flaggedText(close, 2, "", stale) : "待更新") + '</span>'
         + '<span class="chg ' + (snapshot.dayPct == null ? "" : toneClass(snapshot.dayPct)) + '">'
         + (snapshot.dayPct == null ? "—" : signedFixed(snapshot.dayPct, 1) + "%") + '</span></div>'
       + '<div class="stock-meta">'
-        + cell("PE", num(m.pe, 2))
-        + cell("PB", num(m.pbRatio, 2))
-        + cell("殖利率", num(m.dividendYield, 2, "%"))
+        + cell("PE", flaggedText(m.pe, 2, "", m.notes.pe))
+        + cell("PB", flaggedText(m.pbRatio, 2, "", m.notes.pbRatio))
+        + cell("殖利率", flaggedText(m.dividendYield, 2, "%", m.notes.dividendYield))
         + cell("距一年高", m.fromHi != null
             ? '<span class="' + toneClass(m.fromHi) + '">' + fmt(m.fromHi, 1) + "%</span>"
             : (fromHiText(m) ? '<span class="stale">累積中</span>' : "—"))
-        + cell("成交額", num(m.turnover, 2, " 億"))
+        + cell("成交額", flaggedText(m.turnover, 2, " 億", turnoverNote(m)))
       + '</div>'
+      + cardNotes([["收盤", stale], ["PE", m.notes.pe], ["PB", m.notes.pbRatio], ["殖利率", m.notes.dividendYield], ["成交額", turnoverNote(m)]])
       + '<div class="data-line">' + escapeHtml(stock.role) + '</div>';
     cards.appendChild(card);
     bindRowControls(card);
@@ -1280,8 +1524,9 @@ async function refresh(){
   await Promise.all([
     (async function(){
       await loadEod();
-      // market-feed 要排在 loadEod 之後：它只補「還沒有價格」的代碼，
-      // 不覆蓋 13:30 快照那份較精準的資料
+      // market-feed 要排在 loadEod 之後：loadEod 會記下這次即時報過價的代碼（liveCodes），
+      // fillFromMarketRows 靠它決定哪些列可以換——順序反過來，13:30 快照會被 feed 蓋掉、
+      // 而 localStorage 的舊價格反而留著（見 fillFromMarketRows 的規則）
       await loadMarketFeed();
     })(),
     loadMarketIndices(),
@@ -1375,6 +1620,11 @@ const portfolioApp = {
     setMarketRowsForTest:function(rows){ marketRows = rows || {}; return rebuildStocks(); },
     tradingViewUrl:tradingViewUrl,
     stockMetrics:stockMetrics,
+    shareBasisNote:shareBasisNote,
+    payoutFlag:payoutFlag,
+    PAYOUT_FLAG_RATIO:PAYOUT_FLAG_RATIO,
+    isoDateOf:isoDateOf,
+    dataLabel:dataLabel,
   },
 };
 ROOT.PortfolioConsoleApp = portfolioApp;

@@ -640,14 +640,15 @@
   </div>
 
   <footer>
-    資料來源：<b>TWSE OpenAPI</b>（上市收盤／本益比）與 <b>TPEx OpenAPI</b>（上櫃收盤／本益比），每交易日收盤後自動更新。
+    資料來源：<b>證交所</b>（上市收盤 MI_INDEX／本益比 BWIBBU_d，抓不到時退回 OpenAPI）與 <b>櫃買中心</b>（上櫃收盤／本益比），每交易日收盤後自動更新。
     一年高低由本站每日快照<b>以月為單位</b>滾動累積，窗口是當月回推 12 個完整月（<span id="hiSince"></span>起），
     因此可能略多於 52 週——月桶做不出剛好一年，最舊那個月會含到月初。
     配股、面額變更、減資造成的股數變動<b>已依證交所／櫃買中心的參考價還原</b>（上市「權息」同日的現金部分會一併還原），
     <b>現金股利不還原</b>，所以高低點仍是實際成交價。
     累積未滿 12 個月的個股不發布高低點，該欄顯示「累積中」。上游延遲或暫時中斷時會保留前一份資料並標示。
 ETF 殖利率為<b>滾動 12 個月已除息配息 ÷ 當日收盤</b>，與他站常用的「年度殖利率（年度配息 ÷ 年均價）」定義不同，數字不可直接互比；配息歷史逐檔保留近 13 個月。
-    成交額為<b>當日</b>收盤價 × 成交股數，只是流動性的粗略代理，單日可能因事件而失真。
+    成交額為交易所公布的<b>當日成交金額</b>，只是流動性的參考，單日可能因事件而失真。
+    PE／PB／殖利率照交易所原值顯示；配股或減資之後交易所仍以舊股數的每股盈餘、淨值、股利計算時，數字旁標 ⚠，指上去看原因。
     低估值也可能是獲利一次性、產業衰退或流動性不足所致，<b>低本益比不等於便宜</b>。
     本頁為資料篩選工具，<b>不是投資建議</b>；估值為官方揭露值，與個別公司財報認定期間可能不同。
   </footer>
@@ -891,16 +892,21 @@ function normalizeFeed(payload){
       hi52:parseNumber(row.hi52),
       w52Months:parseNumber(row.w52Months),
       volume:parseNumber(row.volume),
+      value:parseNumber(row.value),
+      basis:row.basis && typeof row.basis === "object" ? row.basis : null,
     };
     clean.dayPct = dayPct(clean);
     // 換算要在篩選與排序之前做完，否則「低基期 PE≤25」會拿舊分母的 PE 去篩，
     // 篩出來的名單和畫面顯示的數字對不起來。
     if (adjustable[clean.market]) rescaleValuation(clean);
-    // 成交金額（億元）＝ 收盤 × 成交股數。流動性代理指標：純估值篩選會把
-    // 幾乎不能成交的個股排到最前面，這欄用來把它們濾掉。
-    clean.turnover = (clean.close != null && clean.volume != null)
-      ? Math.round(clean.close * clean.volume / 1e6) / 100
-      : null;
+    // 成交金額（億元）。流動性代理指標：純估值篩選會把幾乎不能成交的個股排到最前面，
+    // 這欄用來把它們濾掉。feed 有交易所公布的成交金額（value，元）就用它；
+    // 舊版 feed 沒有才退回「收盤 × 成交股數」——那個估算與官方值差距中位 0.74%、最大 7.19%。
+    clean.turnover = clean.value != null
+      ? Math.round(clean.value / 1e6) / 100
+      : (clean.close != null && clean.volume != null)
+        ? Math.round(clean.close * clean.volume / 1e6) / 100
+        : null;
     clean.watch = watched.indexOf(clean.code) >= 0;
     return clean;
   }).filter(function(row){return row.code && row.close != null;});
@@ -961,8 +967,8 @@ function rowHtml(row){
       + '</td>'
     + '<td class="px">' + fmt(row.close, 2) + '</td>'
     + '<td class="num ' + toneClass(pct) + '">' + (pct == null ? "—" : signed(pct, 1) + "%") + '</td>'
-    + '<td class="num">' + (row.pe == null ? "—" : fmt(row.pe, 2)) + '</td>'
-    + '<td class="num">' + (row.pbRatio == null ? "—" : fmt(row.pbRatio, 2)) + '</td>'
+    + '<td class="num">' + basisFlagCell(row, "pe") + '</td>'
+    + '<td class="num">' + basisFlagCell(row, "pbRatio") + '</td>'
     + '<td class="num">' + yieldFlagCell(row) + '</td>'
     + '<td class="num ' + toneClass(row.fromHi) + '">' + fromHiCell(row) + '</td>'
     + '<td class="num">' + (row.turnover == null ? "—" : fmt(row.turnover, 2)) + '</td>'
@@ -1189,13 +1195,48 @@ function payoutFlag(row){
   };
 }
 
-// 殖利率欄兩態：一般數字照印；隱含配發率過高的那幾列數字照印但標起來並說明原因。
+// 配股或減資之後，交易所的 PE／PB／殖利率仍以「事件前」的每股盈餘、淨值、股利計算，
+// 分母卻是事件後的股價（實測 6669 緯穎 9/2 除權、股數約 ×2.98，殖利率 2.3% → 9.98%）。
+// 哪些欄位受影響由管線判斷（update-market-feed.mjs 的 shareBasisFlag），這裡只負責講清楚。
+// 與 /stocks/ 逐字相同，由測試互驗。**只標示，不換算**：比例取自除權參考價，混著現金那一小段，
+// 換算出來的數字不會精確。
+var SHARE_EVENT_KIND = {stock:"配股除權", reduction:"減資"};
+function shareBasisNote(basis, key){
+  var flag = basis && typeof basis === "object" ? basis[key] : null;
+  if (!flag || typeof flag !== "object") return null;
+  var ratio = Number(flag.ratio);
+  if (!(ratio > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(String(flag.date || ""))) return null;
+  var label = key === "dividendYield" ? "殖利率" : (key === "pe" ? "本益比" : "股價淨值比");
+  var perShare = key === "dividendYield" ? "每股現金股利" : (key === "pe" ? "每股盈餘" : "每股淨值");
+  // 殖利率的舊股數數字在分子：股數變多時偏高。PE／PB 的在分母：股數變多時偏低。
+  var high = key === "dividendYield" ? ratio > 1 : ratio < 1;
+  var count = Number(flag.events) > 1 ? "等 " + Number(flag.events) + " 次股數變動" : "";
+  // 不能說「照原樣顯示」：估值日比收盤早一天時，分母會換算到畫面上的收盤。
+  // 本站沒動的是每股數字的股數基準，這句只講那件事。
+  return flag.date + " " + (SHARE_EVENT_KIND[flag.kind] || "股數變動") + count + "後，股數約為原本的 "
+    + ratio.toFixed(2) + " 倍（依參考價推算）；交易所的" + label + "仍以變動前的" + perShare
+    + "計算，數字" + (high ? "偏高" : "偏低") + "。本站不另外換算股數，"
+    + (key === "dividendYield" ? "下一個股利年度" : "下一季財報") + "公布後會自行對齊。";
+}
+
+function flagSpan(text, note){
+  if (!note) return text;
+  return '<span class="stale" title="' + escapeHtml(note) + '">' + text + ' ⚠</span>';
+}
+
+// PE／PB 欄：數字照印，配股或減資後基準不一致的列標起來
+function basisFlagCell(row, key){
+  if (row[key] == null) return "—";
+  return flagSpan(fmt(row[key], 2), shareBasisNote(row.basis, key));
+}
+
+// 殖利率欄：一般數字照印；隱含配發率過高、或配股減資後基準不一致的列，數字照印但標起來並說明原因。
 function yieldFlagCell(row){
   if (row.dividendYield == null) return "—";
   var text = fmt(row.dividendYield, 2);
   var flag = payoutFlag(row);
-  if (!flag) return text;
-  return '<span class="stale" title="' + escapeHtml(flag.note) + '">' + text + ' ⚠</span>';
+  var note = [shareBasisNote(row.basis, "dividendYield"), flag && flag.note].filter(Boolean).join(" ");
+  return flagSpan(text, note || null);
 }
 
 // ETF 規模：feed 寫進來的是兩位小數（億），但這一欄本來只印一位，於是 5 檔小型
@@ -4139,6 +4180,8 @@ const marketApp = {
     fromHiCell:fromHiCell,
     payoutFlag:payoutFlag,
     yieldFlagCell:yieldFlagCell,
+    shareBasisNote:shareBasisNote,
+    basisFlagCell:basisFlagCell,
     aumCell:aumCell,
     sortRows:sortRows,
     isLowBase:isLowBase,

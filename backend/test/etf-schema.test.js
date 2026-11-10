@@ -68,6 +68,56 @@ test("market-feed.json matches the expected schema", async () => {
     }
     if (isNum(row.hi52) && isNum(row.lo52)) assert.ok(row.hi52 >= row.lo52, at("52w high must not sit below the low"));
   }
+
+  // 成交金額（元）的定義性檢查：成交金額 ÷ 成交股數就是當日均價，必然落在最低價與最高價之間。
+  // 單位一錯（櫃買的逐日表用「仟元」、成交量用「張」）這個比值會差上千倍，肉眼在 minified feed
+  // 裡看不出來。鉅額與盤後交易會讓少數列略微出界（2026-11-10 實測上市 1/1,097、上櫃 9/868，
+  // 最遠 6664 均價是最低價的 0.96 倍），所以逐列只擋離譜的單位錯，整體再要求 95% 落在區間內。
+  const valued = feed.stocks.filter((row) => isNum(row.value) && row.volume > 0 && row.high > 0 && row.low > 0);
+  if (valued.length) {
+    let inside = 0;
+    for (const row of valued) {
+      const vwap = row.value / row.volume;
+      assert.ok(vwap > row.low * 0.5 && vwap < row.high * 1.5,
+        `${row.code}: 成交金額 ${row.value} ÷ 成交股數 ${row.volume} = ${vwap.toFixed(2)}，離當日區間 ${row.low}–${row.high} 太遠——單位錯了？`);
+      if (vwap >= row.low * 0.99 && vwap <= row.high * 1.01) inside += 1;
+    }
+    assert.ok(inside / valued.length >= 0.95, `只有 ${inside}/${valued.length} 列的均價落在當日高低之間`);
+    // 一旦開始輸出就不可以半途掉一大批：有成交量的列至少九成五要帶成交金額
+    const traded = feed.stocks.filter((row) => row.volume > 0).length;
+    assert.ok(valued.length / traded >= 0.95, `有成交量的 ${traded} 列只有 ${valued.length} 列帶成交金額`);
+  }
+});
+
+// 配股／減資後的估值基準標記（update-market-feed.mjs 的 shareBasisFlag）。
+// 每一個 ⚠ 都必須追得到 market-52w.json 裡真的發生過的股數事件——那份清單同時是
+// 「距一年高已還原」的依據，兩邊講的必須是同一批事件。標記指向不存在的事件，
+// 等於憑空宣稱交易所的數字有問題。
+test("market-feed share-basis flags point at real share-count events", async () => {
+  const feed = await readJson("../../data/market-feed.json");
+  const acc = await readJson("../../data/market-52w.json");
+  const adjusted = acc.adjusted || {};
+  for (const row of feed.stocks.filter((r) => r.basis)) {
+    const at = (msg) => `${row.code}: ${msg}`;
+    const keys = Object.keys(row.basis);
+    assert.ok(keys.length, at("basis 不可以是空物件"));
+    const valuationDate = feed.valuationDates && feed.valuationDates[row.market];
+    for (const field of keys) {
+      const b = row.basis[field];
+      assert.ok(["pe", "pbRatio", "dividendYield"].includes(field), at(`basis 標了不存在的欄位 ${field}`));
+      assert.ok(isNum(row[field]), at(`basis 標了 ${field}，但這一列沒有那個數字`));
+      assert.match(b.date, /^\d{4}-\d{2}-\d{2}$/, at(`basis.${field}.date`));
+      assert.ok(["stock", "reduction"].includes(b.kind), at(`basis.${field}.kind ${b.kind} 不是已知不會被重算的事件種類`));
+      assert.ok(isNum(b.ratio) && b.ratio > 0 && Math.abs(b.ratio - 1) >= 0.09, at(`basis.${field}.ratio ${b.ratio}`));
+      if (b.events != null) assert.ok(Number.isInteger(b.events) && b.events >= 2, at("events 只在兩次以上時出現"));
+      if (valuationDate) assert.ok(b.date <= valuationDate, at("事件日不可以晚於估值日"));
+      const event = adjusted[`${row.code}@${b.date}`];
+      assert.ok(event, at(`market-52w.json 的 adjusted 沒有 ${row.code}@${b.date} 這個事件`));
+      assert.equal(event.k, b.kind, at("事件種類要跟 adjusted 一致"));
+      // 只有一次事件時，比例就是那個事件參考價比的倒數——定義性檢查，抄錯方向會當場現形
+      if (b.events == null) assert.ok(Math.abs(b.ratio - 1 / event.f) < 0.002, at(`ratio ${b.ratio} 對不上 1 ÷ ${event.f}`));
+    }
+  }
 });
 
 test("etf-feed.json matches the expected schema", async () => {

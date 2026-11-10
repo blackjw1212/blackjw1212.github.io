@@ -487,9 +487,12 @@ test("frontend normalizers round EOD, index, and closing-quote rows", async () =
       { code: "9999", name: "Ignored", price: "1", change: "0", time: "2026-06-08T13:30:00+08:00" },
     ],
   })), [
-    { code: "2330", name: "TSMC", close: 2295, change: -70, time: "2026-06-08T13:30:00+08:00", previousClose: 2365, high: 2370, low: 2230, open: 2350 },
-    { code: "3324", name: "Auras", close: 1095, change: -15, time: "2026-06-08T13:30:00+08:00", high: 1130, low: 1050, open: 1105 },
+    { code: "2330", name: "TSMC", close: 2295, change: -70, time: "2026-06-08T13:30:00+08:00", date: "2026-06-08", previousClose: 2365, high: 2370, low: 2230, open: 2350 },
+    { code: "3324", name: "Auras", close: 1095, change: -15, time: "2026-06-08T13:30:00+08:00", date: "2026-06-08", high: 1130, low: 1050, open: 1105 },
   ]);
+  // 交易日要跟著每一列走：靜態 feed 與 STOCK_DAY_ALL 形狀的列各有自己的日期欄
+  assert.equal(normalizeEodPayload([{ code: "2330", name: "台積電", close: 2400, change: 5, date: "2026-11-09" }])[0].date, "2026-11-09");
+  assert.equal(normalizeEodPayload([{ Code: "2330", Name: "台積電", ClosingPrice: "2400", Date: "1151109" }])[0].date, "2026-11-09");
 });
 
 test("proxy allowlist ignores unapproved query-string proxy", async () => {
@@ -896,11 +899,14 @@ test("market indices are requested without waiting for the stock quotes", async 
   await done;
 });
 
+// Worker /eod 排在兩份同源 feed 之後：它背後的 STOCK_DAY_ALL 沒有上櫃、每列不帶交易日、
+// 收盤後要到深夜才換日。這裡讓兩份 feed 都拿不到，才輪到它。
 test("page uses Worker EOD and market indices on GitHub Pages default proxy", async () => {
   const calls = [];
   const { context, document } = await loadApp(async (url) => {
     const href = String(url);
     calls.push(href);
+    if (href.startsWith("/data/stock-risk-feed.json") || href.startsWith("/data/market-feed.json")) return response({}, {}, { status: 503 });
     if (href.endsWith("/eod")) {
       return response([
         { code: "2330", name: "台積電", close: 2410, change: 10 },
@@ -922,7 +928,6 @@ test("page uses Worker EOD and market indices on GitHub Pages default proxy", as
         "X-Data-Updated-At": "2026-06-08T09:33:05.000Z",
       });
     }
-    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
     throw new Error(`unexpected: ${href}`);
   }, {
     location: {
@@ -1039,7 +1044,8 @@ test("incomplete MIS closing quotes fall through instead of mixing old rows", as
 
   await context.window.PortfolioConsoleApp.init();
 
-  assert.match(document.getElementById("scoreBody").innerHTML, /2,365/);
+  // 只拿到 2 檔的 MIS 不得跟舊列混著用，整批落到下一個來源（靜態 stock-risk-feed）
+  assert.match(document.getElementById("scoreBody").innerHTML, /2,400\.25/);
   assert.doesNotMatch(document.getElementById("scoreBody").innerHTML, /2,295/);
 });
 
@@ -1068,7 +1074,7 @@ test("market index quote failure does not block dashboard refresh", async () => 
   await context.window.PortfolioConsoleApp.init();
 
   // 指數掛掉不得連坐清單：收盤照顯示，指數卡自己講「暫無法更新」
-  assert.match(document.getElementById("scoreBody").innerHTML, /2,410/);
+  assert.match(document.getElementById("scoreBody").innerHTML, /2,400\.25/);
   assert.equal(document.getElementById("headerQuoteTaiexValue").textContent, "待更新");
   assert.match(document.getElementById("headerQuoteTaiexStatus").textContent, /暫無法更新/);
   assert.match(document.getElementById("headerQuoteTaiexStatus").className, /error/);
@@ -1106,7 +1112,7 @@ test("legacy 10Y, checklist, and observation fields are dropped from stored stat
   // 清單本身要活下來，只是分層被丟掉
   assert.deepEqual(Array.from(state.watchlist).map((e) => e.code), ["2330", "2454"]);
   assert.equal(state.watchlist[0].tier, undefined);
-  assert.equal(state.today["2330"].close, 2410, "還在用的欄位不能被一起清掉");
+  assert.equal(state.today["2330"].close, 2400.25, "還在用的欄位不能被一起清掉");
 });
 
 test("empty static EOD can fall through to localStorage cache", async () => {
@@ -1246,3 +1252,203 @@ test("a missing or unparsable timestamp stays silent instead of guessing", async
   }
 });
 
+
+// ── 2026-11-10 資料審查補的幾條 ────────────────────────────────────────────
+
+// 市場 feed 的一列（2026-11-10 實抓值）。value 是交易所公布的成交金額（元）。
+const FEED_1110 = {
+  updatedAt: hoursAgo(1), tradeDate: "2026-11-10",
+  marketDates: { twse: "2026-11-10", tpex: "2026-11-10" },
+  valuationDates: { twse: "2026-11-10", tpex: "2026-11-10" },
+  errors: [],
+};
+const feed1110 = (stocks) => ({ ...FEED_1110, count: stocks.length, stocks });
+const ROW_2330 = { code: "2330", name: "台積電", market: "twse", close: 2285, change: 50, high: 2285, low: 2230,
+  volume: 36575797, value: 82847295812, pe: 26.49, dividendYield: 0.96, pbRatio: 9.21, hi52: 2590, lo52: 1375, fromHi: -11.8 };
+
+function mockFeeds({ market, risk }) {
+  return async (url) => {
+    const href = String(url);
+    if (href.startsWith("/data/market-feed.json")) return market ? response(market) : response({}, {}, { status: 503 });
+    if (href.startsWith("/data/stock-risk-feed.json")) return risk ? response(risk) : response({}, {}, { status: 503 });
+    throw new Error(`unavailable: ${href}`);
+  };
+}
+
+// state.today 存進 localStorage，而 fillFromMarketRows 原本只補「還沒有價格」的代碼——
+// 自行加入的標的從加入那天起價格就再也沒動過，PE／PB／殖利率還被換算到那個舊價格。
+test("a user-added stock keeps following the market feed on later visits", async () => {
+  const storage = createLocalStorage({
+    [STATE_KEY]: JSON.stringify({
+      watchlist: [{ code: "2330" }, { code: "2454" }, { code: "2603" }],
+      today: {
+        "2454": { close: 1000, change: 5, time: "2026-10-01", src: "market", date: "2026-10-01" },
+        // 改版前的存檔沒有 date／src，只有 time
+        "2603": { close: 50, change: 1, time: "2026-09-01" },
+      },
+    }),
+  });
+  const { context, document } = await loadApp(mockFeeds({
+    market: feed1110([
+      ROW_2330,
+      { code: "2454", name: "聯發科", market: "twse", close: 1395, change: 15, pe: 18.62, pbRatio: 3.41, dividendYield: 4.73, hi52: 1650, volume: 5000000, value: 6950000000 },
+      { code: "2603", name: "長榮", market: "twse", close: 190.5, change: -1, pe: 6.1, hi52: 220, volume: 20000000, value: 3800000000 },
+    ]),
+    risk: staticFeed({ eod: [{ code: "2330", name: "台積電", close: 2285, change: 50, date: "2026-11-10" }] }),
+  }), { localStorage: storage });
+  await context.window.PortfolioConsoleApp.init();
+
+  const html = document.getElementById("scoreBody").innerHTML;
+  assert.match(html, /1,395/, "加入那天的 1,000 不可以一直留著");
+  assert.doesNotMatch(html, /<td class="px">1,000<\/td>/);
+  assert.match(html, /190\.5/, "舊格式的存檔（沒有 date）也要被換掉");
+  assert.match(html, /<td class="num">18\.62<\/td>/, "估值分母就是 feed 的收盤，不可以被換算到舊價格");
+  const state = context.window.PortfolioConsoleApp.getState();
+  assert.equal(state.today["2454"].date, "2026-11-10");
+  assert.equal(state.today["2454"].src, "market");
+  // 來源列要講出這兩檔不是主來源報的
+  assert.match(document.getElementById("dataSource").textContent, /2 檔取自全市場 feed（TWSE MI_INDEX／TPEx 收盤）（交易日 2026-11-10）/);
+});
+
+// 主來源報過價、但日期確定比 feed 舊的列要被換掉；同一天的不動（13:30 快照比較精準）
+test("a live quote is only replaced when the feed is provably newer", async () => {
+  const run = async (riskDate) => {
+    const app = await loadApp(mockFeeds({
+      market: feed1110([ROW_2330]),
+      risk: staticFeed({ eod: [{ code: "2330", name: "台積電", close: 2235, change: 100, date: riskDate }] }),
+    }));
+    await app.context.window.PortfolioConsoleApp.init();
+    return app;
+  };
+  const older = await run("2026-11-09");
+  assert.match(older.document.getElementById("scoreBody").innerHTML, /2,285/, "11-09 的收盤比 feed 的 11-10 舊");
+  const olderSource = older.document.getElementById("dataSource").textContent;
+  assert.match(olderSource, /全市場 feed（TWSE MI_INDEX／TPEx 收盤）（交易日 2026-11-10）/);
+  assert.doesNotMatch(olderSource, /stock-risk-feed/, "主來源一列都沒留下時不可以把它的名字掛在新數字上");
+  const same = await run("2026-11-10");
+  assert.match(same.document.getElementById("scoreBody").innerHTML, /2,235/, "同一天就留著主來源報的價");
+});
+
+// 成交額原本是「本頁收盤 × feed 的成交股數」：不是成交金額，而且收盤比 feed 新一天時
+// 是今天的價格乘昨天的量。改成交易所公布的成交金額，日期對不上就講出來。
+test("turnover is the exchange's traded value and is dated when the close is newer", async () => {
+  const run = async (riskRow, row = ROW_2330) => {
+    const app = await loadApp(mockFeeds({ market: feed1110([row]), risk: staticFeed({ eod: [riskRow] }) }));
+    await app.context.window.PortfolioConsoleApp.init();
+    return app.document.getElementById("scoreBody").innerHTML;
+  };
+  const aligned = await run({ code: "2330", name: "台積電", close: 2285, change: 50, date: "2026-11-10" });
+  assert.match(aligned, /<td class="num">828\.47<\/td>/, "82,847,295,812 元 = 828.47 億，不是 2,285 × 36,575,797 = 835.76 億");
+
+  const newer = await run({ code: "2330", name: "台積電", close: 2300, change: 15, high: 2310, date: "2026-11-11" });
+  assert.match(newer, /title="這是 2026-11-10 的成交金額[^"]*">828\.47 ⚠/, "日期對不上時照印但要講是哪一天的");
+
+  const { value, ...legacy } = ROW_2330;
+  const estimated = await run({ code: "2330", name: "台積電", close: 2285, change: 50, date: "2026-11-10" }, legacy);
+  assert.match(estimated, /title="全市場 feed 這一版沒有成交金額[^"]*">835\.76 ⚠/, "舊 feed 退回估算時要標成估算");
+});
+
+// 本頁收盤比 feed 新一天時，feed 的 hi52 還不含今天。創新高那天原本會印出正的「距一年高」。
+test("distance from the one-year high is never positive", async () => {
+  const app = await loadApp(mockFeeds({
+    market: feed1110([ROW_2330]),
+    risk: staticFeed({ eod: [{ code: "2330", name: "台積電", close: 2700, change: 415, high: 2720, date: "2026-11-11" }] }),
+  }));
+  await app.context.window.PortfolioConsoleApp.init();
+  const html = app.document.getElementById("scoreBody").innerHTML;
+  assert.match(html, /<td class="num neg">-0\.7%<\/td>/, "(2700 − 2720) ÷ 2720：今天的高點就是新的一年高");
+  assert.doesNotMatch(html, /<td class="num pos">\+?4\.2%<\/td>/, "不可以拿舊的 hi52 2,590 算出 +4.2%");
+});
+
+// 6669 緯穎 9/2 除權（股數約 ×2.98），證交所的殖利率仍用除權前的每股股利，畫面上是 9.78%。
+test("a share-basis flag from the pipeline is shown on the affected cell only", async () => {
+  const app = await loadApp(mockFeeds({
+    market: feed1110([{ code: "6669", name: "緯穎", market: "twse", close: 1680, change: 35, volume: 3476178, value: 5865205780,
+      pe: 14.82, dividendYield: 9.78, pbRatio: 5.22, hi52: 2875, lo52: 1102.99,
+      basis: { dividendYield: { date: "2026-09-02", kind: "stock", ratio: 2.983 } } }]),
+    risk: staticFeed({ eod: [{ code: "6669", name: "緯穎", close: 1680, change: 35, date: "2026-11-10" }] }),
+  }));
+  await app.context.window.PortfolioConsoleApp.init();
+  const html = app.document.getElementById("scoreBody").innerHTML;
+  const cards = app.document.getElementById("stockCards").innerHTML;
+  assert.match(html, /<td class="num"><span class="stale" title="2026-09-02 配股除權後，股數約為原本的 2\.98 倍（依參考價推算）；交易所的殖利率仍以變動前的每股現金股利計算，數字偏高。[^"]*">9\.78 ⚠<\/span><\/td>/);
+  assert.match(html, /<td class="num">14\.82<\/td>/, "Q3 財報已對齊，PE 不標");
+  assert.match(cards, /9\.78% ⚠/, "手機卡片也要標");
+  assert.match(cards, /<div class="data-line">⚠ <b>殖利率<\/b> 2026-09-02 配股除權後/, "觸控螢幕看不到 title，卡片上要直接寫出原因");
+  assert.doesNotMatch(cards, /⚠ <b>PE<\/b>/, "沒被標的欄位不寫說明");
+  assert.doesNotMatch(html + cards, /投資建議|買進|賣出|保證/, "說明不可以變成建議");
+});
+
+// 說明寫「欄位與全市場清單一致」，殖利率欄卻少了 /market/ 那個隱含配發率記號
+test("/stocks/ and /market/ word the valuation flags identically", async () => {
+  const stocks = await loadApp(async () => response(staticFeed()));
+  const marketHtml = await readFile(fileURLToPath(new URL("../../market/index.html", import.meta.url)), "utf8");
+  const marketScript = marketHtml.match(/<script>((?:(?!<\/script>)[\s\S])*)<\/script>\s*<\/body>/)?.[1];
+  const marketWindow = { __MARKET_SKIP_AUTO_INIT__: true, location: { href: "https://local.test/", search: "" } };
+  vm.runInContext(marketScript, vm.createContext({
+    console, document: createDocument().document, fetch: async () => response({}),
+    Headers, Intl, URL, URLSearchParams, setTimeout, clearTimeout, window: marketWindow,
+  }));
+  const s = stocks.context.window.PortfolioConsoleApp.helpers;
+  const m = marketWindow.MarketApp.helpers;
+  const reduction = { date: "2026-09-21", kind: "reduction", ratio: 0.873 };
+  const bases = [
+    { dividendYield: { date: "2026-09-02", kind: "stock", ratio: 2.983 } },
+    { pe: reduction, pbRatio: reduction, dividendYield: reduction },
+    { pe: { date: "2026-08-28", kind: "stock", ratio: 1.129 }, dividendYield: { date: "2026-08-28", kind: "stock", ratio: 1.3, events: 2 } },
+    { pe: { date: "bad", kind: "stock", ratio: 2 } },
+    { pe: "junk" },
+    null,
+  ];
+  for (const basis of bases) {
+    for (const key of ["pe", "pbRatio", "dividendYield"]) {
+      assert.equal(s.shareBasisNote(basis, key), m.shareBasisNote(basis, key), `${JSON.stringify(basis)} / ${key}`);
+    }
+  }
+  assert.match(s.shareBasisNote(bases[1], "pe"), /減資後，股數約為原本的 0\.87 倍.*本益比仍以變動前的每股盈餘計算，數字偏高/, "減資：PE 的分母是舊股數的每股盈餘，偏高");
+  assert.match(s.shareBasisNote(bases[1], "dividendYield"), /偏低/, "減資：殖利率的分子是舊股數的每股股利，偏低");
+  assert.match(s.shareBasisNote(bases[2], "dividendYield"), /配股除權等 2 次股數變動後，股數約為原本的 1\.30 倍/);
+  // 分母可能被換算到畫面上的收盤，所以不可以宣稱數字「照原樣」
+  assert.doesNotMatch(s.shareBasisNote(bases[0], "dividendYield"), /原樣/);
+  for (const row of [{ pe: 6.65, dividendYield: 102.66 }, { pe: 20, dividendYield: 10 }, { pe: null, dividendYield: 8 }]) {
+    assert.deepEqual(JSON.parse(JSON.stringify(s.payoutFlag(row))), JSON.parse(JSON.stringify(m.payoutFlag(row))));
+  }
+});
+
+// MIS 的 13:30 是臺灣時間；用裝置時區格式化的話，在國外開這頁會看到「05:30 收盤」
+test("the source line shows Taipei time and the trading day", async () => {
+  const quotes = completeMisClosingQuotes().map((q) => ({ ...q, time: "2026-11-10T13:30:00+08:00" }));
+  const app = await loadApp(async (url) => {
+    const href = String(url);
+    if (href.includes("/quote?codes=")) return response({ quotes });
+    if (href.includes("/quote?indices")) return response({ indices: [] }, {}, { status: 502 });
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unexpected: ${href}`);
+  }, { location: { href: "https://blackjw1212.github.io/stocks/", hostname: "blackjw1212.github.io", search: "" } });
+  await app.context.window.PortfolioConsoleApp.init();
+  const text = app.document.getElementById("dataSource").textContent;
+  // zh-TW 的 toLocaleString 在日期與時間之間放的是 U+2009（窄空格），不是一般空白
+  assert.match(text, /TWSE MIS closing quote \/ 2026\/11\/10\s13:30:00（交易日 2026-11-10）/);
+});
+
+// 說明寫「點代碼開 TradingView」，但代號表只有內建 13 檔
+test("user-added stocks get a TradingView link from their market", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const h = context.window.PortfolioConsoleApp.helpers;
+  h.setMarketRowsForTest({ "6488": { code: "6488", name: "環球晶", market: "tpex" }, "2454": { code: "2454", name: "聯發科", market: "twse" } });
+  assert.match(h.tradingViewUrl("6488"), /symbol=TPEX%3A6488/);
+  assert.match(h.tradingViewUrl("2454"), /symbol=TWSE%3A2454/);
+  assert.equal(h.tradingViewUrl("9999"), "", "不在 feed 裡的代碼不連");
+});
+
+// 只有 +08:00 的時間剛好前 10 碼就是臺灣日期；UTC 的 22:30 在臺灣已經是隔天
+test("trading dates from timestamps are taken in Taipei time", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const { isoDateOf } = context.window.PortfolioConsoleApp.helpers;
+  assert.equal(isoDateOf("2026-11-10T13:30:00+08:00"), "2026-11-10");
+  assert.equal(isoDateOf("2026-11-09T22:30:00Z"), "2026-11-10");
+  assert.equal(isoDateOf("2026-11-09T15:59:59.000Z"), "2026-11-09");
+  assert.equal(isoDateOf("2026-11-10"), "2026-11-10");
+  assert.equal(isoDateOf("1151110"), "2026-11-10");
+  assert.equal(isoDateOf("junk"), "");
+});
