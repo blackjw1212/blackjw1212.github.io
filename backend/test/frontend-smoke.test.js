@@ -1452,3 +1452,37 @@ test("trading dates from timestamps are taken in Taipei time", async () => {
   assert.equal(isoDateOf("1151110"), "2026-11-10");
   assert.equal(isoDateOf("junk"), "");
 });
+
+// 盤前（MIS 約 07:50 換日後、開盤後第一筆成交前）Worker 的指數 price 是 null，只剩昨收。
+// 原本整列丟掉，頁首兩張卡從換日紅字「即時指數暫無法更新」一路到 09:00。
+// 下面是 2026-11-11 07:50 實抓的 Worker 回應。
+test("before the first trade the index cards show yesterday's close, not an error", async () => {
+  const preOpen = {
+    indices: [
+      { id: "taiex", name: "發行量加權股價指數", price: null, previousClose: 42711.92, change: null, pctChange: null, exchange: "tse", time: "2026-11-11T07:50:00+08:00" },
+      { id: "tpex", name: "櫃買指數", price: null, previousClose: 332.97, change: null, pctChange: null, exchange: "otc", time: "2026-11-11T07:50:00+08:00" },
+    ],
+  };
+  const { context, document } = await loadApp(async (url) => {
+    const href = String(url);
+    if (href.includes("/quote?indices=taiex,tpex")) return response(preOpen, { "X-Data-Source": "TWSE MIS public quote feed" });
+    if (href.includes("/quote?codes=")) return response({ quotes: [] });
+    if (href.startsWith("/data/stock-risk-feed.json")) return response(staticFeed());
+    throw new Error(`unavailable: ${href}`);
+  }, { location: { href: "https://blackjw1212.github.io/stocks/", hostname: "blackjw1212.github.io", search: "" } });
+  await context.window.PortfolioConsoleApp.init();
+
+  assert.equal(document.getElementById("headerQuoteTaiexValue").textContent, "42,711.92");
+  assert.equal(document.getElementById("headerQuoteTpexValue").textContent, "332.97");
+  assert.equal(document.getElementById("headerQuoteTaiexChange").textContent, "昨收 · 今日尚無成交");
+  assert.match(document.getElementById("headerQuoteTaiexStatus").textContent, /TWSE MIS 昨收/);
+  assert.doesNotMatch(document.getElementById("headerQuoteTaiexStatus").className, /error/, "資料在，不是上游壞了");
+  assert.doesNotMatch(document.getElementById("headerQuoteTaiexChange").textContent, /0\.00/, "昨收減昨收不是平盤");
+
+  // 純函式：有成交時照舊算漲跌；連昨收都沒有才丟掉
+  const { normalizeMarketIndexPayload } = context.window.PortfolioConsoleApp.helpers;
+  const rows = JSON.parse(JSON.stringify(normalizeMarketIndexPayload(preOpen)));
+  assert.deepEqual(rows[0], { id: "taiex", label: "加權", price: 42711.92, change: null, pctChange: null, time: "2026-11-11T07:50:00+08:00", previousCloseOnly: true });
+  assert.equal(normalizeMarketIndexPayload({ indices: [{ id: "taiex", price: null, previousClose: null }] }).length, 0);
+  assert.equal(normalizeMarketIndexPayload({ indices: [{ id: "taiex", price: 43000, previousClose: 42711.92 }] })[0].previousCloseOnly, undefined);
+});
