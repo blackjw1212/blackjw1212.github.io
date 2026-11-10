@@ -52,6 +52,31 @@ export function parseIsinRows(html) {
   return out;
 }
 
+// 每一頁的上限。ISIN 那兩頁平常各十幾秒（2026-11-09 整步 47 秒），但 2026-11-10 21:29 那班
+// 上市頁抓了 9 分 37 秒、上櫃頁 2 分 56 秒——沒有逾時，整條 update-market-feed 就停在這一步
+// 等它，當班的行情與估值晚了 13 分鐘才上線，而那時這張表根本不需要更新（產業別月頻變動）。
+// 這張表是參考資料，昨天的版本完全可用：慢就放棄、留著舊表，不可以拖住整條管線。
+// 上限涵蓋 headers 與 body：signal 會一路作用到 arrayBuffer() 讀完為止，
+// 慢慢滴進來的回應也會在時間到時中斷（undici 預設的 bodyTimeout 是「兩個區塊之間」，攔不住）。
+export const PAGE_TIMEOUT_MS = 120_000;
+
+// 用自己的 setTimeout 而不是 AbortSignal.timeout()：後者的計時器是 unref 的，不會撐住
+// event loop——卡在沒有 socket 的地方（測試裡的假 fetch 就是）時，程序會在逾時前直接結束。
+export async function fetchIsinPage(url, { fetchImpl = fetch, timeoutMs = PAGE_TIMEOUT_MS } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs);
+  try {
+    const response = await fetchImpl(url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: controller.signal });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return new TextDecoder("big5").decode(await response.arrayBuffer());
+  } catch (error) {
+    if (controller.signal.aborted) throw controller.signal.reason;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // 上游改版或被擋時，寧可留著昨天的好資料。比照 fetch-etf-holdings 的守則。
 export function isDegraded(fetchedCount, previousCount, floor = 0.7) {
   if (!previousCount) return false;
@@ -66,11 +91,14 @@ async function main() {
   const byName = {};
   let parsed = 0;
 
-  for (const source of SOURCES) {
+  // 兩頁同時抓：最壞情況從「兩個上限相加」縮成一個上限。處理仍照 SOURCES 的順序，
+  // 名稱撞車時「先到先得」的結果才不會隨網路快慢而變。
+  const pages = await Promise.allSettled(SOURCES.map((source) => fetchIsinPage(source.url)));
+  for (const [index, source] of SOURCES.entries()) {
     try {
-      const response = await fetch(source.url, { headers: { "User-Agent": "Mozilla/5.0" } });
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      const html = new TextDecoder("big5").decode(await response.arrayBuffer());
+      const page = pages[index];
+      if (page.status === "rejected") throw page.reason;
+      const html = page.value;
       const rows = parseIsinRows(html);
       if (!rows.length) throw new Error("no usable rows parsed");
       for (const row of rows) {

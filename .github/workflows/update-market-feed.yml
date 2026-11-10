@@ -19,6 +19,9 @@ permissions:
 jobs:
   update-market-feed:
     runs-on: ubuntu-latest
+    # 沒有這行，任何一步卡住都會讓 job 等到 GitHub 預設的 6 小時，當班資料跟著卡住。
+    # 正常最久的是手動派工（每日步驟全跑）：約 10 分鐘，2026-10-20 那次 25 分鐘。
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
@@ -67,8 +70,11 @@ jobs:
       # 沒有這張表就算不出產業集中度。產業別月頻變動，一天一次即可；
       # 必須排在 ETF feed 之前，當班才併得進 sectorMix。
       # 解析列數低於前次 70% 時腳本自己拒絕覆寫，上游改版不會洗掉好資料。
+      # 2026-11-10 那班 ISIN 上市頁抓了 9 分 37 秒，這一步拖住整條管線 12 分半。
+      # 腳本每頁 2 分鐘就放棄（兩頁同時抓）、留著舊表；這裡的 5 分鐘是後備。
       - name: Refresh industry map (once daily)
         continue-on-error: true
+        timeout-minutes: 5
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
             node scripts/update-industry-map.mjs
