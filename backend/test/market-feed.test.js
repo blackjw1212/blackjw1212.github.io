@@ -19,6 +19,7 @@ import {
   shareEventsByCode,
   shareBasisFlag,
   shareEventUnadjusted,
+  carryShareBasis,
   SHARE_EVENT_MIN,
 } from "../../scripts/update-market-feed.mjs";
 
@@ -408,10 +409,10 @@ test("shareBasisFlag marks the 6669 dividend yield after its stock dividend", ()
   assert.equal(events.length, 1);
   // 11-10：Q3 財報（115/3）已經用新股數，PE／PB 對齊了；殖利率還是 114 年度的舊股數股利
   const now = shareBasisFlag({ pe: 14.82, pbRatio: 5.22, dividendYield: 9.78, divYear: 114, finPeriod: "115/3" }, events, "2026-11-10", "twse");
-  assert.deepEqual(now, { date: "2026-09-02", kind: "stock", ratio: 2.983, fields: ["dividendYield"] });
+  assert.deepEqual(now, { dividendYield: { date: "2026-09-02", kind: "stock", ratio: 2.983 } });
   // 10-15：財報還是 115/2（8/14 前就申報了），PE 7.4 也是舊股數——三欄都要標
   const oct = shareBasisFlag({ pe: 7.41, pbRatio: 3.14, dividendYield: 7.11, divYear: 114, finPeriod: "115/2" }, events, "2026-10-15", "twse");
-  assert.deepEqual(oct.fields, ["pe", "pbRatio", "dividendYield"]);
+  assert.deepEqual(Object.keys(oct), ["pe", "pbRatio", "dividendYield"]);
   // 事件還沒發生的那一天不可以標
   assert.equal(shareBasisFlag({ pe: 25, dividendYield: 2.28, divYear: 114, finPeriod: "115/2" }, events, "2026-09-01", "twse"), null);
   // 沒有配息就沒有殖利率可標
@@ -430,11 +431,11 @@ test("shareBasisFlag only trusts event kinds the exchanges are known not to rest
 
   const entry = { pe: 4.59, pbRatio: 1.83, dividendYield: 5.44, divYear: 114, finPeriod: "115/2" };
   const reduction = [{ date: "2026-09-21", f: 1 / 0.873, k: "reduction" }];
-  assert.deepEqual(shareBasisFlag(entry, reduction, "2026-11-10", "twse").fields, ["pe", "pbRatio", "dividendYield"], "3356 奇偶");
+  assert.deepEqual(Object.keys(shareBasisFlag(entry, reduction, "2026-11-10", "twse")), ["pe", "pbRatio", "dividendYield"], "3356 奇偶");
   assert.equal(shareBasisFlag(entry, reduction, "2026-11-10", "tpex"), null);
   assert.equal(shareBasisFlag(entry, [{ date: "2026-08-10", f: 0.1, k: "par" }], "2026-11-10", "tpex"), null, "5904 寶雅");
   // 減資的殖利率比例會是「偏低」：股數變少、每股股利還停在舊股數
-  assert.ok(shareBasisFlag(entry, reduction, "2026-11-10", "twse").ratio < 1);
+  assert.ok(shareBasisFlag(entry, reduction, "2026-11-10", "twse").dividendYield.ratio < 1);
 });
 
 test("shareBasisFlag stays silent where the data cannot tell", () => {
@@ -447,9 +448,50 @@ test("shareBasisFlag stays silent where the data cannot tell", () => {
   // 減資在 6/30 之前：114 年度股利可能是減資後才宣告的，不猜
   assert.equal(shareBasisFlag({ ...entry, pe: null, pbRatio: null }, [{ date: "2026-03-02", f: 1.5, k: "reduction" }], "2026-11-10", "twse"), null);
   // 但配股要股東會通過才除權，同一年的配股必定在現金股利提案之後
-  assert.deepEqual(shareBasisFlag({ ...entry, pe: null, pbRatio: null }, [{ date: "2026-06-15", f: 0.8, k: "stock" }], "2026-11-10", "twse").fields, ["dividendYield"]);
+  assert.deepEqual(Object.keys(shareBasisFlag({ ...entry, pe: null, pbRatio: null }, [{ date: "2026-06-15", f: 0.8, k: "stock" }], "2026-11-10", "twse")), ["dividendYield"]);
   // 財報在申報期限前：那份財報可能已經用了新股數（IAS 33.64）——PE／PB 不標
-  assert.deepEqual(shareBasisFlag(entry, [{ date: "2026-08-10", f: 0.8, k: "stock" }], "2026-11-10", "twse").fields, ["dividendYield"]);
+  assert.deepEqual(Object.keys(shareBasisFlag(entry, [{ date: "2026-08-10", f: 0.8, k: "stock" }], "2026-11-10", "twse")), ["dividendYield"]);
   // openapi 備援沒有股利年度與財報年季：什麼都判斷不了
   assert.equal(shareBasisFlag({ pe: 15, pbRatio: 2, dividendYield: 4 }, [{ date: "2026-09-01", f: 0.5, k: "stock" }], "2026-11-10", "twse"), null);
+});
+
+// 2026-11-10 程式審查抓到的三種組合：門檻要看同一欄累計的股數變動，而且逐欄各算各的
+test("shareBasisFlag judges the cumulative share change per field", () => {
+  const entry = { pe: 10, pbRatio: 1.2, dividendYield: 5, divYear: 114, finPeriod: "115/2" };
+  // 配股 ×1.18 之後又減資 ×0.83：股數幾乎回到原點，每股數字的偏差真的變小了——不標。
+  // 舊版逐筆過門檻再相乘，得到 0.98 的比例卻照標，schema 測試的 |ratio−1| ≥ 0.09 會擋下整份 feed。
+  assert.equal(shareBasisFlag(entry, [
+    { date: "2026-08-20", f: 0.85, k: "stock" },
+    { date: "2026-09-21", f: 1.2, k: "reduction" },
+  ], "2026-11-10", "twse"), null);
+  // 兩次 5% 的配股（2515 的實例形狀）：逐筆都在門檻下，累計約 ×1.10——要標
+  const small = shareBasisFlag({ ...entry, pe: null, pbRatio: null }, [
+    { date: "2026-02-10", f: 0.9518, k: "stock" },
+    { date: "2026-08-10", f: 0.9518, k: "stock" },
+  ], "2026-11-10", "twse");
+  assert.deepEqual(small, { dividendYield: { date: "2026-08-10", kind: "stock", ratio: 1.104, events: 2 } });
+  // 兩個事件碰到不同欄：7 月的配股在 Q2 申報期限前，只碰殖利率；9 月那筆三欄都碰。
+  // 共用一個比例會讓 PE 的說明多算 7 月那一次。
+  const split = shareBasisFlag(entry, [
+    { date: "2026-07-20", f: 0.8, k: "stock" },
+    { date: "2026-09-10", f: 0.8, k: "stock" },
+  ], "2026-11-10", "twse");
+  assert.equal(split.dividendYield.ratio, 1.563, "1 ÷ (0.8 × 0.8)");
+  assert.equal(split.pe.ratio, 1.25, "PE 只受 9 月那一次影響");
+  assert.equal(split.pe.events, undefined);
+});
+
+test("carryShareBasis keeps only fields that still have a number and a live event", () => {
+  const previous = {
+    pe: { date: "2026-09-02", kind: "stock", ratio: 2.983 },
+    dividendYield: { date: "2026-09-02", kind: "stock", ratio: 2.983 },
+  };
+  const adjusted = { "6669@2026-09-02": { f: 0.335, k: "stock" } };
+  // 備援來源的 PE 變成「-」：那一欄的標記不能留著指向一個不存在的數字
+  assert.deepEqual(carryShareBasis(previous, { code: "6669", pe: null, dividendYield: 9.78 }, adjusted),
+    { dividendYield: previous.dividendYield });
+  // 事件被剪枝：整個標記都不能留
+  assert.equal(carryShareBasis(previous, { code: "6669", pe: 14.8, dividendYield: 9.78 }, {}), null);
+  assert.equal(carryShareBasis(previous, { code: "6669", pe: 14.8, dividendYield: 0 }, adjusted).dividendYield, undefined, "殖利率 0 沒有可標的");
+  assert.equal(carryShareBasis(null, { code: "6669" }, adjusted), null);
 });

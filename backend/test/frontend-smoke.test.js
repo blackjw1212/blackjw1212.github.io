@@ -1365,7 +1365,7 @@ test("a share-basis flag from the pipeline is shown on the affected cell only", 
   const app = await loadApp(mockFeeds({
     market: feed1110([{ code: "6669", name: "緯穎", market: "twse", close: 1680, change: 35, volume: 3476178, value: 5865205780,
       pe: 14.82, dividendYield: 9.78, pbRatio: 5.22, hi52: 2875, lo52: 1102.99,
-      basis: { date: "2026-09-02", kind: "stock", ratio: 2.983, fields: ["dividendYield"] } }]),
+      basis: { dividendYield: { date: "2026-09-02", kind: "stock", ratio: 2.983 } } }]),
     risk: staticFeed({ eod: [{ code: "6669", name: "緯穎", close: 1680, change: 35, date: "2026-11-10" }] }),
   }));
   await app.context.window.PortfolioConsoleApp.init();
@@ -1391,11 +1391,13 @@ test("/stocks/ and /market/ word the valuation flags identically", async () => {
   }));
   const s = stocks.context.window.PortfolioConsoleApp.helpers;
   const m = marketWindow.MarketApp.helpers;
+  const reduction = { date: "2026-09-21", kind: "reduction", ratio: 0.873 };
   const bases = [
-    { date: "2026-09-02", kind: "stock", ratio: 2.983, fields: ["dividendYield"] },
-    { date: "2026-09-21", kind: "reduction", ratio: 0.873, fields: ["pe", "pbRatio", "dividendYield"] },
-    { date: "2026-08-28", kind: "stock", ratio: 1.129, fields: ["pe", "pbRatio"] },
-    { date: "bad", kind: "stock", ratio: 2, fields: ["pe"] },
+    { dividendYield: { date: "2026-09-02", kind: "stock", ratio: 2.983 } },
+    { pe: reduction, pbRatio: reduction, dividendYield: reduction },
+    { pe: { date: "2026-08-28", kind: "stock", ratio: 1.129 }, dividendYield: { date: "2026-08-28", kind: "stock", ratio: 1.3, events: 2 } },
+    { pe: { date: "bad", kind: "stock", ratio: 2 } },
+    { pe: "junk" },
     null,
   ];
   for (const basis of bases) {
@@ -1405,6 +1407,9 @@ test("/stocks/ and /market/ word the valuation flags identically", async () => {
   }
   assert.match(s.shareBasisNote(bases[1], "pe"), /減資後，股數約為原本的 0\.87 倍.*本益比仍以變動前的每股盈餘計算，數字偏高/, "減資：PE 的分母是舊股數的每股盈餘，偏高");
   assert.match(s.shareBasisNote(bases[1], "dividendYield"), /偏低/, "減資：殖利率的分子是舊股數的每股股利，偏低");
+  assert.match(s.shareBasisNote(bases[2], "dividendYield"), /配股除權等 2 次股數變動後，股數約為原本的 1\.30 倍/);
+  // 分母可能被換算到畫面上的收盤，所以不可以宣稱數字「照原樣」
+  assert.doesNotMatch(s.shareBasisNote(bases[0], "dividendYield"), /原樣/);
   for (const row of [{ pe: 6.65, dividendYield: 102.66 }, { pe: 20, dividendYield: 10 }, { pe: null, dividendYield: 8 }]) {
     assert.deepEqual(JSON.parse(JSON.stringify(s.payoutFlag(row))), JSON.parse(JSON.stringify(m.payoutFlag(row))));
   }
@@ -1434,4 +1439,16 @@ test("user-added stocks get a TradingView link from their market", async () => {
   assert.match(h.tradingViewUrl("6488"), /symbol=TPEX%3A6488/);
   assert.match(h.tradingViewUrl("2454"), /symbol=TWSE%3A2454/);
   assert.equal(h.tradingViewUrl("9999"), "", "不在 feed 裡的代碼不連");
+});
+
+// 只有 +08:00 的時間剛好前 10 碼就是臺灣日期；UTC 的 22:30 在臺灣已經是隔天
+test("trading dates from timestamps are taken in Taipei time", async () => {
+  const { context } = await loadApp(async () => response(staticFeed()));
+  const { isoDateOf } = context.window.PortfolioConsoleApp.helpers;
+  assert.equal(isoDateOf("2026-11-10T13:30:00+08:00"), "2026-11-10");
+  assert.equal(isoDateOf("2026-11-09T22:30:00Z"), "2026-11-10");
+  assert.equal(isoDateOf("2026-11-09T15:59:59.000Z"), "2026-11-09");
+  assert.equal(isoDateOf("2026-11-10"), "2026-11-10");
+  assert.equal(isoDateOf("1151110"), "2026-11-10");
+  assert.equal(isoDateOf("junk"), "");
 });

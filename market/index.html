@@ -1200,18 +1200,22 @@ function payoutFlag(row){
 // 哪些欄位受影響由管線判斷（update-market-feed.mjs 的 shareBasisFlag），這裡只負責講清楚。
 // 與 /stocks/ 逐字相同，由測試互驗。**只標示，不換算**：比例取自除權參考價，混著現金那一小段，
 // 換算出來的數字不會精確。
-var SHARE_EVENT_KIND = {stock:"配股除權", reduction:"減資", par:"面額變更"};
+var SHARE_EVENT_KIND = {stock:"配股除權", reduction:"減資"};
 function shareBasisNote(basis, key){
-  if (!basis || !Array.isArray(basis.fields) || basis.fields.indexOf(key) < 0) return null;
-  var ratio = Number(basis.ratio);
-  if (!(ratio > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(String(basis.date || ""))) return null;
+  var flag = basis && typeof basis === "object" ? basis[key] : null;
+  if (!flag || typeof flag !== "object") return null;
+  var ratio = Number(flag.ratio);
+  if (!(ratio > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(String(flag.date || ""))) return null;
   var label = key === "dividendYield" ? "殖利率" : (key === "pe" ? "本益比" : "股價淨值比");
   var perShare = key === "dividendYield" ? "每股現金股利" : (key === "pe" ? "每股盈餘" : "每股淨值");
   // 殖利率的舊股數數字在分子：股數變多時偏高。PE／PB 的在分母：股數變多時偏低。
   var high = key === "dividendYield" ? ratio > 1 : ratio < 1;
-  return basis.date + " " + (SHARE_EVENT_KIND[basis.kind] || "股數變動") + "後，股數約為原本的 "
-    + Number(ratio).toFixed(2) + " 倍（依參考價推算）；交易所的" + label + "仍以變動前的" + perShare
-    + "計算，數字" + (high ? "偏高" : "偏低") + "。數字照交易所原樣顯示，"
+  var count = Number(flag.events) > 1 ? "等 " + Number(flag.events) + " 次股數變動" : "";
+  // 不能說「照原樣顯示」：估值日比收盤早一天時，分母會換算到畫面上的收盤。
+  // 本站沒動的是每股數字的股數基準，這句只講那件事。
+  return flag.date + " " + (SHARE_EVENT_KIND[flag.kind] || "股數變動") + count + "後，股數約為原本的 "
+    + ratio.toFixed(2) + " 倍（依參考價推算）；交易所的" + label + "仍以變動前的" + perShare
+    + "計算，數字" + (high ? "偏高" : "偏低") + "。本站不另外換算股數，"
     + (key === "dividendYield" ? "下一個股利年度" : "下一季財報") + "公布後會自行對齊。";
 }
 

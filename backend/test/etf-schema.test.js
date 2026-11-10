@@ -99,20 +99,24 @@ test("market-feed share-basis flags point at real share-count events", async () 
   const adjusted = acc.adjusted || {};
   for (const row of feed.stocks.filter((r) => r.basis)) {
     const at = (msg) => `${row.code}: ${msg}`;
-    const b = row.basis;
-    assert.match(b.date, /^\d{4}-\d{2}-\d{2}$/, at("basis.date"));
-    assert.ok(["stock", "reduction"].includes(b.kind), at(`basis.kind ${b.kind} 不是已知不會被重算的事件種類`));
-    assert.ok(Array.isArray(b.fields) && b.fields.length, at("basis.fields 不可以是空的"));
-    for (const field of b.fields) {
+    const keys = Object.keys(row.basis);
+    assert.ok(keys.length, at("basis 不可以是空物件"));
+    const valuationDate = feed.valuationDates && feed.valuationDates[row.market];
+    for (const field of keys) {
+      const b = row.basis[field];
       assert.ok(["pe", "pbRatio", "dividendYield"].includes(field), at(`basis 標了不存在的欄位 ${field}`));
       assert.ok(isNum(row[field]), at(`basis 標了 ${field}，但這一列沒有那個數字`));
+      assert.match(b.date, /^\d{4}-\d{2}-\d{2}$/, at(`basis.${field}.date`));
+      assert.ok(["stock", "reduction"].includes(b.kind), at(`basis.${field}.kind ${b.kind} 不是已知不會被重算的事件種類`));
+      assert.ok(isNum(b.ratio) && b.ratio > 0 && Math.abs(b.ratio - 1) >= 0.09, at(`basis.${field}.ratio ${b.ratio}`));
+      if (b.events != null) assert.ok(Number.isInteger(b.events) && b.events >= 2, at("events 只在兩次以上時出現"));
+      if (valuationDate) assert.ok(b.date <= valuationDate, at("事件日不可以晚於估值日"));
+      const event = adjusted[`${row.code}@${b.date}`];
+      assert.ok(event, at(`market-52w.json 的 adjusted 沒有 ${row.code}@${b.date} 這個事件`));
+      assert.equal(event.k, b.kind, at("事件種類要跟 adjusted 一致"));
+      // 只有一次事件時，比例就是那個事件參考價比的倒數——定義性檢查，抄錯方向會當場現形
+      if (b.events == null) assert.ok(Math.abs(b.ratio - 1 / event.f) < 0.002, at(`ratio ${b.ratio} 對不上 1 ÷ ${event.f}`));
     }
-    assert.ok(isNum(b.ratio) && b.ratio > 0 && Math.abs(b.ratio - 1) >= 0.09, at(`basis.ratio ${b.ratio}`));
-    const valuationDate = feed.valuationDates && feed.valuationDates[row.market];
-    if (valuationDate) assert.ok(b.date <= valuationDate, at("事件日不可以晚於估值日"));
-    const event = adjusted[`${row.code}@${b.date}`];
-    assert.ok(event, at(`market-52w.json 的 adjusted 沒有 ${row.code}@${b.date} 這個事件`));
-    assert.equal(event.k, b.kind, at("事件種類要跟 adjusted 一致"));
   }
 });
 

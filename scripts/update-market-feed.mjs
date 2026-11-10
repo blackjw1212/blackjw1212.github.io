@@ -261,9 +261,13 @@ export function normalizeTpexValuationDaily(payload) {
 //   配股（kind "stock"）  上市、上櫃都不重算：6669、2614、9917、3706、1519／6874、6590。
 //   減資（kind "reduction"）只有上市確定不重算：2321、3356、1441、6550 的每股淨值事件前後一分不差。
 // 上櫃的減資有的重算、有的沒有（3710、8277、6129 的淨值跟著比例變，8059 沒變），
-// 面額變更上櫃會重算（5904 寶雅、4747 強生的殖利率與淨值比都已換成新股數），上市沒有樣本。
+// 面額變更上櫃會重算（5904 寶雅、4747 強生的殖利率與淨值比都已換成新股數）。上市的面額變更
+// 存檔裡只有兩筆，都驗證不了：6949 事件前沒有淨值比可比、7780 的股利年度在事件之後才宣告。
 // 這幾種**不標**——標錯一列就等於教人忽略這個記號。
-// 門檻 10%：上市 11-10 實算，5% 會標到 58 列殖利率，10% 是 32 列；標太多會讓人學會忽略記號。
+//
+// 門檻看的是**同一欄累計的**股數變動，不是逐筆：兩次 5% 的配股加起來的偏差跟一次 10% 一樣，
+// 而方向相反的事件（配股後又減資）會互相抵銷、偏差真的變小。門檻 10%：上市 11-10 實算，
+// 5% 會標到 58 列殖利率，10% 是 32 列；標太多會讓人學會忽略記號。
 export const SHARE_EVENT_MIN = 0.1;
 export function shareEventUnadjusted(kind, market) {
   return kind === "stock" || (kind === "reduction" && market === "twse");
@@ -288,32 +292,55 @@ export function shareEventsByCode(adjusted) {
   return out;
 }
 
+// 回傳逐欄的標記：{ pe:{date,kind,ratio[,events]}, dividendYield:{…} }，沒有就回 null。
+// 逐欄是因為三欄的判準時點不同（殖利率看股利年度、PE／PB 看財報申報期限），同一個事件
+// 可能只碰到其中一欄；兩個事件碰到不同欄時，共用一個比例會讓其中一欄的說明講錯倍數。
+export const SHARE_BASIS_FIELDS = ["pe", "pbRatio", "dividendYield"];
 export function shareBasisFlag(entry, events, valuationDate, market) {
   if (!entry || !Array.isArray(events) || !events.length || !valuationDate) return null;
-  const fields = new Set();
-  let ratio = 1;
-  let latest = null;
   const deadline = filingDeadline(entry.finPeriod);
+  const hits = { pe: [], pbRatio: [], dividendYield: [] };
   for (const event of events) {
-    if (!(event.f > 0) || Math.abs(1 - event.f) < SHARE_EVENT_MIN || !event.date || event.date > valuationDate) continue;
+    if (!(event.f > 0) || !event.date || event.date > valuationDate) continue;
     if (!shareEventUnadjusted(event.k, market)) continue;
-    let hit = false;
     if (entry.dividendYield > 0 && Number.isInteger(entry.divYear)) {
       const year = entry.divYear + 1912;
-      if (event.date >= (event.k === "stock" ? `${year}-01-01` : `${year}-07-01`)) { fields.add("dividendYield"); hit = true; }
+      if (event.date >= (event.k === "stock" ? `${year}-01-01` : `${year}-07-01`)) hits.dividendYield.push(event);
     }
     if (deadline && event.date > deadline) {
-      if (entry.pe != null) { fields.add("pe"); hit = true; }
-      if (entry.pbRatio != null) { fields.add("pbRatio"); hit = true; }
+      if (entry.pe != null) hits.pe.push(event);
+      if (entry.pbRatio != null) hits.pbRatio.push(event);
     }
-    if (!hit) continue;
-    ratio /= event.f;
-    if (!latest || event.date > latest.date) latest = event;
   }
-  if (!fields.size) return null;
-  // 欄位順序固定，feed 才不會因為 Set 的插入順序而產生無意義的 diff
-  const order = ["pe", "pbRatio", "dividendYield"];
-  return { date: latest.date, kind: latest.k, ratio: roundNumber(ratio, 3), fields: order.filter((f) => fields.has(f)) };
+  const out = {};
+  for (const key of SHARE_BASIS_FIELDS) {
+    const list = hits[key];
+    if (!list.length) continue;
+    // 門檻量的是股數比（＝畫面上那個數字偏離的倍數），不是參考價比：
+    // 兩次 5% 配股是參考價比 0.906、股數比 1.104，偏差已經過 10%
+    const ratio = 1 / list.reduce((product, event) => product * event.f, 1);
+    if (Math.abs(ratio - 1) < SHARE_EVENT_MIN) continue;
+    const latest = list.reduce((a, b) => (b.date > a.date ? b : a));
+    out[key] = { date: latest.date, kind: latest.k, ratio: roundNumber(ratio, 3) };
+    if (list.length > 1) out[key].events = list.length;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// 前一班的標記沿用到這一班：只留下這一列還有數字、而且事件還在 adjusted 裡的欄位。
+// 沿用時估值可能已經換了來源（例：PE 變成「-」），也可能事件剛被剪枝——
+// 指向不存在的數字或事件，schema 測試會擋下整份 feed。
+export function carryShareBasis(previous, row, adjusted) {
+  if (!previous || typeof previous !== "object" || !row) return null;
+  const out = {};
+  for (const key of SHARE_BASIS_FIELDS) {
+    const flag = previous[key];
+    if (!flag || typeof flag !== "object" || row[key] == null) continue;
+    if (key === "dividendYield" && !(row[key] > 0)) continue;
+    if (!adjusted || !adjusted[`${row.code}@${flag.date}`]) continue;
+    out[key] = flag;
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 // 保留策略：新抓列數 < 前次 50% 視為上游劣化，沿用前次快照列。
@@ -515,7 +542,8 @@ async function main() {
   const prevValuationDates = (previousFeed.valuationDates && typeof previousFeed.valuationDates === "object") ? previousFeed.valuationDates : {};
   // 逐日表要指定日期，就用這一班抓到的收盤日——估值與收盤同一天，頁面就不必換算分母。
   // 當日還沒發佈（14:30 那班常見）時回空表，退回 openapi 的前一日估值，跟以前一樣。
-  // 逐日表一次回完整一個市場，列數掉到前次一半以下視同劣化（同 preserveMarketRows 的門檻）。
+  // 逐日表一次回完整一個市場，列數不到這一班收盤列數的一半視同劣化（門檻比照 preserveMarketRows）。
+  // 比的是收盤列數不是前一班的估值列數：估值表本來就涵蓋幾乎全部掛牌股（上市 1,087／1,089）。
   const valuationSources = [
     { market: "twse", rows: twse.rows, closeDate: twse.preserved ? null : marketDateOf(twse.rows),
       daily: SOURCES.twseValuationDaily, normalizeDaily: normalizeTwseValuationDaily,
@@ -618,13 +646,10 @@ async function main() {
   for (const row of stocks) {
     const entry = valuation[row.code];
     const judgeable = entry && (entry.divYear != null || entry.finPeriod != null);
-    // 沿用的標記必須還指得到 adjusted 裡的事件（剪枝會刪掉窗口外的舊事件），
-    // 否則 schema 測試會擋下整份 feed
-    const carried = prevBasisByCode[row.code];
     const flag = judgeable
       ? shareBasisFlag({ ...entry, pe: row.pe, pbRatio: row.pbRatio, dividendYield: row.dividendYield },
         eventsByCode[row.code], valuationDates[row.market], row.market)
-      : (carried && accumulator.adjusted && accumulator.adjusted[`${row.code}@${carried.date}`] ? carried : null);
+      : carryShareBasis(prevBasisByCode[row.code], row, accumulator.adjusted);
     if (!judgeable && flag) basisCarried += 1;
     if (flag) row.basis = flag;
   }

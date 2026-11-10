@@ -225,7 +225,7 @@ test("share-basis flags and the official traded value reach the rendered row", a
   feed.stocks.push({
     code: "6669", name: "緯穎", market: "twse", close: 1680, change: 35, pe: 14.82, pbRatio: 5.22, dividendYield: 9.78,
     hi52: 2875, lo52: 1102.99, fromHi: -41.6, volume: 3476178, value: 5865205780,
-    basis: { date: "2026-09-02", kind: "stock", ratio: 2.983, fields: ["dividendYield"] },
+    basis: { dividendYield: { date: "2026-09-02", kind: "stock", ratio: 2.983 } },
   });
   feed.count = feed.stocks.length;
   const { app, elements } = await loadMarket(async () => okResponse(feed));
