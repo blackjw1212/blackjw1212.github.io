@@ -13,6 +13,13 @@ import {
   MIN_WINDOW_MONTHS,
   normalizeMiIndex,
   parseMiChange,
+  normalizeTwseValuationDaily,
+  normalizeTpexValuationDaily,
+  filingDeadline,
+  shareEventsByCode,
+  shareBasisFlag,
+  shareEventUnadjusted,
+  SHARE_EVENT_MIN,
 } from "../../scripts/update-market-feed.mjs";
 
 // 取自 2026-07-29 真實回應。上市收盤原本吃 openapi 的 STOCK_DAY_ALL，該端點在
@@ -68,9 +75,10 @@ test("normalizeMiIndex parses the real payload shape and survives upstream reshu
   // 端到端：normalizeMarketRows 要能直接吃這批列（鍵名刻意與 STOCK_DAY_ALL 相同）
   const stocks = normalizeMarketRows(out, "twse");
   assert.equal(stocks.length, 2, "ETF 由個股清單排除");
+  // 成交金額（元）照上游原值帶下去：頁面的「成交額」要的是這個，不是收盤 × 成交股數
   assert.deepEqual(stocks.find((s) => s.code === "2317"), {
     code: "2317", name: "鴻海", market: "twse", close: 237, change: -1,
-    open: 240, high: 246.5, low: 231, volume: 84937463, date: "2026-07-29",
+    open: 240, high: 246.5, low: 231, volume: 84937463, value: 20205542596, date: "2026-07-29",
   });
 });
 
@@ -327,4 +335,121 @@ test("a stock listed under a year cannot claim a one-year high", () => {
 test("monthKey extracts YYYY-MM", () => {
   assert.equal(monthKey("2026-07-27"), "2026-07");
   assert.equal(monthKey(""), "");
+});
+
+
+// ── 估值主來源改用逐日表（2026-11-10）──────────────────────────────────────
+// openapi 的 BWIBBU_ALL 每天要到次日早上才換日，頁面只好用 close/(close−change) 換算分母，
+// 而那個換算假設 EPS 沒變：11-10 一天就有 99 檔上市股換了財報季，3017 奇鋐換算出 37.19、
+// 證交所當日公布 30.84。下面的 fixture 取自 2026-11-10 實抓的回應形狀。
+const BWIBBU_D_FIELDS = ["證券代號", "證券名稱", "收盤價", "殖利率(%)", "股利年度", "本益比", "股價淨值比", "財報年/季"];
+const bwibbuD = (data, overrides = {}) => ({ stat: "OK", date: "20261110", title: "115年11月10日 個股日本益比、殖利率及股價淨值比", fields: BWIBBU_D_FIELDS, data, ...overrides });
+const PEQRY_FIELDS = ["股票代號", "公司名稱", "本益比", "每股股利", "股利年度", "殖利率(%)", "股價淨值比", "財報年/季"];
+const peQry = (data, date = "115/11/10") => ({ tables: [{ title: "", date, totalCount: data.length, fields: PEQRY_FIELDS, data }] });
+
+test("normalizeTwseValuationDaily keeps the dividend year and report period the openapi drops", () => {
+  const { entries, date } = normalizeTwseValuationDaily(bwibbuD([
+    ["3017", "奇鋐", "2,790.00", "0.75", 114, "30.84", "16.36", "115/3"],
+    ["6669", "緯穎", "1,680.00", "9.78", 114, "14.82", "5.22", "115/3"],
+    ["1101", "台泥", "27.30", "2.93", 114, "-", "0.88", "115/2"],
+    ["0050", "元大台灣50", "70.00", "2.00", "-", "-", "-", "-"],
+  ]));
+  assert.equal(date, "2026-11-10");
+  assert.deepEqual(entries["3017"], { pe: 30.84, dividendYield: 0.75, pbRatio: 16.36, divYear: 114, finPeriod: "115/3" });
+  assert.equal(entries["1101"].pe, undefined, "虧損股的本益比是 '-'，不可以變成 0");
+  assert.equal(entries["1101"].finPeriod, "115/2");
+  assert.equal(entries["0050"].dividendYield, 2, "股利年度是 '-' 時不帶 divYear，但數字照收");
+  assert.equal(entries["0050"].divYear, undefined);
+
+  // 當日還沒發佈、或證交所忙碌時回 200 ＋ 文字：一律回空讓呼叫端退回 openapi
+  assert.deepEqual(normalizeTwseValuationDaily({ stat: "很抱歉，沒有符合條件的資料!" }), { entries: {}, date: null });
+  assert.deepEqual(normalizeTwseValuationDaily(null), { entries: {}, date: null });
+  // 欄名改版要當成失敗，不可猜位置
+  const renamed = bwibbuD([["3017", "奇鋐", "2,790.00", "0.75", 114, "30.84", "16.36", "115/3"]]);
+  renamed.fields = BWIBBU_D_FIELDS.map((f) => (f === "本益比" ? "PER" : f));
+  assert.deepEqual(normalizeTwseValuationDaily(renamed).entries, {});
+});
+
+test("normalizeTpexValuationDaily reads the ROC date and the 115Q3 period shape", () => {
+  const { entries, date } = normalizeTpexValuationDaily(peQry([
+    ["3324", "雙鴻            ", "28.48", "11.90330569", 114, "0.96", "8.67", "115Q2"],
+    ["1569", "濱川            ", "N/A", "0.00000000", 114, "0.00", "4.61", "115Q2"],
+    ["6590", "普鴻            ", "16.85", "1.50036092", 114, "2.00", "2.91", "115Q3"],
+  ]));
+  assert.equal(date, "2026-11-10");
+  assert.deepEqual(entries["3324"], { pe: 28.48, dividendYield: 0.96, pbRatio: 8.67, divYear: 114, finPeriod: "115/2" });
+  assert.equal(entries["1569"].pe, undefined, "N/A 不是數字");
+  assert.equal(entries["6590"].finPeriod, "115/3", "上櫃寫 115Q3，要跟上市的 115/3 統一");
+  assert.deepEqual(normalizeTpexValuationDaily({ tables: [] }), { entries: {}, date: null });
+});
+
+test("normalizeMarketRows carries the official traded value from TPEX too", () => {
+  const [row] = normalizeMarketRows([{ Date: "1151110", SecuritiesCompanyCode: "3324", CompanyName: "雙鴻", Close: "1235.00", Change: "+85.00",
+    Open: "1190.00", High: "1255.00", Low: "1180.00", TradingShares: "6637379", TransactionAmount: "8129821760" }], "tpex");
+  assert.equal(row.value, 8129821760, "TPEX 的 TransactionAmount 是元");
+  assert.equal(row.volume, 6637379);
+});
+
+test("filingDeadline follows the statutory report deadlines", () => {
+  assert.equal(filingDeadline("115/1"), "2026-05-15");
+  assert.equal(filingDeadline("115/2"), "2026-08-14");
+  assert.equal(filingDeadline("115/3"), "2026-11-14");
+  assert.equal(filingDeadline("114/4"), "2026-03-31", "年報在次年 3/31");
+  assert.equal(filingDeadline("115Q3"), null, "只吃正規化後的形狀");
+  assert.equal(filingDeadline(undefined), null);
+});
+
+// 實測：6669 緯穎 9/2 除權（參考價 2,614.99 ÷ 前收 7,800），每股股利 05-04 是 165.24、
+// 11-10 仍是 164.30——證交所沒有因為股數變成約 2.98 倍而重算，殖利率因此從 2.3% 跳到 9.98%。
+const WIWYNN = { "6669@2026-09-02": { f: 2614.99 / 7800, k: "stock" } };
+
+test("shareBasisFlag marks the 6669 dividend yield after its stock dividend", () => {
+  const events = shareEventsByCode(WIWYNN)["6669"];
+  assert.equal(events.length, 1);
+  // 11-10：Q3 財報（115/3）已經用新股數，PE／PB 對齊了；殖利率還是 114 年度的舊股數股利
+  const now = shareBasisFlag({ pe: 14.82, pbRatio: 5.22, dividendYield: 9.78, divYear: 114, finPeriod: "115/3" }, events, "2026-11-10", "twse");
+  assert.deepEqual(now, { date: "2026-09-02", kind: "stock", ratio: 2.983, fields: ["dividendYield"] });
+  // 10-15：財報還是 115/2（8/14 前就申報了），PE 7.4 也是舊股數——三欄都要標
+  const oct = shareBasisFlag({ pe: 7.41, pbRatio: 3.14, dividendYield: 7.11, divYear: 114, finPeriod: "115/2" }, events, "2026-10-15", "twse");
+  assert.deepEqual(oct.fields, ["pe", "pbRatio", "dividendYield"]);
+  // 事件還沒發生的那一天不可以標
+  assert.equal(shareBasisFlag({ pe: 25, dividendYield: 2.28, divYear: 114, finPeriod: "115/2" }, events, "2026-09-01", "twse"), null);
+  // 沒有配息就沒有殖利率可標
+  assert.equal(shareBasisFlag({ pe: 14.82, dividendYield: 0, divYear: 114, finPeriod: "115/3" }, events, "2026-11-10", "twse"), null);
+});
+
+test("shareBasisFlag only trusts event kinds the exchanges are known not to restate", () => {
+  // 上櫃的面額變更會被重算（5904 寶雅、4747 強生的殖利率與淨值比都已是新股數）——不標
+  assert.equal(shareEventUnadjusted("par", "tpex"), false);
+  assert.equal(shareEventUnadjusted("par", "twse"), false, "上市沒有樣本，不猜");
+  // 上櫃的減資有的重算有的沒有（3710、8277、6129 重算，8059 沒有）——不標
+  assert.equal(shareEventUnadjusted("reduction", "tpex"), false);
+  // 上市減資確定沒重算（2321、3356、1441、6550 的每股淨值事件前後一分不差）
+  assert.equal(shareEventUnadjusted("reduction", "twse"), true);
+  assert.equal(shareEventUnadjusted("stock", "tpex"), true, "配股兩邊都不重算（6874 倍力、6590 普鴻）");
+
+  const entry = { pe: 4.59, pbRatio: 1.83, dividendYield: 5.44, divYear: 114, finPeriod: "115/2" };
+  const reduction = [{ date: "2026-09-21", f: 1 / 0.873, k: "reduction" }];
+  assert.deepEqual(shareBasisFlag(entry, reduction, "2026-11-10", "twse").fields, ["pe", "pbRatio", "dividendYield"], "3356 奇偶");
+  assert.equal(shareBasisFlag(entry, reduction, "2026-11-10", "tpex"), null);
+  assert.equal(shareBasisFlag(entry, [{ date: "2026-08-10", f: 0.1, k: "par" }], "2026-11-10", "tpex"), null, "5904 寶雅");
+  // 減資的殖利率比例會是「偏低」：股數變少、每股股利還停在舊股數
+  assert.ok(shareBasisFlag(entry, reduction, "2026-11-10", "twse").ratio < 1);
+});
+
+test("shareBasisFlag stays silent where the data cannot tell", () => {
+  const entry = { pe: 15, pbRatio: 2, dividendYield: 4, divYear: 114, finPeriod: "115/2" };
+  // 門檻以下：配股 5% 的偏差混在四捨五入裡，標了只會讓人學會忽略記號
+  assert.ok(SHARE_EVENT_MIN >= 0.1);
+  assert.equal(shareBasisFlag(entry, [{ date: "2026-09-01", f: 0.95, k: "stock" }], "2026-11-10", "twse"), null);
+  // 上一個股利年度的配股（2025 年）發生在 114 年度股利宣告之前——股利已經是新股數
+  assert.equal(shareBasisFlag({ ...entry, pe: null, pbRatio: null }, [{ date: "2025-09-01", f: 0.8, k: "stock" }], "2026-11-10", "twse"), null);
+  // 減資在 6/30 之前：114 年度股利可能是減資後才宣告的，不猜
+  assert.equal(shareBasisFlag({ ...entry, pe: null, pbRatio: null }, [{ date: "2026-03-02", f: 1.5, k: "reduction" }], "2026-11-10", "twse"), null);
+  // 但配股要股東會通過才除權，同一年的配股必定在現金股利提案之後
+  assert.deepEqual(shareBasisFlag({ ...entry, pe: null, pbRatio: null }, [{ date: "2026-06-15", f: 0.8, k: "stock" }], "2026-11-10", "twse").fields, ["dividendYield"]);
+  // 財報在申報期限前：那份財報可能已經用了新股數（IAS 33.64）——PE／PB 不標
+  assert.deepEqual(shareBasisFlag(entry, [{ date: "2026-08-10", f: 0.8, k: "stock" }], "2026-11-10", "twse").fields, ["dividendYield"]);
+  // openapi 備援沒有股利年度與財報年季：什麼都判斷不了
+  assert.equal(shareBasisFlag({ pe: 15, pbRatio: 2, dividendYield: 4 }, [{ date: "2026-09-01", f: 0.5, k: "stock" }], "2026-11-10", "twse"), null);
 });

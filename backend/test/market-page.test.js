@@ -217,6 +217,31 @@ test("the rendered row actually routes through the yield flag", async () => {
   assert.doesNotMatch(tsmcRow, /隱含配發率/, "正常列不該被標");
 });
 
+// 配股後交易所仍用舊股數的每股數字（6669 緯穎 9/2 除權、股數約 ×2.98，殖利率 9.78%）。
+// 標記由管線算好放在 row.basis；這條測的是整合面——那一列真的走過標記，而且只標受影響的欄。
+// 成交額同一條路：feed 帶了交易所的成交金額就用它，不再用收盤 × 成交股數估。
+test("share-basis flags and the official traded value reach the rendered row", async () => {
+  const feed = marketFeed();
+  feed.stocks.push({
+    code: "6669", name: "緯穎", market: "twse", close: 1680, change: 35, pe: 14.82, pbRatio: 5.22, dividendYield: 9.78,
+    hi52: 2875, lo52: 1102.99, fromHi: -41.6, volume: 3476178, value: 5865205780,
+    basis: { date: "2026-09-02", kind: "stock", ratio: 2.983, fields: ["dividendYield"] },
+  });
+  feed.count = feed.stocks.length;
+  const { app, elements } = await loadMarket(async () => okResponse(feed));
+  await app.init();
+  const wiwynn = app.getAll().find((r) => r.code === "6669");
+  assert.equal(wiwynn.turnover, 58.65, "5,865,205,780 元 = 58.65 億（收盤 × 股數會是 58.40）");
+  const body = elements.get("mktBody").innerHTML;
+  const row = body.split("<tr>").find((r) => r.includes("緯穎"));
+  assert.ok(row, "緯穎那一列要在畫面上");
+  assert.match(row, /9\.78 ⚠/, "殖利率照印但要標");
+  assert.match(row, /2026-09-02 配股除權後，股數約為原本的 2\.98 倍/);
+  assert.match(row, /<td class="num">14\.82<\/td>/, "沒被標的 PE 輸出乾淨的數字");
+  const tsmcRow = body.split("<tr>").find((r) => r.includes("台積電"));
+  assert.doesNotMatch(tsmcRow, /⚠/, "其他列不可以被波及");
+});
+
 // feed 的 aum 是兩位小數（億），這一欄本來只印一位，於是 5 檔小型外幣計價 ETF
 // 全部顯示「0.0」。aum 只在 units 與 nav 都拿得到時才寫，所以 0 是「真的很小」
 // 不是「不知道」——但印成 0 讀起來像「沒有規模」，那仍然是錯的。

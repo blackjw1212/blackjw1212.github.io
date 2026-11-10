@@ -235,6 +235,25 @@ grep 'VERSION =' sw.js                          # 合併結果
 **不要一開始就怪 service worker**，理由見上一段：導覽是 network-first。
 我在這件事上連續判斷錯兩次（先怪 VERSION 撞號、再怪 CDN），害使用者白清了好幾次快取。
 
+## `/stocks/`：每一筆收盤自己帶來源與交易日
+
+`state.today[code]` 存進 localStorage，每筆都有 `src`（mis／risk／market／worker／cache）與
+`date`。表格下方的來源列由這些彙整，不再假設整張表同一個來源。三件會害人重做的事：
+
+- **舊存檔永遠不會被換掉**是 2026-11-10 審查抓到的：`fillFromMarketRows` 原本只補「沒有價格」
+  的代碼，自加標的從加入那天起價格就停住，PE／PB 還被換算到那個舊價格。現在的規則：
+  這次開頁即時來源報過價的列（`liveCodes`）只在 feed 確定比較新時才換，其餘一律換。
+- **`SOURCE_LABELS` 必須宣告在 `let state = loadState()` 之前。** `sanitizeState` 會讀它；
+  const 在宣告前是 TDZ，ReferenceError 被 `loadState` 的 catch 吞掉，**使用者的整份清單
+  靜靜變回預設值**，下一次 `saveState` 就把它覆寫掉。實測踩過，靠「回訪時自加標的要刷新」
+  那條測試才抓到。
+- **收盤來源順序是 MIS 13:30 → 靜態 stock-risk-feed → 全市場 feed → Worker /eod → 本機快取。**
+  Worker /eod 背後是 openapi 的 STOCK_DAY_ALL：沒有上櫃、每列不帶交易日（只印得出抓取時間）、
+  收盤後到深夜才換日，所以退到兩份同源 feed 之後。
+- 成交額配的是 feed 那一天；本頁收盤比 feed 新一天時照印但標 ⚠ 說是哪一天的。
+  距一年高在收盤比 feed 新時把當日高點併進去，不會出現正值。時間一律 `Asia/Taipei`。
+- ⚠ 的原因：表格放 `title`，**手機卡片直接寫在卡片下方**——觸控螢幕看不到 title。
+
 ## 前端測試的硬性前提
 
 `backend/test/market-page.test.js` / `frontend-smoke.test.js` 是用 `vm` 載入頁面的
@@ -363,6 +382,28 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
   看 `#mktBody` 的 innerHTML 裡有沒有那段說明。
 - **驗資料正確性用 TWSE MIS**（`mis.twse.com.tw/stock/api/getStockInfo.jsp`，
   `z`=今收、`y`=昨收）當獨立來源，它與券商帳面一致。**盤前 `z` 是 `-`，要改讀 `y`。**
+- **估值主來源是「指定日期」的逐日表，openapi 只是備援**（2026-11-10 審查）：上市
+  `www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?date=…&selectType=ALL`、上櫃
+  `www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate?date=YYYY/MM/DD`，日期用這一班的收盤日。
+  openapi 的 BWIBBU_ALL 要到次日早上才換日，四班裡三班拿到前一天的估值，頁面只好換算分母
+  ——那假設 EPS 沒變，而 11-10 一天就有 99 檔上市股換了財報季（3017 奇鋐換算成 37.19、
+  官方 30.84）。逐日表同一天 18:44 就有資料，**而且多帶「股利年度」「財報年/季」**。
+- **配股後交易所的 PE／PB／殖利率仍用舊股數的每股數字**，這是定義上的時間差，不是離群值：
+  6669 緯穎 9/2 除權（股數 ×2.98），每股股利 05-04 是 165.24、11-10 仍是 164.30，殖利率
+  2.3% → 9.98%；PE 一路 7.4 到 Q3 財報才回 14.5。管線的 `shareBasisFlag` 據「股利年度」與
+  「財報申報期限」判斷哪幾欄還是舊基準，寫進 `row.basis`，兩頁照印數字＋⚠。
+  **只認兩種事件**：配股（兩市場都不重算）與上市減資（不重算）。上櫃的面額變更**會**重算
+  （5904 寶雅、4747 強生）、上櫃減資有的會有的不會（3710／8277／6129 會、8059 不會）——
+  那幾種標了就是假警報。改規則前用 git 歷史比對事件前後的「隱含每股數字」（價 ÷ PE 等），
+  `etf-schema.test.js` 要求每個 ⚠ 都追得到 `market-52w.json` 的 `adjusted` 事件。
+- **`value` 是交易所公布的成交金額（元）**，頁面的成交額用它。原本的「收盤 × 成交股數」
+  與官方差中位 0.74%、最大 7.19%。定義性檢查：成交金額 ÷ 成交股數＝均價，必落在高低之間
+  （鉅額／盤後交易讓約 1% 的列略出界，所以逐列只擋單位錯、整體要 95%）。
+- **feed 只收當天有成交的列**（normalizeMiIndex 丟掉收盤 `--`），一天約 20 檔冷門上櫃股會
+  消失。`/stocks/` 的自加標的遇到這種日子會顯示先前存下的收盤並標 ⚠ 說是哪一天的。
+- **本機跑管線要 `NODE_USE_ENV_PROXY=1`**（cloud session 的出口代理；Node 內建 fetch
+  不讀 `HTTPS_PROXY`，否則全部 `fetch failed`）。**證交所 www 的 WAF 會限速**：連打十幾個
+  請求就回「因為安全性考量，您所執行的頁面無法呈現」的 HTML，要隔幾秒一個。
 
 ## 稅務估算：級距自動抓，其餘人工
 
