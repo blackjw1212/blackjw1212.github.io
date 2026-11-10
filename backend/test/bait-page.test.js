@@ -1047,7 +1047,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   // 「我也沒在看」。資料仍留在 ADDITIVES，上面與下面的斷言照樣逐條檢查。
   assert.doesNotMatch(renderAdd, /esc\(stage\.title\)|plan\.evidence|plan\.sources|stackTable\(\["組"|stackTable\(\["命題"/);
   assert.doesNotMatch(html, /function (doseText|evidenceSummary)\(/, "沒有呼叫者的函式一起刪掉");
-  assert.match(renderAdd, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）"\]/, "原料表留著");
+  assert.match(renderAdd, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）", "每杯多少錢"\]/, "原料表留著");
   assert.match(html, /\.add-table td::before\{content:attr\(data-label\)/, "手機上要改排成「欄名：內容」");
   // 同一魚種的收合區塊同名（同時只開一個）
   assert.doesNotMatch(renderAdd, /加法（|activeText/);
@@ -1299,7 +1299,7 @@ test("原料表的味道欄：每樣原料都有，而且寫出處", async () =>
       assert.match(x.smell, /PubChem|品項庫/, plan.species + " " + x.id + " 的味道沒寫出處");
     }
   }
-  assert.match(html, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）"\]/);
+  assert.match(html, /stackTable\(\["名稱", "味道", "怎麼加", "每公斤（乾粉）", "每杯多少錢"\]/);
 });
 
 test("味精：品項庫留著味王 味精，但 T17 不加（同種試驗中性，使用者指定 2026-10-10）", async () => {
@@ -1834,4 +1834,43 @@ test("排名表只比品項庫裡有的原料，名次只給同一篇、同一�
   assert.deepEqual(plain(h.ownedRankingRows(rows, { y: true })).map((r) => r.name + r.rank), ["b1", "c2", "d—"]);
   assert.deepEqual(plain(h.ownedRankingRows(rows, { x: true, z: true })).map((r) => r.name + r.rank), ["a1", "e2"]);
   assert.match(html, /ownedRankingRows\(layer\.rows, owned\)/);
+});
+
+// 原料表的「每杯多少錢」照品項庫現在的價格算，不寫死（使用者指定，2026-11-10）
+test("原料表每杯多少錢：一杯＝一組溶的那杯水，價格跟著品項庫，品項沒了就說算不出來", async () => {
+  const { app, html } = await loadPage();
+  const h = app.helpers;
+  const items = plain(h.seed()).items;
+  const plans = plain(h.ADDITIVES);
+  for (const p of plans) {
+    for (const s of p.stocks) assert.ok(items.some((i) => i.id === s.itemId), p.species + " " + s.name + " 要對到品項庫的品項");
+    for (const st of p.stages) assert.ok(st.cupLabel, p.species + " " + st.id + " 要有杯子名稱");
+  }
+  const price = (id) => { const it = items.find((i) => i.id === id); return it.unitPrice / it.packWeightG; };
+  const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
+  const t = plain(h.stockCupCost(tilapia, items));
+  // 定義性檢查：每一份都等於 克數 × 品項庫的單價
+  for (const cup of t.cups) for (const part of cup.parts) {
+    const stock = tilapia.stocks.find((s) => s.name === part.name);
+    assert.ok(Math.abs(part.cost - part.grams * price(stock.itemId)) < 1e-9, part.name);
+  }
+  assert.equal(h.cupCostText(t.byStock.KSO), "主餌那杯 9 g $2.4");
+  assert.equal(h.cupCostText(t.byStock.CYS), "底餌那杯 16.7 g $27.1；主餌那杯 10 g $16.2");
+  const t17 = t.cups.find((c) => c.parts.length === 2);
+  assert.equal(Math.round(t17.cost * 10) / 10, 3.3, "檸檬酸＋山梨醇那杯合計");
+  const b = plain(h.stockCupCost(bream, items));
+  assert.deepEqual(b.cups.map((c) => c.label + Math.round(c.cost * 10) / 10), ["A 撒12.2", "練餌6.1"]);
+  // 品項刪掉就算不出來，不可以當 0
+  const missing = plain(h.stockCupCost(tilapia, items.filter((i) => i.id !== "item-cysteine-noah")));
+  assert.match(h.cupCostText(missing.byStock.CYS), /算不出來/);
+  assert.equal(missing.cups.find((c) => c.parts[0].name === "L-半胱胺酸鹽酸鹽").cost, null);
+  assert.match(html, /stockCupCost\(plan, state\.items\)/, "畫面用的是品項庫現在的價格");
+});
+
+test("每杯合計的水寫對：A 撒那杯是 1,200 cc 海水", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const bream = plain(h.ADDITIVES).find((p) => p.species === "黑鯛");
+  const cups = plain(h.stockCupCost(bream, plain(h.seed()).items)).cups;
+  assert.deepEqual(cups.map((c) => c.water), ["1,200 cc 海水", "600 g 水"]);
 });
