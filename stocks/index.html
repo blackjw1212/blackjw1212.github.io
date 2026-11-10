@@ -528,12 +528,23 @@ function normalizeMarketIndexPayload(payload){
     if (rawId === "tpex" || rawId === "otc" || rawName.indexOf("櫃買") >= 0) id = "tpex";
     if (!id) return;
 
-    const price = parseNumber(field(row, ["price","value","close","z"]));
+    let price = parseNumber(field(row, ["price","value","close","z"]));
     const previousClose = parseNumber(field(row, ["previousClose","y"]));
     let change = parseNumber(field(row, ["change","pointChange"]));
     let pctChange = parseNumber(field(row, ["pctChange","percentChange","percent"]));
-    if (change == null && price != null && previousClose != null) change = price - previousClose;
-    if (pctChange == null && change != null && previousClose) pctChange = change / previousClose * 100;
+    // 盤前（MIS 約 07:50 換日之後、開盤後第一筆成交之前）z 是「-」，Worker 傳 price:null，
+    // 手上只有昨收。原本整列丟掉，頁首兩張卡就從換日一路紅字「即時指數暫無法更新」到 09:00——
+    // 資料明明在，畫面卻說上游壞了。改成顯示昨收並標明是昨收；漲跌留白，
+    // 不可以拿昨收減昨收算出 0.00%，那讀起來是「平盤」。
+    const beforeFirstTrade = price == null && previousClose != null;
+    if (beforeFirstTrade) {
+      price = previousClose;
+      change = null;
+      pctChange = null;
+    } else {
+      if (change == null && price != null && previousClose != null) change = price - previousClose;
+      if (pctChange == null && change != null && previousClose) pctChange = change / previousClose * 100;
+    }
     if (price == null) return;
     byId[id] = {
       id:id,
@@ -543,6 +554,7 @@ function normalizeMarketIndexPayload(payload){
       pctChange:roundNumber(pctChange,2),
       time:String(field(row, ["time","updatedAt"]) || ""),
     };
+    if (beforeFirstTrade) byId[id].previousCloseOnly = true;
   });
 
   return MARKET_INDEXES.map(function(index){return byId[index.id];}).filter(Boolean);
@@ -946,7 +958,15 @@ function renderMarketIndexes(rows, meta, message, isError){
     const statusNode = $("headerQuote" + index.dom + "Status");
     if (!valueNode || !changeNode || !statusNode) return;
 
-    if (row) {
+    if (row && row.previousCloseOnly) {
+      // 今天還沒有成交：數字是昨收，要讓人一眼看出不是即時指數
+      valueNode.textContent = fmt(row.price, 2);
+      changeNode.textContent = "昨收 · 今日尚無成交";
+      changeNode.className = "market-change flat";
+      const when = formatDateTime(row.time || (meta && meta.updatedAt));
+      statusNode.textContent = (metaText || "TWSE MIS") + " 昨收" + (when ? " / " + when : "");
+      statusNode.className = "market-status" + (isError ? " error" : "");
+    } else if (row) {
       valueNode.textContent = fmt(row.price, 2);
       changeNode.textContent = signedFixed(row.change, 2) + " / " + signedFixed(row.pctChange, 2) + "%";
       changeNode.className = "market-change " + changeTone(row.change);
