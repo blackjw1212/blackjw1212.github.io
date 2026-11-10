@@ -409,6 +409,14 @@ CLAUDE.md ——這個檔沒有被任何一條斷言掃到（`check-static-site.
   （鉅額／盤後交易讓約 1% 的列略出界，所以逐列只擋單位錯、整體要 95%）。
 - **feed 只收當天有成交的列**（normalizeMiIndex 丟掉收盤 `--`），一天約 20 檔冷門上櫃股會
   消失。`/stocks/` 的自加標的遇到這種日子會顯示先前存下的收盤並標 ⚠ 說是哪一天的。
+- **每個打外站的步驟都要有上限，job 也要有。** 2026-11-10 21:29 那班 ISIN（產業對照）上市頁
+  抓了 9 分 37 秒、上櫃頁 2 分 56 秒，資料完整但整條管線停在那一步，行情晚 13 分鐘上線——
+  而那張表一個月才變一次。`update-industry-map.mjs` 現在每頁 2 分鐘就放棄（兩頁同時抓）、
+  留著舊表；step 有 `timeout-minutes: 5` 當後備，job 有 `timeout-minutes: 45`（GitHub 預設是
+  6 小時）。兩個坑：**undici 預設的 `bodyTimeout` 攔不住慢慢滴進來的回應**（它量的是兩個區塊
+  之間的間隔），要用 `AbortSignal` 蓋住整個 `arrayBuffer()`；**`AbortSignal.timeout()` 的計時器
+  是 unref 的**，撐不住 event loop，要自己 `setTimeout` ＋ `AbortController`。測試用真的
+  HTTP 伺服器滴 body 驗證過。其他每日步驟（ETF 成分股、配息、報酬）目前只靠 job 上限擋。
 - **本機跑管線要 `NODE_USE_ENV_PROXY=1`**（cloud session 的出口代理；Node 內建 fetch
   不讀 `HTTPS_PROXY`，否則全部 `fetch failed`）。**證交所 www 的 WAF 會限速**：連打十幾個
   請求就回「因為安全性考量，您所執行的頁面無法呈現」的 HTML，要隔幾秒一個。
