@@ -811,8 +811,9 @@ test("no third-party dividend survives inside the officially confirmed window", 
 // 與不該換的被換了（留著 officialDps 卻沒有分割解釋）。
 test("official dividends are restated for every later split, and only for those", async () => {
   const history = await readJson("../../data/etf-div-history.json");
-  const feed = await readJson("../../data/etf-feed.json");
-  const lastClose = Object.values(feed.marketDates || {}).concat(feed.tradeDate).sort().pop();
+  // 上限用「明天」而不是這份 feed 的收盤日：上市收盤退回備援來源的那一班，收盤日會比前一班舊一天，
+  // 拿它當上限會讓昨天合法記下的分割變成「還沒發生」、整份 feed 被擋在 commit 閘門外
+  const notFuture = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   let restated = 0;
   for (const [code, entry] of Object.entries(history.stocks)) {
     const splits = entry.splits;
@@ -822,7 +823,7 @@ test("official dividends are restated for every later split, and only for those"
       for (let i = 0; i < splits.length; i += 1) {
         const split = splits[i];
         assert.match(split.date, /^\d{4}-\d{2}-\d{2}$/, `${code}: 分割日期`);
-        assert.ok(split.date <= lastClose, `${code}: ${split.date} 的分割還沒發生，不可以先換算`);
+        assert.ok(split.date <= notFuture, `${code}: ${split.date} 的分割還沒發生，不可以先換算`);
         assert.equal(cleanUnitRatio(split.ratio), split.ratio, `${code}: 分割比例 ${split.ratio} 不是整數比`);
         assert.ok(["TWTCAU", "etfSplitRslt", "etfRvsRslt"].includes(split.src), `${code}: 分割來源 ${split.src}`);
         if (i) assert.ok(splits[i - 1].date < split.date, `${code}: 分割要照日期排、不重複`);
@@ -851,8 +852,9 @@ test("official dividends are restated for every later split, and only for those"
 // 分割表確認到哪一天（逐市場）。價格斷點靠它解除，所以它不可以宣稱確認到還沒發生的日子。
 test("the split tables' checked-through dates are well formed", async () => {
   const history = await readJson("../../data/etf-div-history.json");
-  const feed = await readJson("../../data/etf-feed.json");
   const checked = history.splitsChecked;
+  // 上限同上一條：用「明天」，不用這份 feed 的收盤日（備援來源那一班會倒退一天）
+  const notFuture = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   assert.ok(checked && typeof checked === "object", "etf-div-history.json 要有 splitsChecked");
   for (const market of Object.keys(checked)) {
     assert.ok(market === "twse" || market === "tpex", `splitsChecked 只該有 twse/tpex，出現 ${market}`);
@@ -860,8 +862,7 @@ test("the split tables' checked-through dates are well formed", async () => {
     assert.match(from, /^\d{4}-\d{2}-\d{2}$/);
     assert.match(to, /^\d{4}-\d{2}-\d{2}$/);
     assert.ok(from <= to, `${market}: ${from}~${to} 倒過來了`);
-    const close = (feed.marketDates && feed.marketDates[market]) || feed.tradeDate;
-    assert.ok(to <= close, `${market}: 分割表確認到 ${to}，比這個市場的收盤日 ${close} 還晚`);
+    assert.ok(to <= notFuture, `${market}: 分割表確認到未來的 ${to}`);
   }
 });
 
