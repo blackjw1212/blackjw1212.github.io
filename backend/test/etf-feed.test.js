@@ -738,3 +738,170 @@ test("a ratio that is not a split ratio cannot be a unit difference: the officia
   assert.ok(mod.sameDividendAmount(0.4614, 3.23 / 7), "四位小數的捨入不算對不上");
   assert.ok(!mod.sameDividendAmount(0.675, 0.68));
 });
+
+// ── ETF 分割／反分割 ────────────────────────────────────────────────────────
+// 2026-11-13 實抓的 TWTCAU（2024-10-01～2026-11-13），欄位與資料列照抄
+const TWTCAU = {
+  stat: "OK",
+  fields: ["恢復買賣日期", "ETF代號", "名稱", "分割(反分割)", "停止買賣前收盤價格", "恢復買賣參考價", "漲停價格", "跌停價格", "開盤競價基準"],
+  data: [
+    ["113/12/11", "00632R", "元大台灣50反1", "反分割", "3.28", "22.96", "25.25", "20.67", "22.96"],
+    ["114/02/19", "00676R", "富邦臺灣加權反1", "反分割", "2.04", "12.23", "13.45", "11.01", "12.23"],
+    ["114/06/18", "0050", "元大台灣50", "分割", "188.65", "47.16", "51.85", "42.45", "47.16"],
+    ["114/11/26", "0052", "富邦科技", "分割", "245.30", "35.04", "38.54", "31.54", "35.04"],
+    ["115/03/31", "00631L", "元大台灣50正2", "", "443.15", "20.14", "24.16", "16.12", "20.14"],
+    ["115/07/07", "00685L", "群益臺灣加權正2", "分割", "306.00", "12.75", "15.30", "10.20", "12.75"],
+  ],
+};
+// 上櫃兩支表 2023 年起都是 0 筆；欄位名取自空表的表頭
+const TPEX_SPLIT_FIELDS = ["恢復買賣日期", "證券代號", "證券名稱", "最後交易日之收盤價格", "恢復買賣開始參考價", "漲停價格", "跌停價格", "開始交易基準價", "詳細資料"];
+
+test("the official split table is read into unit ratios, including the rows that trip a naive parser", async () => {
+  const { normalizeEtfSplits, cleanUnitRatio } = await import("../../scripts/update-etf-feed.mjs");
+  const splits = normalizeEtfSplits(TWTCAU, "twse");
+  const by = Object.fromEntries(splits.map((s) => [s.code, s]));
+  assert.deepEqual(by["0050"], { code: "0050", date: "2025-06-18", ratio: 4, src: "TWTCAU" });
+  assert.deepEqual(by["0052"], { code: "0052", date: "2025-11-26", ratio: 7, src: "TWTCAU" });
+  // 「分割(反分割)」欄是空的，而且 1 拆 22——既有的乾淨比例表只到 20
+  assert.equal(by["00631L"].ratio, 22);
+  assert.equal(by["00685L"].ratio, 24);
+  assert.equal(by["00632R"].ratio, 1 / 7, "反分割是 1/N");
+  assert.equal(by["00676R"].ratio, 1 / 6, "參考價貼到升降單位：2.04×6 是 12.24，表上是 12.23");
+  assert.equal(cleanUnitRatio(1.333), null, "台股沒有 4:3 這種分割");
+  assert.equal(cleanUnitRatio(3.8), null, "1 拆 4 當天漲 5% 的價格比不是分割比例");
+  assert.equal(cleanUnitRatio(1.02), null);
+});
+
+test("an unreadable split table fails loudly instead of reporting no splits", async () => {
+  const { normalizeEtfSplits } = await import("../../scripts/update-etf-feed.mjs");
+  assert.deepEqual(normalizeEtfSplits({ stat: "很抱歉，沒有符合條件的資料!" }, "twse"), [], "那段期間沒有分割不是失敗");
+  assert.throws(() => normalizeEtfSplits({ stat: "查詢日期大於今日，請重新查詢!" }, "twse"), /TWTCAU/);
+  const lost = { ...TWTCAU, fields: TWTCAU.fields.map((f) => (f === "恢復買賣參考價" ? "參考價" : f)) };
+  assert.throws(() => normalizeEtfSplits(lost, "twse"), /恢復買賣參考價/);
+  const odd = { ...TWTCAU, data: [["114/06/18", "0050", "元大台灣50", "分割", "188.65", "60.00", "", "", ""]] };
+  assert.throws(() => normalizeEtfSplits(odd, "twse"), /unreadable split row/, "比例不是整數比的列不可以悄悄跳過");
+  const wrongWay = { ...TWTCAU, data: [["114/06/18", "0050", "元大台灣50", "反分割", "188.65", "47.16", "", "", ""]] };
+  assert.throws(() => normalizeEtfSplits(wrongWay, "twse"), /反分割/);
+  // 上櫃：空表、與一列照欄位名組出來的資料
+  assert.deepEqual(normalizeEtfSplits({ stat: "ok", tables: [{ fields: TPEX_SPLIT_FIELDS, data: [] }] }, "tpex", "etfSplitRslt"), []);
+  const row = ["115/12/08", "00679B", "元大美債20年", "30.00", "6.00", "", "", "6.00", ""];
+  assert.deepEqual(normalizeEtfSplits({ stat: "ok", tables: [{ fields: TPEX_SPLIT_FIELDS, data: [row] }] }, "tpex", "etfSplitRslt"),
+    [{ code: "00679B", date: "2026-12-08", ratio: 5, src: "etfSplitRslt" }]);
+  assert.throws(() => normalizeEtfSplits({ stat: "ok" }, "tpex", "etfRvsRslt"), /no table/);
+});
+
+test("official dividends paid before a split are restated in today's units, once", async () => {
+  const mod = await import("../../scripts/update-etf-feed.mjs");
+  // 0053 的情境（預告 2026-12-08 1 拆 8）：兩筆官方配息都在分割之前
+  const official = (dps, pay) => ({ pay, dps, payEstimated: true, src: "exright-result" });
+  const fresh = () => ({ stocks: { "0053": { lastSeen: "2026-12-07", coverFrom: "2020-01-01", events: {
+    "2025-11-21": official(3, "2025-12-15"), "2026-11-20": official(3.2, "2026-12-14"),
+  } } } });
+  const split = [{ code: "0053", date: "2026-12-08", ratio: 8, src: "TWTCAU" }];
+
+  const before = mod.accumulateDivHistory(fresh(), [], ["0053"], "2026-12-07");
+  const yieldBefore = mod.deriveDividend(before.stocks["0053"], before.start, "2026-12-07").totalDps / 220;
+
+  const after = mod.accumulateDivHistory(fresh(), [], ["0053"], "2026-12-08", split);
+  const events = after.stocks["0053"].events;
+  assert.deepEqual([events["2026-11-20"].dps, events["2026-11-20"].officialDps], [0.4, 3.2]);
+  assert.deepEqual([events["2025-11-21"].dps, events["2025-11-21"].officialDps], [0.375, 3]);
+  assert.deepEqual(after.splitsRecorded, [{ code: "0053", date: "2026-12-08", ratio: 8 }]);
+  const yieldAfter = mod.deriveDividend(after.stocks["0053"], after.start, "2026-12-08").totalDps / 27.5;
+  assert.ok(Math.abs(yieldAfter - yieldBefore) < 1e-9, `分割不該改變殖利率：${yieldBefore} → ${yieldAfter}（沒換算的話是 8 倍）`);
+
+  // 冪等：同一張表每班都會再進來一次
+  const again = mod.accumulateDivHistory({ stocks: JSON.parse(JSON.stringify(after.stocks)) }, [], ["0053"], "2026-12-09", split);
+  assert.deepEqual(again.stocks["0053"].events, events);
+  assert.equal(again.rescaled, 0);
+  assert.deepEqual(again.splitsRecorded, []);
+
+  // 分割之後才進來、可信度更高的官方事件（etfDiv 帶發放日）取代原本那筆時，仍然要是換算後的金額
+  const upgraded = mod.accumulateDivHistory({ stocks: JSON.parse(JSON.stringify(after.stocks)) },
+    [{ code: "0053", ex: "2026-11-20", pay: "2026-12-16", dps: 3.2 }], ["0053"], "2026-12-10", split);
+  assert.deepEqual([upgraded.stocks["0053"].events["2026-11-20"].dps, upgraded.stocks["0053"].events["2026-11-20"].officialDps, upgraded.stocks["0053"].events["2026-11-20"].pay], [0.4, 3.2, "2026-12-16"]);
+
+  // 分割後的配息已經是新單位，不動
+  const later = mod.accumulateDivHistory({ stocks: JSON.parse(JSON.stringify(after.stocks)) },
+    [{ code: "0053", ex: "2027-11-19", pay: "2027-12-13", dps: 0.45, payEstimated: true, src: "exright-result" }], ["0053"], "2027-11-19", split);
+  assert.equal(later.stocks["0053"].events["2027-11-19"].dps, 0.45);
+  assert.equal(later.stocks["0053"].events["2027-11-19"].officialDps, undefined);
+});
+
+test("split factors multiply, third-party amounts are left alone, and a withdrawn split restores the raw amount", async () => {
+  const mod = await import("../../scripts/update-etf-feed.mjs");
+  const splits = [{ date: "2025-06-18", ratio: 4 }, { date: "2026-03-31", ratio: 22 }];
+  assert.equal(mod.splitFactorAfter(splits, "2025-01-17"), 88);
+  assert.equal(mod.splitFactorAfter(splits, "2025-06-18"), 22, "恢復買賣日當天已經是新單位");
+  assert.equal(mod.splitFactorAfter(splits, "2026-03-31"), 1);
+  assert.equal(mod.splitFactorAfter(undefined, "2025-01-17"), 1);
+  assert.equal(mod.splitFactorAfter([{ date: "2025-02-19", ratio: 1 / 6 }], "2025-01-02"), 1 / 6, "反分割：一個舊單位只剩 1/6 個新單位");
+
+  const entry = { splits: [{ date: "2025-06-18", ratio: 4, src: "TWTCAU" }], events: {
+    "2025-01-17": { pay: "2025-02-11", dps: 2.7 },                                           // 官方（etfDiv）
+    "2025-03-01": { pay: "2025-03-25", dps: 0.5, payEstimated: true, src: "yahoo" },         // 第三方：抓進來就已經換算過
+    "2025-07-21": { pay: "2025-08-11", dps: 0.36, payEstimated: true, src: "exright-result" },
+  } };
+  assert.equal(mod.applySplits(entry), 1);
+  assert.deepEqual([entry.events["2025-01-17"].dps, entry.events["2025-01-17"].officialDps], [0.675, 2.7]);
+  assert.equal(entry.events["2025-03-01"].dps, 0.5);
+  assert.equal(entry.events["2025-07-21"].officialDps, undefined);
+  assert.equal(mod.applySplits(entry), 0, "再跑一次不會再除一次");
+  delete entry.splits;
+  assert.equal(mod.applySplits(entry), 1);
+  assert.deepEqual([entry.events["2025-01-17"].dps, entry.events["2025-01-17"].officialDps], [2.7, undefined]);
+
+  // 沒有配息紀錄的基金不記分割（槓桿、反向）
+  const store = { "00631L": { events: {} }, "0050": { events: { "2025-01-17": { pay: "2025-02-11", dps: 2.7 } } } };
+  const recorded = mod.recordSplits(store, [{ code: "00631L", date: "2026-03-31", ratio: 22, src: "TWTCAU" }, { code: "0050", date: "2025-06-18", ratio: 4, src: "TWTCAU" }, { code: "09999", date: "2026-01-02", ratio: 2, src: "TWTCAU" }]);
+  assert.deepEqual(recorded.map((r) => r.code), ["0050"]);
+  assert.equal(store["00631L"].splits, undefined);
+});
+
+test("a recorded split settles an amount conflict without guessing", async () => {
+  const mod = await import("../../scripts/update-etf-feed.mjs");
+  const store = { stocks: { "0050": { lastSeen: "2026-11-12", events: {
+    "2025-01-17": { pay: "2026-01-01", dps: 0.675, payEstimated: true, src: "yahoo", officialDps: 2.7 },
+  } } } };
+  const out = mod.accumulateDivHistory(store, [exr("0050", "2025-01-17", 2.7)], ["0050"], "2026-11-12",
+    [{ code: "0050", date: "2025-06-18", ratio: 4, src: "TWTCAU" }]);
+  const event = out.stocks["0050"].events["2025-01-17"];
+  assert.deepEqual([event.dps, event.officialDps, event.src], [0.675, 2.7, "exright-result"]);
+  assert.deepEqual(out.conflicts.map((c) => c.verdict), ["split"]);
+});
+
+test("a price break with no split on record withholds the fund's dividend figures until the record arrives", async () => {
+  const mod = await import("../../scripts/update-etf-feed.mjs");
+  const entry = () => ({ events: { "2026-11-20": { pay: "2026-12-14", dps: 3.2, payEstimated: true, src: "exright-result" } } });
+  const prev = { code: "0053", close: 220, date: "2026-12-01" };
+  const row = { code: "0053", close: 28.9, date: "2026-12-08" };   // 1 拆 8、當天再漲 5%
+  assert.equal(mod.basisJump(prev, row), true);
+  assert.equal(mod.basisJump(prev, { ...row, close: 198 }), false, "跌停不是單位改變");
+  assert.equal(mod.basisJump({ ...prev, date: row.date }, row), false, "同一天重跑不比");
+  assert.equal(mod.basisJump({ code: "x", close: 5.18, date: "2026-04-21" }, { code: "x", close: 25.9, date: "2026-04-22" }), true, "反分割是往上跳");
+
+  // 分割表沒抓到（最後一次成功讀到的是 12-05）：斷點記下來，之後每一班都還認得——
+  // 下一班的「前一筆收盤」已經是新單位，光看價格看不出來了
+  const e1 = entry();
+  assert.equal(mod.trackBasisBreak(e1, prev, row, "2026-12-05"), true);
+  assert.equal(e1.basisBreak, "2026-12-08");
+  assert.equal(mod.trackBasisBreak(e1, row, { ...row, close: 29.4, date: "2026-12-09" }, "2026-12-05"), true);
+  // 過再久也一樣：表讀不到，不知道的事不會因為時間過去就變成知道
+  assert.equal(mod.trackBasisBreak(e1, null, { ...row, date: "2027-03-01" }, "2026-12-05"), true);
+  assert.equal(mod.trackBasisBreak(e1, null, { ...row, date: "2027-03-01" }, undefined), true, "從來沒讀到過也一樣扣住");
+  // 分割紀錄到了 → 解除
+  e1.splits = [{ date: "2026-12-08", ratio: 8, src: "TWTCAU" }];
+  assert.equal(mod.trackBasisBreak(e1, row, { ...row, close: 29.4, date: "2026-12-09" }, "2026-12-09"), false);
+  assert.equal(e1.basisBreak, undefined);
+  // 分割表正常：當班就有紀錄，根本不會記斷點
+  const e2 = { ...entry(), splits: [{ date: "2026-12-08", ratio: 8, src: "TWTCAU" }] };
+  assert.equal(mod.trackBasisBreak(e2, prev, row, "2026-12-08"), false);
+  assert.equal(e2.basisBreak, undefined);
+  // 表已經讀到斷點那一天、上面沒有這一檔 → 那不是分割（例如上游一筆壞掉的收盤），解除
+  const e3 = entry();
+  assert.equal(mod.trackBasisBreak(e3, prev, row, "2026-12-08"), false);
+  assert.equal(e3.basisBreak, undefined);
+  // 斷點之前沒有官方來源的配息 → 沒有東西會被放大，不必扣住
+  const e4 = { events: { "2026-12-20": { pay: "2027-01-12", dps: 0.4, payEstimated: true, src: "exright-result" } } };
+  assert.equal(mod.trackBasisBreak(e4, prev, row, "2026-12-05"), false);
+});

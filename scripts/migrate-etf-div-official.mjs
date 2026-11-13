@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import {
-  accumulateDivHistory, addDays, dropUnconfirmedThirdParty, extendConfirmedWindow, normalizeExRightResults,
+  accumulateDivHistory, addDays, dropUnconfirmedThirdParty, extendConfirmedWindow, normalizeEtfSplits, normalizeExRightResults,
 } from "./update-etf-feed.mjs";
 
 const HISTORY_FILE = new URL("../data/etf-div-history.json", import.meta.url);
@@ -23,6 +23,12 @@ const SOURCES = {
   twse: (from, to) => `https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate=${from.replace(/-/g, "")}&endDate=${to.replace(/-/g, "")}&response=json`,
   tpex: (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/exDailyQ?startDate=${from.replace(/-/g, "%2F")}&endDate=${to.replace(/-/g, "%2F")}&response=json`,
 };
+// ETF 分割／反分割的恢復買賣參考價表：整段期間一個請求就拿得完（實測 25 個月 11 筆）
+const SPLIT_SOURCES = [
+  ["twse", "TWTCAU", (from, to) => `https://www.twse.com.tw/rwd/zh/split/TWTCAU?startDate=${from.replace(/-/g, "")}&endDate=${to.replace(/-/g, "")}&response=json`],
+  ["tpex", "etfSplitRslt", (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/etfSplitRslt?startDate=${from.replace(/-/g, "%2F")}&endDate=${to.replace(/-/g, "%2F")}&response=json`],
+  ["tpex", "etfRvsRslt", (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/etfRvsRslt?startDate=${from.replace(/-/g, "%2F")}&endDate=${to.replace(/-/g, "%2F")}&response=json`],
+];
 const PACE_MS = { twse: 50_000, tpex: 3_000 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -40,12 +46,13 @@ export function splitWindows(from, to) {
   return out;
 }
 
-async function loadTable(market, from, to, cacheDir) {
-  const file = cacheDir ? `${cacheDir}/${market}_${from}_${to}.json` : null;
+async function loadTable(market, from, to, cacheDir, source = null) {
+  const file = cacheDir ? `${cacheDir}/${source ? `${source[0]}_split` : market}_${from}_${to}.json` : null;
   if (file) {
     try { return { payload: JSON.parse(await readFile(file, "utf8")), cached: true }; } catch { /* 沒有快取就抓 */ }
   }
-  const response = await fetch(SOURCES[market](from, to), { headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" } });
+  const url = source ? source[1](from, to) : SOURCES[market](from, to);
+  const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" } });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const payload = JSON.parse(await response.text()); // 被限速時回的是 HTML，這裡會丟例外
   if (file) await writeFile(file, JSON.stringify(payload), "utf8");
@@ -92,8 +99,24 @@ async function main() {
     else console.log(`${market}: 有窗口沒抓到，這個市場這次不寫 official（重跑即可，--cache 會續跑）`);
   }
 
+  // 分割要跟配息一起回補：官方金額是當時每單位的金額，沒有分割紀錄就沒辦法換算到現在的單位。
+  // 有一張分割表沒抓到就整個不做——少一次分割，那一檔分割前的配息會以舊單位寫進存檔。
+  const splits = [];
+  for (const [market, name, url] of SPLIT_SOURCES) {
+    try {
+      const { payload, cached } = await loadTable(market, from, to, cacheDir, [name, url]);
+      const found = normalizeEtfSplits(payload, market, name);
+      splits.push(...found);
+      console.log(`${name} ${from}~${to}: ${found.length} 筆分割／反分割${cached ? "（快取）" : ""}`);
+      if (!cached) await sleep(PACE_MS[market]);
+    } catch (error) {
+      throw new Error(`${name} 沒抓到（${error.message}）——分割表不齊不回補，重跑即可`);
+    }
+  }
+
   const before = JSON.stringify(history.stocks);
-  const merged = accumulateDivHistory(history, events, feed.stocks.map((row) => row.code), feed.tradeDate);
+  const merged = accumulateDivHistory(history, events, feed.stocks.map((row) => row.code), feed.tradeDate, splits);
+  for (const s of merged.splitsRecorded || []) console.log(`分割：${s.code} ×${s.ratio}（${s.date} 恢復買賣）→ 之前的官方配息換算到現在的單位`);
   const dropped = dropUnconfirmedThirdParty(merged.stocks, official, (code) => marketOf[code]);
   const previous = JSON.parse(before);
   const added = [];
@@ -110,7 +133,8 @@ async function main() {
   console.log(`來源升級為官方：${upgraded.length} 筆`);
   console.log(`拿掉（官方沒有的第三方事件）：${dropped.length} 筆 ${dropped.slice(0, 20).map((d) => `${d.code}@${d.ex} ${d.dps}`).join("、")}`);
   for (const c of merged.conflicts || []) {
-    console.log(`金額對不上：${c.code}@${c.ex} 官方 ${c.official}、存檔（第三方）${c.stored} → ${c.verdict === "official" ? "更早的配息兩邊對得上，判定第三方抄錯，改用官方值" : "比例像分割、沒有更早的可比，維持存檔金額並記下 officialDps"}`);
+    const verdict = { official: "更早的配息兩邊對得上，判定第三方抄錯，改用官方值", split: "有分割紀錄解釋，收官方值並換算到現在的單位", kept: "比例像分割、沒有更早的可比，維持存檔金額並記下 officialDps" }[c.verdict];
+    console.log(`金額對不上：${c.code}@${c.ex} 官方 ${c.official}、存檔（第三方）${c.stored} → ${verdict}`);
   }
   for (const r of dropped.refused || []) {
     delete official[r.market];
@@ -124,7 +148,10 @@ async function main() {
   // 跟存檔原本的期間接得上就取聯集（分兩次跑、兩個市場各補一段時不會互相蓋掉）
   const merge = { ...(history.official || {}) };
   for (const market of Object.keys(official)) merge[market] = extendConfirmedWindow(merge[market], official[market]);
-  await writeFile(HISTORY_FILE, JSON.stringify({ start: merged.start, updatedAt: new Date().toISOString(), official: merge, stocks: merged.stocks }), "utf8");
+  // 三張分割表都讀到了才會走到這裡（讀不到在上面就丟例外了），所以兩個市場都確認到 [from, to]
+  const checked = { ...(history.splitsChecked || {}) };
+  for (const market of ["twse", "tpex"]) checked[market] = extendConfirmedWindow(checked[market], { from, to });
+  await writeFile(HISTORY_FILE, JSON.stringify({ start: merged.start, updatedAt: new Date().toISOString(), official: merge, splitsChecked: checked, stocks: merged.stocks }), "utf8");
   console.log("\n已寫回 data/etf-div-history.json。接著跑 update-etf-feed.mjs 讓 feed 的殖利率跟上。");
 }
 

@@ -5,7 +5,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { classifyEtf, cvWindowAmounts, dividendCv, isCoreEtf, splitLikeRatio } from "../../scripts/update-etf-feed.mjs";
+import {
+  classifyEtf, cleanUnitRatio, cvWindowAmounts, dividendCv, isCoreEtf, sameDividendAmount, splitFactorAfter, splitLikeRatio, srcRank,
+} from "../../scripts/update-etf-feed.mjs";
 
 const readJson = async (rel) => JSON.parse(await readFile(fileURLToPath(new URL(rel, import.meta.url)), "utf8"));
 
@@ -322,6 +324,12 @@ test("derived fields agree with the pipeline's own formulas", async () => {
   // 改為從版控中的配息歷史重算——這是真正的端到端一致性檢查。
   const history = await readJson("../../data/etf-div-history.json");
   for (const row of feed.stocks) {
+    // 價格斷了、分割紀錄還沒到的基金，這一班刻意不發布由配息推得的欄位（見下面那條 basisBreak 的測試）。
+    // 這裡要認得那個狀態：不認得的話，分割表抓不到的那一天這條會紅、整份 feed 推不上去。
+    if (history.stocks[row.code] && history.stocks[row.code].basisBreak) {
+      assert.equal(row.dividendCv, undefined, `${row.code}: 單位還沒對齊，不該有配息穩定度`);
+      continue;
+    }
     const expectedCv = dividendCv(cvWindowAmounts(history.stocks[row.code], feed.tradeDate));
     if (expectedCv == null) {
       assert.equal(row.dividendCv, undefined, `${row.code}: cv must be absent when it cannot be computed`);
@@ -795,4 +803,82 @@ test("no third-party dividend survives inside the officially confirmed window", 
     }
   }
   assert.deepEqual(leftovers, [], "確認期間內還留著第三方事件");
+});
+
+// ── ETF 分割：官方配息必須是「現在的單位」────────────────────────────────────
+// 官方表印的是當時每單位的金額。定義性檢查：這筆除息之後有幾次分割，金額就要除以那些比例的乘積，
+// 原始金額留在 officialDps。兩個方向都擋——該換算的沒換（殖利率放大成分割倍數），
+// 與不該換的被換了（留著 officialDps 卻沒有分割解釋）。
+test("official dividends are restated for every later split, and only for those", async () => {
+  const history = await readJson("../../data/etf-div-history.json");
+  const feed = await readJson("../../data/etf-feed.json");
+  const lastClose = Object.values(feed.marketDates || {}).concat(feed.tradeDate).sort().pop();
+  let restated = 0;
+  for (const [code, entry] of Object.entries(history.stocks)) {
+    const splits = entry.splits;
+    if (splits !== undefined) {
+      assert.ok(Array.isArray(splits) && splits.length, `${code}: splits 要嘛不存在，要嘛是非空陣列`);
+      assert.ok(Object.keys(entry.events || {}).length, `${code}: 沒有配息紀錄的基金不記分割`);
+      for (let i = 0; i < splits.length; i += 1) {
+        const split = splits[i];
+        assert.match(split.date, /^\d{4}-\d{2}-\d{2}$/, `${code}: 分割日期`);
+        assert.ok(split.date <= lastClose, `${code}: ${split.date} 的分割還沒發生，不可以先換算`);
+        assert.equal(cleanUnitRatio(split.ratio), split.ratio, `${code}: 分割比例 ${split.ratio} 不是整數比`);
+        assert.ok(["TWTCAU", "etfSplitRslt", "etfRvsRslt"].includes(split.src), `${code}: 分割來源 ${split.src}`);
+        if (i) assert.ok(splits[i - 1].date < split.date, `${code}: 分割要照日期排、不重複`);
+      }
+    }
+    for (const [ex, event] of Object.entries(entry.events || {})) {
+      const factor = splitFactorAfter(splits, ex);
+      if (srcRank(event) >= 2) {
+        if (factor !== 1) {
+          assert.ok(event.officialDps > 0, `${code}@${ex}: 之後分割過（×${factor}），官方金額卻沒有換算`);
+          assert.ok(sameDividendAmount(event.officialDps / factor, event.dps),
+            `${code}@${ex}: ${event.officialDps} ÷ ${factor} 應為 ${event.officialDps / factor}，存的是 ${event.dps}`);
+          restated += 1;
+        } else {
+          assert.equal(event.officialDps, undefined, `${code}@${ex}: 之後沒有分割，不該有換算過的痕跡`);
+        }
+      } else if (event.officialDps != null && factor !== 1) {
+        // 第三方金額＋官方原值並存：有分割紀錄的話兩者必須差那個倍數
+        assert.ok(sameDividendAmount(event.officialDps / factor, event.dps), `${code}@${ex}: 分割紀錄解釋不了 ${event.officialDps} 對 ${event.dps}`);
+      }
+    }
+  }
+  assert.ok(restated >= 0);
+});
+
+// 分割表確認到哪一天（逐市場）。價格斷點靠它解除，所以它不可以宣稱確認到還沒發生的日子。
+test("the split tables' checked-through dates are well formed", async () => {
+  const history = await readJson("../../data/etf-div-history.json");
+  const feed = await readJson("../../data/etf-feed.json");
+  const checked = history.splitsChecked;
+  assert.ok(checked && typeof checked === "object", "etf-div-history.json 要有 splitsChecked");
+  for (const market of Object.keys(checked)) {
+    assert.ok(market === "twse" || market === "tpex", `splitsChecked 只該有 twse/tpex，出現 ${market}`);
+    const { from, to } = checked[market];
+    assert.match(from, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(to, /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(from <= to, `${market}: ${from}~${to} 倒過來了`);
+    const close = (feed.marketDates && feed.marketDates[market]) || feed.tradeDate;
+    assert.ok(to <= close, `${market}: 分割表確認到 ${to}，比這個市場的收盤日 ${close} 還晚`);
+  }
+});
+
+// 價格看得出單位變了、分割紀錄卻還沒到的基金，不發布由配息推得的數字，而且要讓畫面說得出來。
+test("a fund whose unit basis is unconfirmed publishes no dividend figures", async () => {
+  const history = await readJson("../../data/etf-div-history.json");
+  const feed = await readJson("../../data/etf-feed.json");
+  const byCode = new Map(feed.stocks.map((row) => [row.code, row]));
+  const broken = Object.entries(history.stocks).filter(([, entry]) => entry.basisBreak);
+  for (const [code, entry] of broken) {
+    assert.match(entry.basisBreak, /^\d{4}-\d{2}-\d{2}$/);
+    const row = byCode.get(code);
+    if (!row) continue;
+    for (const key of ["dps", "yield", "yieldEstimated", "payMonths", "dividendCv", "dividendSeries"]) {
+      assert.equal(row[key], undefined, `${code}: 單位還沒對齊，不該發布 ${key}`);
+    }
+  }
+  const flagged = (feed.errors || []).some((e) => e.source === "etf-split-unconfirmed");
+  assert.equal(flagged, broken.some(([code]) => byCode.has(code)), "errors[] 與存檔裡的斷點要說同一件事");
 });

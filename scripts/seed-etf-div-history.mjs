@@ -125,7 +125,9 @@ async function main() {
   // 這個檔不是只有這支在寫：official 是 update-etf-feed.mjs 的東西，寫回時要原樣帶著
   // （market-52w.json 的 adjusted 被另一支工具丟掉過一次，同一個教訓）
   const official = history.official && typeof history.official === "object" ? history.official : {};
-  const carried = history.official ? { official: history.official } : {};
+  // splitsChecked（分割表確認到哪一天）同理；各檔的 splits／basisBreak 在 stocks 裡面，本來就跟著走
+  const carried = {};
+  for (const key of ["official", "splitsChecked"]) if (history[key]) carried[key] = history[key];
   const tradeDate = feed.tradeDate || new Date().toISOString().slice(0, 10);
 
   // 全體中位間隔（僅取官方、非推估的事件）
