@@ -93,6 +93,13 @@ export function resolveMode(argv) {
 }
 
 // 只補官方沒有的除息日；回傳新增筆數
+// 官方確認過的期間（etf-div-history.json 的 official，由 update-etf-feed.mjs 維護）之外的事件
+export function outsideConfirmedWindow(events, window) {
+  const list = Array.isArray(events) ? events : [];
+  if (!window || !window.from || !window.to) return list;
+  return list.filter((event) => event.ex < window.from || event.ex > window.to);
+}
+
 export function mergeYahooEvents(entry, yahooEvents, lagDays) {
   let added = 0;
   for (const event of yahooEvents) {
@@ -115,6 +122,12 @@ async function main() {
   }
   const history = await readJson(HISTORY_FILE, {});
   const store = history.stocks && typeof history.stocks === "object" ? history.stocks : {};
+  // 這個檔不是只有這支在寫：official 是 update-etf-feed.mjs 的東西，寫回時要原樣帶著
+  // （market-52w.json 的 adjusted 被另一支工具丟掉過一次，同一個教訓）
+  const official = history.official && typeof history.official === "object" ? history.official : {};
+  // splitsChecked（分割表確認到哪一天）同理；各檔的 splits／basisBreak 在 stocks 裡面，本來就跟著走
+  const carried = {};
+  for (const key of ["official", "splitsChecked"]) if (history[key]) carried[key] = history[key];
   const tradeDate = feed.tradeDate || new Date().toISOString().slice(0, 10);
 
   // 全體中位間隔（僅取官方、非推估的事件）
@@ -149,7 +162,9 @@ async function main() {
       const events = yahooDividends(await response.json());
       const entry = store[row.code] || (store[row.code] = { events: {} });
       const lag = medianLagDays(entry.events) ?? globalLag;
-      addedTotal += mergeYahooEvents(entry, events, lag);
+      // 官方除權息結果表確認過的期間不收第三方事件：那張表是窮舉的，期間內官方沒有的
+      // 就是不存在（實測 Yahoo 給過 00915 一筆 2026-08-18 的假配息，殖利率因此多 1 個百分點）
+      addedTotal += mergeYahooEvents(entry, outsideConfirmedWindow(events, official[row.market === "tpex" ? "tpex" : "twse"]), lag);
       // 記錄該檔配息歷史可回溯到哪：取 Yahoo 2 年區間的最早事件，
       // 即使之後被 13 個月窗剪掉也保留，供 divMonthsCovered 判斷是否已有滿年歷史。
       if (events.length) {
@@ -167,7 +182,7 @@ async function main() {
       failures.push(`${row.code}: ${error.message}`);
     }
     if ((ok + failed) % 100 === 0) {
-      await writeFile(HISTORY_FILE, JSON.stringify({ start: history.start, updatedAt: new Date().toISOString(), stocks: store }), "utf8");
+      await writeFile(HISTORY_FILE, JSON.stringify({ start: history.start, updatedAt: new Date().toISOString(), ...carried, stocks: store }), "utf8");
       console.log(`  progress ${ok + failed}/${pending.length} (ok ${ok}, fail ${failed}, +${addedTotal} events)`);
     }
     await sleep(DELAY_MS);
@@ -182,6 +197,7 @@ async function main() {
     start: earliest || history.start,
     updatedAt: new Date().toISOString(),
     seededAt: new Date().toISOString(),
+    ...carried,
     stocks: store,
   }), "utf8");
   console.log(`seed complete: ok ${ok}, failed ${failed}, +${addedTotal} events, window starts ${earliest}`);

@@ -308,11 +308,15 @@ export async function fetchCorporateActionEvents(fromDate, toDate, { fetchJson, 
   const errors = [];
   const events = [];
   const rejected = [];
+  // 兩張除權息結果表的原始回應留下來：ETF 引擎要從同一份回應讀「息」的列（已發生的配息），
+  // 這裡只解析「權」。留著就不必為了配息再打一次證交所。
+  const raw = {};
+  const keep = (name) => (payload) => { raw[name] = payload; return payload; };
   const sources = [
-    ["TWT49U", () => fetchJson(SOURCE_URLS.twseExRights(fromDate, toDate)).then(parseTwseExRights)],
+    ["TWT49U", () => fetchJson(SOURCE_URLS.twseExRights(fromDate, toDate)).then(keep("TWT49U")).then(parseTwseExRights)],
     ["TWTB8U", () => fetchJson(SOURCE_URLS.twsePar(fromDate, toDate)).then((p) => parseTwseResumption(p, "par"))],
     ["TWTAUU", () => fetchJson(SOURCE_URLS.twseReduction(fromDate, toDate)).then((p) => parseTwseResumption(p, "reduction"))],
-    ["exDailyQ", () => fetchJson(SOURCE_URLS.tpexExRights(fromDate, toDate)).then((p) => {
+    ["exDailyQ", () => fetchJson(SOURCE_URLS.tpexExRights(fromDate, toDate)).then(keep("exDailyQ")).then((p) => {
       const parsed = parseTpexExRights(p);
       rejected.push(...parsed.rejected);
       return parsed.events;
@@ -329,7 +333,7 @@ export async function fetchCorporateActionEvents(fromDate, toDate, { fetchJson, 
     }
     await sleep(delayMs);
   }
-  return { events, rejected, errors };
+  return { events, rejected, errors, raw };
 }
 
 export async function syncCorporateActions(accumulator, { fromDate, tradeDate, floorMonth, marketOf, fetchJson, delayMs = 2500, prefetched = null }) {
@@ -356,5 +360,5 @@ export async function syncCorporateActions(accumulator, { fromDate, tradeDate, f
     errors.push({ source: "corporate-actions", message: `${result.pending.length} share event(s) waiting for daily data: ${result.pending.slice(0, 8).join(", ")}` });
   }
   for (const r of rejected.slice(0, 5)) errors.push({ source: "corporate-actions", message: `rejected ${r.code} ${r.date}: ${r.reason}` });
-  return { ...result, events, rejected, errors };
+  return { ...result, events, rejected, errors, raw: fetched.raw || {} };
 }

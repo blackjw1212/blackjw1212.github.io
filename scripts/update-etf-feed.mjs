@@ -41,6 +41,16 @@ const SOURCES = {
   // 在 etfDiv 一筆都查不到）。上櫃的官方配息只能從除權除息預告表拿，該表有現金股利
   // 金額但沒有發放日，需以量到的 ex→pay 中位間隔推估。
   tpexExright: "https://www.tpex.org.tw/openapi/v1/tpex_exright_prepost",
+  // 除權息「計算結果表」：已經發生的除息，兩個市場的 ETF 全部都在裡面（見 normalizeExRightResults）。
+  // 正常情況由 market 引擎的 --emit-bulk 帶過來，這兩個網址只在單獨跑這支時才用到。
+  twseExResult: (from, to) => `https://www.twse.com.tw/rwd/zh/exRight/TWT49U?startDate=${from.replace(/-/g, "")}&endDate=${to.replace(/-/g, "")}&response=json`,
+  tpexExResult: (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/exDailyQ?startDate=${from.replace(/-/g, "%2F")}&endDate=${to.replace(/-/g, "%2F")}&response=json`,
+  // ETF 分割／反分割「恢復買賣參考價」表（見 normalizeEtfSplits）。上市那支**一定要帶起訖日**：
+  // 不帶的話回的是 307 的安全性錯誤頁，連它自己的網頁都是這樣（2026-11-13 實測）。
+  // 上櫃分成兩支，2023 年起都是 0 筆——欄位名取自空表的表頭，沒有實際資料列可對。
+  twseEtfSplit: (from, to) => `https://www.twse.com.tw/rwd/zh/split/TWTCAU?startDate=${from.replace(/-/g, "")}&endDate=${to.replace(/-/g, "")}&response=json`,
+  tpexEtfSplit: (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/etfSplitRslt?startDate=${from.replace(/-/g, "%2F")}&endDate=${to.replace(/-/g, "%2F")}&response=json`,
+  tpexEtfRevSplit: (from, to) => `https://www.tpex.org.tw/www/zh-tw/bulletin/etfRvsRslt?startDate=${from.replace(/-/g, "%2F")}&endDate=${to.replace(/-/g, "%2F")}&response=json`,
 };
 
 // 285 筆官方事件實測：ex→pay 中位 24 天（四分位 23–27、全距 17–36）。
@@ -258,6 +268,137 @@ export function normalizeTpexExrightRows(rows) {
   return out;
 }
 
+// ── 除權息計算結果表（上市 TWT49U、上櫃 exDailyQ）────────────────────────────
+// 這兩張表列的是「已經發生」的除權息，而且**兩個市場的 ETF 都在裡面**：2026-11-12 以
+// 2025-11-01 起 13 個月的表逐筆核對，219 檔 ETF 共 1,116 筆除息，存檔對得上 1,115 筆，
+// 金額與除息日一筆不差（含 501 筆當時只有 Yahoo 的）。CLAUDE.md 原本寫「沒有一條來源涵蓋
+// 全市場」，那是指**預告**與發放日；已發生的配息金額，這兩張表就是全部。
+// 沒有發放日欄位，所以跟預告表同一級（官方金額＋推估發放日）。
+// 同一次核對也抓到 Yahoo 的假事件：00915 多了一筆 2026-08-18 的 0.32 元（官方只有每季一筆），
+// 離真正的 09-16 有 29 天、落在 ±7 天去重窗之外，於是兩筆都被算進殖利率（6.59%，應為 5.59%）。
+const cell = (fields, row, name) => { const i = fields.indexOf(name); return i < 0 ? null : row[i]; };
+// 兩張表的日期寫法不同：上市「115年09月16日」、上櫃「115/09/16」
+export function rocAnyToIso(value) {
+  const m = /^\s*(\d{2,3})\D+(\d{1,2})\D+(\d{1,2})\D*$/.exec(String(value == null ? "" : value));
+  if (!m) return null;
+  return `${Number(m[1]) + 1911}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+}
+const cleanFields = (fields) => (Array.isArray(fields) ? fields : []).map((f) => String(f).replace(/\s+/g, ""));
+
+export function normalizeExRightResults(payload, market) {
+  const out = [];
+  let fields, rows, codeKey, dateKey, cashKey;
+  if (market === "twse") {
+    if (!payload || payload.stat !== "OK") {
+      // 「沒有符合條件的資料」是那段期間真的沒有事件，不是失敗
+      if (payload && /沒有符合條件/.test(String(payload.stat || ""))) return out;
+      throw new Error(`TWT49U: ${(payload && payload.stat) || "empty response"}`);
+    }
+    fields = cleanFields(payload.fields); rows = payload.data || [];
+    codeKey = "股票代號"; dateKey = "資料日期"; cashKey = "權值+息值";
+  } else {
+    const table = payload && Array.isArray(payload.tables) ? payload.tables[0] : null;
+    if (!table) throw new Error("exDailyQ: no table in response");
+    fields = cleanFields(table.fields); rows = table.data || [];
+    codeKey = "代號"; dateKey = "除權息日期"; cashKey = "現金股利";
+  }
+  for (const key of [codeKey, dateKey, cashKey, "權/息"]) {
+    if (fields.indexOf(key) < 0) throw new Error(`ex-right result table lost its 「${key}」 column`);
+  }
+  let dated = 0;
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue;
+    const ex = rocAnyToIso(cell(fields, row, dateKey));
+    if (ex) dated += 1;
+    const code = String(cell(fields, row, codeKey) || "").trim().toUpperCase();
+    if (!ETF_CODE_RE.test(code)) continue;
+    // ETF 只會「除息」。帶「權」的列（上市的「權值+息值」混著權值）不是單純的現金配息，不收
+    if (String(cell(fields, row, "權/息") || "").trim() !== (market === "twse" ? "息" : "除息")) continue;
+    const dps = parseNumber(cell(fields, row, cashKey));
+    if (!ex || dps == null || dps <= 0) continue;
+    out.push({ code, ex, pay: addDays(ex, MEDIAN_EX_TO_PAY_DAYS) || ex, dps: roundNumber(dps, 4), payEstimated: true, src: "exright-result" });
+  }
+  // 有列卻一個日期都讀不出來＝格式改了。回空陣列會被當成「這段期間官方沒有任何配息」，
+  // 下游就會把第三方事件當成假的整批刪掉——第一版預演就是這樣差點刪掉 428 筆上櫃配息
+  // （上櫃的日期是 115/09/16，當時只認得「年月日」那種寫法）。解析不到必須是失敗。
+  if (rows.length && !dated) throw new Error(`ex-right result table (${market}): ${rows.length} rows but no readable date`);
+  return out;
+}
+
+// 官方結果表確認過的期間（逐市場）。這一班的窗口要跟存檔的接得上才往後延——
+// 中間斷掉一段的話，那一段有沒有假事件無從得知，不可以宣稱確認過。
+export function extendConfirmedWindow(stored, fetched) {
+  const ok = (w) => w && /^\d{4}-\d{2}-\d{2}$/.test(String(w.from || "")) && /^\d{4}-\d{2}-\d{2}$/.test(String(w.to || "")) && w.from <= w.to;
+  if (!ok(fetched)) return ok(stored) ? { from: stored.from, to: stored.to } : null;
+  if (!ok(stored)) return { from: fetched.from, to: fetched.to };
+  if (fetched.from > addDays(stored.to, 1) || fetched.to < addDays(stored.from, -1)) return { from: stored.from, to: stored.to };
+  return { from: stored.from < fetched.from ? stored.from : fetched.from, to: stored.to > fetched.to ? stored.to : fetched.to };
+}
+
+// 結果表是窮舉的：確認過的期間裡，還留著的第三方事件就是「官方沒有這一筆」。
+// 有官方對應的早就在 accumulateDivHistory 被官方事件取代（可信度 2 > 1），所以剩下的直接拿掉。
+// 每一班都要跑：每日的 Yahoo 增量刷新會把同一筆假事件再灌回來，只清一次是不夠的。
+// 保險：一個市場要刪的筆數超過期間內事件的 2%（至少放行 3 筆）就整個市場不刪。
+// 實測 13 個月 1,116 筆裡只有 1 筆假事件（0.09%）；一次要刪幾十筆，比較可能是表沒讀對。
+// 同 isDegraded 那條守則：上游改版或解析壞掉時，寧可留著昨天的資料。
+export const THIRD_PARTY_DROP_RATIO = 0.02;
+export function dropUnconfirmedThirdParty(store, confirmed, marketOf) {
+  const candidates = { twse: [], tpex: [] };
+  const inWindow = { twse: 0, tpex: 0 };
+  for (const [code, entry] of Object.entries(store || {})) {
+    const market = marketOf(code);
+    const window = confirmed && confirmed[market];
+    if (!window || !entry || !entry.events || !candidates[market]) continue;
+    for (const [ex, event] of Object.entries(entry.events)) {
+      if (ex < window.from || ex > window.to) continue;
+      inWindow[market] += 1;
+      // 帶 officialDps 的是「官方有這一筆、只是金額的單位對不上」（見 accumulateDivHistory），不是假事件
+      if (srcRank(event) === 1 && event.officialDps == null) candidates[market].push({ code, ex, dps: event.dps });
+    }
+  }
+  const removed = [];
+  const refused = [];
+  for (const market of ["twse", "tpex"]) {
+    const list = candidates[market];
+    if (!list.length) continue;
+    if (list.length > Math.max(3, Math.floor(inWindow[market] * THIRD_PARTY_DROP_RATIO))) {
+      refused.push({ market, count: list.length, of: inWindow[market] });
+      continue;
+    }
+    for (const item of list) {
+      delete store[item.code].events[item.ex];
+      removed.push(item);
+    }
+  }
+  removed.refused = refused;
+  return removed;
+}
+
+// 成分股：人工清單與自動抓取的是**同一個來源**（MoneyDJ），人工那份只是某一天手抄的副本。
+// 原本無條件讓人工清單優先，於是 0050／0056／00878／00919／00929 等 8 檔最常被看的 ETF
+// 一直顯示 2026-07-27 的成分股，而同一個 repo 裡早就有 10-30 的版本（00929 的前十大換掉 7 檔）。
+// 產業集中度、重疊度、實質曝險全部是從這份名單算的。規則改成：資料日比較新的贏；
+// 人工清單沒有資料日就輸給有資料日的；同一天才讓人工清單優先。
+export function pickHoldings(curated, scraped) {
+  const has = (x) => x && Array.isArray(x.topHoldings) && x.topHoldings.length;
+  const shape = (x) => ({ topHoldings: x.topHoldings, holdingsAsOf: x.asOf || null, holdingsSource: x.source || null });
+  if (!has(curated)) return has(scraped) ? shape(scraped) : null;
+  if (!has(scraped)) return shape(curated);
+  const c = String(curated.asOf || ""), sc = String(scraped.asOf || "");
+  return sc > c ? shape(scraped) : shape(curated);
+}
+
+// 淨值與折溢價只在「快照日＝這一列的收盤日」時才採用。MIS 的 all_etf 一開盤就換成當天，
+// 而收盤價（尤其上櫃）要到晚上才換日：實測 2026-11-06 那班 006201 是 11-05 的收盤 35.58
+// 配 11-06 的淨值 31.54、折溢價寫 +1.55%——同一列的兩個數字自己算出來是 +12.81%。
+// 每個交易日約 115 檔上櫃 ETF 這樣掛 7 小時。日期對不上就不採用，改沿用前一班同一天的值；
+// 連前一班也不是同一天就留白。規模（aum）變動慢，而且篩選與核心分類靠它，照舊取最新的。
+export function navForRow(snapshot, rowDate) {
+  if (!snapshot) return null;
+  if (snapshot.date && rowDate && snapshot.date !== rowDate) return null;
+  return snapshot;
+}
+
 // 同一次配息在不同來源之間可能差 1 天，只比對完全相同的日期會把同一筆算兩次
 // （實測 00917 官方 01-19 / Yahoo 01-20，3.5 元灌成 7 元、殖利率爆成 29.66%）。
 // 合法 ETF 不可能 7 天內配息兩次，故以 ±7 天視為同一事件。
@@ -275,7 +416,7 @@ export function findNearbyEx(events, ex, windowDays = DEDUPE_WINDOW_DAYS) {
 
 // 來源可信度。低分不得覆蓋高分的既有事件，同分則保留先到者（避免每天互相蓋來蓋去）。
 //   3 官方金額 + 官方發放日（TWSE etfDiv）
-//   2 官方金額 + 推估發放日（除權除息預告表；該表沒有發放日欄位）
+//   2 官方金額 + 推估發放日（除權除息預告表、除權息計算結果表；都沒有發放日欄位）
 //   1 第三方（Yahoo 回填）—— 金額實測與官方一致，但仍應讓交易所自己的數字優先
 export function srcRank(event) {
   if (!event) return 0;
@@ -283,15 +424,195 @@ export function srcRank(event) {
   return event.payEstimated ? 2 : 3;
 }
 
-// 配息歷史累積：events 以除息日為 key（冪等），13 個月窗 + lastSeen 剪枝
-export function accumulateDivHistory(history, events, universeCodes, tradeDate) {
+// ── ETF 分割／反分割 ────────────────────────────────────────────────────────
+// 官方的配息金額是「當時每單位」的金額。基金分割之後，分割前的配息要換算到現在的單位，
+// 否則近 12 月配息 ÷ 現在的收盤會被放大成分割倍數（0053 預告 2026-12-08 1 拆 8：年配 3 元、
+// 收盤 220 → 27.5，不換算的話殖利率 1.4% 會印成 11%）。
+//
+// 台股 ETF 的分割都是「1 拆 N」或「N 併 1」，N 是整數而且可以很大（00631L 1 拆 22、
+// 00685L 1 拆 24）。回傳「一個舊單位變成幾個新單位」：分割 N、反分割 1/N；不像就回 null。
+export const UNIT_RATIO_TOLERANCE = 0.005; // 參考價會貼到升降單位：245.30÷35.04＝7.0006
+export function cleanUnitRatio(ratio) {
+  if (!(ratio > 0) || !Number.isFinite(ratio)) return null;
+  const n = Math.round(ratio >= 1 ? ratio : 1 / ratio);
+  if (n < 2 || n > 100) return null;
+  const clean = ratio >= 1 ? n : 1 / n;
+  return Math.abs(ratio / clean - 1) <= UNIT_RATIO_TOLERANCE ? clean : null;
+}
+
+// 「恢復買賣參考價」表 → [{code, date, ratio, src}]。date 是恢復買賣日＝第一個用新單位交易的日子。
+// 比例取 停止買賣前收盤 ÷ 恢復買賣參考價，再貼到整數比（4.0002 → 4）。
+// 表上的「分割(反分割)」欄**會是空的**（實測 00631L 那一列），所以方向從比例看，
+// 欄位有寫的時候才拿來核對。讀不懂的列一律讓整張表失敗——悄悄漏掉一次分割，
+// 那一檔的殖利率就是錯的，而且沒有任何東西會紅。
+export function normalizeEtfSplits(payload, market, src) {
+  let fields, rows, codeKey, beforeKey, refKey;
+  if (market === "twse") {
+    if (!payload || payload.stat !== "OK") {
+      if (payload && /沒有符合條件/.test(String(payload.stat || ""))) return [];
+      throw new Error(`TWTCAU: ${(payload && payload.stat) || "empty response"}`);
+    }
+    fields = cleanFields(payload.fields); rows = payload.data || [];
+    codeKey = "ETF代號"; beforeKey = "停止買賣前收盤價格"; refKey = "恢復買賣參考價";
+  } else {
+    const table = payload && Array.isArray(payload.tables) ? payload.tables[0] : null;
+    if (!table) throw new Error(`${src || "etf split"}: no table in response`);
+    fields = cleanFields(table.fields); rows = table.data || [];
+    codeKey = "證券代號"; beforeKey = "最後交易日之收盤價格"; refKey = "恢復買賣開始參考價";
+  }
+  const label = src || (market === "twse" ? "TWTCAU" : "etfSplitRslt");
+  for (const key of ["恢復買賣日期", codeKey, beforeKey, refKey]) {
+    if (fields.indexOf(key) < 0) throw new Error(`${label}: split table lost its 「${key}」 column`);
+  }
+  const out = [];
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue;
+    const code = String(cell(fields, row, codeKey) || "").trim().toUpperCase();
+    const date = rocAnyToIso(cell(fields, row, "恢復買賣日期"));
+    const before = parseNumber(cell(fields, row, beforeKey));
+    const ref = parseNumber(cell(fields, row, refKey));
+    const ratio = before > 0 && ref > 0 ? cleanUnitRatio(before / ref) : null;
+    if (!code || !date || !ratio) throw new Error(`${label}: unreadable split row ${JSON.stringify(row).slice(0, 120)}`);
+    const direction = String(cell(fields, row, "分割(反分割)") || "").trim();
+    if ((direction === "分割" && ratio < 1) || (direction === "反分割" && ratio > 1)) {
+      throw new Error(`${label}: ${code} is marked 「${direction}」 but the prices say ×${ratio}`);
+    }
+    out.push({ code, date, ratio, src: label });
+  }
+  return out;
+}
+
+// 這個除息日之後還有哪些分割：把它們的比例乘起來，就是「當時的一個單位＝現在的幾個單位」。
+// 除息日在恢復買賣日當天或之後的，已經是新單位，不算。
+export function splitFactorAfter(splits, ex) {
+  let factor = 1;
+  for (const split of Array.isArray(splits) ? splits : []) {
+    if (split && split.date > ex && split.ratio > 0) factor *= split.ratio;
+  }
+  return factor;
+}
+
+// 把分割記進各檔的配息存檔（entry.splits）。只記已經有配息紀錄的基金：沒有配息的
+// （槓桿、反向、期貨型）記了也沒有東西可以換算；一檔基金如果分割當下還沒有任何配息，
+// 之後進來的配息本來就是新單位。回傳這一次新記下或更正的。
+export function recordSplits(store, splitEvents) {
+  const recorded = [];
+  for (const event of Array.isArray(splitEvents) ? splitEvents : []) {
+    const entry = store && store[event.code];
+    if (!entry || !entry.events || !Object.keys(entry.events).length) continue;
+    const list = Array.isArray(entry.splits) ? entry.splits : (entry.splits = []);
+    const existing = list.find((s) => s.date === event.date);
+    if (existing) {
+      if (existing.ratio === event.ratio && existing.src === event.src) continue;
+      existing.ratio = event.ratio; existing.src = event.src;
+    } else {
+      list.push({ date: event.date, ratio: event.ratio, src: event.src });
+      list.sort((a, b) => a.date.localeCompare(b.date));
+    }
+    recorded.push({ code: event.code, date: event.date, ratio: event.ratio });
+  }
+  return recorded;
+}
+
+// 官方來源的配息一律由「原始金額 ÷ 其後的分割比例」推得：原始金額記在 officialDps，
+// dps 永遠是現在單位的數字。因為每次都從原始金額重算，跑幾次結果都一樣，
+// 不需要另外記「哪一筆已經換算過」（market-52w 的 adjusted 是整桶乘比例，才需要那份紀錄）。
+// 第三方的事件不動：它們抓進來的時候就已經是換算後的金額。回傳改了幾筆。
+export function applySplits(entry) {
+  if (!entry || !entry.events) return 0;
+  let changed = 0;
+  for (const [ex, event] of Object.entries(entry.events)) {
+    if (!event || srcRank(event) < 2) continue;
+    const factor = splitFactorAfter(entry.splits, ex);
+    if (factor !== 1) {
+      const raw = event.officialDps != null ? event.officialDps : event.dps;
+      const dps = roundNumber(raw / factor, 4);
+      if (event.dps !== dps || event.officialDps !== raw) { event.officialDps = raw; event.dps = dps; changed += 1; }
+    } else if (event.officialDps != null) {
+      event.dps = event.officialDps;
+      delete event.officialDps;
+      changed += 1;
+    }
+  }
+  return changed;
+}
+
+// 分割表抓不到（或讀不懂）的那一天的保險。分割日當天收盤會跳成 1/N，而配息還是舊單位——
+// 那一班印出去的殖利率就是 N 倍。價格本身看得出「單位變了」：ETF 兩個相鄰的收盤不可能差到
+// 1.5 倍（一般 ±10%、槓桿 ±20%）。看得出來、但還沒有分割紀錄可以換算時，**不發布**那一檔
+// 由配息推得的欄位，並寫進 errors[]——不知道就說不知道，不印一個放大 N 倍的數字。
+// 這裡只判斷「有沒有斷」，不拿價格比當分割比例：恢復買賣當天還有正常的漲跌混在裡面
+// （1 拆 4、當天漲 5% 的話價格比是 3.8）。
+export const BASIS_JUMP = 1.5;
+export const SPLIT_LOOKBACK_DAYS = 40;
+export function basisJump(previous, row) {
+  if (!previous || !row || !(previous.close > 0) || !(row.close > 0)) return false;
+  if (!previous.date || !row.date || previous.date >= row.date) return false;
+  const ratio = previous.close / row.close;
+  return ratio >= BASIS_JUMP || ratio <= 1 / BASIS_JUMP;
+}
+
+// 更新 entry.basisBreak（價格斷點的日期），回傳這一檔現在是不是「斷了但還沒換算」。
+// 斷點記在存檔裡：下一班的「前一筆收盤」已經是新單位，光看價格就看不出來了。
+// 解除的條件有三種：分割紀錄進來了；斷點之前已經沒有官方來源的配息（沒有東西會被放大）；
+// 分割表**已經成功讀到斷點那一天**而上面沒有這一檔——那就不是分割。
+// 第三種刻意不用「過了幾天」來判：表一直讀不到的話，不知道的事不會因為時間過去就變成知道。
+// checkedThrough 是這個市場的分割表確認到哪一天（etf-div-history.json 的 splitsChecked）。
+export function trackBasisBreak(entry, previous, row, checkedThrough) {
+  if (!entry || !entry.events) return false;
+  const covered = (from, to) => (entry.splits || []).some((s) => s.date > from && s.date <= to);
+  if (basisJump(previous, row) && !covered(previous.date, row.date)) entry.basisBreak = row.date;
+  if (!entry.basisBreak) return false;
+  const stale = Object.entries(entry.events).some(([ex, e]) => ex < entry.basisBreak && srcRank(e) >= 2);
+  const ruledOut = Boolean(checkedThrough && checkedThrough >= entry.basisBreak);
+  if (covered(addDays(entry.basisBreak, -SPLIT_LOOKBACK_DAYS), entry.basisBreak) || !stale || ruledOut) {
+    delete entry.basisBreak;
+    return false;
+  }
+  return true;
+}
+
+// 兩個來源的配息金額算不算同一個數字（容許四位小數的捨入：3.23÷7 存成 0.4614）
+export function sameDividendAmount(a, b) {
+  if (!(a > 0) || !(b > 0)) return false;
+  return Math.abs(a - b) <= Math.max(0.0006, Math.max(a, b) * 0.002);
+}
+
+// 官方金額與第三方金額「差一個乾淨的分割比例」嗎？回傳那個比例，否則 null。
+// 官方表印的是**當時每單位**的金額；ETF 分割之後，第三方會把分割前的配息換算到現在的單位
+// （0050 在 2025 年 1 拆 4：2025-01-17 官方 2.7、第三方 0.675；0052 1 拆 7：3.23 對 0.4614）。
+// 配息穩定度與配息序列要的是同一個單位的數字，直接換成官方值會把 CV 灌大（0050 0.35 → 0.79）。
+export function splitLikeRatio(official, stored) {
+  if (!(official > 0) || !(stored > 0)) return null;
+  return cleanUnitRatio(official / stored);
+}
+
+// 配息歷史累積：events 以除息日為 key（冪等），25 個月窗 + lastSeen 剪枝
+//
+// 可信度較高的來源取代較低的——**但金額對不上第三方時不直接蓋**。對不上有兩種可能，
+// 分得出來才動：
+//   1. 第三方抄錯（00932 的 2025-08-18：官方 0.18、第三方 0.06）→ 官方贏。
+//   2. 單位不同（之後分割過）→ 留著換算後的金額，把官方的原始金額記在 officialDps。
+// 判法用的是分割的定義：**分割會把更早的每一筆配息等比例縮放**。所以同一檔只要有一筆
+// 更早的配息兩邊對得上，那之後就沒有分割，這一筆的差異只能是抄錯（00932 前三筆都對得上）。
+// 沒有更早的可比、比例又剛好是乾淨的分割比例時（0050、0052 各只有一筆），分不出來——
+// 不猜，維持原本的金額並留下紀錄。比例不乾淨就不可能是分割，官方贏。
+// 有分割紀錄的時候不必猜：官方金額 ÷ 其後的分割比例 對得上存檔，就是單位不同，直接收官方的
+// （verdict "split"），由 applySplits 換算。
+// 回傳值多帶 conflicts：[{code, ex, official, stored, verdict:"official"|"kept"|"split"}]、
+// splitsRecorded、rescaled。splitEvents 來自 normalizeEtfSplits。
+export function accumulateDivHistory(history, events, universeCodes, tradeDate, splitEvents = []) {
   const acc = history && typeof history === "object" ? history : {};
   const store = acc.stocks && typeof acc.stocks === "object" ? acc.stocks : {};
   const cutoff = new Date(tradeDate + "T00:00:00Z");
   cutoff.setUTCMonth(cutoff.getUTCMonth() - DIV_RETENTION_MONTHS);
   const minDate = cutoff.toISOString().slice(0, 10);
 
+  // 分割先記（判金額衝突時要用），事件併完再記一次（這一輪才第一次有配息紀錄的基金）
+  const splitsRecorded = recordSplits(store, splitEvents);
   let earliest = acc.start || null;
+  const pending = [];    // 金額對不上第三方的，等整批看完再判
+  const agreedFrom = {}; // code → 這一輪「官方與第三方對得上」的最早除息日
   for (const event of events) {
     const entry = store[event.code] || (store[event.code] = { events: {} });
     const incoming = { pay: event.pay, dps: event.dps };
@@ -301,19 +622,58 @@ export function accumulateDivHistory(history, events, universeCodes, tradeDate) 
     // 避免同一筆配息以兩個相鄰日期各存一份而被重複計入殖利率）
     const nearby = findNearbyEx(entry.events, event.ex);
     if (nearby) {
-      if (srcRank(incoming) > srcRank(entry.events[nearby])) {
-        delete entry.events[nearby];
-        entry.events[event.ex] = incoming;
+      const existing = entry.events[nearby];
+      if (srcRank(incoming) > srcRank(existing)) {
+        if (srcRank(existing) === 1 && !sameDividendAmount(incoming.dps, existing.dps)) {
+          pending.push({ code: event.code, ex: event.ex, incoming });
+        } else {
+          if (srcRank(existing) === 1 && (!agreedFrom[event.code] || nearby < agreedFrom[event.code])) agreedFrom[event.code] = nearby;
+          delete entry.events[nearby];
+          entry.events[event.ex] = incoming;
+        }
       }
     } else {
       entry.events[event.ex] = incoming;
     }
     if (!earliest || event.ex < earliest) earliest = event.ex; // 覆蓋起點取最早事件，不是累積檔建立日
   }
+  const conflicts = [];
+  for (const item of pending) {
+    const entry = store[item.code];
+    const nearby = findNearbyEx(entry.events, item.ex);
+    const existing = nearby ? entry.events[nearby] : null;
+    if (!existing) { entry.events[item.ex] = item.incoming; continue; }
+    if (srcRank(item.incoming) <= srcRank(existing)) continue; // 同一輪已經被別的官方來源處理掉了
+    const takeOfficial = () => { delete entry.events[nearby]; entry.events[item.ex] = item.incoming; };
+    if (srcRank(existing) !== 1 || sameDividendAmount(item.incoming.dps, existing.dps)) { takeOfficial(); continue; }
+    const record = { code: item.code, ex: nearby, official: item.incoming.dps, stored: existing.dps };
+    const factor = splitFactorAfter(entry.splits, item.ex);
+    if (factor !== 1 && sameDividendAmount(item.incoming.dps / factor, existing.dps)) {
+      takeOfficial();
+      conflicts.push({ ...record, verdict: "split" });
+      continue;
+    }
+    const laterSplitRuledOut = Boolean(agreedFrom[item.code] && agreedFrom[item.code] < nearby);
+    if (laterSplitRuledOut || !splitLikeRatio(item.incoming.dps, existing.dps)) {
+      takeOfficial();
+      conflicts.push({ ...record, verdict: "official" });
+    } else {
+      existing.officialDps = item.incoming.dps;
+      conflicts.push({ ...record, verdict: "kept" });
+    }
+  }
+  splitsRecorded.push(...recordSplits(store, splitEvents));
   const universe = new Set(universeCodes);
+  let rescaled = 0;
   for (const code of Object.keys(store)) {
     const entry = store[code];
     for (const ex of Object.keys(entry.events)) if (ex < minDate) delete entry.events[ex];
+    // 比保留窗還早的分割已經沒有事件可以換算
+    if (Array.isArray(entry.splits)) {
+      entry.splits = entry.splits.filter((s) => s && s.date > minDate);
+      if (!entry.splits.length) delete entry.splits;
+    }
+    rescaled += applySplits(entry);
     if (universe.has(code)) entry.lastSeen = tradeDate;
   }
   const staleCutoff = new Date(tradeDate + "T00:00:00Z");
@@ -322,7 +682,7 @@ export function accumulateDivHistory(history, events, universeCodes, tradeDate) 
   for (const code of Object.keys(store)) {
     if ((store[code].lastSeen || "") < staleIso) delete store[code];
   }
-  return { start: earliest || tradeDate, stocks: store };
+  return { start: earliest || tradeDate, stocks: store, conflicts, splitsRecorded, rescaled };
 }
 
 // 該檔自身的配息歷史可回溯到哪一天。coverFrom 由回填工具寫入（Yahoo 2 年區間的
@@ -504,7 +864,10 @@ export function domesticRatioFromComposition(composition) {
 export function preserveEtfColumns(row, previous) {
   if (!previous) return 0;
   let preserved = 0;
+  // 淨值與折溢價是跟著收盤日走的：前一班不是同一天的收盤就不能沿用（那正是要避免的混搭）
+  const sameDay = !row.date || !previous.date || row.date === previous.date;
   for (const key of ["nav", "discountPremium", "aum"]) {
+    if (key !== "aum" && !sameDay) continue;
     if (row[key] == null && previous[key] != null) {
       row[key] = previous[key];
       preserved += 1;
@@ -605,10 +968,104 @@ async function main() {
   } catch (error) {
     errors.push({ source: "TPEX exright prepost", message: error.message });
   }
+  // 除權息計算結果表：已發生的除息（兩市場全部 ETF）。market 引擎還原月桶時本來就會抓這兩張表，
+  // 經 --emit-bulk 帶過來就不必再打一次證交所（那個網域會限速）；單獨跑這支時才自己抓。
+  const exRights = bulkRaw.exRights && typeof bulkRaw.exRights === "object" ? bulkRaw.exRights : {};
+  const exFrom = exRights.from || addDays(tradeDate, -40);
+  const exTo = exRights.to || tradeDate;
+  const confirmedNow = {};
+  let exResultCount = 0;
+  for (const [market, label, url] of [["twse", "TWSE TWT49U", SOURCES.twseExResult(exFrom, exTo)], ["tpex", "TPEX exDailyQ", SOURCES.tpexExResult(exFrom, exTo)]]) {
+    try {
+      const official = normalizeExRightResults(exRights[market] || await fetchJson(url), market);
+      events = events.concat(official);
+      exResultCount += official.length;
+      confirmedNow[market] = { from: exFrom, to: exTo };
+    } catch (error) {
+      errors.push({ source: label, message: error.message });
+    }
+  }
+  // ETF 分割／反分割。起訖日用**各市場自己的收盤日**而不是整份 feed 的 tradeDate：
+  // 兩個市場換日不同步時 tradeDate 取較舊的那個，但上市那幾列的收盤可能已經是分割後的價格，
+  // 少看一天就會拿新單位的收盤去除舊單位的配息。
+  //
+  // 確認到哪一天記在存檔的 splitsChecked（逐市場）。每班從「上次確認到的那天」接著查，
+  // 所以表連續幾週讀不到也不會漏掉中間的分割（一個請求就能查很長的期間，實測 25 個月沒問題）。
+  // 單次讀不到不寫 errors[]：證交所這支對同一個來源時好時壞（實測約一半回 307），而且沒抓到
+  // 本身不會讓畫面上任何數字變錯——真的有分割而沒換算，下面的價格斷點會把那一檔扣住並說出來。
+  // 連續 7 天都沒確認到才寫，那代表不是偶發。
   const historyRaw = await readJsonOr(HISTORY_FILE, {});
-  const history = accumulateDivHistory(historyRaw, events, rows.map((r) => r.code), tradeDate);
+  const storedChecked = historyRaw.splitsChecked && typeof historyRaw.splitsChecked === "object" ? historyRaw.splitsChecked : {};
+  let splitEvents = [];
+  const splitTables = [
+    ["twse", "TWSE TWTCAU", SOURCES.twseEtfSplit, "TWTCAU"],
+    ["tpex", "TPEX etfSplitRslt", SOURCES.tpexEtfSplit, "etfSplitRslt"],
+    ["tpex", "TPEX etfRvsRslt", SOURCES.tpexEtfRevSplit, "etfRvsRslt"],
+  ];
+  // 本機重產時可以由 --bulk 帶進來（{from,to,TWTCAU,etfSplitRslt,etfRvsRslt}），省掉對證交所的請求
+  const givenSplits = bulkRaw.etfSplits && typeof bulkRaw.etfSplits === "object" ? bulkRaw.etfSplits : {};
+  const splitRange = {};
+  const splitFailed = {};
+  for (const [market, label, url, src] of splitTables) {
+    const to = marketDates[market] || tradeDate;
+    const lookback = addDays(to, -SPLIT_LOOKBACK_DAYS);
+    const since = storedChecked[market] && storedChecked[market].to;
+    const from = since && since < lookback ? since : lookback;
+    try {
+      const given = givenSplits[src] && givenSplits.from <= from && givenSplits.to >= to ? givenSplits[src] : null;
+      splitEvents = splitEvents.concat(normalizeEtfSplits(given || await fetchJson(url(from, to)), market, src));
+      splitRange[market] = { from, to };
+    } catch (error) {
+      splitFailed[market] = true;
+      console.warn(`splits: ${label} not read this run (${error.message})`);
+      if (!since || addDays(since, 7) < to) errors.push({ source: label, message: `split table not read since ${since || "ever"}: ${error.message}` });
+    }
+  }
+  const splitsChecked = {};
+  for (const market of ["twse", "tpex"]) {
+    const window = extendConfirmedWindow(storedChecked[market], splitFailed[market] ? null : splitRange[market]);
+    if (window) splitsChecked[market] = window;
+  }
+  const history = accumulateDivHistory(historyRaw, events, rows.map((r) => r.code), tradeDate, splitEvents);
+  for (const s of history.splitsRecorded || []) console.log(`splits: ${s.code} ×${s.ratio} from ${s.date} — earlier official dividends are rescaled to today's units`);
+  // 價格斷了、分割紀錄還沒到的基金：這一班不發布由配息推得的欄位（見 trackBasisBreak）
+  const unconfirmedBasis = new Set();
+  for (const row of rows) {
+    const checkedThrough = splitsChecked[row.market] && splitsChecked[row.market].to;
+    if (trackBasisBreak(history.stocks[row.code], prevByCode[row.code], row, checkedThrough)) unconfirmedBasis.add(row.code);
+  }
+  if (unconfirmedBasis.size) {
+    errors.push({ source: "etf-split-unconfirmed", message: `price moved by more than ${BASIS_JUMP}x with no split on record yet for ${[...unconfirmedBasis].join(", ")}; dividend figures withheld for those funds` });
+  }
+  // 金額對不上第三方的：判成抄錯的已經換成官方值，分不出來的維持原值。後者落在近 12 個月裡
+  // 就會直接影響畫面上的殖利率，要讓畫面說得出來；更早的只影響配息穩定度，留在 log。
+  const yieldFloor = addDays(tradeDate, -366);
+  for (const c of history.conflicts || []) {
+    console.log(`dividends: ${c.code}@${c.ex} official ${c.official} vs third-party ${c.stored} → ${c.verdict === "official" ? "took the official amount" : "kept the stored amount (looks like a unit split; recorded as officialDps)"}`);
+    if (c.verdict === "kept" && c.ex >= yieldFloor) {
+      errors.push({ source: "dividend-amount-conflict", message: `${c.code}@${c.ex}: official ${c.official} vs stored ${c.stored}; kept the stored amount, the yield for this fund needs a look` });
+    }
+  }
+  // 官方確認過的期間逐班往後延；期間內還留著的第三方事件＝官方沒有這一筆，拿掉
+  const storedOfficial = historyRaw.official && typeof historyRaw.official === "object" ? historyRaw.official : {};
+  const official = {};
+  for (const market of ["twse", "tpex"]) {
+    const window = extendConfirmedWindow(storedOfficial[market], confirmedNow[market]);
+    if (window) official[market] = window;
+  }
+  const marketOfCode = {};
+  for (const row of rows) marketOfCode[row.code] = row.market;
+  const droppedThirdParty = dropUnconfirmedThirdParty(history.stocks, official, (code) => marketOfCode[code]);
+  if (droppedThirdParty.length) {
+    console.log(`dividends: dropped ${droppedThirdParty.length} third-party event(s) the official ex-right tables do not have: ${droppedThirdParty.slice(0, 8).map((d) => `${d.code}@${d.ex} ${d.dps}`).join(", ")}`);
+  }
+  for (const r of droppedThirdParty.refused || []) {
+    // 拒絕刪除的市場，這一班的窗口也不算確認過——退回存檔原本的期間
+    if (storedOfficial[r.market]) official[r.market] = storedOfficial[r.market]; else delete official[r.market];
+    errors.push({ source: "dividend-reconcile", message: `${r.market}: refusing to drop ${r.count} of ${r.of} dividend event(s) as unconfirmed — the official table was probably not read correctly` });
+  }
 
-  // 4) 靜態人工欄 + 自動抓取的成分股（人工清單優先，因為它經過查核）
+  // 4) 靜態人工欄 + 自動抓取的成分股
   const staticData = await readJsonOr(STATIC_FILE, {});
   const staticEtfs = (staticData && staticData.etfs) || {};
   const holdingsData = await readJsonOr(HOLDINGS_FILE, {});
@@ -624,13 +1081,17 @@ async function main() {
   // 5) 合成
   let premiumMismatch = 0;
   let navPreserved = 0;
+  let navOtherDay = 0;
+  let navOtherDayKept = 0;
   for (const row of rows) {
     const curated = staticEtfs[row.code] || {};
     row.type = curated.type || classifyEtf(row.code, row.name);
-    const nav = navMap[row.code];
+    const snapshot = navMap[row.code];
+    if (snapshot && snapshot.units != null && snapshot.nav != null) row.aum = roundNumber(snapshot.units * snapshot.nav / 1e8, 2); // 億
+    const nav = navForRow(snapshot, row.date);
+    if (snapshot && !nav) navOtherDay += 1;
     if (nav) {
       row.nav = nav.nav;
-      if (nav.units != null && nav.nav != null) row.aum = roundNumber(nav.units * nav.nav / 1e8, 2); // 億
       // 折溢價用 MIS 同一快照的市價/淨值對（天生同時刻）；bulk close 常落後一日不可混用。
       // MIS 官方 g 欄作 sanity check，差 >0.5pp 視為資料異常、不輸出該欄。
       if (nav.price != null && nav.price > 0) {
@@ -640,9 +1101,10 @@ async function main() {
         else premiumMismatch += 1;
       }
     }
-    navPreserved += preserveEtfColumns(row, prevByCode[row.code]);
+    const kept = preserveEtfColumns(row, prevByCode[row.code]);
+    if (snapshot && !nav) navOtherDayKept += kept; else navPreserved += kept;
 
-    const dividend = deriveDividend(history.stocks[row.code], history.start, tradeDate);
+    const dividend = unconfirmedBasis.has(row.code) ? null : deriveDividend(history.stocks[row.code], history.start, tradeDate);
     if (dividend) {
       row.dps = dividend.dps;
       row.frequency = dividend.frequency;
@@ -661,17 +1123,9 @@ async function main() {
       }
     }
     if (curated.expenseRatio != null) row.expenseRatio = curated.expenseRatio;
-    // 成分股：人工查核過的清單優先，其次用自動抓取的
-    const scraped = holdingsEtfs[row.code];
-    if (Array.isArray(curated.topHoldings) && curated.topHoldings.length) {
-      row.topHoldings = curated.topHoldings;
-      row.holdingsAsOf = curated.asOf || null;
-      row.holdingsSource = curated.source || null;
-    } else if (scraped && Array.isArray(scraped.topHoldings) && scraped.topHoldings.length) {
-      row.topHoldings = scraped.topHoldings;
-      row.holdingsAsOf = scraped.asOf || null;
-      row.holdingsSource = scraped.source || null;
-    }
+    // 成分股：人工清單與自動抓取的取資料日較新的那一份（見 pickHoldings）
+    const holdings = pickHoldings(curated, holdingsEtfs[row.code]);
+    if (holdings) Object.assign(row, holdings);
     // 明確旗標：前端據此判斷「實質曝險算不算得出來」，不要用 length 猜
     row.hasHoldingsData = Boolean(row.topHoldings && row.topHoldings.length);
     const mix = deriveSectorMix(row.topHoldings, industryByName);
@@ -679,7 +1133,8 @@ async function main() {
     // 品質與分類指標寫入資料層（原本只在前端算，消費原始 JSON 者拿不到）
     // 波動度看近 24 個月（殖利率仍是近 12 個月）——用同一個 12 月窗只有 4 筆，
     // 看不出 006208 那種 0.989→4.75 的水準跳升
-    const cvWindow = cvWindowAmounts(history.stocks[row.code], tradeDate);
+    // 單位還沒對齊的基金（見 trackBasisBreak）連穩定度與走勢也不發：新舊單位混在一起算出來的是假波動
+    const cvWindow = unconfirmedBasis.has(row.code) ? null : cvWindowAmounts(history.stocks[row.code], tradeDate);
     const cv = dividendCv(cvWindow);
     if (cv != null) row.dividendCv = cv;
     // 樣本數要跟著出來：實測 00400A 只有 2 次配息、金額相同 → CV 0，
@@ -738,6 +1193,8 @@ async function main() {
     }
   }
   if (premiumMismatch) errors.push({ source: "premium-sanity", message: `${premiumMismatch} row(s) premium mismatch >${PREMIUM_SANITY_PP}pp vs MIS official; column suppressed` });
+  // 快照日與收盤日不同是每天下午那班的常態（上櫃收盤還沒換日），不算錯誤，但要留下紀錄
+  if (navOtherDay) console.log(`nav: MIS snapshot is from another day than the close for ${navOtherDay} row(s); kept ${navOtherDayKept} same-day value(s) from the previous run`);
   if (navPreserved) errors.push({ source: "feed-preservation", message: `kept previous nav/premium/aum for ${navPreserved} column value(s)` });
 
   // 前端的曝險引擎要逐檔查「成分股 → 產業」。整份 industry-map（1,998 檔）
@@ -764,8 +1221,8 @@ async function main() {
   const feed = { updatedAt: now, tradeDate, marketDates, count: rows.length, divHistoryStart: history.start, holdingIndustry, riskFree, stocks: rows, errors };
   await mkdir(new URL("../data/", import.meta.url), { recursive: true });
   await writeFile(FEED_FILE, JSON.stringify(feed), "utf8");
-  await writeFile(HISTORY_FILE, JSON.stringify({ start: history.start, updatedAt: now, stocks: history.stocks }), "utf8");
-  console.log(`etf-feed: ${rows.length} rows, tradeDate ${tradeDate}, div events ${events.length} (tpex-exright ${tpexDivCount}), errors ${errors.length}`);
+  await writeFile(HISTORY_FILE, JSON.stringify({ start: history.start, updatedAt: now, official, splitsChecked, stocks: history.stocks }), "utf8");
+  console.log(`etf-feed: ${rows.length} rows, tradeDate ${tradeDate}, div events ${events.length} (tpex-exright ${tpexDivCount}, ex-right results ${exResultCount}), errors ${errors.length}`);
   if (errors.length) console.warn(JSON.stringify(errors, null, 2));
 }
 
