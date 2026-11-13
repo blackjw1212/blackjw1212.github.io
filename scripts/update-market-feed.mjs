@@ -625,6 +625,17 @@ async function main() {
     });
     accumulatorRaw = sync.accumulator;
     errors.push(...sync.errors);
+    // 除權息結果表的原始回應交給 ETF 引擎（它讀「息」的列）。raw 裡有的只代表「抓到了」，
+    // 不代表格式沒變——能不能用由 ETF 引擎的 normalizeExRightResults 自己驗（讀不出來就丟例外、
+    // 那個市場這一班不算確認過）。沒抓到的那張是 null，ETF 引擎會自己再抓一次。
+    if (emitPath && sync.raw && (sync.raw.TWT49U || sync.raw.exDailyQ)) {
+      bulkRaw.exRights = { from: from.toISOString().slice(0, 10), to: tradeDate, twse: sync.raw.TWT49U || null, tpex: sync.raw.exDailyQ || null };
+      try {
+        await writeFile(emitPath, JSON.stringify(bulkRaw), "utf8");
+      } catch (error) {
+        errors.push({ source: "emit-bulk", message: error.message });
+      }
+    }
     if (sync.applied.length) console.log(`corporate actions applied: ${sync.applied.join(", ")}`);
   } catch (error) {
     errors.push({ source: "corporate-actions", message: error.message });

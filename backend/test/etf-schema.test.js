@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { classifyEtf, cvWindowAmounts, dividendCv, isCoreEtf } from "../../scripts/update-etf-feed.mjs";
+import { classifyEtf, cvWindowAmounts, dividendCv, isCoreEtf, splitLikeRatio } from "../../scripts/update-etf-feed.mjs";
 
 const readJson = async (rel) => JSON.parse(await readFile(fileURLToPath(new URL(rel, import.meta.url)), "utf8"));
 
@@ -729,4 +729,70 @@ test("etf-holdings.json is well formed when present", async () => {
     });
     assert.match(entry.asOf || "", /^\d{4}-\d{2}-\d{2}$/, `${code}: asOf`);
   }
+});
+
+// ── 2026-11-12 全站資料審查補的三條 ───────────────────────────────────────
+
+// 折溢價與這一列自己的收盤、淨值要說同一件事。MIS 快照與收盤不同日的時候，
+// 這兩個數字會差很多：實測 2026-11-06 那班 006201 寫 +1.55%，那一列自己算是 +12.81%，
+// 同一班 46 列差超過 0.5 個百分點；日期對齊的班次最多 1 列（MIS 最後成交價與收盤偶爾不同）。
+test("ETF premium agrees with the row's own close and NAV", async () => {
+  const feed = await readJson("../../data/etf-feed.json");
+  const rows = feed.stocks.filter((row) => isNum(row.nav) && row.nav > 0 && isNum(row.discountPremium));
+  assert.ok(rows.length >= 250, `只有 ${rows.length} 列有淨值與折溢價`);
+  const off = rows.filter((row) => Math.abs(row.discountPremium - (row.close - row.nav) / row.nav * 100) > 0.5);
+  assert.ok(off.length / rows.length < 0.05,
+    `${off.length}/${rows.length} 列的折溢價與自己的收盤／淨值對不起來（例：${off.slice(0, 5).map((r) => `${r.code} 寫 ${r.discountPremium}%、收盤 ${r.close}／淨值 ${r.nav}`).join("；")}）——淨值是不是別天的快照？`);
+});
+
+// feed 顯示的成分股不可以比 repo 裡自動抓到的那份舊。人工清單（etf-static.json）與自動抓取是
+// 同一個來源，原本人工清單無條件優先，8 檔最常被看的 ETF 因此停在 2026-07-27。
+test("the feed never shows holdings older than the scrape already in the repo", async () => {
+  const feed = await readJson("../../data/etf-feed.json");
+  const holdings = await readJson("../../data/etf-holdings.json");
+  let compared = 0;
+  for (const row of feed.stocks) {
+    const scraped = holdings.etfs && holdings.etfs[row.code];
+    if (!scraped || !Array.isArray(scraped.topHoldings) || !scraped.topHoldings.length || !scraped.asOf) continue;
+    compared += 1;
+    assert.ok(row.hasHoldingsData, `${row.code}: 抓得到成分股，feed 卻說沒有`);
+    assert.ok(String(row.holdingsAsOf || "") >= scraped.asOf,
+      `${row.code}: feed 的成分股是 ${row.holdingsAsOf}，etf-holdings.json 已經有 ${scraped.asOf} 的版本`);
+  }
+  assert.ok(compared >= 150, `只比對到 ${compared} 檔`);
+});
+
+// 官方除權息結果表確認過的期間裡，不該還有第三方的配息事件：有官方對應的早就被取代，
+// 剩下的就是官方沒有的（實測 00915 多一筆 2026-08-18 的 0.32 元，殖利率 6.59% → 應為 5.59%）。
+test("no third-party dividend survives inside the officially confirmed window", async () => {
+  const history = await readJson("../../data/etf-div-history.json");
+  const feed = await readJson("../../data/etf-feed.json");
+  const official = history.official;
+  if (!official) return; // 回補前的舊檔：沒有確認期間就沒有可檢查的
+  const marketOf = new Map(feed.stocks.map((row) => [row.code, row.market]));
+  for (const market of Object.keys(official)) {
+    assert.ok(market === "twse" || market === "tpex", `official 只該有 twse/tpex，出現 ${market}`);
+    const { from, to } = official[market];
+    assert.match(from, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(to, /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(from <= to, `${market}: 確認期間 ${from}~${to} 倒過來了`);
+    assert.ok(to <= new Date(Date.now() + 86400000).toISOString().slice(0, 10), `${market}: 確認到未來的 ${to}`);
+  }
+  const leftovers = [];
+  for (const [code, entry] of Object.entries(history.stocks)) {
+    const window = official[marketOf.get(code)];
+    if (!window) continue;
+    for (const [ex, event] of Object.entries(entry.events || {})) {
+      if (event.src !== "yahoo" || ex < window.from || ex > window.to) continue;
+      // 唯一的例外：官方有這一筆、但金額差一個乾淨的分割比例（官方印當時每單位的金額，
+      // 第三方已換算到現在的單位）。那種事件留著換算後的金額，並把官方原始金額記在 officialDps。
+      if (event.officialDps != null) {
+        assert.ok(splitLikeRatio(event.officialDps, event.dps),
+          `${code}@${ex}: officialDps ${event.officialDps} 對存檔 ${event.dps} 不是分割比例——那就該直接用官方值`);
+        continue;
+      }
+      leftovers.push(`${code}@${ex}`);
+    }
+  }
+  assert.deepEqual(leftovers, [], "確認期間內還留著第三方事件");
 });
