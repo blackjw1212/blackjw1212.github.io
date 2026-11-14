@@ -1888,3 +1888,13 @@ test("排名表說明的列數跟有名次的列一致；蝦粉列只對到乾�
   assert.ok(!tRows.find((r) => r.name === "蝦粉（做成原料粒）").itemIds.includes("item-krill-block"), "冷凍蝦磚不是乾粉");
   assert.match(bream.ranking.layers[0].rows.find((r) => r.rank === "加乘").result, /纈胺酸/);
 });
+
+// 2026-11-14 誘食證據複查：兩份紀錄對不起來的數字，不指定對應；句尾標點完整
+test("誘食證據：酵母兩組的數字不指定對應、黑鯛秋冬那條句子收尾", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  const yeast = plans.find((p) => p.species === "福壽魚").evidence.find((e) => e.claim === "酵母抽出物沒有讓吳郭魚多吃");
+  assert.doesNotMatch(yeast.text, /酵母抽出物 71\.1%|全酵母 66\.6%/);
+  assert.match(yeast.text, /待再核/);
+  for (const p of plans) for (const e of p.evidence) assert.doesNotMatch(e.text, /[；，、]$/, p.species + "「" + e.claim + "」句子沒收尾");
+});
