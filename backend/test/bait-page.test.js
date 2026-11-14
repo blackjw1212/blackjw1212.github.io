@@ -979,7 +979,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.equal(effective.TRP, undefined);
   assert.equal(effective.MSG, undefined);
   // 基準組＝兩份預設配方原樣，實驗組 T17（使用者指定，2026-10-08）＋T18 半胱胺酸單獨一組（使用者指定，2026-10-10）
-  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19"]);
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19", "T20"]);
   // G5（沿用舊 G5＝底餌加半胱胺酸的編號；G2 是紅蟲萃取，不准回來）：底餌拌餌水加半胱胺酸鹽酸鹽，跟 T18 同一個濃度（16.7 g／1000 g 水 ＝ 10 g／600 g），跟 G1 比（使用者指定，2026-10-11）
   const g5 = tilapia.groups.find((g) => g.id === "G5");
   assert.equal(g5.stage, "attract");
@@ -1000,7 +1000,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.match(bStage("attract").base, /海水起點約 900 cc、分次加/);
   assert.match(bStage("attract").base, /多半要 1,000～1,200 cc/);
   assert.match(bStage("bite").base, /總共多半要 85～110 cc/);
-  assert.match(bStage("bite").base, /兩組補一樣多/, "水量每組都要一樣");
+  assert.match(bStage("bite").base, /三組補一樣多/, "水量每組都要一樣（2026-11-14 起練餌三組）");
   assert.deepEqual([bStage("attract").useG, bStage("bite").useG], [900, 75], "A 撒起點 900 cc 整份用溶液、練餌倒 75 cc");
   const breamNotes = (id) => plain(h.seed()).recipes.find((r) => r.id === id).notes;
   assert.match(breamNotes("recipe-blackbream-groundbait"), /海水起點約 900 cc 分次加/);
@@ -1024,7 +1024,7 @@ test("添加劑：配方資料自洽、換算正確、兩處修正不得退回",
   assert.doesNotMatch(stock(tilapia, "CIT").made, /香/);
   // 只放使用者買了、而且有研究支持的原料（2026-09-27）：鳳梨精、糖精鈉、蘋果酸、香精、奶甜液、原報告果酸液不得回來
   // T17 用到的四樣＋T18 的半胱胺酸鹽酸鹽（2026-10-10）；南極蝦粉沒有任何組在用，不列
-  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "KSO", "SOR"]);
+  assert.deepEqual(tilapia.stocks.map((x) => x.id).sort(), ["CIT", "CYS", "KSO", "SOR", "VAL"]);
   // T18：半胱胺酸單獨一組跟 T1 比，照 X17 有效的 0.1 M——10 g 溶進 600 g 水，無水物或一水合物都在 0.1 M 附近
   const t18 = tilapia.groups.find((g) => g.id === "T18");
   assert.deepEqual(t18.doses, [["CYS", 10]]);
@@ -1090,7 +1090,7 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   // A 撒與練餌都只留基準組加胺基酸那一組（使用者指定，2026-10-08）
   assert.deepEqual(bream.groups.filter((g) => g.stage === "attract").map((g) => g.id), ["M1", "M4"]);
   // 練餌的基準＝預設配方「黑格 練餌」原樣，實驗組只留 K2（使用者指定，2026-10-08）
-  assert.deepEqual(bream.groups.filter((g) => g.stage === "bite").map((g) => g.id), ["K1", "K2"]);
+  assert.deepEqual(bream.groups.filter((g) => g.stage === "bite").map((g) => g.id), ["K1", "K2", "K3"]);
   assert.match(bream.stages.find((st) => st.id === "bite").base, /預設配方「黑格 練餌」原樣/);
   // 兩杯同一個濃度（每 100 cc 含各 1 g）：A 撒那杯各 12 g 溶進 1,200 cc、整份當拌餌水，起點 900 cc＝9 g／3 kg（使用者指定，2026-10-11）；
   // 練餌那杯各 6 g 溶進 600 g 水、倒 75 cc＝0.75 g／150 g（2026-10-08）
@@ -1110,7 +1110,7 @@ test("黑格：A 撒與練餌兩段、編號不撞來源、每公斤換算、預
   assert.equal(eff.GLY[1].values[0], 5, "練餌進去 0.75 g／150 g");
   assert.ok(!bream.groups.some((g) => g.id === "K5"));
   // 甜菜鹼買不到食品級，不列入（2026-09-27）；南極蝦粉 2026-10-08 起沒有組在用，不列
-  assert.deepEqual(bream.stocks.map((x) => x.id).sort(), ["ALA", "GLY"]);
+  assert.deepEqual(bream.stocks.map((x) => x.id).sort(), ["ALA", "GLY", "VAL"]);
 
   // 兩份預設配方：總重就是使用者給的每次份量，每一列都算得出價格
   const seed = plain(h.seed());
@@ -1426,7 +1426,7 @@ test("T17：檸檬酸 0.1 M＋另三樣各 3 g 跟 T1 比；第二段固定 600 
   assert.match(bite.base, /拌餌水起點 150 g、分次加到成團/);
   assert.match(bite.base, /最多加到 200 g/);
   assert.match(bite.base, /照原料特性估的/, "150 g 沒有來源，要說出來");
-  assert.match(bite.base, /四組都照那個量加/, "水量每組都要一樣");
+  assert.match(bite.base, /五組都照那個量加/, "水量每組都要一樣（2026-11-14 起主餌五組）");
   assert.match(bite.base, /未驗證/, "溶液能放多久沒有資料，要說出來");
   assert.match(bite.base, /一杯 600 g 每次用 150～200 g，可以用 3～4 次/, "用剩的留到下次（使用者，2026-10-08／10-11）");
   assert.doesNotMatch(bite.base, /正好用三次/, "每次 200 g 的舊說法不得退回");
@@ -1520,7 +1520,7 @@ test("福壽魚證據：2026-10-28 核對過全文的五篇（蝦萃液、膽汁
   assert.match(ev("豬肝水解物沒有比魚粉好吃").text, /以表格為準/);
   assert.match(ev("豬肝水解物沒有比魚粉好吃").text, /水解物不等於肝粉/);
   // 實驗組清單（2026-10-28 加 T19）
-  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19"]);
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19", "T20"]);
 });
 
 test("福壽魚證據：2026-10-28 第二輪（異構體、研討會摘要、香料與塗層）", async () => {
@@ -1539,7 +1539,7 @@ test("福壽魚證據：2026-10-28 第二輪（異構體、研討會摘要、香
   assert.match(ev("市售香料、魚油塗層沒有讓吳郭魚更快過來或多吃").text, /只靠氣味/);
   assert.match(ev("市售香料、魚油塗層沒有讓吳郭魚更快過來或多吃").text, /不能算香料的效果/);
   // 實驗組清單（2026-10-28 加 T19）
-  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19"]);
+  assert.deepEqual(tilapia.groups.map((g) => g.id), ["G1", "G5", "T1", "T17", "T18", "T19", "T20"]);
 });
 
 test("T19：山梨酸鉀（己二烯酸鉀）0.1 M 單獨一組跟 T1 比（使用者指定，2026-10-28）", async () => {
@@ -1859,7 +1859,7 @@ test("原料表每杯多少錢：一杯＝一組溶的那杯水，價格跟著�
   const t17 = t.cups.find((c) => c.parts.length === 2);
   assert.equal(Math.round(t17.cost * 10) / 10, 3.3, "檸檬酸＋山梨醇那杯合計");
   const b = plain(h.stockCupCost(bream, items));
-  assert.deepEqual(b.cups.map((c) => c.label + Math.round(c.cost * 10) / 10), ["A 撒12.2", "練餌6.1"]);
+  assert.deepEqual(b.cups.map((c) => c.label + Math.round(c.cost * 10) / 10), ["A 撒12.2", "練餌6.1", "練餌15.7"]);
   // 品項刪掉就算不出來，不可以當 0
   const missing = plain(h.stockCupCost(tilapia, items.filter((i) => i.id !== "item-cysteine-noah")));
   assert.match(h.cupCostText(missing.byStock.CYS), /算不出來/);
@@ -1872,7 +1872,7 @@ test("每杯合計的水寫對：A 撒那杯是 1,200 cc 海水", async () => {
   const h = app.helpers;
   const bream = plain(h.ADDITIVES).find((p) => p.species === "黑鯛");
   const cups = plain(h.stockCupCost(bream, plain(h.seed()).items)).cups;
-  assert.deepEqual(cups.map((c) => c.water), ["1,200 cc 海水", "600 g 水"]);
+  assert.deepEqual(cups.map((c) => c.water), ["1,200 cc 海水", "600 g 水", "600 g 水"]);
 });
 
 // 2026-11-10 複查：說明句講的列數要跟真正有名次的列數一致（己二烯酸鉀加入後變三列，「那兩列」沒跟著改）
@@ -1897,4 +1897,29 @@ test("誘食證據：酵母兩組的數字不指定對應、黑鯛秋冬那條�
   assert.doesNotMatch(yeast.text, /酵母抽出物 71\.1%|全酵母 66\.6%/);
   assert.match(yeast.text, /待再核/);
   for (const p of plans) for (const e of p.evidence) assert.doesNotMatch(e.text, /[；，、]$/, p.species + "「" + e.claim + "」句子沒收尾");
+});
+
+// 依使用者買的原料加入調配（2026-11-14）：L-纈胺酸是唯一還沒排進任何一杯的
+test("L-纈胺酸加入調配：吳郭魚主餌單獨一杯 0.1 M、黑格練餌另一杯跟甘胺酸＋丙胺酸比", async () => {
+  const { app } = await loadPage();
+  const h = app.helpers;
+  const plans = plain(h.ADDITIVES);
+  const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
+  const t20 = tilapia.groups.find((g) => g.id === "T20");
+  assert.deepEqual(t20.doses, [["VAL", 7]]);
+  assert.deepEqual(t20.compare, ["T1"]);
+  assert.ok(Math.abs(7 / 117.15 / 0.6 - 0.1) < 0.002, "7.0 g 溶進 600 g 水約 0.1 M");
+  const k3 = bream.groups.find((g) => g.id === "K3");
+  assert.deepEqual(k3.doses, [["GLY", 6], ["ALA", 6], ["VAL", 6]]);
+  assert.deepEqual(k3.compare, ["K2"], "跟 K2 比才看得出纈胺酸多加的那一份");
+  assert.ok(6 / 117.15 / 0.6 > 0.044, "高於真鯛纈胺酸有效的濃度");
+  for (const p of [tilapia, bream]) assert.equal(p.stocks.find((s) => s.id === "VAL").itemId, "item-valine-noah");
+  // 每個買了、還在用的添加劑都至少進了一杯；不用的只有同種試驗沒效果的色胺酸與味精
+  const used = new Set(plans.flatMap((p) => p.groups.flatMap((g) => g.doses.map(([id]) => p.stocks.find((s) => s.id === id).itemId))));
+  const additives = plain(h.seed()).items.filter((i) => i.kind === "additive").map((i) => i.id);
+  assert.deepEqual(additives.filter((id) => !used.has(id)).sort(), ["item-msg-vewong", "item-tryptophan-noah"]);
+  // 品項備註跟著改，舊裝置靠 SEED_FIXES 換過去
+  const item = plain(h.seed()).items.find((i) => i.id === "item-valine-noah");
+  assert.doesNotMatch(item.notes, /還沒排進/);
+  assert.ok(plain(h.SEED_FIXES).some((f) => f.id === "item-valine-noah:notes:1"));
 });
