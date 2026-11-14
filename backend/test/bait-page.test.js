@@ -1938,3 +1938,14 @@ test("纈胺酸：吳郭魚是本種摘要（含 0.1 M 那份）、黑格只有�
   assert.match(bv.note, /依魚種而異/);
   for (const r of bream.ranking.layers[0].rows.filter((r) => /纈胺酸/.test(r.name))) assert.match(r.level, /近緣種/);
 });
+
+// 2026-11-14 全頁複查：加了纈胺酸那杯之後，「不跟哪些杯子混」不能再點名舊的幾杯；練餌三組都要講到怎麼倒
+test("單獨一杯的原料不點名其他杯（杯數會變）；黑格練餌三組都說得出倒哪一杯", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
+  for (const id of ["CYS", "KSO", "VAL"]) assert.match(tilapia.stocks.find((s) => s.id === id).made, /不跟其他杯子混/, id);
+  const bite = bream.stages.find((s) => s.id === "bite").base;
+  for (const g of bream.groups.filter((g) => g.stage === "bite")) assert.match(bite, new RegExp(g.id + " "), g.id + " 要寫怎麼倒");
+  assert.ok(Math.abs(0.75 / 117.15 / 0.085 - 0.075) < 0.002 && Math.abs(0.75 / 117.15 / 0.11 - 0.058) < 0.002);
+});
