@@ -1923,3 +1923,18 @@ test("L-纈胺酸加入調配：吳郭魚主餌單獨一杯 0.1 M、黑格練餌
   assert.doesNotMatch(item.notes, /還沒排進/);
   assert.ok(plain(h.SEED_FIXES).some((f) => f.id === "item-valine-noah:notes:1"));
 });
+
+// 2026-11-14 複查：纈胺酸兩個魚種的證據強度不同，要說清楚
+test("纈胺酸：吳郭魚是本種摘要（含 0.1 M 那份）、黑格只有近緣種且要說魚種差異", async () => {
+  const { app } = await loadPage();
+  const plans = plain(app.helpers.ADDITIVES);
+  const tilapia = plans.find((p) => p.species === "福壽魚"), bream = plans.find((p) => p.species === "黑鯛");
+  const row = tilapia.ranking.layers[0].rows.find((r) => /纈胺酸/.test(r.name));
+  assert.ok(row.sources.includes("X30"), "纈胺酸 0.1 M 那份研討會摘要要列進依據");
+  assert.match(row.level, /本種、只有摘要/);
+  assert.doesNotMatch(row.result, /也沒寫用了多少濃度/, "研討會摘要寫了 0.1 M，不可以說沒寫濃度");
+  const bv = bream.stocks.find((s) => s.id === "VAL");
+  assert.match(bv.note, /黑鯛本種沒有資料/);
+  assert.match(bv.note, /依魚種而異/);
+  for (const r of bream.ranking.layers[0].rows.filter((r) => /纈胺酸/.test(r.name))) assert.match(r.level, /近緣種/);
+});
