@@ -336,7 +336,10 @@
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   function todayISO() {
-    return new Date().toISOString().slice(0, 10);
+    // 用本地日期，不是 UTC：台灣時間凌晨 0-8 點取 UTC 日期會少一天（同 /coupon/）。
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   }
 
   function daysBetween(fromISO, toISO) {

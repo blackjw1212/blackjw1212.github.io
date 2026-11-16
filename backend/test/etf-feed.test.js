@@ -301,6 +301,38 @@ test("deriveDividend infers frequency from spacing, not event count", () => {
   assert.equal(deriveDividend(null, "2026-01-06", "2026-07-27"), null);
 });
 
+// 年配的基金在近 12 個月的窗裡最多只有一筆，光看窗內推不出頻率：
+// 實測 2026-11-13 的 feed 有 13 檔（0051、0052、0053、00917…）有殖利率、頻率卻是空的。
+test("deriveDividend recognises an annual payer from the event before the 12-month window", () => {
+  const annual = deriveDividend({ events: {
+    "2025-01-17": { pay: "2025-02-10", dps: 2 },
+    "2026-01-19": { pay: "2026-02-23", dps: 3.5 },
+  } }, "2024-10-16", "2026-11-13");
+  assert.equal(annual.frequency, "年配");
+  assert.equal(annual.count, 1, "窗外那筆只用來推頻率，不進近 12 個月的合計");
+  assert.equal(annual.totalDps, 3.5);
+
+  // 上一筆相隔不像一年（停配前的最後兩筆、或改制）→ 仍然留空，不猜
+  const stopped = deriveDividend({ events: {
+    "2025-09-16": { pay: "2025-10-10", dps: 0.5 },
+    "2025-12-16": { pay: "2026-01-10", dps: 0.5 },
+  } }, "2024-10-16", "2026-11-13");
+  assert.equal(stopped.frequency, null);
+  const twoYears = deriveDividend({ events: {
+    "2024-11-20": { pay: "2024-12-12", dps: 1 },
+    "2026-06-20": { pay: "2026-07-12", dps: 1 },
+  } }, "2024-10-16", "2026-11-13");
+  assert.equal(twoYears.frequency, null);
+
+  // 窗內有兩筆以上時照舊由窗內的間距決定，不看窗外
+  const quarterlyNow = deriveDividend({ events: {
+    "2025-01-17": { pay: "2025-02-10", dps: 2 },
+    "2026-05-18": { pay: "2026-06-10", dps: 0.4 },
+    "2026-08-18": { pay: "2026-09-10", dps: 0.4 },
+  } }, "2024-10-16", "2026-11-13");
+  assert.equal(quarterlyNow.frequency, "季配");
+});
+
 test("coverage is per-ETF so a newly listed fund cannot claim a full year", () => {
   // 回歸測試：先前用全域 history.start 算 covered，導致 205 檔全部得到 12，
   // 其中 112 檔自身歷史不足一年仍發布殖利率（例：00916 僅 1 筆事件卻顯示 7.49%）。
@@ -339,6 +371,8 @@ test("deriveDividend keeps only the trailing 12 months of events", () => {
 test("classifyEtf recognises the A/D/T/K/C suffix families", () => {
   // 主動型：先前 29 檔 A 後綴全被誤歸主題型，已在污染產生器候選池
   assert.equal(classifyEtf("00403A", "主動統一升級50"), "主動型");
+  assert.equal(classifyEtf("00918", "大華優利高填息30"), "高股息", "「高填息」中間夾一個字，/高息/ 對不上");
+  assert.equal(classifyEtf("0052", "富邦科技"), "主題型");
   assert.equal(classifyEtf("00992A", "主動群益科技創新"), "主動型");
   // 平衡型（股債混合）
   assert.equal(classifyEtf("00981T", "平衡凱基雙核收息"), "平衡型");

@@ -695,6 +695,10 @@ export function coverageStart(entry) {
   return keys.length ? keys[0] : null;
 }
 
+// 年配的兩次除息相隔大約一年，除息日每年會前後挪幾週。
+export const ANNUAL_GAP_MIN_DAYS = 300;
+export const ANNUAL_GAP_MAX_DAYS = 430;
+
 // 由歷史推導：dps 事件（近12月，發放月）、頻率、覆蓋月數、近12月合計
 export function deriveDividend(entry, historyStart, tradeDate) {
   if (!entry || !entry.events) return null;
@@ -719,6 +723,16 @@ export function deriveDividend(entry, historyStart, tradeDate) {
     gaps.sort((a, b) => a - b);
     const median = gaps[Math.floor(gaps.length / 2)];
     frequency = median <= 45 ? "月配" : median <= 135 ? "季配" : median <= 270 ? "半年配" : "年配";
+  } else {
+    // 近 12 個月只有一筆：年配的基金永遠落在這裡（兩筆相隔一年，窗內最多一筆），
+    // 上面那條「年配」分支實際上走不到，頻率欄一律印成「—」。存檔留了 25 個月，
+    // 往前找上一筆：相隔約一年才認定年配。間距不像一年的（停配、改制、剛開始配）
+    // 仍然留空——一筆事件加一個對不上的間距推不出頻率。
+    const prior = Object.keys(entry.events).filter((ex) => ex < minIso).sort().pop();
+    if (prior) {
+      const gap = (new Date(events[0][0]) - new Date(prior)) / 86400000;
+      if (gap >= ANNUAL_GAP_MIN_DAYS && gap <= ANNUAL_GAP_MAX_DAYS) frequency = "年配";
+    }
   }
 
   const startMonth = monthKey(coverageStart(entry) || historyStart || tradeDate);
@@ -812,7 +826,8 @@ export function classifyEtf(code, name) {
   if (/T$/.test(id) || /^平衡/.test(text)) return "平衡型";
   if (/債/.test(text) || /IG|投等|非投等|公司債|金融債/.test(text)) return "債券型";
   if (/[AD]$/.test(id) || /^主動/.test(text)) return "主動型";
-  if (/高股息|高息|優息|股利|存股/.test(text)) return "高股息";
+  // 「高填息」中間夾了一個字，/高息/ 對不上（00918 大華優利高填息30）
+  if (/高股息|高息|高填息|優息|股利|存股/.test(text)) return "高股息";
   return "主題型";
 }
 
