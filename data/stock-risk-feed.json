@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-11-26T05:54:45.647Z",
-  "eodUpdatedAt": "2026-11-26T05:54:45.647Z",
+  "updatedAt": "2026-11-26T15:59:28.523Z",
+  "eodUpdatedAt": "2026-11-26T15:59:28.523Z",
   "eodTradingDate": "2026-11-26",
   "holdings": [
     "2330",
@@ -167,9 +167,9 @@
     },
     "3324": {
       "code": "3324",
-      "pe": 17.93,
-      "dividendYield": 1.49,
-      "pbRatio": 5
+      "pe": 19.28,
+      "dividendYield": 1.39,
+      "pbRatio": 5.37
     },
     "3661": {
       "code": "3661",
